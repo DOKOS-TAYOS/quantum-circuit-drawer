@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-core:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install core development dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Type check
+        run: python -m mypy
+
+      - name: Test core package
+        run: python -m pytest --cov=quantum_circuit_drawer --cov-report=term-missing
+
+  test-optional-frameworks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install optional adapters
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+
+      - name: Test optional adapters
+        run: python -m pytest tests/test_qiskit_adapter.py tests/test_cirq_adapter.py tests/test_pennylane_adapter.py -q
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check distribution metadata
+        run: python -m twine check dist/*

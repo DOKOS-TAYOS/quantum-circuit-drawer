@@ -1,0 +1,120 @@
+"""Backend-neutral layout scene models."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from ..ir.operations import OperationKind
+from ..ir.wires import WireKind
+from ..style import DrawStyle
+
+
+@dataclass(slots=True)
+class SceneWire:
+    id: str
+    label: str
+    kind: WireKind
+    y: float
+    x_start: float
+    x_end: float
+    bundle_size: int = 1
+
+
+@dataclass(slots=True)
+class SceneGate:
+    column: int
+    x: float
+    y: float
+    width: float
+    height: float
+    label: str
+    subtitle: str | None
+    kind: OperationKind
+
+
+@dataclass(slots=True)
+class SceneControl:
+    column: int
+    x: float
+    y: float
+
+
+@dataclass(slots=True)
+class SceneConnection:
+    column: int
+    x: float
+    y_start: float
+    y_end: float
+    is_classical: bool = False
+    linestyle: str = "solid"
+    arrow_at_end: bool = False
+    label: str | None = None
+
+
+@dataclass(slots=True)
+class SceneSwap:
+    column: int
+    x: float
+    y_top: float
+    y_bottom: float
+    marker_size: float
+
+
+@dataclass(slots=True)
+class SceneBarrier:
+    column: int
+    x: float
+    y_top: float
+    y_bottom: float
+
+
+@dataclass(slots=True)
+class SceneMeasurement:
+    column: int
+    x: float
+    quantum_y: float
+    classical_y: float | None
+    width: float
+    height: float
+    label: str
+    connector_x: float
+    connector_y: float
+
+
+@dataclass(slots=True)
+class SceneText:
+    x: float
+    y: float
+    text: str
+    ha: str = "center"
+    va: str = "center"
+    font_size: float | None = None
+
+
+@dataclass(slots=True)
+class ScenePage:
+    index: int
+    start_column: int
+    end_column: int
+    content_x_start: float
+    content_x_end: float
+    content_width: float
+    y_offset: float
+
+
+@dataclass(slots=True)
+class LayoutScene:
+    width: float
+    height: float
+    page_height: float
+    style: DrawStyle
+    wires: tuple[SceneWire, ...]
+    gates: tuple[SceneGate, ...]
+    controls: tuple[SceneControl, ...]
+    connections: tuple[SceneConnection, ...]
+    swaps: tuple[SceneSwap, ...]
+    barriers: tuple[SceneBarrier, ...]
+    measurements: tuple[SceneMeasurement, ...]
+    texts: tuple[SceneText, ...]
+    pages: tuple[ScenePage, ...]
+    wire_y_positions: dict[str, float] = field(default_factory=dict)
