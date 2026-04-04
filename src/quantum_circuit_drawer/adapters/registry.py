@@ -53,11 +53,12 @@ class AdapterRegistry:
         if self._adapter_types:
             return
         from .cirq_adapter import CirqAdapter
+        from .cudaq_adapter import CudaqAdapter
         from .ir_adapter import IRAdapter
         from .pennylane_adapter import PennyLaneAdapter
         from .qiskit_adapter import QiskitAdapter
 
-        for adapter_type in (IRAdapter, QiskitAdapter, CirqAdapter, PennyLaneAdapter):
+        for adapter_type in (IRAdapter, QiskitAdapter, CirqAdapter, PennyLaneAdapter, CudaqAdapter):
             self.register(adapter_type)
 
 

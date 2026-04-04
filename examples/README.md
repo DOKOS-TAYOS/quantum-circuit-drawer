@@ -10,6 +10,12 @@ Install the project in your local virtual environment with the extras you want t
 .\.venv\Scripts\python.exe -m pip install -e .[qiskit,cirq,pennylane]
 ```
 
+For CUDA-Q on Linux or WSL2:
+
+```bash
+python -m pip install -e ".[cudaq]"
+```
+
 ## Run An Example
 
 Qiskit:
@@ -30,6 +36,12 @@ PennyLane:
 
 ```powershell
 .\.venv\Scripts\python.exe examples/pennylane_example.py
+```
+
+CUDA-Q (Linux or WSL2):
+
+```bash
+python examples/cudaq_example.py
 ```
 
 Each example saves an image into `examples/output/`. Those generated files are not meant to be committed.

@@ -5,6 +5,7 @@ import builtins
 import pytest
 
 from quantum_circuit_drawer.adapters.cirq_adapter import CirqAdapter
+from quantum_circuit_drawer.adapters.cudaq_adapter import CudaqAdapter
 from quantum_circuit_drawer.adapters.ir_adapter import IRAdapter
 from quantum_circuit_drawer.adapters.pennylane_adapter import PennyLaneAdapter
 from quantum_circuit_drawer.adapters.qiskit_adapter import QiskitAdapter
@@ -16,10 +17,11 @@ from quantum_circuit_drawer.adapters.qiskit_adapter import QiskitAdapter
         (QiskitAdapter, "qiskit"),
         (CirqAdapter, "cirq"),
         (PennyLaneAdapter, "pennylane"),
+        (CudaqAdapter, "cudaq"),
     ],
 )
 def test_adapter_can_handle_returns_false_when_dependency_is_missing(
-    adapter_type: type[QiskitAdapter] | type[CirqAdapter] | type[PennyLaneAdapter],
+    adapter_type: type[QiskitAdapter] | type[CirqAdapter] | type[PennyLaneAdapter] | type[CudaqAdapter],
     module_name: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -47,10 +49,11 @@ def test_adapter_can_handle_returns_false_when_dependency_is_missing(
         (QiskitAdapter, "qiskit"),
         (CirqAdapter, "cirq"),
         (PennyLaneAdapter, "pennylane"),
+        (CudaqAdapter, "cudaq"),
     ],
 )
 def test_adapter_can_handle_does_not_swallow_unexpected_import_errors(
-    adapter_type: type[QiskitAdapter] | type[CirqAdapter] | type[PennyLaneAdapter],
+    adapter_type: type[QiskitAdapter] | type[CirqAdapter] | type[PennyLaneAdapter] | type[CudaqAdapter],
     module_name: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

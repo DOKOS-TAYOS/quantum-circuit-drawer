@@ -48,6 +48,23 @@ jobs:
       - name: Test optional adapters
         run: python -m pytest tests/test_qiskit_adapter.py tests/test_cirq_adapter.py tests/test_pennylane_adapter.py -q
 
+  test-cudaq-linux:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CUDA-Q adapter dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,cudaq]"
+
+      - name: Test CUDA-Q adapter
+        run: python -m pytest tests/test_cudaq_adapter.py tests/test_cudaq_adapter_integration.py -q
+
   build:
     runs-on: ubuntu-latest
 

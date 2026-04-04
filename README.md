@@ -8,13 +8,13 @@
 - Matplotlib rendering
 - Qiskit and Cirq adapters for common gates, controlled gates, swap, barriers, and measurements
 - Conservative PennyLane support for tape-like objects such as `QuantumTape`, `QuantumScript`, or objects exposing `.qtape` / `.tape`
+- Initial CUDA-Q support for closed kernels through Quake/MLIR, including common gates, controlled gates, swap, and `mz` / `mx` / `my` measurements
 - Built-in `light`, `paper`, and `dark` themes
 - Windows and Linux as the initial supported platforms
 
 ## What is intentionally out of scope
 
 - Backends other than Matplotlib
-- CUDA-Q support
 - Advanced classical control-flow visualization
 - Broad framework-specific formatting beyond the neutral IR used by the library
 
@@ -34,11 +34,23 @@ pip install "quantum-circuit-drawer[cirq]"
 pip install "quantum-circuit-drawer[pennylane]"
 ```
 
+CUDA-Q is Linux/WSL2-first in this release:
+
+```bash
+pip install "quantum-circuit-drawer[cudaq]"
+```
+
 For local development inside a virtual environment:
 
 ```bash
 python -m pip install -e ".[dev]"
 python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+```
+
+For local CUDA-Q development on Linux or WSL2:
+
+```bash
+python -m pip install -e ".[dev,cudaq]"
 ```
 
 ## Quick start
@@ -79,6 +91,25 @@ draw_quantum_circuit(
 )
 ```
 
+CUDA-Q example:
+
+```python
+import cudaq
+
+from quantum_circuit_drawer import draw_quantum_circuit
+
+
+@cudaq.kernel
+def bell_pair() -> None:
+    qubits = cudaq.qvector(2)
+    h(qubits[0])
+    x.ctrl(qubits[0], qubits[1])
+    mz(qubits)
+
+
+draw_quantum_circuit(bell_pair)
+```
+
 ## Public API
 
 ```python
@@ -100,6 +131,12 @@ Behavior for `backend="matplotlib"`:
 - If `ax` is `None`, it returns `(figure, axes)`.
 - If `ax` is provided, it draws in place and returns `ax`.
 - If `output` is provided, it saves the rendered figure and raises `RenderingError` if writing fails.
+
+CUDA-Q support notes for v0.1.0:
+
+- The adapter accepts closed kernels only. Kernels that still need runtime arguments raise a clear error.
+- The optional `cudaq` dependency is wired Linux/WSL2-first so the base package stays safe on standard Windows installs.
+- Classical control flow, `reset`, custom kernel composition, and other advanced CUDA-Q constructs are still outside the supported subset.
 
 ## Development
 

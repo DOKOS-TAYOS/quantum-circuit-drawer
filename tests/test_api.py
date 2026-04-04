@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+from types import ModuleType
 
 import matplotlib.pyplot as plt
 import pytest
@@ -105,9 +107,50 @@ def test_draw_quantum_circuit_honors_explicit_framework_override() -> None:
         draw_quantum_circuit(build_sample_ir(), framework="qiskit")
 
 
-def test_draw_quantum_circuit_rejects_removed_cudaq_framework() -> None:
-    with pytest.raises(UnsupportedFrameworkError, match="unsupported framework 'cudaq'"):
-        draw_quantum_circuit(build_sample_ir(), framework="cudaq")
+def install_fake_cudaq(monkeypatch: pytest.MonkeyPatch) -> type[object]:
+    class FakePyKernel:
+        def __init__(self) -> None:
+            self._compiled = True
+
+        def is_compiled(self) -> bool:
+            return self._compiled
+
+        def compile(self) -> None:
+            self._compiled = True
+
+        def launch_args_required(self) -> int:
+            return 0
+
+        def __str__(self) -> str:
+            return """
+module {
+  func.func @__nvqpp__mlirgen__api_cudaq() attributes {"cudaq-entrypoint"} {
+    %c0 = arith.constant 0 : index
+    %q = quake.alloca() : !quake.qvec<1>
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<1>, index) -> !quake.qref
+    quake.h %q0 : (!quake.qref) -> ()
+    %m = quake.mz %q0 : (!quake.qref) -> i1
+    return
+  }
+}
+""".strip()
+
+    fake_module = ModuleType("cudaq")
+    fake_module.PyKernel = FakePyKernel
+    fake_module.PyKernelDecorator = FakePyKernel
+    monkeypatch.setitem(sys.modules, "cudaq", fake_module)
+    return FakePyKernel
+
+
+def test_draw_quantum_circuit_accepts_cudaq_framework_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_kernel_type = install_fake_cudaq(monkeypatch)
+
+    figure, axes = draw_quantum_circuit(fake_kernel_type(), framework="cudaq")
+
+    assert figure is not None
+    assert axes.figure is figure
 
 
 def test_draw_quantum_circuit_wraps_output_errors() -> None:
