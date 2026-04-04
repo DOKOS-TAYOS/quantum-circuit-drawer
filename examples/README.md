@@ -1,85 +1,74 @@
 # Examples
 
-This folder contains small runnable examples for the currently supported adapters in `quantum-circuit-drawer`.
+This folder contains long runnable examples for the currently supported adapters in `quantum-circuit-drawer`.
+
+All examples now do the same two things by default:
+
+- They render in an interactive Matplotlib window when you run them.
+- They use the library default dark theme.
+
+Saving is optional. If you also want an image file, pass `--output <path>`.
 
 ## Requirements
 
 Install the project in your local virtual environment with the extras you want to try.
 
-**Windows** (PowerShell or CMD, from the repo root; adjust the path if your venv lives elsewhere):
+Windows PowerShell in a native Windows checkout:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e .[qiskit,cirq,pennylane]
+.\.venv\Scripts\python.exe -m pip install -e ".[qiskit,cirq,pennylane]"
 ```
 
-**Linux, macOS, or WSL2** (after `python -m venv .venv` and `source .venv/bin/activate`, or call the interpreter directly):
+Linux or WSL:
 
 ```bash
 .venv/bin/python -m pip install -e ".[qiskit,cirq,pennylane]"
 ```
 
-For CUDA-Q, use **Linux or WSL2** (CUDA-Q is not supported on native Windows the same way):
+For CUDA-Q on Linux or WSL2:
 
 ```bash
 .venv/bin/python -m pip install -e ".[cudaq]"
 ```
 
-If your shell is already activated, you can use `python -m pip install ...` instead of `.venv/bin/python -m pip install ...` on Linux/macOS/WSL2.
+## Run an example
 
-## Run An Example
-
-From the **repository root**, run the script with the same Python you used for the install.
-
-### Qiskit
-
-**Windows:**
+Qiskit on Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe examples/qiskit_example.py
 ```
 
-**Linux, macOS, or WSL2:**
+Qiskit on Linux or WSL:
 
 ```bash
 .venv/bin/python examples/qiskit_example.py
 ```
 
-### Cirq
-
-**Windows:**
-
-```powershell
-.\.venv\Scripts\python.exe examples/cirq_example.py
-```
-
-**Linux, macOS, or WSL2:**
+Cirq:
 
 ```bash
 .venv/bin/python examples/cirq_example.py
 ```
 
-This example now renders with the built-in dark theme.
-
-### PennyLane
-
-**Windows:**
-
-```powershell
-.\.venv\Scripts\python.exe examples/pennylane_example.py
-```
-
-**Linux, macOS, or WSL2:**
+PennyLane:
 
 ```bash
 .venv/bin/python examples/pennylane_example.py
 ```
 
-### CUDA-Q (Linux or WSL2)
+CUDA-Q on Linux or WSL:
 
 ```bash
 .venv/bin/python examples/cudaq_example.py
 ```
 
-Each example saves an image into `examples/output/`. Those generated files are not meant to be committed.
+## Save while showing
 
-Long circuits now wrap into stacked sections automatically when they exceed the configured page width.
+Any example can optionally save the rendered figure too:
+
+```bash
+.venv/bin/python examples/qiskit_example.py --output examples/output/qiskit_circuit.png
+```
+
+The output directory is not committed. Long circuits wrap into stacked sections automatically when they exceed the configured page width.

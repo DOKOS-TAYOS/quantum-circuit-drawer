@@ -12,6 +12,9 @@ from .typing import LayoutEngineLike, OutputPath, RenderResult
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
+    from .layout.scene import LayoutScene
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,7 @@ def draw_quantum_circuit(
     backend: str = "matplotlib",
     ax: Axes | None = None,
     output: OutputPath | None = None,
+    show: bool = True,
     **options: object,
 ) -> RenderResult:
     """Draw a quantum circuit from a supported framework."""
@@ -53,6 +57,16 @@ def draw_quantum_circuit(
         ir.quantum_wire_count,
         len(ir.layers),
     )
+
+    if ax is None:
+        figure, axes = _create_managed_figure(scene)
+        renderer.render(scene, ax=axes, output=output)
+        if show:
+            from matplotlib import pyplot as plt
+
+            plt.show()
+        return figure, axes
+
     return renderer.render(scene, ax=ax, output=output)
 
 
@@ -70,3 +84,12 @@ def _resolve_layout_engine(layout: LayoutEngineLike | None) -> LayoutEngineLike:
 
 def _coerce_options(options: Mapping[str, object]) -> dict[str, object]:
     return dict(options)
+
+
+def _create_managed_figure(scene: LayoutScene) -> tuple[Figure, Axes]:
+    from matplotlib import pyplot as plt
+
+    figsize = (max(4.0, scene.width * 1.1), max(2.4, scene.height * 0.9))
+    figure = plt.figure(figsize=figsize)
+    axes = figure.add_subplot(111)
+    return figure, axes

@@ -32,6 +32,7 @@ def draw_quantum_circuit(
     backend: str = "matplotlib",
     ax: Axes | None = None,
     output: OutputPath | None = None,
+    show: bool = True,
     **options: object,
 ) -> RenderResult:
     """Draw a quantum circuit from a supported framework."""
@@ -46,8 +47,10 @@ def draw_quantum_circuit(
         backend=backend,
         ax=ax,
         output=output,
+        show=show,
         **options,
     )
+
 
 __all__ = [
     "DrawStyle",

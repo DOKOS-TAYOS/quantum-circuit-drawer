@@ -73,7 +73,7 @@ def resolve_theme(theme: str | DrawTheme | None) -> DrawTheme:
     if isinstance(theme, DrawTheme):
         return theme
     if theme is None:
-        return THEMES["light"]
+        return THEMES["dark"]
     try:
         return THEMES[theme]
     except KeyError as exc:

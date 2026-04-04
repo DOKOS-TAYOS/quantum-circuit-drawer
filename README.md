@@ -14,7 +14,7 @@ Project links:
 - Qiskit and Cirq adapters for common gates, controlled gates, swap, barriers, and measurements
 - Conservative PennyLane support for tape-like objects such as `QuantumTape`, `QuantumScript`, or objects exposing `.qtape` / `.tape`
 - Initial CUDA-Q support for closed kernels through Quake/MLIR, including common gates, controlled gates, swap, and `mz` / `mx` / `my` measurements
-- Built-in `light`, `paper`, and `dark` themes
+- Built-in `light`, `paper`, and `dark` themes, with `dark` as the default
 - Windows and Linux as the initial supported platforms
 
 ## What is intentionally out of scope
@@ -60,7 +60,7 @@ python -m pip install -e ".[dev,cudaq]"
 
 ## Quick start
 
-Autodetect the framework:
+Autodetect the framework and open an interactive dark-mode Matplotlib window:
 
 ```python
 from qiskit import QuantumCircuit
@@ -75,6 +75,12 @@ circuit.measure(1, 0)
 fig, ax = draw_quantum_circuit(circuit)
 ```
 
+Create the figure without opening the Matplotlib window:
+
+```python
+fig, ax = draw_quantum_circuit(circuit, show=False)
+```
+
 Draw onto an existing Matplotlib axes:
 
 ```python
@@ -86,12 +92,12 @@ fig, ax = plt.subplots(figsize=(8, 3))
 draw_quantum_circuit(circuit, ax=ax)
 ```
 
-Save directly to a file:
+Save directly to a file. Saving is optional and independent from rendering:
 
 ```python
 draw_quantum_circuit(
     circuit,
-    style={"theme": "paper", "show_params": True},
+    style={"show_params": True},
     output="circuit.png",
 )
 ```
@@ -127,13 +133,16 @@ draw_quantum_circuit(
     backend="matplotlib",
     ax=None,
     output=None,
+    show=True,
     **options,
 )
 ```
 
 Behavior for `backend="matplotlib"`:
 
-- If `ax` is `None`, it returns `(figure, axes)`.
+- The default theme is `dark`.
+- If `ax` is `None`, the function creates a Matplotlib-managed figure, returns `(figure, axes)`, and opens an interactive window when `show=True`.
+- If `ax` is `None` and `show=False`, it still returns `(figure, axes)` without opening the interactive window.
 - If `ax` is provided, it draws in place and returns `ax`.
 - If `output` is provided, it saves the rendered figure and raises `RenderingError` if writing fails.
 
