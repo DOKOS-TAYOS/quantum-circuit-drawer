@@ -146,6 +146,24 @@ module {
 """.strip()
 
 
+def build_modern_cudaq_builder_kernel_mlir() -> str:
+    """Quake IR as printed by recent cudaq.make_kernel() (colonless veq alloca, meas ty)."""
+    return """
+module attributes {quake.mangled_name_map = {}} {
+  func.func @__nvqpp__mlirgen__PyKernel() attributes {"cudaq-entrypoint", "cudaq-kernel"} {
+    %0 = quake.alloca !quake.veq<2>
+    %1 = quake.extract_ref %0[0] : (!quake.veq<2>) -> !quake.ref
+    quake.h %1 : (!quake.ref) -> ()
+    %2 = quake.extract_ref %0[1] : (!quake.veq<2>) -> !quake.ref
+    quake.x [%1] %2 : (!quake.ref, !quake.ref) -> ()
+    %measOut = quake.mz %0 : (!quake.veq<2>) -> !cc.stdvec<!quake.measure>
+    quake.dealloc %0 : !quake.veq<2>
+    return
+  }
+}
+""".strip()
+
+
 def test_cudaq_adapter_converts_supported_quake_mlir(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -236,6 +254,29 @@ def test_cudaq_adapter_supports_null_wire_in_value_form_mlir(
     assert operations[0].kind is OperationKind.GATE
     assert operations[0].name == "H"
     assert operations[0].target_wires == ("q0",)
+
+
+def test_cudaq_adapter_supports_modern_colonless_veq_alloca_mlir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir=build_modern_cudaq_builder_kernel_mlir())
+
+    ir = adapter_type().to_ir(kernel)
+
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+    assert [wire.label for wire in ir.quantum_wires] == ["q0", "q1"]
+    assert [operation.kind for operation in operations] == [
+        OperationKind.GATE,
+        OperationKind.CONTROLLED_GATE,
+        OperationKind.MEASUREMENT,
+        OperationKind.MEASUREMENT,
+    ]
+    assert operations[0].name == "H"
+    assert operations[1].name == "X"
+    assert operations[1].control_wires == ("q0",)
+    assert operations[1].target_wires == ("q1",)
 
 
 def test_cudaq_adapter_compiles_kernel_before_reading_mlir(

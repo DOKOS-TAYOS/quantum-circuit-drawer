@@ -21,12 +21,18 @@ _CAST_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*arith\.(?:extsi|index_cast|trunci|sitofp|fptosi|extf|truncf)\s+"
     r"(?P<source>%[\w$.]+)\s*:\s*.+$"
 )
+# CUDA-Q historically printed `alloca() : !quake.veq<n>`; newer builds omit the colon:
+# `%0 = quake.alloca !quake.veq<2>`.
 _VECTOR_ALLOCA_RE = re.compile(
-    r"^(?P<result>%[\w$.]+)\s*=\s*quake\.alloca(?:\((?P<size_arg>[^)]*)\))?"
-    r"\s*:\s*!quake\.(?:veq|qvec)<(?P<arity>[^>]+)>$"
+    r"^(?P<result>%[\w$.]+)\s*=\s*quake\.alloca"
+    r"(?:\((?P<size_arg>[^)]*)\))?"
+    r"(?:\s*:\s*|\s+)!"
+    r"quake\.(?:veq|qvec)<(?P<arity>[^>]+)>\s*$"
 )
 _SCALAR_ALLOCA_RE = re.compile(
-    r"^(?P<result>%[\w$.]+)\s*=\s*quake\.alloca(?:\([^)]*\))?\s*:\s*!quake\.(?:ref|qref)$"
+    r"^(?P<result>%[\w$.]+)\s*=\s*quake\.alloca(?:\([^)]*\))?"
+    r"(?:\s*:\s*|\s+)!"
+    r"quake\.(?:ref|qref)\s*$"
 )
 _EXTRACT_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*quake\.(?:extract_ref|qextract)\s+"
@@ -154,6 +160,8 @@ class CudaqQuakeParser:
             self._wire_aliases[result_token] = wire_id
             return []
         if op_name == "discriminate":
+            return []
+        if op_name == "dealloc":
             return []
         controls, remainder = self._parse_controls(remainder)
         parameters, operand_tokens = self._parse_parameters_and_operands(remainder)
