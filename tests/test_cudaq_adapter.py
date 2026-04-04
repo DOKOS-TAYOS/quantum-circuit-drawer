@@ -133,6 +133,19 @@ module {
 """.strip()
 
 
+def build_null_wire_value_form_mlir() -> str:
+    """Value-form IR emitted on newer CUDA-Q builds (null_wire + wire-typed gates)."""
+    return """
+module {
+  func.func @__nvqpp__mlirgen__null_wire_smoke() attributes {"cudaq-entrypoint"} {
+    %w0 = quake.null_wire
+    %w1 = quake.h %w0 : (!quake.wire) -> !quake.wire
+    return
+  }
+}
+""".strip()
+
+
 def test_cudaq_adapter_converts_supported_quake_mlir(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -207,6 +220,22 @@ def test_cudaq_adapter_supports_value_form_quake_mlir(
     ]
     assert operations[1].control_wires == ("q0",)
     assert operations[1].target_wires == ("q1",)
+
+
+def test_cudaq_adapter_supports_null_wire_in_value_form_mlir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir=build_null_wire_value_form_mlir())
+
+    ir = adapter_type().to_ir(kernel)
+
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.GATE
+    assert operations[0].name == "H"
+    assert operations[0].target_wires == ("q0",)
 
 
 def test_cudaq_adapter_compiles_kernel_before_reading_mlir(

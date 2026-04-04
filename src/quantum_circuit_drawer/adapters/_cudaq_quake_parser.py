@@ -147,6 +147,14 @@ class CudaqQuakeParser:
             return []
         body_without_types = body.rsplit(":", 1)[0] if "->" in body else body
         op_name, remainder = self._split_quake_operation(body_without_types)
+        if op_name == "null_wire":
+            if result_token is None:
+                return []
+            wire_id = self._allocate_wire_id()
+            self._wire_aliases[result_token] = wire_id
+            return []
+        if op_name == "discriminate":
+            return []
         controls, remainder = self._parse_controls(remainder)
         parameters, operand_tokens = self._parse_parameters_and_operands(remainder)
         if op_name in {"mz", "mx", "my"}:
