@@ -2,10 +2,11 @@
 
 This folder contains long runnable examples for the currently supported adapters in `quantum-circuit-drawer`.
 
-All examples now do the same two things by default:
+All examples now do the same three things by default:
 
 - They render in an interactive Matplotlib window when you run them.
 - They use the library default dark theme.
+- They enable `page_slider=True` so long circuits open with a continuous horizontal slider in the interactive window.
 
 Saving is optional. If you also want an image file, pass `--output <path>`.
 
@@ -71,4 +72,5 @@ Any example can optionally save the rendered figure too:
 .venv/bin/python examples/qiskit_example.py --output examples/output/qiskit_circuit.png
 ```
 
-The output directory is not committed. Long circuits wrap into stacked sections automatically when they exceed the configured page width.
+The output directory is not committed. Long circuits still save as paged figures when they exceed the configured page width, while the interactive window shows one long horizontal view with a slider.
+

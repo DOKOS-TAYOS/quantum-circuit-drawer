@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from .typing import LayoutEngineLike, OutputPath, RenderResult
 
 
+
 def draw_quantum_circuit(
     circuit: object,
     framework: str | None = None,
@@ -33,6 +34,7 @@ def draw_quantum_circuit(
     ax: Axes | None = None,
     output: OutputPath | None = None,
     show: bool = True,
+    page_slider: bool = False,
     **options: object,
 ) -> RenderResult:
     """Draw a quantum circuit from a supported framework."""
@@ -48,6 +50,7 @@ def draw_quantum_circuit(
         ax=ax,
         output=output,
         show=show,
+        page_slider=page_slider,
         **options,
     )
 

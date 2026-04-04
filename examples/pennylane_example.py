@@ -80,6 +80,7 @@ def main() -> None:
             "max_page_width": 10.75,
         },
         output=args.output,
+        page_slider=True,
     )
 
     if args.output is not None:

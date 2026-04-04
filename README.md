@@ -81,6 +81,17 @@ Create the figure without opening the Matplotlib window:
 fig, ax = draw_quantum_circuit(circuit, show=False)
 ```
 
+For long wrapped circuits, add a continuous horizontal slider to the managed interactive figure while keeping saved output as the paged circuit:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    style={"max_page_width": 4.0},
+    page_slider=True,
+    output="circuit.png",
+)
+```
+
 Draw onto an existing Matplotlib axes:
 
 ```python
@@ -134,6 +145,7 @@ draw_quantum_circuit(
     ax=None,
     output=None,
     show=True,
+    page_slider=False,
     **options,
 )
 ```
@@ -143,7 +155,9 @@ Behavior for `backend="matplotlib"`:
 - The default theme is `dark`.
 - If `ax` is `None`, the function creates a Matplotlib-managed figure, returns `(figure, axes)`, and opens an interactive window when `show=True`.
 - If `ax` is `None` and `show=False`, it still returns `(figure, axes)` without opening the interactive window.
-- If `ax` is provided, it draws in place and returns `ax`.
+- If `page_slider=True`, the managed figure renders one long horizontal circuit and uses `max_page_width` as the visible window width for a continuous left-to-right slider.
+- If `page_slider=True` and `output` is provided, the saved file still contains the paged circuit without the slider UI.
+- If `ax` is provided, it draws in place and returns `ax`. In that mode `page_slider=True` raises `ValueError`.
 - If `output` is provided, it saves the rendered figure and raises `RenderingError` if writing fails.
 
 CUDA-Q support notes for v0.1.0:
@@ -178,3 +192,4 @@ python scripts/benchmark_render.py --wires 16 --layers 120 --repeats 3
 ```
 
 Runnable framework examples live in `examples/`. Generated images are intentionally not committed.
+

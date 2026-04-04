@@ -21,6 +21,8 @@ from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
+from quantum_circuit_drawer.layout.engine import LayoutEngine
+from quantum_circuit_drawer.style import DrawStyle
 
 
 def build_sample_ir() -> CircuitIR:
@@ -51,6 +53,39 @@ def build_sample_ir() -> CircuitIR:
                         classical_target="c0",
                     )
                 ]
+            ),
+        ],
+    )
+
+
+def build_wrapped_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q1",))]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    )
+                ]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="Z", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="Y", target_wires=("q1",))]
             ),
         ],
     )
@@ -243,4 +278,72 @@ def test_draw_quantum_circuit_does_not_show_existing_axes(
     result = draw_quantum_circuit(build_sample_ir(), ax=axes)
 
     assert result is axes
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_rejects_page_slider_with_existing_axes() -> None:
+    figure, axes = plt.subplots()
+
+    with pytest.raises(ValueError, match="page_slider"):
+        draw_quantum_circuit(build_sample_ir(), ax=axes, page_slider=True)
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_figures() -> None:
+    paged_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=4.0))
+    long_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=100.0))
+
+    assert len(paged_scene.pages) > 1
+    assert len(long_scene.pages) == 1
+
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = getattr(figure, "_quantum_circuit_drawer_page_slider", None)
+
+    assert page_slider is not None
+    assert len(figure.axes) == 2
+    assert axes.get_xlim() == pytest.approx((0.0, paged_scene.width))
+    assert axes.get_ylim() == pytest.approx((long_scene.height, 0.0))
+
+    page_slider.set_val(page_slider.valmax)
+
+    assert axes.get_xlim() == pytest.approx(
+        (long_scene.width - paged_scene.width, long_scene.width)
+    )
+    plt.close(figure)
+
+
+
+def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider(
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_tmp_path: Path,
+) -> None:
+    output = sandbox_tmp_path / "wrapped-circuit.png"
+    original_savefig = Figure.savefig
+    saved_axes_counts: list[int] = []
+
+    def count_savefig(self: Figure, *args: object, **kwargs: object) -> None:
+        saved_axes_counts.append(len(self.axes))
+        original_savefig(self, *args, **kwargs)
+
+    monkeypatch.setattr(Figure, "savefig", count_savefig)
+
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        output=output,
+        page_slider=True,
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert output.exists()
+    assert saved_axes_counts == [1]
+    assert len(figure.axes) == 2
     plt.close(figure)

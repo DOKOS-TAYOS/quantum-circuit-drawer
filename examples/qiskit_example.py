@@ -94,6 +94,7 @@ def main() -> None:
         circuit,
         style={"font_size": 12.5, "show_params": True, "max_page_width": 11.5},
         output=args.output,
+        page_slider=True,
     )
 
     if args.output is not None:
