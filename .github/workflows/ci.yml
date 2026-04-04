@@ -50,7 +50,7 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
 
       - name: Test optional adapters
-        run: python -m pytest tests/test_qiskit_adapter.py tests/test_cirq_adapter.py tests/test_pennylane_adapter.py -q
+        run: python -m pytest tests/test_qiskit_adapter.py tests/test_cirq_adapter.py tests/test_pennylane_adapter.py -q --no-cov
 
   test-cudaq-linux:
     runs-on: ubuntu-latest
@@ -67,7 +67,7 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,cudaq]"
 
       - name: Test CUDA-Q adapter
-        run: python -m pytest tests/test_cudaq_adapter.py tests/test_cudaq_adapter_integration.py -q
+        run: python -m pytest tests/test_cudaq_adapter.py tests/test_cudaq_adapter_integration.py -q --no-cov
 
   build:
     runs-on: ubuntu-latest

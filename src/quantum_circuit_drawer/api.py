@@ -146,7 +146,7 @@ def _configure_page_slider(
 
     figure.subplots_adjust(bottom=0.22)
     slider_axes = figure.add_axes(
-        [0.18, 0.08, 0.64, 0.04],
+        (0.18, 0.08, 0.64, 0.04),
         facecolor=scene.style.theme.axes_facecolor,
     )
     slider = Slider(

@@ -36,7 +36,7 @@ class QiskitAdapter(BaseAdapter):
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
         try:
-            from qiskit.circuit import QuantumCircuit  # type: ignore[import-untyped]
+            from qiskit.circuit import QuantumCircuit
         except ImportError:
             return False
         return isinstance(circuit, QuantumCircuit)

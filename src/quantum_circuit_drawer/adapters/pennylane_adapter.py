@@ -38,7 +38,7 @@ class PennyLaneAdapter(BaseAdapter):
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
         try:
-            import pennylane as qml  # type: ignore[import-untyped]
+            import pennylane as qml
         except ImportError:
             return False
 

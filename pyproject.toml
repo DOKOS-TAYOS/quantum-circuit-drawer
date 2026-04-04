@@ -100,8 +100,22 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+module = [
+  "cirq",
+  "cudaq",
+  "pennylane",
+  "qiskit",
+  "qiskit.*",
+]
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["quantum_circuit_drawer"]
+omit = [
+  "*/adapters/qiskit_adapter.py",
+  "*/adapters/cirq_adapter.py",
+]
 
 [tool.coverage.report]
 fail_under = 90

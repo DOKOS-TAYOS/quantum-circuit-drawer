@@ -22,7 +22,7 @@ class CudaqAdapter(BaseAdapter):
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
         try:
-            import cudaq  # type: ignore[import-not-found]
+            import cudaq
         except ImportError:
             return False
 
