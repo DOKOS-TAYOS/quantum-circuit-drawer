@@ -1,13 +1,13 @@
 # quantum-circuit-drawer
 
-`quantum-circuit-drawer` is a Python library for rendering quantum circuits from different frameworks with one consistent Matplotlib-based visual style. The current public release target is `v0.1.0`.
+`quantum-circuit-drawer` is a Python library for rendering quantum circuits from different frameworks with one consistent Matplotlib-based visual style. The current public release target is `v0.1.1`.
 
 Project links:
 
 - Repository: [github.com/DOKOS-TAYOS/quantum-circuit-drawer](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
 - Issue tracker: [github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues)
 
-## What v0.1.0 supports
+## What v0.1.1 supports
 
 - A small public API centered on `draw_quantum_circuit(...)`
 - Matplotlib rendering
@@ -160,7 +160,7 @@ Behavior for `backend="matplotlib"`:
 - If `ax` is provided, it draws in place and returns `ax`. In that mode `page_slider=True` raises `ValueError`.
 - If `output` is provided, it saves the rendered figure and raises `RenderingError` if writing fails.
 
-CUDA-Q support notes for v0.1.0:
+CUDA-Q support notes for v0.1.1:
 
 - The adapter accepts closed kernels only. Kernels that still need runtime arguments raise a clear error.
 - The optional `cudaq` dependency is wired Linux/WSL2-first so the base package stays safe on standard Windows installs.

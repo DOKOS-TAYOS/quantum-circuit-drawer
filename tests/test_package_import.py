@@ -29,7 +29,7 @@ def test_package_import_does_not_eagerly_import_matplotlib() -> None:
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout.strip())
 
-    assert payload["version"] == "0.1.0"
+    assert payload["version"] == "0.1.1"
     assert payload["matplotlib_modules"] == []
 
 

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-05
+
 ### Added
 
 - Project URLs in package metadata for the public GitHub repository, issue tracker, and changelog
@@ -19,6 +21,11 @@
 - Split the CUDA-Q Quake/MLIR parser into a dedicated private module to keep `CudaqAdapter` focused
 - Extended optional-adapter CI coverage to Windows in addition to Linux
 - Refreshed the README development guidance to match the stricter verification baseline
+
+### Fixed
+
+- CUDA-Q Quake parser compatibility with IR from current CUDA-Q builds (`alloca !quake.veq` without a colon, kernel tail `dealloc`, `null_wire`, `discriminate`)
+- CI reliability: `mypy` overrides for optional framework imports, coverage scope for dev-only installs, `--no-cov` on adapter-only pytest jobs, and Matplotlib `add_axes` typing
 
 ## [0.1.0] - 2026-04-04
 
