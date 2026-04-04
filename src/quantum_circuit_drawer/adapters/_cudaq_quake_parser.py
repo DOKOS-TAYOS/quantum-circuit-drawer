@@ -32,9 +32,7 @@ _EXTRACT_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*quake\.(?:extract_ref|qextract)\s+"
     r"(?P<vector>%[\w$.]+)\[(?P<index>[^\]]+)\].*$"
 )
-_UNWRAP_RE = re.compile(
-    r"^(?P<result>%[\w$.]+)\s*=\s*quake\.unwrap\s+(?P<source>%[\w$.]+).*$"
-)
+_UNWRAP_RE = re.compile(r"^(?P<result>%[\w$.]+)\s*=\s*quake\.unwrap\s+(?P<source>%[\w$.]+).*$")
 _WRAP_RE = re.compile(r"^quake\.wrap\s+(?P<wire>%[\w$.]+)\s+to\s+(?P<target>%[\w$.]+).*$")
 _SSA_TOKEN_RE = re.compile(r"%[\w$.]+")
 _NUMBER_TOKEN_RE = re.compile(r"[-+]?(?:\d+\.\d*|\d*\.\d+|\d+)(?:e[-+]?\d+)?")
@@ -158,9 +156,13 @@ class CudaqQuakeParser:
         operation: OperationIR
         if op_name == "swap":
             if controls:
-                raise UnsupportedOperationError("CUDA-Q swap operations with controls are not supported")
+                raise UnsupportedOperationError(
+                    "CUDA-Q swap operations with controls are not supported"
+                )
             if len(target_wires) != 2:
-                raise UnsupportedOperationError("CUDA-Q swap operations require exactly two targets")
+                raise UnsupportedOperationError(
+                    "CUDA-Q swap operations require exactly two targets"
+                )
             operation = OperationIR(
                 kind=OperationKind.SWAP,
                 name="SWAP",
@@ -308,7 +310,9 @@ class CudaqQuakeParser:
             )
         numeric_literal = self._parse_numeric_literal(cleaned)
         if numeric_literal is None:
-            raise UnsupportedOperationError(f"CUDA-Q adapter could not parse integer token {cleaned!r}")
+            raise UnsupportedOperationError(
+                f"CUDA-Q adapter could not parse integer token {cleaned!r}"
+            )
         return int(numeric_literal)
 
     def _resolve_numeric_tokens(self, tokens: Sequence[str]) -> tuple[object, ...]:
@@ -336,7 +340,11 @@ class CudaqQuakeParser:
         return token in self._numeric_aliases or self._parse_numeric_literal(token) is not None
 
     def _is_operand_token(self, token: str) -> bool:
-        return token in self._wire_aliases or token in self._ref_aliases or token in self._vector_aliases
+        return (
+            token in self._wire_aliases
+            or token in self._ref_aliases
+            or token in self._vector_aliases
+        )
 
     def _consume_parenthesized_group(self, text: str) -> tuple[str, str]:
         depth = 0

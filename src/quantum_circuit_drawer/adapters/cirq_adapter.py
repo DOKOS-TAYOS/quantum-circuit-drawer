@@ -22,11 +22,9 @@ class _CirqMomentLike(Protocol):
 
 
 class _CirqCircuitLike(Protocol):
-    def all_qubits(self) -> Iterable[object]:
-        ...
+    def all_qubits(self) -> Iterable[object]: ...
 
-    def __iter__(self) -> Iterator[_CirqMomentLike]:
-        ...
+    def __iter__(self) -> Iterator[_CirqMomentLike]: ...
 
 
 class CirqAdapter(BaseAdapter):

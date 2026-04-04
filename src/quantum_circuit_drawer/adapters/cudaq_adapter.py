@@ -11,9 +11,7 @@ from ..ir.wires import WireIR, WireKind
 from ._cudaq_quake_parser import CudaqQuakeParser
 from .base import BaseAdapter
 
-_ENTRYPOINT_RE = re.compile(
-    r"func\.func\s+@(?P<name>[^\(\s]+)\((?P<args>[^\)]*)\)(?P<rest>.*)"
-)
+_ENTRYPOINT_RE = re.compile(r"func\.func\s+@(?P<name>[^\(\s]+)\((?P<args>[^\)]*)\)(?P<rest>.*)")
 
 
 class CudaqAdapter(BaseAdapter):

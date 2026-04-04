@@ -305,7 +305,9 @@ def test_layout_engine_reuses_cached_operation_metrics(monkeypatch) -> None:
         operation_width_calls += 1
         return original_operation_width(*args, **kwargs)
 
-    monkeypatch.setattr("quantum_circuit_drawer.layout.engine.operation_width", count_operation_width)
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.layout.engine.operation_width", count_operation_width
+    )
 
     circuit = build_layout_ir()
     LayoutEngine().compute(circuit, DrawStyle())

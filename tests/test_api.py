@@ -319,7 +319,6 @@ def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_fi
     plt.close(figure)
 
 
-
 def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider(
     monkeypatch: pytest.MonkeyPatch,
     sandbox_tmp_path: Path,

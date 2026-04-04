@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from .typing import LayoutEngineLike, OutputPath, RenderResult
 
 
-
 def draw_quantum_circuit(
     circuit: object,
     framework: str | None = None,

@@ -17,8 +17,7 @@ from .base import BaseAdapter
 class _QiskitRegisterLike(Protocol):
     name: str | None
 
-    def __iter__(self) -> Iterable[object]:
-        ...
+    def __iter__(self) -> Iterable[object]: ...
 
 
 class _QiskitCircuitLike(Protocol):

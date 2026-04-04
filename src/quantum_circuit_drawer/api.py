@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 def draw_quantum_circuit(
     circuit: object,
     framework: str | None = None,
@@ -92,7 +91,6 @@ def draw_quantum_circuit(
     return renderer.render(paged_scene, ax=ax, output=output)
 
 
-
 def _resolve_layout_engine(layout: LayoutEngineLike | None) -> LayoutEngineLike:
     from .layout import LayoutEngine
 
@@ -105,10 +103,8 @@ def _resolve_layout_engine(layout: LayoutEngineLike | None) -> LayoutEngineLike:
     raise LayoutError("layout must be None or expose a compute(circuit_ir, style) method")
 
 
-
 def _coerce_options(options: Mapping[str, object]) -> dict[str, object]:
     return dict(options)
-
 
 
 def _create_managed_figure(
@@ -128,14 +124,12 @@ def _create_managed_figure(
     return figure, axes
 
 
-
 def _build_continuous_slider_scene(
     circuit: CircuitIR,
     layout_engine: LayoutEngineLike,
     style: DrawStyle,
 ) -> LayoutScene:
     return layout_engine.compute(circuit, replace(style, max_page_width=float("inf")))
-
 
 
 def _configure_page_slider(
@@ -177,12 +171,10 @@ def _configure_page_slider(
     setattr(figure, "_quantum_circuit_drawer_page_slider", slider)
 
 
-
 def _page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
     width = max(4.0, viewport_width * 1.1)
     height = max(2.4, scene_height * 0.9) + 0.8
     return width, height
-
 
 
 def _set_slider_view(

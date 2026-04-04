@@ -201,7 +201,9 @@ class LayoutEngine:
             if not layer.operations:
                 widths.append(style.gate_width)
                 continue
-            widths.append(max(operation_metrics[id(operation)].width for operation in layer.operations))
+            widths.append(
+                max(operation_metrics[id(operation)].width for operation in layer.operations)
+            )
         return widths
 
     def _build_column_centers(self, widths: Sequence[float], style: DrawStyle) -> list[float]:
@@ -460,7 +462,9 @@ class LayoutEngine:
         barriers: list[SceneBarrier],
     ) -> None:
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
-        barriers.append(SceneBarrier(column=column, x=x, y_top=y_top - 0.3, y_bottom=y_bottom + 0.3))
+        barriers.append(
+            SceneBarrier(column=column, x=x, y_top=y_top - 0.3, y_bottom=y_bottom + 0.3)
+        )
 
     def _layout_swap(
         self,
@@ -514,7 +518,9 @@ class LayoutEngine:
         control_ids = operation.control_wires
         for control_id in control_ids:
             controls.append(SceneControl(column=column, x=x, y=wire_positions[control_id]))
-        span_top, span_bottom = vertical_span(wire_positions, (*control_ids, *operation.target_wires))
+        span_top, span_bottom = vertical_span(
+            wire_positions, (*control_ids, *operation.target_wires)
+        )
         connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
 
     def _layout_gate(

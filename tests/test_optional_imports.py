@@ -21,7 +21,10 @@ from quantum_circuit_drawer.adapters.qiskit_adapter import QiskitAdapter
     ],
 )
 def test_adapter_can_handle_returns_false_when_dependency_is_missing(
-    adapter_type: type[QiskitAdapter] | type[CirqAdapter] | type[PennyLaneAdapter] | type[CudaqAdapter],
+    adapter_type: type[QiskitAdapter]
+    | type[CirqAdapter]
+    | type[PennyLaneAdapter]
+    | type[CudaqAdapter],
     module_name: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -53,7 +56,10 @@ def test_adapter_can_handle_returns_false_when_dependency_is_missing(
     ],
 )
 def test_adapter_can_handle_does_not_swallow_unexpected_import_errors(
-    adapter_type: type[QiskitAdapter] | type[CirqAdapter] | type[PennyLaneAdapter] | type[CudaqAdapter],
+    adapter_type: type[QiskitAdapter]
+    | type[CirqAdapter]
+    | type[PennyLaneAdapter]
+    | type[CudaqAdapter],
     module_name: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
