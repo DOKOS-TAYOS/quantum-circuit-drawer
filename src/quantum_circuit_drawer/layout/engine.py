@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from ..exceptions import LayoutError
 from ..ir.circuit import CircuitIR, LayerIR
@@ -27,6 +28,14 @@ from .scene import (
 from .spacing import operation_label_parts, operation_width
 
 
+@dataclass(frozen=True, slots=True)
+class _OperationMetrics:
+    width: float
+    label: str
+    display_label: str
+    subtitle: str | None
+
+
 class LayoutEngine:
     """Compute a backend-neutral scene from CircuitIR."""
 
@@ -37,8 +46,9 @@ class LayoutEngine:
         draw_style = normalize_style(style)
         wire_map = circuit.wire_map
         normalized_layers = self._normalize_layers(circuit)
+        operation_metrics = self._build_operation_metrics(normalized_layers, draw_style)
         wire_positions = self._build_wire_positions(circuit, draw_style)
-        column_widths = self._build_column_widths(normalized_layers, draw_style)
+        column_widths = self._build_column_widths(normalized_layers, operation_metrics, draw_style)
         x_centers = self._build_column_centers(column_widths, draw_style)
         page_height = max(wire_positions.values()) + draw_style.margin_bottom
         pages = self._build_pages(column_widths, x_centers, page_height, draw_style)
@@ -62,7 +72,7 @@ class LayoutEngine:
                 x_start=draw_style.margin_left,
                 x_end=draw_style.margin_left
                 + (pages[0].content_width if pages else draw_style.gate_width),
-                bundle_size=int(wire.metadata.get("bundle_size", 1)),
+                bundle_size=self._bundle_size(wire),
             )
             for wire in circuit.all_wires
         )
@@ -79,6 +89,7 @@ class LayoutEngine:
             for operation in layer.operations:
                 self._layout_operation(
                     operation=operation,
+                    metrics=operation_metrics[id(operation)],
                     column=column,
                     x=x,
                     style=draw_style,
@@ -130,6 +141,21 @@ class LayoutEngine:
             )
         return tuple(normalized_layers)
 
+    def _build_operation_metrics(
+        self, layers: Sequence[LayerIR], style: DrawStyle
+    ) -> dict[int, _OperationMetrics]:
+        metrics: dict[int, _OperationMetrics] = {}
+        for layer in layers:
+            for operation in layer.operations:
+                label, subtitle = operation_label_parts(operation, style)
+                metrics[id(operation)] = _OperationMetrics(
+                    width=operation_width(operation, style),
+                    label=label,
+                    display_label=format_gate_name(label),
+                    subtitle=subtitle,
+                )
+        return metrics
+
     def _operation_draw_span_slots(
         self,
         operation: OperationIR | MeasurementIR,
@@ -160,13 +186,22 @@ class LayoutEngine:
                 current_y += style.wire_spacing
         return positions
 
-    def _build_column_widths(self, layers: Sequence[LayerIR], style: DrawStyle) -> list[float]:
+    def _bundle_size(self, wire: WireIR) -> int:
+        bundle_size = wire.metadata.get("bundle_size", 1)
+        return int(bundle_size) if isinstance(bundle_size, int | float | str) else 1
+
+    def _build_column_widths(
+        self,
+        layers: Sequence[LayerIR],
+        operation_metrics: dict[int, _OperationMetrics],
+        style: DrawStyle,
+    ) -> list[float]:
         widths: list[float] = []
         for layer in layers:
             if not layer.operations:
                 widths.append(style.gate_width)
                 continue
-            widths.append(max(operation_width(operation, style) for operation in layer.operations))
+            widths.append(max(operation_metrics[id(operation)].width for operation in layer.operations))
         return widths
 
     def _build_column_centers(self, widths: Sequence[float], style: DrawStyle) -> list[float]:
@@ -285,6 +320,7 @@ class LayoutEngine:
         self,
         *,
         operation: OperationIR,
+        metrics: _OperationMetrics,
         column: int,
         x: float,
         style: DrawStyle,
@@ -298,110 +334,210 @@ class LayoutEngine:
         measurements: list[SceneMeasurement],
     ) -> None:
         if isinstance(operation, MeasurementIR) or operation.kind is OperationKind.MEASUREMENT:
-            quantum_y = wire_positions[operation.target_wires[0]]
-            classical_y = (
-                wire_positions.get(operation.classical_target)
-                if isinstance(operation, MeasurementIR)
-                else None
+            self._layout_measurement(
+                operation=operation,
+                metrics=metrics,
+                column=column,
+                x=x,
+                style=style,
+                wire_map=wire_map,
+                wire_positions=wire_positions,
+                connections=connections,
+                measurements=measurements,
             )
-            classical_label = None
-            if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
-                classical_wire = wire_map.get(operation.classical_target)
-                classical_label = (
-                    str(operation.metadata.get("classical_bit_label"))
-                    if operation.metadata.get("classical_bit_label") is not None
-                    else getattr(classical_wire, "label", None) or operation.classical_target
-                )
-            measurement_width = max(style.gate_width, operation_width(operation, style))
-            connector_x = x + measurement_width * 0.24
-            connector_y = quantum_y + style.gate_height * 0.18
-            measurements.append(
-                SceneMeasurement(
-                    column=column,
-                    x=x,
-                    quantum_y=quantum_y,
-                    classical_y=classical_y,
-                    width=measurement_width,
-                    height=style.gate_height,
-                    label=operation.label or "M",
-                    connector_x=connector_x,
-                    connector_y=connector_y,
-                )
-            )
-            if classical_y is not None:
-                connections.append(
-                    SceneConnection(
-                        column=column,
-                        x=connector_x,
-                        y_start=connector_y,
-                        y_end=classical_y,
-                        is_classical=True,
-                        linestyle="dashed",
-                        arrow_at_end=True,
-                        label=classical_label,
-                    )
-                )
             return
 
         if operation.kind is OperationKind.BARRIER:
-            y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
-            barriers.append(
-                SceneBarrier(column=column, x=x, y_top=y_top - 0.3, y_bottom=y_bottom + 0.3)
+            self._layout_barrier(
+                operation=operation,
+                column=column,
+                x=x,
+                wire_positions=wire_positions,
+                barriers=barriers,
             )
             return
 
         if operation.kind is OperationKind.SWAP:
-            y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
-            connections.append(SceneConnection(column=column, x=x, y_start=y_top, y_end=y_bottom))
-            swaps.append(
-                SceneSwap(
-                    column=column,
-                    x=x,
-                    y_top=y_top,
-                    y_bottom=y_bottom,
-                    marker_size=style.swap_marker_size,
-                )
+            self._layout_swap(
+                operation=operation,
+                column=column,
+                x=x,
+                style=style,
+                wire_positions=wire_positions,
+                connections=connections,
+                swaps=swaps,
             )
             return
 
         if operation.kind is OperationKind.CONTROLLED_GATE:
-            label, subtitle = operation_label_parts(operation, style)
-            y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
-            gate_height = max(style.gate_height, (y_bottom - y_top) + style.gate_height)
-            gates.append(
-                SceneGate(
-                    column=column,
-                    x=x,
-                    y=(y_top + y_bottom) / 2,
-                    width=max(style.gate_width, operation_width(operation, style)),
-                    height=gate_height,
-                    label=format_gate_name(label),
-                    subtitle=subtitle,
-                    kind=operation.kind,
-                )
-            )
-            control_ids = operation.control_wires
-            for control_id in control_ids:
-                controls.append(SceneControl(column=column, x=x, y=wire_positions[control_id]))
-            span_top, span_bottom = vertical_span(
-                wire_positions, (*control_ids, *operation.target_wires)
-            )
-            connections.append(
-                SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom)
+            self._layout_controlled_gate(
+                operation=operation,
+                metrics=metrics,
+                column=column,
+                x=x,
+                style=style,
+                wire_positions=wire_positions,
+                gates=gates,
+                controls=controls,
+                connections=connections,
             )
             return
 
-        label, subtitle = operation_label_parts(operation, style)
+        self._layout_gate(
+            operation=operation,
+            metrics=metrics,
+            column=column,
+            x=x,
+            style=style,
+            wire_positions=wire_positions,
+            gates=gates,
+        )
+
+    def _layout_measurement(
+        self,
+        *,
+        operation: OperationIR,
+        metrics: _OperationMetrics,
+        column: int,
+        x: float,
+        style: DrawStyle,
+        wire_map: dict[str, WireIR],
+        wire_positions: dict[str, float],
+        connections: list[SceneConnection],
+        measurements: list[SceneMeasurement],
+    ) -> None:
+        quantum_y = wire_positions[operation.target_wires[0]]
+        classical_target = (
+            operation.classical_target
+            if isinstance(operation, MeasurementIR) and operation.classical_target is not None
+            else None
+        )
+        classical_y = wire_positions.get(classical_target) if classical_target is not None else None
+        classical_label = None
+        if classical_target is not None:
+            classical_wire = wire_map.get(classical_target)
+            classical_label = (
+                str(operation.metadata.get("classical_bit_label"))
+                if operation.metadata.get("classical_bit_label") is not None
+                else getattr(classical_wire, "label", None) or classical_target
+            )
+        connector_x = x + metrics.width * 0.24
+        connector_y = quantum_y + style.gate_height * 0.18
+        measurements.append(
+            SceneMeasurement(
+                column=column,
+                x=x,
+                quantum_y=quantum_y,
+                classical_y=classical_y,
+                width=metrics.width,
+                height=style.gate_height,
+                label=operation.label or "M",
+                connector_x=connector_x,
+                connector_y=connector_y,
+            )
+        )
+        if classical_y is not None:
+            connections.append(
+                SceneConnection(
+                    column=column,
+                    x=connector_x,
+                    y_start=connector_y,
+                    y_end=classical_y,
+                    is_classical=True,
+                    linestyle="dashed",
+                    arrow_at_end=True,
+                    label=classical_label,
+                )
+            )
+
+    def _layout_barrier(
+        self,
+        *,
+        operation: OperationIR,
+        column: int,
+        x: float,
+        wire_positions: dict[str, float],
+        barriers: list[SceneBarrier],
+    ) -> None:
+        y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
+        barriers.append(SceneBarrier(column=column, x=x, y_top=y_top - 0.3, y_bottom=y_bottom + 0.3))
+
+    def _layout_swap(
+        self,
+        *,
+        operation: OperationIR,
+        column: int,
+        x: float,
+        style: DrawStyle,
+        wire_positions: dict[str, float],
+        connections: list[SceneConnection],
+        swaps: list[SceneSwap],
+    ) -> None:
+        y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
+        connections.append(SceneConnection(column=column, x=x, y_start=y_top, y_end=y_bottom))
+        swaps.append(
+            SceneSwap(
+                column=column,
+                x=x,
+                y_top=y_top,
+                y_bottom=y_bottom,
+                marker_size=style.swap_marker_size,
+            )
+        )
+
+    def _layout_controlled_gate(
+        self,
+        *,
+        operation: OperationIR,
+        metrics: _OperationMetrics,
+        column: int,
+        x: float,
+        style: DrawStyle,
+        wire_positions: dict[str, float],
+        gates: list[SceneGate],
+        controls: list[SceneControl],
+        connections: list[SceneConnection],
+    ) -> None:
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
         gates.append(
             SceneGate(
                 column=column,
                 x=x,
                 y=(y_top + y_bottom) / 2,
-                width=max(style.gate_width, operation_width(operation, style)),
+                width=metrics.width,
                 height=max(style.gate_height, (y_bottom - y_top) + style.gate_height),
-                label=format_gate_name(label),
-                subtitle=subtitle,
+                label=metrics.display_label,
+                subtitle=metrics.subtitle,
+                kind=operation.kind,
+            )
+        )
+        control_ids = operation.control_wires
+        for control_id in control_ids:
+            controls.append(SceneControl(column=column, x=x, y=wire_positions[control_id]))
+        span_top, span_bottom = vertical_span(wire_positions, (*control_ids, *operation.target_wires))
+        connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
+
+    def _layout_gate(
+        self,
+        *,
+        operation: OperationIR,
+        metrics: _OperationMetrics,
+        column: int,
+        x: float,
+        style: DrawStyle,
+        wire_positions: dict[str, float],
+        gates: list[SceneGate],
+    ) -> None:
+        y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
+        gates.append(
+            SceneGate(
+                column=column,
+                x=x,
+                y=(y_top + y_bottom) / 2,
+                width=metrics.width,
+                height=max(style.gate_height, (y_bottom - y_top) + style.gate_height),
+                label=metrics.display_label,
+                subtitle=metrics.subtitle,
                 kind=operation.kind,
             )
         )

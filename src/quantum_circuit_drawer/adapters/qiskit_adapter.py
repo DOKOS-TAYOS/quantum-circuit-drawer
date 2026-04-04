@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Protocol, cast
 
 from ..exceptions import UnsupportedOperationError
 from ..ir.circuit import CircuitIR
@@ -13,6 +14,21 @@ from ..utils.formatting import format_gate_name
 from .base import BaseAdapter
 
 
+class _QiskitRegisterLike(Protocol):
+    name: str | None
+
+    def __iter__(self) -> Iterable[object]:
+        ...
+
+
+class _QiskitCircuitLike(Protocol):
+    qubits: Sequence[object]
+    clbits: Sequence[object]
+    data: Sequence[object]
+    cregs: Sequence[_QiskitRegisterLike]
+    name: str | None
+
+
 class QiskitAdapter(BaseAdapter):
     """Convert qiskit.QuantumCircuit objects into CircuitIR."""
 
@@ -21,7 +37,7 @@ class QiskitAdapter(BaseAdapter):
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
         try:
-            from qiskit.circuit import QuantumCircuit
+            from qiskit.circuit import QuantumCircuit  # type: ignore[import-untyped]
         except ImportError:
             return False
         return isinstance(circuit, QuantumCircuit)
@@ -30,10 +46,11 @@ class QiskitAdapter(BaseAdapter):
         if not self.can_handle(circuit):
             raise TypeError("QiskitAdapter received a non-Qiskit circuit")
 
-        qubits = list(circuit.qubits)
-        clbits = list(circuit.clbits)
+        typed_circuit = cast(_QiskitCircuitLike, circuit)
+        qubits = list(typed_circuit.qubits)
+        clbits = list(typed_circuit.clbits)
         qubit_ids = {bit: f"q{index}" for index, bit in enumerate(qubits)}
-        classical_wires, classical_targets = self._build_classical_wires(circuit, clbits)
+        classical_wires, classical_targets = self._build_classical_wires(typed_circuit, clbits)
 
         quantum_wires = [
             WireIR(id=qubit_ids[bit], index=index, kind=WireKind.QUANTUM, label=f"q{index}")
@@ -41,14 +58,15 @@ class QiskitAdapter(BaseAdapter):
         ]
 
         operations = [
-            self._convert_instruction(entry, qubit_ids, classical_targets) for entry in circuit.data
+            self._convert_instruction(entry, qubit_ids, classical_targets)
+            for entry in typed_circuit.data
         ]
         layers = self.pack_operations(operations)
         return CircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
             layers=layers,
-            name=getattr(circuit, "name", None),
+            name=typed_circuit.name,
             metadata={"framework": self.framework_name},
         )
 
@@ -112,7 +130,7 @@ class QiskitAdapter(BaseAdapter):
 
     def _build_classical_wires(
         self,
-        circuit: object,
+        circuit: _QiskitCircuitLike,
         clbits: list[object],
     ) -> tuple[list[WireIR], dict[object, tuple[str, str]]]:
         if not clbits:

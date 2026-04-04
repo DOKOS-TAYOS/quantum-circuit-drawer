@@ -177,3 +177,32 @@ def test_matplotlib_renderer_draws_measurement_pointer_downward() -> None:
 
     assert angled_lines
     assert any(line.get_ydata()[1] > line.get_ydata()[0] for line in angled_lines)
+
+
+def test_matplotlib_renderer_reuses_page_transforms_per_artist(monkeypatch) -> None:
+    figure, axes = plt.subplots()
+    renderer = MatplotlibRenderer()
+    gate_calls = 0
+    measurement_calls = 0
+
+    original_gate_for_page = renderer._gate_for_page
+    original_measurement_for_page = renderer._measurement_for_page
+
+    def count_gate_for_page(*args, **kwargs):
+        nonlocal gate_calls
+        gate_calls += 1
+        return original_gate_for_page(*args, **kwargs)
+
+    def count_measurement_for_page(*args, **kwargs):
+        nonlocal measurement_calls
+        measurement_calls += 1
+        return original_measurement_for_page(*args, **kwargs)
+
+    monkeypatch.setattr(renderer, "_gate_for_page", count_gate_for_page)
+    monkeypatch.setattr(renderer, "_measurement_for_page", count_measurement_for_page)
+
+    scene = build_scene()
+    renderer.render(scene, ax=axes)
+
+    assert gate_calls == len(scene.gates)
+    assert measurement_calls == len(scene.measurements)

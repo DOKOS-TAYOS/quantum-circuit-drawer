@@ -8,7 +8,7 @@ from pathlib import Path
 
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
 
 from ..exceptions import RenderingError
 from ..layout.scene import (
@@ -55,13 +55,14 @@ class MatplotlibRenderer(BaseRenderer):
         output: OutputPath | None = None,
     ) -> RenderResult:
         axes = ax
+        managed_figure: Figure | None = None
         if axes is None:
             figsize = (max(4.0, scene.width * 1.1), max(2.4, scene.height * 0.9))
-            figure = Figure(figsize=figsize)
-            FigureCanvasAgg(figure)
-            axes = figure.add_subplot(111)
-        else:
-            figure = axes.figure
+            managed_figure = Figure(figsize=figsize)
+            FigureCanvasAgg(managed_figure)
+            axes = managed_figure.add_subplot(111)
+
+        figure: Figure | SubFigure = axes.figure
 
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
 
@@ -74,7 +75,12 @@ class MatplotlibRenderer(BaseRenderer):
             try:
                 output_path = Path(output)
                 output_path.parent.mkdir(parents=True, exist_ok=True)
-                figure.savefig(output_path, bbox_inches="tight")
+                save_figure: Figure
+                if isinstance(figure, SubFigure):
+                    save_figure = figure.figure
+                else:
+                    save_figure = figure
+                save_figure.savefig(output_path, bbox_inches="tight")
             except (OSError, TypeError, ValueError) as exc:
                 raise RenderingError(
                     f"failed to save rendered circuit to {output!r}: {exc}"
@@ -82,42 +88,64 @@ class MatplotlibRenderer(BaseRenderer):
             logger.debug("Saved rendered circuit to %s", output_path)
 
         if ax is None:
-            return figure, axes
+            assert managed_figure is not None
+            return managed_figure, axes
         return axes
 
     def _draw_page(self, axes: Axes, scene: LayoutScene, page: ScenePage) -> None:
-        for wire in scene.wires:
-            draw_wire(axes, self._wire_for_page(wire, page, scene), scene)
-        for barrier in scene.barriers:
-            if self._is_in_page(barrier.column, page):
-                draw_barrier(axes, self._barrier_for_page(barrier, page, scene), scene)
-        for connection in scene.connections:
-            if self._is_in_page(connection.column, page):
-                draw_connection(axes, self._connection_for_page(connection, page, scene), scene)
-        for gate in scene.gates:
-            if self._is_in_page(gate.column, page):
-                page_gate = self._gate_for_page(gate, page, scene)
-                draw_gate_box(axes, page_gate, scene)
-        for measurement in scene.measurements:
-            if self._is_in_page(measurement.column, page):
-                page_measurement = self._measurement_for_page(measurement, page, scene)
-                draw_measurement_box(axes, page_measurement, scene)
-        for gate in scene.gates:
-            if self._is_in_page(gate.column, page):
-                draw_gate_label(axes, self._gate_for_page(gate, page, scene), scene)
-        for control in scene.controls:
-            if self._is_in_page(control.column, page):
-                draw_control(axes, self._control_for_page(control, page, scene), scene)
-        for swap in scene.swaps:
-            if self._is_in_page(swap.column, page):
-                draw_swap(axes, self._swap_for_page(swap, page, scene), scene)
-        for measurement in scene.measurements:
-            if self._is_in_page(measurement.column, page):
-                draw_measurement_symbol(
-                    axes, self._measurement_for_page(measurement, page, scene), scene
-                )
-        for text in scene.texts:
-            draw_text(axes, self._text_for_page(text, page), scene)
+        page_wires = tuple(self._wire_for_page(wire, page, scene) for wire in scene.wires)
+        page_barriers = tuple(
+            self._barrier_for_page(barrier, page, scene)
+            for barrier in scene.barriers
+            if self._is_in_page(barrier.column, page)
+        )
+        page_connections = tuple(
+            self._connection_for_page(connection, page, scene)
+            for connection in scene.connections
+            if self._is_in_page(connection.column, page)
+        )
+        page_gates = tuple(
+            self._gate_for_page(gate, page, scene)
+            for gate in scene.gates
+            if self._is_in_page(gate.column, page)
+        )
+        page_measurements = tuple(
+            self._measurement_for_page(measurement, page, scene)
+            for measurement in scene.measurements
+            if self._is_in_page(measurement.column, page)
+        )
+        page_controls = tuple(
+            self._control_for_page(control, page, scene)
+            for control in scene.controls
+            if self._is_in_page(control.column, page)
+        )
+        page_swaps = tuple(
+            self._swap_for_page(swap, page, scene)
+            for swap in scene.swaps
+            if self._is_in_page(swap.column, page)
+        )
+        page_texts = tuple(self._text_for_page(text, page) for text in scene.texts)
+
+        for wire in page_wires:
+            draw_wire(axes, wire, scene)
+        for barrier in page_barriers:
+            draw_barrier(axes, barrier, scene)
+        for connection in page_connections:
+            draw_connection(axes, connection, scene)
+        for gate in page_gates:
+            draw_gate_box(axes, gate, scene)
+        for measurement in page_measurements:
+            draw_measurement_box(axes, measurement, scene)
+        for gate in page_gates:
+            draw_gate_label(axes, gate, scene)
+        for control in page_controls:
+            draw_control(axes, control, scene)
+        for swap in page_swaps:
+            draw_swap(axes, swap, scene)
+        for measurement in page_measurements:
+            draw_measurement_symbol(axes, measurement, scene)
+        for text in page_texts:
+            draw_text(axes, text, scene)
 
     def _is_in_page(self, column: int, page: ScenePage) -> bool:
         return page.start_column <= column <= page.end_column

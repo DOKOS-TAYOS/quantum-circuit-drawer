@@ -2,6 +2,11 @@
 
 `quantum-circuit-drawer` is a Python library for rendering quantum circuits from different frameworks with one consistent Matplotlib-based visual style. The current public release target is `v0.1.0`.
 
+Project links:
+
+- Repository: [github.com/DOKOS-TAYOS/quantum-circuit-drawer](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
+- Issue tracker: [github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues)
+
 ## What v0.1.0 supports
 
 - A small public API centered on `draw_quantum_circuit(...)`
@@ -148,11 +153,19 @@ python -m ruff check .
 python -m mypy
 ```
 
+`pytest` now enforces the package coverage floor configured in `pyproject.toml`, so local development and CI use the same baseline.
+
 Build the distribution artifacts locally:
 
 ```bash
 python -m build
 python -m twine check dist/*
+```
+
+Run the synthetic layout/render benchmark:
+
+```bash
+python scripts/benchmark_render.py --wires 16 --layers 120 --repeats 3
 ```
 
 Runnable framework examples live in `examples/`. Generated images are intentionally not committed.

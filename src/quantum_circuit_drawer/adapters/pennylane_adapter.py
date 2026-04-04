@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from typing import Protocol, cast
 
 from ..exceptions import UnsupportedFrameworkError
 from ..ir.circuit import CircuitIR, LayerIR
@@ -13,6 +14,22 @@ from ..utils.formatting import format_gate_name
 from .base import BaseAdapter
 
 
+class _PennyLaneOperationLike(Protocol):
+    wires: Sequence[object]
+    name: str
+    parameters: Sequence[object]
+
+
+class _PennyLaneMeasurementLike(Protocol):
+    wires: Sequence[object]
+
+
+class _PennyLaneTapeLike(Protocol):
+    wires: Sequence[object]
+    operations: Sequence[_PennyLaneOperationLike]
+    measurements: Sequence[_PennyLaneMeasurementLike]
+
+
 class PennyLaneAdapter(BaseAdapter):
     """Convert tape-like PennyLane objects into CircuitIR."""
 
@@ -21,7 +38,7 @@ class PennyLaneAdapter(BaseAdapter):
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
         try:
-            import pennylane as qml
+            import pennylane as qml  # type: ignore[import-untyped]
         except ImportError:
             return False
 
@@ -88,7 +105,7 @@ class PennyLaneAdapter(BaseAdapter):
             metadata={"framework": self.framework_name},
         )
 
-    def _extract_tape(self, circuit: object) -> object:
+    def _extract_tape(self, circuit: object) -> _PennyLaneTapeLike:
         if not self.can_handle(circuit):
             raise UnsupportedFrameworkError(
                 "PennyLane support in v0.1 expects a QuantumTape/QuantumScript or an object exposing .qtape/.tape"
@@ -96,10 +113,12 @@ class PennyLaneAdapter(BaseAdapter):
         for attribute in ("qtape", "tape", "_tape"):
             tape = getattr(circuit, attribute, None)
             if tape is not None:
-                return tape
-        return circuit
+                return cast(_PennyLaneTapeLike, tape)
+        return cast(_PennyLaneTapeLike, circuit)
 
-    def _convert_operation(self, operation: object, wire_ids: dict[object, str]) -> OperationIR:
+    def _convert_operation(
+        self, operation: _PennyLaneOperationLike, wire_ids: dict[object, str]
+    ) -> OperationIR:
         control_wires = tuple(
             wire_ids[wire] for wire in getattr(operation, "control_wires", ()) if wire in wire_ids
         )

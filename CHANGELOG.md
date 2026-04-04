@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Project URLs in package metadata for the public GitHub repository, issue tracker, and changelog
+- Import-laziness regression tests for the package root and `quantum_circuit_drawer.api`
+- Deterministic performance guard tests for renderer page transforms and layout metric reuse
+- Wheel smoke-test step in CI after building distribution artifacts
+
+### Changed
+
+- Switched package version metadata to a single internal source in `quantum_circuit_drawer._version`
+- Deferred the public `draw_quantum_circuit` import path so importing the package no longer eagerly loads Matplotlib
+- Expanded `mypy` coverage to the full `src/quantum_circuit_drawer` package and aligned pytest coverage enforcement between local runs and CI
+- Refactored `LayoutEngine` into smaller helpers with cached per-operation metrics to avoid repeated width computation
+- Refactored `MatplotlibRenderer` to precompute per-page scene elements instead of re-transforming gates and measurements multiple times
+- Split the CUDA-Q Quake/MLIR parser into a dedicated private module to keep `CudaqAdapter` focused
+- Extended optional-adapter CI coverage to Windows in addition to Linux
+- Refreshed the README development guidance to match the stricter verification baseline
+
 ## [0.1.0] - 2026-04-04
 
 ### Added

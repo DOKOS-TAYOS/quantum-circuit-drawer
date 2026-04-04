@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-circuit-drawer"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Backend-agnostic quantum circuit drawing library with Matplotlib as the first renderer."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,12 @@ dependencies = [
   "matplotlib>=3.7",
   "numpy>=1.24",
 ]
+
+[project.urls]
+Homepage = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer"
+Repository = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer"
+Issues = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues"
+Changelog = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 qiskit = [
@@ -54,6 +60,9 @@ dev = [
 [tool.setuptools]
 package-dir = { "" = "src" }
 
+[tool.setuptools.dynamic]
+version = { attr = "quantum_circuit_drawer._version.__version__" }
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -63,7 +72,7 @@ quantum_circuit_drawer = ["py.typed"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
-addopts = "-ra --strict-markers -p no:cacheprovider"
+addopts = "-ra --strict-markers -p no:cacheprovider --cov=quantum_circuit_drawer --cov-report=term-missing --cov-fail-under=90"
 
 [tool.ruff]
 target-version = "py310"
@@ -83,17 +92,17 @@ ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"
-files = [
-  "src/quantum_circuit_drawer/api.py",
-  "src/quantum_circuit_drawer/exceptions.py",
-  "src/quantum_circuit_drawer/typing.py",
-  "src/quantum_circuit_drawer/style",
-  "src/quantum_circuit_drawer/ir",
-  "src/quantum_circuit_drawer/utils/formatting.py",
-]
+files = ["src/quantum_circuit_drawer"]
 mypy_path = "src"
 check_untyped_defs = true
 disallow_untyped_defs = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+[tool.coverage.run]
+source = ["quantum_circuit_drawer"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

@@ -294,3 +294,22 @@ def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() 
     )
 
     assert classical_connection.label == "alpha[1]"
+
+
+def test_layout_engine_reuses_cached_operation_metrics(monkeypatch) -> None:
+    operation_width_calls = 0
+    original_operation_width = operation_width
+
+    def count_operation_width(*args, **kwargs):
+        nonlocal operation_width_calls
+        operation_width_calls += 1
+        return original_operation_width(*args, **kwargs)
+
+    monkeypatch.setattr("quantum_circuit_drawer.layout.engine.operation_width", count_operation_width)
+
+    circuit = build_layout_ir()
+    LayoutEngine().compute(circuit, DrawStyle())
+
+    operation_count = sum(len(layer.operations) for layer in circuit.layers)
+
+    assert operation_width_calls == operation_count

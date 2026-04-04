@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from os import PathLike
-from typing import TYPE_CHECKING, Protocol, TypeAlias
-
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
     from .style import DrawStyle
+else:
+    Axes = Any
+    Figure = Any
 
 Metadata: TypeAlias = dict[str, object]
 OutputPath: TypeAlias = str | PathLike[str]

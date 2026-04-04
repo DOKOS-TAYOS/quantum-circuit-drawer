@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from typing import Any, Protocol, cast
 
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
@@ -10,6 +11,22 @@ from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
 from ..utils.formatting import format_gate_name
 from .base import BaseAdapter
+
+
+class _CirqOperationLike(Protocol):
+    qubits: Sequence[object]
+
+
+class _CirqMomentLike(Protocol):
+    operations: Sequence[_CirqOperationLike]
+
+
+class _CirqCircuitLike(Protocol):
+    def all_qubits(self) -> Iterable[object]:
+        ...
+
+    def __iter__(self) -> Iterator[_CirqMomentLike]:
+        ...
 
 
 class CirqAdapter(BaseAdapter):
@@ -31,7 +48,8 @@ class CirqAdapter(BaseAdapter):
 
         import cirq
 
-        qubits = sorted(circuit.all_qubits())
+        typed_circuit = cast(_CirqCircuitLike, circuit)
+        qubits = sorted(typed_circuit.all_qubits(), key=str)
         qubit_ids = {qubit: f"q{index}" for index, qubit in enumerate(qubits)}
         quantum_wires = [
             WireIR(id=qubit_ids[qubit], index=index, kind=WireKind.QUANTUM, label=str(qubit))
@@ -40,7 +58,7 @@ class CirqAdapter(BaseAdapter):
 
         measurement_slots: dict[tuple[int, int, int], tuple[str, str]] = {}
         measurement_slot_count = 0
-        for moment_index, moment in enumerate(circuit):
+        for moment_index, moment in enumerate(typed_circuit):
             for operation_index, operation in enumerate(moment.operations):
                 if self._is_measurement(operation):
                     for slot_index, _ in enumerate(operation.qubits):
@@ -63,8 +81,8 @@ class CirqAdapter(BaseAdapter):
             )
 
         layers: list[LayerIR] = []
-        for moment_index, moment in enumerate(circuit):
-            operations = []
+        for moment_index, moment in enumerate(typed_circuit):
+            operations: list[OperationIR | MeasurementIR] = []
             for operation_index, operation in enumerate(moment.operations):
                 operations.extend(
                     self._convert_operation(
@@ -87,14 +105,14 @@ class CirqAdapter(BaseAdapter):
     def _convert_operation(
         self,
         *,
-        cirq: object,
-        operation: object,
+        cirq: Any,
+        operation: _CirqOperationLike,
         qubit_ids: dict[object, str],
         measurement_slots: dict[tuple[int, int, int], tuple[str, str]],
         operation_key: tuple[int, int],
-    ) -> list[OperationIR]:
+    ) -> list[OperationIR | MeasurementIR]:
         if self._is_measurement(operation):
-            converted = []
+            converted: list[OperationIR | MeasurementIR] = []
             for slot_index, qubit in enumerate(operation.qubits):
                 classical_target, classical_bit_label = measurement_slots[
                     (*operation_key, slot_index)
@@ -120,15 +138,16 @@ class CirqAdapter(BaseAdapter):
         parameters = self._extract_parameters(gate)
 
         if isinstance(operation, cirq.ControlledOperation):
-            controls = tuple(qubit_ids[qubit] for qubit in operation.controls)
-            targets = tuple(qubit_ids[qubit] for qubit in operation.sub_operation.qubits)
+            controlled_operation = cast(Any, operation)
+            controls = tuple(qubit_ids[qubit] for qubit in controlled_operation.controls)
+            targets = tuple(qubit_ids[qubit] for qubit in controlled_operation.sub_operation.qubits)
             return [
                 OperationIR(
                     kind=OperationKind.CONTROLLED_GATE,
-                    name=self._operation_name(operation.sub_operation),
+                    name=self._operation_name(controlled_operation.sub_operation),
                     target_wires=targets,
                     control_wires=controls,
-                    parameters=self._extract_parameters(operation.sub_operation.gate),
+                    parameters=self._extract_parameters(controlled_operation.sub_operation.gate),
                 )
             ]
 

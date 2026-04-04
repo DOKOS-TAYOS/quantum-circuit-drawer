@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
-from matplotlib.axes import Axes
-
-from .adapters.registry import get_adapter
 from .exceptions import LayoutError, UnsupportedBackendError
-from .layout import LayoutEngine
-from .renderers import MatplotlibRenderer
 from .style import DrawStyle, normalize_style
 from .typing import LayoutEngineLike, OutputPath, RenderResult
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +38,9 @@ def draw_quantum_circuit(
         framework,
         len(options),
     )
+    from .adapters.registry import get_adapter
+    from .renderers import MatplotlibRenderer
+
     normalized_style = normalize_style(style)
     adapter = get_adapter(circuit, framework)
     ir = adapter.to_ir(circuit, options=_coerce_options(options))
@@ -55,6 +57,8 @@ def draw_quantum_circuit(
 
 
 def _resolve_layout_engine(layout: LayoutEngineLike | None) -> LayoutEngineLike:
+    from .layout import LayoutEngine
+
     if layout is None:
         return LayoutEngine()
     if isinstance(layout, LayoutEngine):
