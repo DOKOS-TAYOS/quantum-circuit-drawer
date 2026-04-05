@@ -2,24 +2,12 @@
 
 from __future__ import annotations
 
-from argparse import ArgumentParser, Namespace
-from pathlib import Path
-
 import pennylane as qml
 
-from quantum_circuit_drawer import draw_quantum_circuit
-
-
-def parse_args() -> Namespace:
-    parser = ArgumentParser(
-        description="Render a deep PennyLane tape in a compact interactive window."
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path where the rendered figure will also be saved.",
-    )
-    return parser.parse_args()
+try:
+    from examples._shared import demo_style, run_example
+except ImportError:
+    from _shared import demo_style, run_example
 
 
 def build_tape() -> qml.tape.QuantumTape:
@@ -42,19 +30,14 @@ def build_tape() -> qml.tape.QuantumTape:
 
 
 def main() -> None:
-    args = parse_args()
-    tape = build_tape()
-
-    draw_quantum_circuit(
-        tape,
+    run_example(
+        build_tape,
+        description="Render a deep PennyLane tape in a compact interactive window.",
         framework="pennylane",
-        style={"font_size": 12.0, "show_params": True, "max_page_width": 6.0},
-        output=args.output,
+        style=demo_style(max_page_width=6.0),
         page_slider=False,
+        saved_label="PennyLane deep example",
     )
-
-    if args.output is not None:
-        print(f"Saved PennyLane deep example to {args.output}")
 
 
 if __name__ == "__main__":

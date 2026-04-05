@@ -3,24 +3,12 @@
 
 from __future__ import annotations
 
-from argparse import ArgumentParser, Namespace
-from pathlib import Path
-
 import cudaq
 
-from quantum_circuit_drawer import draw_quantum_circuit
-
-
-def parse_args() -> Namespace:
-    parser = ArgumentParser(
-        description="Render a balanced CUDA-Q kernel in an interactive Matplotlib window."
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path where the rendered figure will also be saved.",
-    )
-    return parser.parse_args()
+try:
+    from examples._shared import demo_style, run_prebuilt_example
+except ImportError:
+    from _shared import demo_style, run_prebuilt_example
 
 
 @cudaq.kernel
@@ -45,17 +33,14 @@ def build_kernel() -> None:
 
 
 def main() -> None:
-    args = parse_args()
-
-    draw_quantum_circuit(
+    run_prebuilt_example(
         build_kernel,
-        style={"font_size": 12.0, "show_params": True, "max_page_width": 7.5},
-        output=args.output,
+        description="Render a balanced CUDA-Q kernel in an interactive Matplotlib window.",
+        framework=None,
+        style=demo_style(max_page_width=7.5),
         page_slider=False,
+        saved_label="CUDA-Q example",
     )
-
-    if args.output is not None:
-        print(f"Saved CUDA-Q example to {args.output}")
 
 
 if __name__ == "__main__":

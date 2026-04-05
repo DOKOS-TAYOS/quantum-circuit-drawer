@@ -3,41 +3,26 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from collections.abc import Callable, Mapping
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from .exceptions import LayoutError, UnsupportedBackendError
-from .style import DrawStyle, normalize_style
+from ._draw_pipeline import PreparedDrawPipeline, prepare_draw_pipeline
+from .exceptions import UnsupportedBackendError
+from .style import DrawStyle
 from .typing import LayoutEngineLike, OutputPath, RenderResult
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
-    from .adapters.base import BaseAdapter
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
-    from .renderers import MatplotlibRenderer
 
 logger = logging.getLogger(__name__)
 
 _NON_INTERACTIVE_BACKENDS = frozenset({"agg", "cairo", "pdf", "pgf", "ps", "svg", "template"})
-_MANAGED_SUBPLOT_LEFT = 0.02
-_MANAGED_SUBPLOT_RIGHT = 0.98
-_MANAGED_SUBPLOT_TOP = 0.98
-_MANAGED_SUBPLOT_BOTTOM = 0.02
 _PAGE_SLIDER_MAIN_AXES_BOTTOM = 0.18
-
-
-@dataclass(frozen=True, slots=True)
-class _PreparedDrawPipeline:
-    normalized_style: DrawStyle
-    adapter: BaseAdapter
-    ir: CircuitIR
-    layout_engine: LayoutEngineLike
-    paged_scene: LayoutScene
-    renderer: MatplotlibRenderer
 
 
 def draw_quantum_circuit(
@@ -56,7 +41,7 @@ def draw_quantum_circuit(
     """Draw a quantum circuit from a supported framework."""
 
     _validate_draw_request(backend=backend, ax=ax, page_slider=page_slider)
-    pipeline = _prepare_draw_pipeline(
+    pipeline = prepare_draw_pipeline(
         circuit=circuit,
         framework=framework,
         style=style,
@@ -90,54 +75,19 @@ def _validate_draw_request(
         )
 
 
-def _prepare_draw_pipeline(
-    *,
-    circuit: object,
-    framework: str | None,
-    style: DrawStyle | Mapping[str, object] | None,
-    layout: LayoutEngineLike | None,
-    options: Mapping[str, object],
-) -> _PreparedDrawPipeline:
-    logger.debug(
-        "Drawing circuit with backend=%r framework=%r and %d option(s)",
-        "matplotlib",
-        framework,
-        len(options),
-    )
-
-    from .adapters.registry import get_adapter
-    from .renderers import MatplotlibRenderer
-
-    normalized_style = normalize_style(style)
-    adapter = get_adapter(circuit, framework)
-    ir = adapter.to_ir(circuit, options=_coerce_options(options))
-    layout_engine = _resolve_layout_engine(layout)
-    paged_scene = layout_engine.compute(ir, normalized_style)
-    renderer = MatplotlibRenderer()
-    logger.debug(
-        "Prepared render pipeline with adapter=%s, quantum_wires=%d, layers=%d, pages=%d",
-        type(adapter).__name__,
-        ir.quantum_wire_count,
-        len(ir.layers),
-        len(paged_scene.pages),
-    )
-    return _PreparedDrawPipeline(
-        normalized_style=normalized_style,
-        adapter=adapter,
-        ir=ir,
-        layout_engine=layout_engine,
-        paged_scene=paged_scene,
-        renderer=renderer,
-    )
-
-
 def _render_managed_figure(
-    pipeline: _PreparedDrawPipeline,
+    pipeline: PreparedDrawPipeline,
     *,
     output: OutputPath | None,
     show: bool,
     page_slider: bool,
 ) -> tuple[Figure, Axes]:
+    from .renderers._matplotlib_figure import (
+        create_managed_figure,
+        set_page_slider,
+        set_viewport_width,
+    )
+
     if page_slider:
         slider_scene = _build_continuous_slider_scene(
             pipeline.ir,
@@ -149,7 +99,7 @@ def _render_managed_figure(
             initial_viewport_width,
             slider_scene.height,
         )
-        figure, axes = _create_managed_figure(
+        figure, axes = create_managed_figure(
             slider_scene,
             figure_width=figure_width,
             figure_height=figure_height,
@@ -157,84 +107,28 @@ def _render_managed_figure(
         )
         figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
         viewport_width = _slider_viewport_width(axes, slider_scene)
-        setattr(figure, "_quantum_circuit_drawer_viewport_width", viewport_width)
+        set_viewport_width(figure, viewport_width=viewport_width)
         if output is not None:
             pipeline.renderer.render(pipeline.paged_scene, output=output)
         pipeline.renderer.render(slider_scene, ax=axes)
-        _configure_page_slider(figure, axes, slider_scene, viewport_width)
+        _configure_page_slider(
+            figure=figure,
+            axes=axes,
+            scene=slider_scene,
+            viewport_width=viewport_width,
+            set_page_slider=set_page_slider,
+        )
         logger.debug(
             "Rendered managed figure with page slider viewport_width=%.2f pages=%d",
             viewport_width,
             len(pipeline.paged_scene.pages),
         )
     else:
-        figure, axes = _create_managed_figure(pipeline.paged_scene, use_agg=not show)
+        figure, axes = create_managed_figure(pipeline.paged_scene, use_agg=not show)
         pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
         logger.debug("Rendered managed figure without page slider")
 
     _show_managed_figure_if_supported(figure, show=show)
-    return figure, axes
-
-
-def _resolve_layout_engine(layout: LayoutEngineLike | None) -> LayoutEngineLike:
-    from .layout import LayoutEngine
-
-    if layout is None:
-        return LayoutEngine()
-    if isinstance(layout, LayoutEngine):
-        return layout
-    if hasattr(layout, "compute"):
-        return layout
-    raise LayoutError("layout must be None or expose a compute(circuit_ir, style) method")
-
-
-def _coerce_options(options: Mapping[str, object]) -> dict[str, object]:
-    return dict(options)
-
-
-def _create_managed_figure(
-    scene: LayoutScene,
-    *,
-    figure_width: float | None = None,
-    figure_height: float | None = None,
-    use_agg: bool = False,
-) -> tuple[Figure, Axes]:
-    if use_agg:
-        return _create_agg_managed_figure(
-            scene,
-            figure_width=figure_width,
-            figure_height=figure_height,
-        )
-
-    from matplotlib import pyplot as plt
-
-    figsize = (
-        figure_width if figure_width is not None else max(4.6, scene.width * 0.95),
-        figure_height if figure_height is not None else max(2.1, scene.height * 0.72),
-    )
-    figure = plt.figure(figsize=figsize)
-    axes = figure.add_subplot(111)
-    _configure_managed_axes_padding(figure)
-    return figure, axes
-
-
-def _create_agg_managed_figure(
-    scene: LayoutScene,
-    *,
-    figure_width: float | None = None,
-    figure_height: float | None = None,
-) -> tuple[Figure, Axes]:
-    from matplotlib.backends.backend_agg import FigureCanvasAgg
-    from matplotlib.figure import Figure
-
-    figsize = (
-        figure_width if figure_width is not None else max(4.6, scene.width * 0.95),
-        figure_height if figure_height is not None else max(2.1, scene.height * 0.72),
-    )
-    figure = Figure(figsize=figsize)
-    FigureCanvasAgg(figure)
-    axes = figure.add_subplot(111)
-    _configure_managed_axes_padding(figure)
     return figure, axes
 
 
@@ -246,20 +140,12 @@ def _build_continuous_slider_scene(
     return layout_engine.compute(circuit, replace(style, max_page_width=float("inf")))
 
 
-def _configure_managed_axes_padding(figure: Figure) -> None:
-    figure.subplots_adjust(
-        left=_MANAGED_SUBPLOT_LEFT,
-        right=_MANAGED_SUBPLOT_RIGHT,
-        top=_MANAGED_SUBPLOT_TOP,
-        bottom=_MANAGED_SUBPLOT_BOTTOM,
-    )
-
-
 def _configure_page_slider(
     figure: Figure,
     axes: Axes,
     scene: LayoutScene,
     viewport_width: float,
+    set_page_slider: Callable[[Figure, object], None],
 ) -> None:
     max_scroll = max(0.0, scene.width - viewport_width)
     if max_scroll <= 0.0:
@@ -301,7 +187,7 @@ def _configure_page_slider(
             figure.canvas.draw_idle()
 
     slider.on_changed(_update_scroll)
-    setattr(figure, "_quantum_circuit_drawer_page_slider", slider)
+    set_page_slider(figure, slider)
 
 
 def _page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
@@ -312,6 +198,9 @@ def _page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[fl
 
 def _slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
     figure = axes.figure
+    from matplotlib.figure import Figure
+
+    assert isinstance(figure, Figure)
     figure_width, figure_height = figure.get_size_inches()
     axes_position = axes.get_position()
     axes_width_pixels = figure_width * figure.dpi * axes_position.width

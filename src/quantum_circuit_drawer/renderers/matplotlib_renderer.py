@@ -7,7 +7,6 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from matplotlib.axes import Axes
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure, SubFigure
 
 from ..exceptions import RenderingError
@@ -25,6 +24,7 @@ from ..layout.scene import (
     SceneWire,
 )
 from ..typing import OutputPath, RenderResult
+from ._matplotlib_figure import create_managed_figure
 from .base import BaseRenderer
 from .matplotlib_primitives import (
     draw_barrier,
@@ -43,11 +43,6 @@ from .matplotlib_primitives import (
 )
 
 logger = logging.getLogger(__name__)
-
-_MANAGED_SUBPLOT_LEFT = 0.02
-_MANAGED_SUBPLOT_RIGHT = 0.98
-_MANAGED_SUBPLOT_TOP = 0.98
-_MANAGED_SUBPLOT_BOTTOM = 0.02
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,11 +73,7 @@ class MatplotlibRenderer(BaseRenderer):
         axes = ax
         managed_figure: Figure | None = None
         if axes is None:
-            figsize = (max(4.6, scene.width * 0.95), max(2.1, scene.height * 0.72))
-            managed_figure = Figure(figsize=figsize)
-            FigureCanvasAgg(managed_figure)
-            axes = managed_figure.add_subplot(111)
-            _configure_managed_axes_padding(managed_figure)
+            managed_figure, axes = create_managed_figure(scene, use_agg=True)
             logger.debug("Rendering scene on renderer-managed Agg figure")
         else:
             logger.debug("Rendering scene on caller-managed axes")
@@ -274,12 +265,3 @@ class MatplotlibRenderer(BaseRenderer):
 
     def _text_for_page(self, text: SceneText, page: ScenePage) -> SceneText:
         return replace(text, y=text.y + self._page_y_offset(page))
-
-
-def _configure_managed_axes_padding(figure: Figure) -> None:
-    figure.subplots_adjust(
-        left=_MANAGED_SUBPLOT_LEFT,
-        right=_MANAGED_SUBPLOT_RIGHT,
-        top=_MANAGED_SUBPLOT_TOP,
-        bottom=_MANAGED_SUBPLOT_BOTTOM,
-    )

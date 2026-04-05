@@ -22,6 +22,7 @@ from ..layout.scene import (
     SceneText,
     SceneWire,
 )
+from ._matplotlib_figure import get_viewport_width
 
 BASE_LAYER_ZORDER = 1
 CONNECTION_LAYER_ZORDER = 2
@@ -392,7 +393,7 @@ def _fit_gate_text_font_size(
     available_width_fraction = 0.74
     effective_scene_width = min(
         scene_width,
-        float(getattr(figure, "_quantum_circuit_drawer_viewport_width", scene_width)),
+        get_viewport_width(figure, default=scene_width),
     )
     axes_width_pixels = canvas_width_pixels * axes_width_fraction
     available_width_points = (

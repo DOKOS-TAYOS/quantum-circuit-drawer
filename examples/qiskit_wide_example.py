@@ -2,22 +2,12 @@
 
 from __future__ import annotations
 
-from argparse import ArgumentParser, Namespace
-from pathlib import Path
-
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 
-from quantum_circuit_drawer import draw_quantum_circuit
-
-
-def parse_args() -> Namespace:
-    parser = ArgumentParser(description="Render a wide Qiskit circuit with a horizontal slider.")
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path where the rendered figure will also be saved.",
-    )
-    return parser.parse_args()
+try:
+    from examples._shared import demo_style, run_example
+except ImportError:
+    from _shared import demo_style, run_example
 
 
 def build_circuit() -> QuantumCircuit:
@@ -55,18 +45,14 @@ def build_circuit() -> QuantumCircuit:
 
 
 def main() -> None:
-    args = parse_args()
-    circuit = build_circuit()
-
-    draw_quantum_circuit(
-        circuit,
-        style={"font_size": 12.0, "show_params": True, "max_page_width": 8.5},
-        output=args.output,
+    run_example(
+        build_circuit,
+        description="Render a wide Qiskit circuit with a horizontal slider.",
+        framework=None,
+        style=demo_style(max_page_width=8.5),
         page_slider=True,
+        saved_label="Qiskit wide example",
     )
-
-    if args.output is not None:
-        print(f"Saved Qiskit wide example to {args.output}")
 
 
 if __name__ == "__main__":

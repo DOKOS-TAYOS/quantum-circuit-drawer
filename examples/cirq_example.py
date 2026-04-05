@@ -2,25 +2,14 @@
 
 from __future__ import annotations
 
-from argparse import ArgumentParser, Namespace
 from math import pi
-from pathlib import Path
 
 import cirq
 
-from quantum_circuit_drawer import draw_quantum_circuit
-
-
-def parse_args() -> Namespace:
-    parser = ArgumentParser(
-        description="Render a balanced Cirq circuit in an interactive Matplotlib window."
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path where the rendered figure will also be saved.",
-    )
-    return parser.parse_args()
+try:
+    from examples._shared import demo_style, run_example
+except ImportError:
+    from _shared import demo_style, run_example
 
 
 def build_circuit() -> cirq.Circuit:
@@ -39,19 +28,14 @@ def build_circuit() -> cirq.Circuit:
 
 
 def main() -> None:
-    args = parse_args()
-    circuit = build_circuit()
-
-    draw_quantum_circuit(
-        circuit,
+    run_example(
+        build_circuit,
+        description="Render a balanced Cirq circuit in an interactive Matplotlib window.",
         framework="cirq",
-        style={"font_size": 12.0, "show_params": True, "max_page_width": 7.5},
-        output=args.output,
+        style=demo_style(max_page_width=7.5),
         page_slider=False,
+        saved_label="Cirq example",
     )
-
-    if args.output is not None:
-        print(f"Saved Cirq example to {args.output}")
 
 
 if __name__ == "__main__":

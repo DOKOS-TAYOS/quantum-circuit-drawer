@@ -11,7 +11,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from quantum_circuit_drawer.api import _prepare_draw_pipeline, draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline  # noqa: E402
+from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind  # noqa: E402
@@ -62,7 +63,7 @@ def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float |
 
     for _ in range(repeats):
         prepare_start = perf_counter()
-        _prepare_draw_pipeline(
+        prepare_draw_pipeline(
             circuit=circuit,
             framework="ir",
             style=None,
