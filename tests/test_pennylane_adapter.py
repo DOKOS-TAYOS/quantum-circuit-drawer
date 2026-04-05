@@ -3,6 +3,7 @@ from __future__ import annotations
 import runpy
 import sys
 from collections.abc import Callable
+from importlib.util import find_spec
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
@@ -52,6 +53,10 @@ class FakeMeasurement:
 class FakeTapeWrapper:
     def __init__(self, tape: FakeQuantumTape) -> None:
         self.qtape = tape
+
+
+def _pennylane_available() -> bool:
+    return find_spec("pennylane") is not None
 
 
 def install_fake_pennylane(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -255,6 +260,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
         "pennylane_qaoa_example.py",
     ],
 )
+@pytest.mark.skipif(not _pennylane_available(), reason="PennyLane example tests require pennylane")
 def test_pennylane_examples_build_valid_tapes(example_name: str) -> None:
     example_path = Path(__file__).resolve().parents[1] / "examples" / example_name
     namespace = runpy.run_path(str(example_path))

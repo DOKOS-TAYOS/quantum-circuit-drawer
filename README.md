@@ -31,6 +31,8 @@ Install the published package:
 pip install quantum-circuit-drawer
 ```
 
+The library officially supports Python `3.11+`.
+
 Install optional framework adapters only when you need them:
 
 ```bash

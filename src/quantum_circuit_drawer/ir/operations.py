@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from ..typing import Metadata
 
 
-class OperationKind(str, Enum):
+class OperationKind(StrEnum):
     """Supported operation categories."""
 
     GATE = "gate"
@@ -19,7 +19,7 @@ class OperationKind(str, Enum):
     MEASUREMENT = "measurement"
 
 
-class CanonicalGateFamily(str, Enum):
+class CanonicalGateFamily(StrEnum):
     """Framework-independent gate families used for canonical rendering."""
 
     CUSTOM = "custom"

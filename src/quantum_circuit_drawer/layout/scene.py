@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from ..ir.operations import OperationKind
 from ..ir.wires import WireKind
 from ..style import DrawStyle
 
 
-class GateRenderStyle(str, Enum):
+class GateRenderStyle(StrEnum):
     """Canonical visual styles for scene gates."""
 
     BOX = "box"
