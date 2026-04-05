@@ -1,4 +1,4 @@
-"""Balanced PennyLane tape example for quantum-circuit-drawer."""
+"""Deep PennyLane tape example for quantum-circuit-drawer."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from quantum_circuit_drawer import draw_quantum_circuit
 
 def parse_args() -> Namespace:
     parser = ArgumentParser(
-        description="Render a balanced PennyLane tape in an interactive Matplotlib window."
+        description="Render a deep PennyLane tape in a compact interactive window."
     )
     parser.add_argument(
         "--output",
@@ -24,22 +24,20 @@ def parse_args() -> Namespace:
 
 def build_tape() -> qml.tape.QuantumTape:
     with qml.tape.QuantumTape() as tape:
-        qml.Hadamard(wires=0)
-        qml.RY(0.61, wires=1)
-        qml.RZ(0.28, wires=2)
-        qml.PauliX(wires=3)
+        for layer_index in range(10):
+            qml.RX(0.22 + (0.11 * layer_index), wires=0)
+            qml.RY(0.35 + (0.07 * layer_index), wires=1)
+            qml.RZ(0.19 + (0.05 * layer_index), wires=2)
+            qml.CNOT(wires=[layer_index % 3, (layer_index + 1) % 3])
 
-        qml.CNOT(wires=[0, 1])
-        qml.IsingZZ(0.72, wires=[1, 3])
-        qml.SWAP(wires=[0, 2])
-        qml.CRZ(0.44, wires=[2, 3])
-        qml.CNOT(wires=[3, 0])
-        qml.RY(0.39, wires=1)
+            if layer_index % 2 == 0:
+                qml.IsingZZ(0.42 + (0.04 * layer_index), wires=[0, 2])
+            else:
+                qml.SWAP(wires=[0, 1])
 
         qml.probs(wires=[0])
-        qml.probs(wires=[2])
-        qml.probs(wires=[3])
         qml.probs(wires=[1])
+        qml.probs(wires=[2])
     return tape
 
 
@@ -50,13 +48,13 @@ def main() -> None:
     draw_quantum_circuit(
         tape,
         framework="pennylane",
-        style={"font_size": 12.0, "show_params": True, "max_page_width": 7.5},
+        style={"font_size": 12.0, "show_params": True, "max_page_width": 6.0},
         output=args.output,
         page_slider=False,
     )
 
     if args.output is not None:
-        print(f"Saved PennyLane example to {args.output}")
+        print(f"Saved PennyLane deep example to {args.output}")
 
 
 if __name__ == "__main__":

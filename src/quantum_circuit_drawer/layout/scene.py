@@ -42,6 +42,15 @@ class SceneGate:
 
 
 @dataclass(slots=True)
+class SceneGateAnnotation:
+    column: int
+    x: float
+    y: float
+    text: str
+    font_size: float
+
+
+@dataclass(slots=True)
 class SceneControl:
     column: int
     x: float
@@ -119,6 +128,7 @@ class LayoutScene:
     style: DrawStyle
     wires: tuple[SceneWire, ...]
     gates: tuple[SceneGate, ...]
+    gate_annotations: tuple[SceneGateAnnotation, ...]
     controls: tuple[SceneControl, ...]
     connections: tuple[SceneConnection, ...]
     swaps: tuple[SceneSwap, ...]

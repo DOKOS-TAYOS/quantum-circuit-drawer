@@ -1,4 +1,4 @@
-"""Balanced PennyLane tape example for quantum-circuit-drawer."""
+"""QAOA example in PennyLane for quantum-circuit-drawer."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ from quantum_circuit_drawer import draw_quantum_circuit
 
 
 def parse_args() -> Namespace:
-    parser = ArgumentParser(
-        description="Render a balanced PennyLane tape in an interactive Matplotlib window."
-    )
+    parser = ArgumentParser(description="Render a small QAOA MaxCut circuit built with PennyLane.")
     parser.add_argument(
         "--output",
         type=Path,
@@ -23,23 +21,22 @@ def parse_args() -> Namespace:
 
 
 def build_tape() -> qml.tape.QuantumTape:
+    edges = ((0, 1), (1, 2), (2, 3), (3, 0))
+    gammas = (0.45, 0.73)
+    betas = (0.31, 0.52)
+
     with qml.tape.QuantumTape() as tape:
-        qml.Hadamard(wires=0)
-        qml.RY(0.61, wires=1)
-        qml.RZ(0.28, wires=2)
-        qml.PauliX(wires=3)
+        for wire in range(4):
+            qml.Hadamard(wires=wire)
 
-        qml.CNOT(wires=[0, 1])
-        qml.IsingZZ(0.72, wires=[1, 3])
-        qml.SWAP(wires=[0, 2])
-        qml.CRZ(0.44, wires=[2, 3])
-        qml.CNOT(wires=[3, 0])
-        qml.RY(0.39, wires=1)
+        for gamma, beta in zip(gammas, betas, strict=True):
+            for left, right in edges:
+                qml.IsingZZ(gamma, wires=[left, right])
+            for wire in range(4):
+                qml.RX(2.0 * beta, wires=wire)
 
-        qml.probs(wires=[0])
-        qml.probs(wires=[2])
-        qml.probs(wires=[3])
-        qml.probs(wires=[1])
+        for wire in range(4):
+            qml.probs(wires=[wire])
     return tape
 
 
@@ -56,7 +53,7 @@ def main() -> None:
     )
 
     if args.output is not None:
-        print(f"Saved PennyLane example to {args.output}")
+        print(f"Saved PennyLane QAOA example to {args.output}")
 
 
 if __name__ == "__main__":

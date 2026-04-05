@@ -17,6 +17,7 @@ from ..layout.scene import (
     SceneConnection,
     SceneControl,
     SceneGate,
+    SceneGateAnnotation,
     SceneMeasurement,
     ScenePage,
     SceneSwap,
@@ -29,6 +30,7 @@ from .matplotlib_primitives import (
     draw_barrier,
     draw_connection,
     draw_control,
+    draw_gate_annotation,
     draw_gate_box,
     draw_gate_label,
     draw_measurement_box,
@@ -42,6 +44,11 @@ from .matplotlib_primitives import (
 
 logger = logging.getLogger(__name__)
 
+_MANAGED_SUBPLOT_LEFT = 0.02
+_MANAGED_SUBPLOT_RIGHT = 0.98
+_MANAGED_SUBPLOT_TOP = 0.98
+_MANAGED_SUBPLOT_BOTTOM = 0.02
+
 
 @dataclass(frozen=True, slots=True)
 class _ProjectedPage:
@@ -49,6 +56,7 @@ class _ProjectedPage:
     barriers: tuple[SceneBarrier, ...]
     connections: tuple[SceneConnection, ...]
     gates: tuple[SceneGate, ...]
+    gate_annotations: tuple[SceneGateAnnotation, ...]
     measurements: tuple[SceneMeasurement, ...]
     controls: tuple[SceneControl, ...]
     swaps: tuple[SceneSwap, ...]
@@ -70,10 +78,11 @@ class MatplotlibRenderer(BaseRenderer):
         axes = ax
         managed_figure: Figure | None = None
         if axes is None:
-            figsize = (max(4.0, scene.width * 1.1), max(2.4, scene.height * 0.9))
+            figsize = (max(4.6, scene.width * 0.95), max(2.1, scene.height * 0.72))
             managed_figure = Figure(figsize=figsize)
             FigureCanvasAgg(managed_figure)
             axes = managed_figure.add_subplot(111)
+            _configure_managed_axes_padding(managed_figure)
             logger.debug("Rendering scene on renderer-managed Agg figure")
         else:
             logger.debug("Rendering scene on caller-managed axes")
@@ -108,6 +117,8 @@ class MatplotlibRenderer(BaseRenderer):
             draw_measurement_box(axes, measurement, scene)
         for gate in projected_page.gates:
             draw_gate_label(axes, gate, scene)
+        for annotation in projected_page.gate_annotations:
+            draw_gate_annotation(axes, annotation, scene)
         for control in projected_page.controls:
             draw_control(axes, control, scene)
         for swap in projected_page.swaps:
@@ -134,6 +145,11 @@ class MatplotlibRenderer(BaseRenderer):
                 self._gate_for_page(gate, page, scene)
                 for gate in scene.gates
                 if self._is_in_page(gate.column, page)
+            ),
+            gate_annotations=tuple(
+                self._gate_annotation_for_page(annotation, page, scene)
+                for annotation in scene.gate_annotations
+                if self._is_in_page(annotation.column, page)
             ),
             measurements=tuple(
                 self._measurement_for_page(measurement, page, scene)
@@ -204,6 +220,15 @@ class MatplotlibRenderer(BaseRenderer):
             y=control.y + self._page_y_offset(page),
         )
 
+    def _gate_annotation_for_page(
+        self, annotation: SceneGateAnnotation, page: ScenePage, scene: LayoutScene
+    ) -> SceneGateAnnotation:
+        return replace(
+            annotation,
+            x=annotation.x + self._page_x_offset(page, scene),
+            y=annotation.y + self._page_y_offset(page),
+        )
+
     def _connection_for_page(
         self, connection: SceneConnection, page: ScenePage, scene: LayoutScene
     ) -> SceneConnection:
@@ -249,3 +274,12 @@ class MatplotlibRenderer(BaseRenderer):
 
     def _text_for_page(self, text: SceneText, page: ScenePage) -> SceneText:
         return replace(text, y=text.y + self._page_y_offset(page))
+
+
+def _configure_managed_axes_padding(figure: Figure) -> None:
+    figure.subplots_adjust(
+        left=_MANAGED_SUBPLOT_LEFT,
+        right=_MANAGED_SUBPLOT_RIGHT,
+        top=_MANAGED_SUBPLOT_TOP,
+        bottom=_MANAGED_SUBPLOT_BOTTOM,
+    )

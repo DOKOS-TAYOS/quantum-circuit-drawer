@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import runpy
 import sys
+from collections.abc import Callable
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -239,3 +243,24 @@ def test_pennylane_adapter_supports_additional_common_operations(
         ("q1", "q2"),
         ("q0",),
     ) in signatures
+
+
+@pytest.mark.parametrize(
+    "example_name",
+    [
+        "pennylane_example.py",
+        "pennylane_wide_example.py",
+        "pennylane_deep_example.py",
+        "pennylane_grover_example.py",
+        "pennylane_qaoa_example.py",
+    ],
+)
+def test_pennylane_examples_build_valid_tapes(example_name: str) -> None:
+    example_path = Path(__file__).resolve().parents[1] / "examples" / example_name
+    namespace = runpy.run_path(str(example_path))
+    build_tape = cast(Callable[[], object], namespace["build_tape"])
+
+    tape = build_tape()
+
+    assert hasattr(tape, "operations")
+    assert hasattr(tape, "measurements")

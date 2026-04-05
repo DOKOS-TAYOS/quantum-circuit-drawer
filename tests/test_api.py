@@ -145,8 +145,8 @@ def test_draw_quantum_circuit_accepts_page_wrapping_style() -> None:
 def test_draw_quantum_circuit_uses_dark_theme_by_default() -> None:
     figure, axes = draw_quantum_circuit(build_sample_ir(), show=False)
 
-    assert figure.get_facecolor() == to_rgba("#0b1220")
-    assert axes.get_facecolor() == to_rgba("#0b1220")
+    assert figure.get_facecolor() == to_rgba("#000000")
+    assert axes.get_facecolor() == to_rgba("#000000")
 
 
 def test_draw_quantum_circuit_honors_explicit_framework_override() -> None:
@@ -327,16 +327,19 @@ def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_fi
 
     assert page_slider is not None
     assert len(figure.axes) == 2
-    assert figure.subplotpars.bottom > 0.25
+    assert figure.subplotpars.bottom > 0.17
     assert slider_bottom < 0.1
-    assert slider_height > 0.06
-    assert axes.get_xlim() == pytest.approx((0.0, paged_scene.width))
+    assert slider_height > 0.05
+    assert axes.get_xlim()[0] == pytest.approx(0.0)
+    assert axes.get_xlim()[1] > paged_scene.width
+    assert axes.get_xlim()[1] <= long_scene.width
     assert axes.get_ylim() == pytest.approx((long_scene.height, 0.0))
+    initial_viewport_width = axes.get_xlim()[1] - axes.get_xlim()[0]
 
     page_slider.set_val(page_slider.valmax)
 
     assert axes.get_xlim() == pytest.approx(
-        (long_scene.width - paged_scene.width, long_scene.width)
+        (long_scene.width - initial_viewport_width, long_scene.width)
     )
     plt.close(figure)
 
@@ -383,3 +386,162 @@ def test_draw_quantum_circuit_skips_show_warning_on_non_interactive_backend() ->
     assert axes.figure is figure
     assert not show_warnings
     plt.close(figure)
+
+
+def test_draw_quantum_circuit_managed_figures_use_more_horizontal_canvas_space() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        show=False,
+    )
+
+    left, _, width, _ = axes.get_position().bounds
+    right_gap = 1.0 - (left + width)
+
+    assert width > 0.68
+    assert left < 0.16
+    assert right_gap < 0.16
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_uses_more_horizontal_space_for_taller_circuits() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=str(index))
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=(f"q{layer_index % 4}",),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
+            for layer_index in range(24)
+        ],
+    )
+
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    left, _, width, _ = axes.get_position().bounds
+    right_gap = 1.0 - (left + width)
+
+    assert width > 0.9
+    assert left < 0.04
+    assert right_gap < 0.04
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_reduces_gate_font_size_for_many_wrapped_pages() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=str(index))
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=(f"q{layer_index % 4}",),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
+            for layer_index in range(24)
+        ],
+    )
+
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0},
+        show=False,
+    )
+
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+
+    assert gate_label.get_fontsize() < 10.0
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_keeps_gate_font_readable() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=str(index))
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=(f"q{layer_index % 4}",),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
+            for layer_index in range(24)
+        ],
+    )
+
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+
+    assert gate_label.get_fontsize() > 10.0
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_count() -> None:
+    page_to_font_size: dict[int, float] = {}
+
+    for layer_count in (5, 8, 29):
+        circuit = CircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+            layers=[
+                LayerIR(
+                    operations=[
+                        OperationIR(
+                            kind=OperationKind.GATE,
+                            name="RX",
+                            target_wires=("q0",),
+                            parameters=(0.5,),
+                        )
+                    ]
+                )
+                for _ in range(layer_count)
+            ],
+        )
+        scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+        figure, axes = draw_quantum_circuit(
+            circuit,
+            style={"max_page_width": 4.0},
+            show=False,
+        )
+        page_to_font_size[len(scene.pages)] = next(
+            text.get_fontsize() for text in axes.texts if text.get_text() == "RX"
+        )
+        plt.close(figure)
+
+    assert page_to_font_size[2] > page_to_font_size[3] > page_to_font_size[10]
+    assert page_to_font_size[10] < page_to_font_size[2] * 0.75

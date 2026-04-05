@@ -42,6 +42,20 @@ def uses_compact_parametric_width(
     return len(label) <= 4 and len(subtitle) <= 8
 
 
+def uses_compact_label_width(
+    operation: OperationIR | MeasurementIR,
+    label: str,
+    subtitle: str | None,
+) -> bool:
+    """Return whether a short non-parametric gate should keep a square footprint."""
+
+    if subtitle is not None:
+        return False
+    if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:
+        return False
+    return len(label) <= 4
+
+
 def operation_width(operation: OperationIR | MeasurementIR, style: DrawStyle) -> float:
     """Estimate minimum width required by an operation."""
 
@@ -50,6 +64,8 @@ def operation_width(operation: OperationIR | MeasurementIR, style: DrawStyle) ->
 
     label, subtitle = operation_label_parts(operation, style)
     if uses_compact_parametric_width(operation, label, subtitle):
+        return style.gate_width
+    if uses_compact_label_width(operation, label, subtitle):
         return style.gate_width
     width = max(style.gate_width, estimate_text_width(label, style.font_size) + 0.25)
     if subtitle:

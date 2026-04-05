@@ -1,4 +1,4 @@
-"""Balanced Qiskit example for quantum-circuit-drawer."""
+"""QAOA example in Qiskit for quantum-circuit-drawer."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ from quantum_circuit_drawer import draw_quantum_circuit
 
 
 def parse_args() -> Namespace:
-    parser = ArgumentParser(
-        description="Render a balanced Qiskit circuit in an interactive Matplotlib window."
-    )
+    parser = ArgumentParser(description="Render a small QAOA MaxCut circuit built with Qiskit.")
     parser.add_argument(
         "--output",
         type=Path,
@@ -25,26 +23,23 @@ def parse_args() -> Namespace:
 def build_circuit() -> QuantumCircuit:
     quantum = QuantumRegister(4, "q")
     classical = ClassicalRegister(4, "c")
-    circuit = QuantumCircuit(quantum, classical, name="qiskit_balanced_demo")
+    circuit = QuantumCircuit(quantum, classical, name="qiskit_qaoa_demo")
 
-    circuit.h(0)
-    circuit.ry(0.61, 1)
-    circuit.rz(0.28, 2)
-    circuit.x(3)
+    edges = ((0, 1), (1, 2), (2, 3), (3, 0))
+    gammas = (0.45, 0.73)
+    betas = (0.31, 0.52)
 
-    circuit.cx(0, 1)
-    circuit.rzz(0.72, 1, 3)
-    circuit.barrier()
+    for wire in range(4):
+        circuit.h(wire)
 
-    circuit.swap(0, 2)
-    circuit.crz(0.44, 2, 3)
-    circuit.cx(3, 0)
-    circuit.ry(0.39, 1)
+    for gamma, beta in zip(gammas, betas, strict=True):
+        for left, right in edges:
+            circuit.rzz(gamma, left, right)
+        for wire in range(4):
+            circuit.rx(2.0 * beta, wire)
 
-    circuit.measure(0, classical[0])
-    circuit.measure(2, classical[1])
-    circuit.measure(3, classical[2])
-    circuit.measure(1, classical[3])
+    for wire in range(4):
+        circuit.measure(wire, classical[wire])
     return circuit
 
 
@@ -60,7 +55,7 @@ def main() -> None:
     )
 
     if args.output is not None:
-        print(f"Saved Qiskit example to {args.output}")
+        print(f"Saved Qiskit QAOA example to {args.output}")
 
 
 if __name__ == "__main__":

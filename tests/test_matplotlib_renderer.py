@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
+from pytest import approx
 
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -42,6 +43,19 @@ def build_scene() -> object:
         ],
     )
     return LayoutEngine().compute(circuit, DrawStyle())
+
+
+def _display_patch_ratio(figure: object, patch: object) -> float:
+    renderer = figure.canvas.get_renderer()
+    bounds = patch.get_window_extent(renderer=renderer).bounds
+    _, _, width, height = bounds
+    return width / height
+
+
+def _display_bounds(figure: object, artist: object) -> tuple[float, float, float, float]:
+    renderer = figure.canvas.get_renderer()
+    bounds = artist.get_window_extent(renderer=renderer).bounds
+    return bounds
 
 
 def test_matplotlib_renderer_adds_artists() -> None:
@@ -271,3 +285,211 @@ def test_matplotlib_renderer_renders_large_wrapped_scene_without_errors() -> Non
     assert len(scene.pages) > 1
     assert axes.lines
     assert axes.patches
+
+
+def test_matplotlib_renderer_keeps_compact_gate_boxes_square_on_wide_axes() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots(figsize=(12, 2))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+
+    assert _display_patch_ratio(figure, gate_patch) == approx(1.0, rel=0.04)
+
+
+def test_matplotlib_renderer_keeps_cx_target_and_control_circular_on_wide_axes() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots(figsize=(12, 2))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    circles = [patch for patch in axes.patches if isinstance(patch, Circle)]
+    rendered_ratios = sorted(_display_patch_ratio(figure, patch) for patch in circles)
+
+    assert len(rendered_ratios) >= 2
+    assert rendered_ratios[0] == approx(1.0, rel=0.04)
+    assert rendered_ratios[-1] == approx(1.0, rel=0.04)
+
+
+def test_matplotlib_renderer_uses_distinct_measurement_fill_in_dark_theme() -> None:
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(build_scene(), ax=axes)
+
+    box_patches = [patch for patch in axes.patches if isinstance(patch, FancyBboxPatch)]
+
+    assert len(box_patches) == 2
+    assert box_patches[0].get_facecolor() != box_patches[1].get_facecolor()
+
+
+def test_matplotlib_renderer_projects_gate_annotations_only_on_matching_page() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q1",))]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZZ",
+                        target_wires=("q0", "q1"),
+                        parameters=(0.7,),
+                    )
+                ]
+            ),
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=2.0, show_wire_labels=False))
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    annotation_texts = [text.get_text() for text in axes.texts if text.get_text() in {"0", "1"}]
+
+    assert len(scene.pages) > 1
+    assert annotation_texts == ["0", "1"]
+
+
+def test_matplotlib_renderer_keeps_four_letter_gate_label_inside_box() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="SWAP", target_wires=("q0",))]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots(figsize=(2.5, 2.0))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+    text_x, _, text_width, _ = _display_bounds(figure, gate_text)
+
+    assert text_x >= patch_x
+    assert text_x + text_width <= patch_x + patch_width
+
+
+def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_wrapped_managed_figures() -> (
+    None
+):
+    quantum_wires = [
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(4)
+    ]
+    circuit = CircuitIR(
+        quantum_wires=quantum_wires,
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="SWAP",
+                        target_wires=(f"q{layer_index % 4}",),
+                    )
+                ]
+            )
+            for layer_index in range(20)
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+
+    figure, axes = MatplotlibRenderer().render(scene)
+    figure.canvas.draw()
+
+    gate_patches = sorted(
+        (patch for patch in axes.patches if isinstance(patch, FancyBboxPatch)),
+        key=lambda patch: patch.get_y(),
+    )
+    gate_texts = sorted(
+        (text for text in axes.texts if text.get_text() == "SWAP"),
+        key=lambda text: text.get_position()[1],
+    )
+
+    assert len(gate_patches) == len(gate_texts) == 20
+
+    for gate_patch, gate_text in zip(gate_patches, gate_texts, strict=True):
+        patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+        text_x, _, text_width, _ = _display_bounds(figure, gate_text)
+
+        assert text_x >= patch_x
+        assert text_x + text_width <= patch_x + patch_width
+
+
+def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_narrow_wrapped_figures() -> (
+    None
+):
+    quantum_wires = [
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=str(index))
+        for index in range(4)
+    ]
+    circuit = CircuitIR(
+        quantum_wires=quantum_wires,
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="SWAP",
+                        target_wires=(f"q{layer_index % 4}",),
+                    )
+                ]
+            )
+            for layer_index in range(24)
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+    figure, axes = plt.subplots(figsize=(2.1, 18.0))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+    text_x, _, text_width, _ = _display_bounds(figure, gate_text)
+
+    assert text_x >= patch_x
+    assert text_x + text_width <= patch_x + patch_width

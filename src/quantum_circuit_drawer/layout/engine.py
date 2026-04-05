@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..exceptions import LayoutError
 from ..ir.circuit import CircuitIR, LayerIR
@@ -21,13 +21,14 @@ from .scene import (
     SceneConnection,
     SceneControl,
     SceneGate,
+    SceneGateAnnotation,
     SceneMeasurement,
     ScenePage,
     SceneSwap,
     SceneText,
     SceneWire,
 )
-from .spacing import operation_label_parts, operation_width
+from .spacing import estimate_text_width, operation_label_parts, operation_width
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ class _SceneCollections:
     wires: tuple[SceneWire, ...]
     texts: tuple[SceneText, ...]
     gates: tuple[SceneGate, ...]
+    gate_annotations: tuple[SceneGateAnnotation, ...]
     controls: tuple[SceneControl, ...]
     connections: tuple[SceneConnection, ...]
     swaps: tuple[SceneSwap, ...]
@@ -82,6 +84,7 @@ class LayoutEngine:
             style=scaffold.draw_style,
             wires=scene_collections.wires,
             gates=scene_collections.gates,
+            gate_annotations=scene_collections.gate_annotations,
             controls=scene_collections.controls,
             connections=scene_collections.connections,
             swaps=scene_collections.swaps,
@@ -103,7 +106,7 @@ class LayoutEngine:
         return scene
 
     def _build_layout_scaffold(self, circuit: CircuitIR, style: DrawStyle) -> _LayoutScaffold:
-        draw_style = normalize_style(style)
+        draw_style = self._resolve_scene_style(circuit, normalize_style(style))
         normalized_layers = self._normalize_layers(circuit)
         operation_metrics = self._build_operation_metrics(normalized_layers, draw_style)
         wire_positions = self._build_wire_positions(circuit, draw_style)
@@ -136,6 +139,19 @@ class LayoutEngine:
             scene_height=scene_height,
         )
 
+    def _resolve_scene_style(self, circuit: CircuitIR, style: DrawStyle) -> DrawStyle:
+        left_margin = style.margin_left
+        if style.show_wire_labels:
+            widest_label = max(
+                (
+                    estimate_text_width(wire.label or wire.id, style.font_size * 0.82)
+                    for wire in circuit.all_wires
+                ),
+                default=0.0,
+            )
+            left_margin = max(left_margin, widest_label + style.label_margin + 0.12)
+        return replace(style, margin_left=left_margin, margin_right=max(0.22, style.margin_right))
+
     def _build_scene_collections(
         self,
         circuit: CircuitIR,
@@ -160,6 +176,7 @@ class LayoutEngine:
         )
         texts = self._wire_labels(circuit, scaffold.wire_positions, scaffold.draw_style)
         gates: list[SceneGate] = []
+        gate_annotations: list[SceneGateAnnotation] = []
         controls: list[SceneControl] = []
         connections: list[SceneConnection] = []
         swaps: list[SceneSwap] = []
@@ -178,6 +195,7 @@ class LayoutEngine:
                     wire_map=circuit.wire_map,
                     wire_positions=scaffold.wire_positions,
                     gates=gates,
+                    gate_annotations=gate_annotations,
                     controls=controls,
                     connections=connections,
                     swaps=swaps,
@@ -189,6 +207,7 @@ class LayoutEngine:
             wires=wires,
             texts=texts,
             gates=tuple(gates),
+            gate_annotations=tuple(gate_annotations),
             controls=tuple(controls),
             connections=tuple(connections),
             swaps=tuple(swaps),
@@ -405,6 +424,7 @@ class LayoutEngine:
         wire_map: dict[str, WireIR],
         wire_positions: dict[str, float],
         gates: list[SceneGate],
+        gate_annotations: list[SceneGateAnnotation],
         controls: list[SceneControl],
         connections: list[SceneConnection],
         swaps: list[SceneSwap],
@@ -456,6 +476,7 @@ class LayoutEngine:
                 style=style,
                 wire_positions=wire_positions,
                 gates=gates,
+                gate_annotations=gate_annotations,
                 controls=controls,
                 connections=connections,
             )
@@ -469,6 +490,7 @@ class LayoutEngine:
             style=style,
             wire_positions=wire_positions,
             gates=gates,
+            gate_annotations=gate_annotations,
         )
 
     def _layout_measurement(
@@ -575,6 +597,7 @@ class LayoutEngine:
         style: DrawStyle,
         wire_positions: dict[str, float],
         gates: list[SceneGate],
+        gate_annotations: list[SceneGateAnnotation],
         controls: list[SceneControl],
         connections: list[SceneConnection],
     ) -> None:
@@ -615,6 +638,15 @@ class LayoutEngine:
                 kind=operation.kind,
                 render_style=GateRenderStyle.BOX,
             )
+        )
+        self._append_gate_annotations(
+            column=column,
+            x=x,
+            width=metrics.width,
+            style=style,
+            target_wires=operation.target_wires,
+            wire_positions=wire_positions,
+            gate_annotations=gate_annotations,
         )
         control_ids = operation.control_wires
         for control_id in control_ids:
@@ -684,6 +716,7 @@ class LayoutEngine:
         style: DrawStyle,
         wire_positions: dict[str, float],
         gates: list[SceneGate],
+        gate_annotations: list[SceneGateAnnotation],
     ) -> None:
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
         gates.append(
@@ -699,6 +732,15 @@ class LayoutEngine:
                 render_style=GateRenderStyle.BOX,
             )
         )
+        self._append_gate_annotations(
+            column=column,
+            x=x,
+            width=metrics.width,
+            style=style,
+            target_wires=operation.target_wires,
+            wire_positions=wire_positions,
+            gate_annotations=gate_annotations,
+        )
 
     def _uses_canonical_controlled_x_target(self, operation: OperationIR) -> bool:
         return (
@@ -713,3 +755,29 @@ class LayoutEngine:
             and len(operation.target_wires) == 1
             and not operation.parameters
         )
+
+    def _append_gate_annotations(
+        self,
+        *,
+        column: int,
+        x: float,
+        width: float,
+        style: DrawStyle,
+        target_wires: tuple[str, ...] | list[str],
+        wire_positions: dict[str, float],
+        gate_annotations: list[SceneGateAnnotation],
+    ) -> None:
+        if len(target_wires) <= 1:
+            return
+
+        annotation_x = x - (width / 2) + min(0.16, width * 0.18)
+        for target_index, wire_id in enumerate(target_wires):
+            gate_annotations.append(
+                SceneGateAnnotation(
+                    column=column,
+                    x=annotation_x,
+                    y=wire_positions[wire_id],
+                    text=str(target_index),
+                    font_size=style.font_size * 0.56,
+                )
+            )

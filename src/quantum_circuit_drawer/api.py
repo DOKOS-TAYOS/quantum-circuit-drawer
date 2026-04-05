@@ -23,6 +23,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _NON_INTERACTIVE_BACKENDS = frozenset({"agg", "cairo", "pdf", "pgf", "ps", "svg", "template"})
+_MANAGED_SUBPLOT_LEFT = 0.02
+_MANAGED_SUBPLOT_RIGHT = 0.98
+_MANAGED_SUBPLOT_TOP = 0.98
+_MANAGED_SUBPLOT_BOTTOM = 0.02
+_PAGE_SLIDER_MAIN_AXES_BOTTOM = 0.18
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,14 +144,20 @@ def _render_managed_figure(
             pipeline.layout_engine,
             pipeline.normalized_style,
         )
-        viewport_width = min(pipeline.paged_scene.width, slider_scene.width)
-        figure_width, figure_height = _page_slider_figsize(viewport_width, slider_scene.height)
+        initial_viewport_width = min(pipeline.paged_scene.width, slider_scene.width)
+        figure_width, figure_height = _page_slider_figsize(
+            initial_viewport_width,
+            slider_scene.height,
+        )
         figure, axes = _create_managed_figure(
             slider_scene,
             figure_width=figure_width,
             figure_height=figure_height,
             use_agg=not show,
         )
+        figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
+        viewport_width = _slider_viewport_width(axes, slider_scene)
+        setattr(figure, "_quantum_circuit_drawer_viewport_width", viewport_width)
         if output is not None:
             pipeline.renderer.render(pipeline.paged_scene, output=output)
         pipeline.renderer.render(slider_scene, ax=axes)
@@ -198,11 +209,12 @@ def _create_managed_figure(
     from matplotlib import pyplot as plt
 
     figsize = (
-        figure_width if figure_width is not None else max(4.0, scene.width * 1.1),
-        figure_height if figure_height is not None else max(2.4, scene.height * 0.9),
+        figure_width if figure_width is not None else max(4.6, scene.width * 0.95),
+        figure_height if figure_height is not None else max(2.1, scene.height * 0.72),
     )
     figure = plt.figure(figsize=figsize)
     axes = figure.add_subplot(111)
+    _configure_managed_axes_padding(figure)
     return figure, axes
 
 
@@ -216,12 +228,13 @@ def _create_agg_managed_figure(
     from matplotlib.figure import Figure
 
     figsize = (
-        figure_width if figure_width is not None else max(4.0, scene.width * 1.1),
-        figure_height if figure_height is not None else max(2.4, scene.height * 0.9),
+        figure_width if figure_width is not None else max(4.6, scene.width * 0.95),
+        figure_height if figure_height is not None else max(2.1, scene.height * 0.72),
     )
     figure = Figure(figsize=figsize)
     FigureCanvasAgg(figure)
     axes = figure.add_subplot(111)
+    _configure_managed_axes_padding(figure)
     return figure, axes
 
 
@@ -231,6 +244,15 @@ def _build_continuous_slider_scene(
     style: DrawStyle,
 ) -> LayoutScene:
     return layout_engine.compute(circuit, replace(style, max_page_width=float("inf")))
+
+
+def _configure_managed_axes_padding(figure: Figure) -> None:
+    figure.subplots_adjust(
+        left=_MANAGED_SUBPLOT_LEFT,
+        right=_MANAGED_SUBPLOT_RIGHT,
+        top=_MANAGED_SUBPLOT_TOP,
+        bottom=_MANAGED_SUBPLOT_BOTTOM,
+    )
 
 
 def _configure_page_slider(
@@ -245,9 +267,8 @@ def _configure_page_slider(
 
     from matplotlib.widgets import Slider
 
-    figure.subplots_adjust(bottom=0.3)
     slider_axes = figure.add_axes(
-        (0.14, 0.06, 0.72, 0.085),
+        (0.12, 0.045, 0.76, 0.055),
         facecolor=scene.style.theme.axes_facecolor,
     )
     slider = Slider(
@@ -284,9 +305,21 @@ def _configure_page_slider(
 
 
 def _page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
-    width = max(4.0, viewport_width * 1.1)
-    height = max(2.4, scene_height * 0.9) + 1.0
+    width = max(4.8, viewport_width * 0.98)
+    height = max(2.0, scene_height * 0.68) + 1.0
     return width, height
+
+
+def _slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
+    figure = axes.figure
+    figure_width, figure_height = figure.get_size_inches()
+    axes_position = axes.get_position()
+    axes_width_pixels = figure_width * figure.dpi * axes_position.width
+    axes_height_pixels = figure_height * figure.dpi * axes_position.height
+    if axes_width_pixels <= 0.0 or axes_height_pixels <= 0.0:
+        return scene.width
+    viewport_width = scene.height * (axes_width_pixels / axes_height_pixels)
+    return min(scene.width, viewport_width)
 
 
 def _set_slider_view(

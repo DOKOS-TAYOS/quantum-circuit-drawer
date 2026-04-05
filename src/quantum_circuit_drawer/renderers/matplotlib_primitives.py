@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from matplotlib.axes import Axes
+from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Patch
+from matplotlib.textpath import TextPath
 
 from ..layout.scene import (
     GateRenderStyle,
@@ -12,6 +16,7 @@ from ..layout.scene import (
     SceneConnection,
     SceneControl,
     SceneGate,
+    SceneGateAnnotation,
     SceneMeasurement,
     SceneSwap,
     SceneText,
@@ -30,6 +35,7 @@ def prepare_axes(ax: Axes, scene: LayoutScene) -> None:
     ax.set_ylim(scene.height, 0.0)
     ax.set_facecolor(scene.style.theme.axes_facecolor)
     ax.set_autoscale_on(False)
+    ax.set_aspect("equal", adjustable="box")
 
 
 def _add_patch_artist(ax: Axes, patch: Patch) -> None:
@@ -197,24 +203,38 @@ def draw_gate_label(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
     if gate.render_style is GateRenderStyle.X_TARGET:
         return
 
+    label_font_size = _fit_gate_text_font_size(
+        ax=ax,
+        scene=scene,
+        width=gate.width,
+        text=gate.label,
+        default_font_size=scene.style.font_size,
+    )
     ax.text(
         gate.x,
         gate.y - 0.08 if gate.subtitle else gate.y,
         gate.label,
         ha="center",
         va="center",
-        fontsize=scene.style.font_size,
+        fontsize=label_font_size,
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
     )
     if gate.subtitle:
+        subtitle_font_size = _fit_gate_text_font_size(
+            ax=ax,
+            scene=scene,
+            width=gate.width,
+            text=gate.subtitle,
+            default_font_size=scene.style.font_size * 0.78,
+        )
         ax.text(
             gate.x,
             gate.y + 0.16,
             gate.subtitle,
             ha="center",
             va="center",
-            fontsize=scene.style.font_size * 0.78,
+            fontsize=subtitle_font_size,
             color=scene.style.theme.text_color,
             zorder=TEXT_LAYER_ZORDER,
         )
@@ -273,7 +293,7 @@ def draw_measurement_box(ax: Axes, measurement: SceneMeasurement, scene: LayoutS
         measurement.width,
         measurement.height,
         boxstyle="round,pad=0.01,rounding_size=0.05",
-        facecolor=scene.style.theme.gate_facecolor,
+        facecolor=scene.style.theme.measurement_facecolor,
         edgecolor=scene.style.theme.measurement_color,
         linewidth=scene.style.line_width,
         zorder=OCCLUSION_LAYER_ZORDER,
@@ -328,6 +348,76 @@ def draw_text(ax: Axes, text: SceneText, scene: LayoutScene) -> None:
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
     )
+
+
+def draw_gate_annotation(ax: Axes, annotation: SceneGateAnnotation, scene: LayoutScene) -> None:
+    ax.text(
+        annotation.x,
+        annotation.y,
+        annotation.text,
+        ha="left",
+        va="center",
+        fontsize=annotation.font_size,
+        color=scene.style.theme.text_color,
+        zorder=TEXT_LAYER_ZORDER,
+    )
+
+
+def _fit_gate_text_font_size(
+    *,
+    ax: Axes,
+    scene: LayoutScene,
+    width: float,
+    text: str,
+    default_font_size: float,
+) -> float:
+    """Shrink gate text when the rendered box is too narrow for the label."""
+
+    if not text:
+        return default_font_size
+
+    effective_default_font_size = default_font_size * _page_wrapped_font_scale(scene)
+    figure = ax.figure
+    axes_width_fraction = ax.get_position().width
+    x_limits = ax.get_xlim()
+    scene_width = abs(x_limits[1] - x_limits[0])
+    if axes_width_fraction <= 0.0 or scene_width <= 0.0:
+        return effective_default_font_size
+
+    canvas_width_pixels = (
+        figure.canvas.get_width_height()[0]
+        if figure.canvas is not None
+        else figure.get_size_inches()[0] * figure.dpi
+    )
+    available_width_fraction = 0.74
+    effective_scene_width = min(
+        scene_width,
+        float(getattr(figure, "_quantum_circuit_drawer_viewport_width", scene_width)),
+    )
+    axes_width_pixels = canvas_width_pixels * axes_width_fraction
+    available_width_points = (
+        (axes_width_pixels * (width / effective_scene_width) * available_width_fraction)
+        * 72.0
+        / figure.dpi
+    )
+    text_width_at_one_point = _text_width_in_points(text)
+    if text_width_at_one_point <= 0.0:
+        return effective_default_font_size
+
+    fitted_font_size = available_width_points / text_width_at_one_point
+    return max(3.5, min(effective_default_font_size, fitted_font_size))
+
+
+def _page_wrapped_font_scale(scene: LayoutScene) -> float:
+    page_count = len(scene.pages)
+    if page_count <= 1:
+        return 1.0
+    return 0.9 * max(0.4, 1.0 - ((page_count - 2) * 0.035))
+
+
+@lru_cache(maxsize=128)
+def _text_width_in_points(text: str) -> float:
+    return TextPath((0.0, 0.0), text, size=1.0, prop=FontProperties()).get_extents().width
 
 
 def finalize_axes(ax: Axes, scene: LayoutScene) -> None:

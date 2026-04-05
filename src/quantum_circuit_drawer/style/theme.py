@@ -18,6 +18,7 @@ class DrawTheme:
     classical_wire_color: str
     gate_facecolor: str
     gate_edgecolor: str
+    measurement_facecolor: str
     text_color: str
     barrier_color: str
     measurement_color: str
@@ -33,6 +34,7 @@ THEMES: dict[str, DrawTheme] = {
         classical_wire_color="#52606d",
         gate_facecolor="#f8fafc",
         gate_edgecolor="#0f172a",
+        measurement_facecolor="#e2eef9",
         text_color="#0f172a",
         barrier_color="#94a3b8",
         measurement_color="#0f172a",
@@ -46,6 +48,7 @@ THEMES: dict[str, DrawTheme] = {
         classical_wire_color="#6b5e52",
         gate_facecolor="#fff7e8",
         gate_edgecolor="#5b4636",
+        measurement_facecolor="#f6eddc",
         text_color="#2d2a26",
         barrier_color="#b59b7a",
         measurement_color="#5b4636",
@@ -53,15 +56,16 @@ THEMES: dict[str, DrawTheme] = {
     ),
     "dark": DrawTheme(
         name="dark",
-        figure_facecolor="#0b1220",
-        axes_facecolor="#0b1220",
+        figure_facecolor="#000000",
+        axes_facecolor="#000000",
         wire_color="#dbe4f0",
         classical_wire_color="#8fa3b8",
         gate_facecolor="#111b2e",
         gate_edgecolor="#dbe4f0",
+        measurement_facecolor="#17324a",
         text_color="#f8fafc",
         barrier_color="#4b5d78",
-        measurement_color="#7dd3fc",
+        measurement_color="#8ed0f2",
         accent_color="#38bdf8",
     ),
 }

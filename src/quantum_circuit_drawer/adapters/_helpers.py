@@ -77,6 +77,7 @@ _CANONICAL_LABEL_BY_ALIAS: dict[str, str] = {
     "CRY": "RY",
     "RZ": "RZ",
     "RZZ": "RZZ",
+    "ISINGZZ": "RZZ",
     "RZX": "RZX",
     "CRZ": "RZ",
     "U": "U",

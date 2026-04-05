@@ -1,20 +1,46 @@
 # Examples
 
-This folder contains long runnable examples for the currently supported adapters in `quantum-circuit-drawer`.
+This folder contains runnable galleries for the supported adapters in `quantum-circuit-drawer`.
 
-All examples now do the same three things by default:
+Use the shared entrypoint:
 
-- They render in an interactive Matplotlib window when you run them.
-- They use the library default dark theme.
-- They enable `page_slider=True` so long circuits open with a continuous horizontal slider in the interactive window.
+- `examples/run_demo.py`
 
-Saving is optional. If you also want an image file, pass `--output <path>`.
+The available demo ids are:
+
+- `qiskit-balanced`
+- `qiskit-wide`
+- `qiskit-deep`
+- `qiskit-grover`
+- `qiskit-qaoa`
+- `cirq-balanced`
+- `cirq-wide`
+- `cirq-deep`
+- `cirq-grover`
+- `cirq-qaoa`
+- `pennylane-balanced`
+- `pennylane-wide`
+- `pennylane-deep`
+- `pennylane-grover`
+- `pennylane-qaoa`
+- `cudaq-balanced`
+- `cudaq-wide`
+- `cudaq-deep`
+
+## Default behavior
+
+- Balanced, deep, Grover, and QAOA demos use wrapped paged views by default.
+- Only the `wide` demos open with a horizontal slider.
+- The windows are tuned to be a bit wider and less tall than before.
+- The default theme is the library dark theme with the black background.
+- Saving is optional. Pass `--output <path>` if you also want an image file.
+- Use `--list` to print the catalog without running anything.
 
 ## Requirements
 
 Install the project in your local virtual environment with the extras you want to try.
 
-Windows PowerShell in a native Windows checkout:
+Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[qiskit,cirq,pennylane]"
@@ -32,45 +58,71 @@ For CUDA-Q on Linux or WSL2:
 .venv/bin/python -m pip install -e ".[cudaq]"
 ```
 
-## Run an example
+## List demos
 
-Qiskit on Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples/qiskit_example.py
+.\.venv\Scripts\python.exe examples/run_demo.py --list
 ```
 
-Qiskit on Linux or WSL:
+Linux or WSL:
 
 ```bash
-.venv/bin/python examples/qiskit_example.py
+.venv/bin/python examples/run_demo.py --list
 ```
 
-Cirq:
+## Full command list
 
-```bash
-.venv/bin/python examples/cirq_example.py
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-balanced
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-wide
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-deep
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-grover
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa
+.\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-balanced
+.\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-wide
+.\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-deep
+.\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-grover
+.\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-qaoa
+.\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-balanced
+.\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-wide
+.\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-deep
+.\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-grover
+.\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-qaoa
 ```
 
-PennyLane:
+Linux or WSL:
 
 ```bash
-.venv/bin/python examples/pennylane_example.py
-```
-
-CUDA-Q on Linux or WSL:
-
-```bash
-.venv/bin/python examples/cudaq_example.py
+.venv/bin/python examples/run_demo.py --demo qiskit-balanced
+.venv/bin/python examples/run_demo.py --demo qiskit-wide
+.venv/bin/python examples/run_demo.py --demo qiskit-deep
+.venv/bin/python examples/run_demo.py --demo qiskit-grover
+.venv/bin/python examples/run_demo.py --demo qiskit-qaoa
+.venv/bin/python examples/run_demo.py --demo cirq-balanced
+.venv/bin/python examples/run_demo.py --demo cirq-wide
+.venv/bin/python examples/run_demo.py --demo cirq-deep
+.venv/bin/python examples/run_demo.py --demo cirq-grover
+.venv/bin/python examples/run_demo.py --demo cirq-qaoa
+.venv/bin/python examples/run_demo.py --demo pennylane-balanced
+.venv/bin/python examples/run_demo.py --demo pennylane-wide
+.venv/bin/python examples/run_demo.py --demo pennylane-deep
+.venv/bin/python examples/run_demo.py --demo pennylane-grover
+.venv/bin/python examples/run_demo.py --demo pennylane-qaoa
+.venv/bin/python examples/run_demo.py --demo cudaq-balanced
+.venv/bin/python examples/run_demo.py --demo cudaq-wide
+.venv/bin/python examples/run_demo.py --demo cudaq-deep
 ```
 
 ## Save while showing
 
-Any example can optionally save the rendered figure too:
+Any demo can optionally save the rendered figure too:
 
-```bash
-.venv/bin/python examples/qiskit_example.py --output examples/output/qiskit_circuit.png
+```powershell
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa --output examples/output/qiskit_qaoa.png
 ```
 
-The output directory is not committed. Long circuits still save as paged figures when they exceed the configured page width, while the interactive window shows one long horizontal view with a slider.
-
+Generated images are not committed.

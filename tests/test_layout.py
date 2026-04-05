@@ -414,3 +414,64 @@ def test_layout_engine_draws_canonical_controlled_rz_with_compact_box() -> None:
     assert scene.gates[0].render_style.value == "box"
     assert scene.gates[0].label == "RZ"
     assert scene.gates[0].subtitle == "0.5"
+
+
+def test_layout_engine_adds_target_wire_order_annotations_for_multi_wire_boxes() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZZ",
+                        target_wires=("q2", "q0"),
+                        parameters=(0.7,),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    annotations_by_text = {annotation.text: annotation for annotation in scene.gate_annotations}
+
+    assert set(annotations_by_text) == {"0", "1"}
+    assert annotations_by_text["0"].y == scene.wire_y_positions["q2"]
+    assert annotations_by_text["1"].y == scene.wire_y_positions["q0"]
+
+
+def test_layout_engine_only_labels_target_wires_for_controlled_multi_wire_boxes() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="RZZ",
+                        target_wires=("q1", "q2"),
+                        control_wires=("q0",),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert [annotation.text for annotation in scene.gate_annotations] == ["0", "1"]
+    assert [annotation.y for annotation in scene.gate_annotations] == [
+        scene.wire_y_positions["q1"],
+        scene.wire_y_positions["q2"],
+    ]

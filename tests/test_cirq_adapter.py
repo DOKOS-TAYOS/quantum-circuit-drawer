@@ -181,8 +181,18 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
     ) in signatures
 
 
-def test_cirq_example_builds_a_valid_circuit() -> None:
-    example_path = Path(__file__).resolve().parents[1] / "examples" / "cirq_example.py"
+@pytest.mark.parametrize(
+    "example_name",
+    [
+        "cirq_example.py",
+        "cirq_wide_example.py",
+        "cirq_deep_example.py",
+        "cirq_grover_example.py",
+        "cirq_qaoa_example.py",
+    ],
+)
+def test_cirq_example_builds_a_valid_circuit(example_name: str) -> None:
+    example_path = Path(__file__).resolve().parents[1] / "examples" / example_name
     namespace = runpy.run_path(str(example_path))
     build_circuit = cast(Callable[[], cirq.Circuit], namespace["build_circuit"])
 
