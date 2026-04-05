@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
-from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
+from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.spacing import operation_width
@@ -133,7 +133,8 @@ def test_layout_engine_keeps_late_measurements_after_swap_and_barrier() -> None:
 
     scene = LayoutEngine().compute(circuit, DrawStyle())
 
-    assert [gate.column for gate in scene.gates] == [0, 1, 2]
+    assert [gate.column for gate in scene.gates] == [0, 1]
+    assert [control.column for control in scene.controls] == [1, 2, 2]
     assert [swap.column for swap in scene.swaps] == [3]
     assert [barrier.column for barrier in scene.barriers] == [4]
     assert [measurement.column for measurement in scene.measurements] == [5, 6]
@@ -315,3 +316,101 @@ def test_layout_engine_reuses_cached_operation_metrics(monkeypatch) -> None:
     operation_count = sum(len(layer.operations) for layer in circuit.layers)
 
     assert operation_width_calls == operation_count
+
+
+def test_layout_engine_emits_debug_summary(caplog) -> None:
+    caplog.set_level("DEBUG", logger="quantum_circuit_drawer.layout.engine")
+
+    scene = LayoutEngine().compute(build_layout_ir(), DrawStyle())
+
+    assert scene.pages
+    assert any(
+        "Computed layout scene" in record.getMessage() and "pages=1" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_layout_engine_draws_canonical_controlled_x_as_not_target() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert len(scene.gates) == 1
+    assert scene.gates[0].render_style.value == "x_target"
+    assert scene.gates[0].label == "X"
+
+
+def test_layout_engine_draws_canonical_cz_as_two_controls_without_box() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="Z",
+                        canonical_family=CanonicalGateFamily.Z,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert len(scene.gates) == 0
+    assert len(scene.controls) == 2
+    assert len(scene.connections) == 1
+
+
+def test_layout_engine_draws_canonical_controlled_rz_with_compact_box() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="RZ",
+                        canonical_family=CanonicalGateFamily.RZ,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle(show_params=True))
+
+    assert len(scene.gates) == 1
+    assert scene.gates[0].render_style.value == "box"
+    assert scene.gates[0].label == "RZ"
+    assert scene.gates[0].subtitle == "0.5"

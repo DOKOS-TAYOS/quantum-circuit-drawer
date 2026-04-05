@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 from ..ir.operations import OperationKind
 from ..ir.wires import WireKind
 from ..style import DrawStyle
+
+
+class GateRenderStyle(str, Enum):
+    """Canonical visual styles for scene gates."""
+
+    BOX = "box"
+    X_TARGET = "x_target"
 
 
 @dataclass(slots=True)
@@ -30,6 +38,7 @@ class SceneGate:
     label: str
     subtitle: str | None
     kind: OperationKind
+    render_style: GateRenderStyle = GateRenderStyle.BOX
 
 
 @dataclass(slots=True)

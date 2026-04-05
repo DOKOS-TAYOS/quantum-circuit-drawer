@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from .exceptions import LayoutError, UnsupportedBackendError
@@ -15,10 +15,24 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
+    from .adapters.base import BaseAdapter
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
+    from .renderers import MatplotlibRenderer
 
 logger = logging.getLogger(__name__)
+
+_NON_INTERACTIVE_BACKENDS = frozenset({"agg", "cairo", "pdf", "pgf", "ps", "svg", "template"})
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedDrawPipeline:
+    normalized_style: DrawStyle
+    adapter: BaseAdapter
+    ir: CircuitIR
+    layout_engine: LayoutEngineLike
+    paged_scene: LayoutScene
+    renderer: MatplotlibRenderer
 
 
 def draw_quantum_circuit(
@@ -36,6 +50,33 @@ def draw_quantum_circuit(
 ) -> RenderResult:
     """Draw a quantum circuit from a supported framework."""
 
+    _validate_draw_request(backend=backend, ax=ax, page_slider=page_slider)
+    pipeline = _prepare_draw_pipeline(
+        circuit=circuit,
+        framework=framework,
+        style=style,
+        layout=layout,
+        options=options,
+    )
+
+    if ax is None:
+        return _render_managed_figure(
+            pipeline,
+            output=output,
+            show=show,
+            page_slider=page_slider,
+        )
+
+    logger.debug("Rendering scene on caller-managed Matplotlib axes")
+    return pipeline.renderer.render(pipeline.paged_scene, ax=ax, output=output)
+
+
+def _validate_draw_request(
+    *,
+    backend: str,
+    ax: Axes | None,
+    page_slider: bool,
+) -> None:
     if backend != "matplotlib":
         raise UnsupportedBackendError(f"unsupported backend '{backend}'")
     if ax is not None and page_slider:
@@ -43,12 +84,22 @@ def draw_quantum_circuit(
             "page_slider=True requires a Matplotlib-managed figure and cannot be used with ax"
         )
 
+
+def _prepare_draw_pipeline(
+    *,
+    circuit: object,
+    framework: str | None,
+    style: DrawStyle | Mapping[str, object] | None,
+    layout: LayoutEngineLike | None,
+    options: Mapping[str, object],
+) -> _PreparedDrawPipeline:
     logger.debug(
         "Drawing circuit with backend=%r framework=%r and %d option(s)",
-        backend,
+        "matplotlib",
         framework,
         len(options),
     )
+
     from .adapters.registry import get_adapter
     from .renderers import MatplotlibRenderer
 
@@ -59,36 +110,58 @@ def draw_quantum_circuit(
     paged_scene = layout_engine.compute(ir, normalized_style)
     renderer = MatplotlibRenderer()
     logger.debug(
-        "Prepared render pipeline with adapter=%s, quantum_wires=%d, layers=%d",
+        "Prepared render pipeline with adapter=%s, quantum_wires=%d, layers=%d, pages=%d",
         type(adapter).__name__,
         ir.quantum_wire_count,
         len(ir.layers),
+        len(paged_scene.pages),
+    )
+    return _PreparedDrawPipeline(
+        normalized_style=normalized_style,
+        adapter=adapter,
+        ir=ir,
+        layout_engine=layout_engine,
+        paged_scene=paged_scene,
+        renderer=renderer,
     )
 
-    if ax is None:
-        if page_slider:
-            slider_scene = _build_continuous_slider_scene(ir, layout_engine, normalized_style)
-            viewport_width = min(paged_scene.width, slider_scene.width)
-            figure_width, figure_height = _page_slider_figsize(viewport_width, slider_scene.height)
-            figure, axes = _create_managed_figure(
-                slider_scene,
-                figure_width=figure_width,
-                figure_height=figure_height,
-            )
-            if output is not None:
-                renderer.render(paged_scene, output=output)
-            renderer.render(slider_scene, ax=axes)
-            _configure_page_slider(figure, axes, slider_scene, viewport_width)
-        else:
-            figure, axes = _create_managed_figure(paged_scene)
-            renderer.render(paged_scene, ax=axes, output=output)
-        if show:
-            from matplotlib import pyplot as plt
 
-            plt.show()
-        return figure, axes
+def _render_managed_figure(
+    pipeline: _PreparedDrawPipeline,
+    *,
+    output: OutputPath | None,
+    show: bool,
+    page_slider: bool,
+) -> tuple[Figure, Axes]:
+    if page_slider:
+        slider_scene = _build_continuous_slider_scene(
+            pipeline.ir,
+            pipeline.layout_engine,
+            pipeline.normalized_style,
+        )
+        viewport_width = min(pipeline.paged_scene.width, slider_scene.width)
+        figure_width, figure_height = _page_slider_figsize(viewport_width, slider_scene.height)
+        figure, axes = _create_managed_figure(
+            slider_scene,
+            figure_width=figure_width,
+            figure_height=figure_height,
+        )
+        if output is not None:
+            pipeline.renderer.render(pipeline.paged_scene, output=output)
+        pipeline.renderer.render(slider_scene, ax=axes)
+        _configure_page_slider(figure, axes, slider_scene, viewport_width)
+        logger.debug(
+            "Rendered managed figure with page slider viewport_width=%.2f pages=%d",
+            viewport_width,
+            len(pipeline.paged_scene.pages),
+        )
+    else:
+        figure, axes = _create_managed_figure(pipeline.paged_scene)
+        pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
+        logger.debug("Rendered managed figure without page slider")
 
-    return renderer.render(paged_scene, ax=ax, output=output)
+    _show_managed_figure_if_supported(figure, show=show)
+    return figure, axes
 
 
 def _resolve_layout_engine(layout: LayoutEngineLike | None) -> LayoutEngineLike:
@@ -186,3 +259,48 @@ def _set_slider_view(
 ) -> None:
     axes.set_xlim(x_offset, x_offset + viewport_width)
     axes.set_ylim(scene.height, 0.0)
+
+
+def _show_managed_figure_if_supported(figure: Figure, *, show: bool) -> None:
+    if not show:
+        logger.debug("Skipping pyplot.show() because show=False")
+        return
+
+    from matplotlib import pyplot as plt
+
+    show_function = plt.show
+    backend_name = _figure_backend_name(figure)
+    if backend_name in _NON_INTERACTIVE_BACKENDS and _is_builtin_pyplot_show(show_function):
+        logger.debug(
+            "Skipping pyplot.show() for non-interactive backend=%r",
+            backend_name,
+        )
+        return
+
+    show_function()
+
+
+def _is_builtin_pyplot_show(show_function: object) -> bool:
+    return getattr(show_function, "__module__", "") == "matplotlib.pyplot"
+
+
+def _figure_backend_name(figure: Figure) -> str:
+    canvas_name = type(figure.canvas).__name__.lower()
+    if canvas_name.startswith("figurecanvas"):
+        return _normalize_backend_name(canvas_name.removeprefix("figurecanvas"))
+
+    from matplotlib import pyplot as plt
+
+    return _normalize_backend_name(str(plt.get_backend()))
+
+
+def _normalize_backend_name(backend_name: str) -> str:
+    normalized_name = backend_name.strip().lower()
+    for prefix in (
+        "module://matplotlib.backends.backend_",
+        "matplotlib.backends.backend_",
+        "backend_",
+    ):
+        if normalized_name.startswith(prefix):
+            normalized_name = normalized_name.removeprefix(prefix)
+    return normalized_name

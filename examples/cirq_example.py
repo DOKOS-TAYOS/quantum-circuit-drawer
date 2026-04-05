@@ -34,33 +34,45 @@ def build_circuit() -> cirq.Circuit:
         ),
         cirq.Moment(
             cirq.CNOT(q0, q1),
-            cirq.CZ(q1, q3),
             cirq.SWAP(q2, q4),
         ),
         cirq.Moment(
+            cirq.CZ(q1, q3),
+        ),
+        cirq.Moment(
             cirq.Z(q4).controlled_by(q3),
-            cirq.X(q3).controlled_by(q0, q2),
             cirq.Y(q1),
         ),
         cirq.Moment(
+            cirq.X(q3).controlled_by(q0, q2),
+        ),
+        cirq.Moment(
             cirq.rz(0.72)(q4),
-            cirq.CNOT(q4, q2),
             cirq.SWAP(q0, q3),
         ),
         cirq.Moment(
+            cirq.CNOT(q4, q2),
+        ),
+        cirq.Moment(
             cirq.CZ(q2, q4),
+        ),
+        cirq.Moment(
             cirq.rx(1.17)(q2),
             cirq.X(q0).controlled_by(q4),
         ),
         cirq.Moment(
             cirq.ry(0.83)(q1),
             cirq.CNOT(q3, q0),
+        ),
+        cirq.Moment(
             cirq.SWAP(q1, q2),
         ),
         cirq.Moment(
             cirq.rz(0.29)(q4),
-            cirq.Z(q1).controlled_by(q4),
             cirq.CZ(q0, q2),
+        ),
+        cirq.Moment(
+            cirq.Z(q1).controlled_by(q4),
         ),
         cirq.Moment(
             cirq.rx(2.21)(q0),
@@ -69,13 +81,17 @@ def build_circuit() -> cirq.Circuit:
         ),
         cirq.Moment(
             cirq.X(q4).controlled_by(q1, q3),
+        ),
+        cirq.Moment(
             cirq.CNOT(q4, q0),
             cirq.SWAP(q2, q3),
         ),
         cirq.Moment(
             cirq.rz(0.54)(q4),
-            cirq.CNOT(q0, q4),
             cirq.CZ(q2, q3),
+        ),
+        cirq.Moment(
+            cirq.CNOT(q0, q4),
         ),
         cirq.Moment(
             cirq.measure(q4, key="alpha"),

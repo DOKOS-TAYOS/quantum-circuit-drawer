@@ -10,7 +10,12 @@ from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
-from ..utils.formatting import format_gate_name
+from ._helpers import (
+    build_classical_register,
+    canonical_gate_spec,
+    extract_dependency_types,
+    sequential_bit_labels,
+)
 from .base import BaseAdapter
 
 
@@ -37,18 +42,9 @@ class PennyLaneAdapter(BaseAdapter):
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
-        try:
-            import pennylane as qml
-        except ImportError:
-            return False
-
-        tape_types = tuple(
-            candidate
-            for candidate in (
-                getattr(getattr(qml, "tape", None), "QuantumTape", None),
-                getattr(getattr(qml, "tape", None), "QuantumScript", None),
-            )
-            if candidate is not None
+        tape_types = extract_dependency_types(
+            "pennylane",
+            ("tape.QuantumTape", "tape.QuantumScript"),
         )
         if tape_types and isinstance(circuit, tape_types):
             return True
@@ -70,18 +66,10 @@ class PennyLaneAdapter(BaseAdapter):
         ]
         layers = list(self.pack_operations(sequential_operations))
 
-        classical_wires: list[WireIR] = []
+        measurement_labels = sequential_bit_labels(len(tape.measurements))
+        classical_wires, measurement_targets = build_classical_register(measurement_labels)
+
         measurement_operations: list[MeasurementIR] = []
-        if tape.measurements:
-            classical_wires.append(
-                WireIR(
-                    id="c0",
-                    index=0,
-                    kind=WireKind.CLASSICAL,
-                    label="c",
-                    metadata={"bundle_size": len(tape.measurements)},
-                )
-            )
         for measurement_index, measurement in enumerate(tape.measurements):
             measured_wires = tuple(wire_ids[wire] for wire in measurement.wires) or tuple(
                 wire.id for wire in quantum_wires
@@ -91,8 +79,8 @@ class PennyLaneAdapter(BaseAdapter):
                     kind=OperationKind.MEASUREMENT,
                     name="M",
                     target_wires=(measured_wires[0],),
-                    classical_target="c0",
-                    metadata={"classical_bit_label": f"c[{measurement_index}]"},
+                    classical_target=measurement_targets[measurement_index][0],
+                    metadata={"classical_bit_label": measurement_targets[measurement_index][1]},
                 )
             )
         if measurement_operations:
@@ -133,20 +121,29 @@ class PennyLaneAdapter(BaseAdapter):
         if not target_wires:
             target_wires = tuple(wire_ids[wire] for wire in operation.wires)
 
-        name = format_gate_name(getattr(operation, "name", operation.__class__.__name__))
+        canonical_gate = canonical_gate_spec(
+            getattr(operation, "name", operation.__class__.__name__)
+        )
         parameters = tuple(getattr(operation, "parameters", ()) or ())
-        if name == "SWAP":
-            return OperationIR(kind=OperationKind.SWAP, name=name, target_wires=target_wires)
-        if name == "BARRIER":
-            return OperationIR(kind=OperationKind.BARRIER, name=name, target_wires=target_wires)
+        if canonical_gate.label == "SWAP":
+            return OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=target_wires)
+        if canonical_gate.label == "BARRIER":
+            return OperationIR(
+                kind=OperationKind.BARRIER, name="BARRIER", target_wires=target_wires
+            )
         if control_wires:
             return OperationIR(
                 kind=OperationKind.CONTROLLED_GATE,
-                name=name,
+                name=canonical_gate.label,
+                canonical_family=canonical_gate.family,
                 target_wires=target_wires,
                 control_wires=control_wires,
                 parameters=parameters,
             )
         return OperationIR(
-            kind=OperationKind.GATE, name=name, target_wires=target_wires, parameters=parameters
+            kind=OperationKind.GATE,
+            name=canonical_gate.label,
+            canonical_family=canonical_gate.family,
+            target_wires=target_wires,
+            parameters=parameters,
         )

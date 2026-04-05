@@ -19,47 +19,74 @@ class AdapterRegistry:
 
     def register(self, adapter_type: type[BaseAdapter]) -> None:
         self._adapter_types[adapter_type.framework_name] = adapter_type
+        logger.debug(
+            "Registered adapter %s for framework=%r",
+            adapter_type.__name__,
+            adapter_type.framework_name,
+        )
 
     def get(self, framework_name: str) -> BaseAdapter:
         self._ensure_defaults_registered()
-        try:
-            adapter = self._adapter_types[framework_name]()
-        except KeyError as exc:
-            available = ", ".join(sorted(self._adapter_types))
-            raise UnsupportedFrameworkError(
-                f"unsupported framework '{framework_name}'. Available adapters: {available}"
-            ) from exc
+        adapter_type = self._adapter_type_for_framework(framework_name)
+        adapter = adapter_type()
         logger.debug(
             "Using explicit adapter %s for framework=%r", type(adapter).__name__, framework_name
         )
         return adapter
 
     def detect(self, circuit: object) -> BaseAdapter:
+        adapter_type = self.detect_adapter_type(circuit)
+        adapter = adapter_type()
+        logger.debug(
+            "Autodetected adapter %s for object type %r",
+            type(adapter).__name__,
+            type(circuit),
+        )
+        return adapter
+
+    def detect_adapter_type(self, circuit: object) -> type[BaseAdapter]:
         self._ensure_defaults_registered()
         for adapter_type in self._adapter_types.values():
             if adapter_type.can_handle(circuit):
-                adapter = adapter_type()
-                logger.debug(
-                    "Autodetected adapter %s for object type %r",
-                    type(adapter).__name__,
-                    type(circuit),
-                )
-                return adapter
+                return adapter_type
         raise UnsupportedFrameworkError(
             f"could not autodetect a framework adapter for object of type {type(circuit)!r}"
         )
 
+    def detect_framework_name(self, circuit: object) -> str | None:
+        try:
+            return self.detect_adapter_type(circuit).framework_name
+        except UnsupportedFrameworkError:
+            return None
+
+    def available_frameworks(self) -> tuple[str, ...]:
+        self._ensure_defaults_registered()
+        return tuple(self._adapter_types)
+
+    def _adapter_type_for_framework(self, framework_name: str) -> type[BaseAdapter]:
+        try:
+            return self._adapter_types[framework_name]
+        except KeyError as exc:
+            available = ", ".join(sorted(self.available_frameworks()))
+            raise UnsupportedFrameworkError(
+                f"unsupported framework '{framework_name}'. Available adapters: {available}"
+            ) from exc
+
     def _ensure_defaults_registered(self) -> None:
         if self._adapter_types:
             return
-        from .cirq_adapter import CirqAdapter
-        from .cudaq_adapter import CudaqAdapter
-        from .ir_adapter import IRAdapter
-        from .pennylane_adapter import PennyLaneAdapter
-        from .qiskit_adapter import QiskitAdapter
-
-        for adapter_type in (IRAdapter, QiskitAdapter, CirqAdapter, PennyLaneAdapter, CudaqAdapter):
+        for adapter_type in _default_adapter_types():
             self.register(adapter_type)
+
+
+def _default_adapter_types() -> tuple[type[BaseAdapter], ...]:
+    from .cirq_adapter import CirqAdapter
+    from .cudaq_adapter import CudaqAdapter
+    from .ir_adapter import IRAdapter
+    from .pennylane_adapter import PennyLaneAdapter
+    from .qiskit_adapter import QiskitAdapter
+
+    return (IRAdapter, QiskitAdapter, CirqAdapter, PennyLaneAdapter, CudaqAdapter)
 
 
 registry = AdapterRegistry()
@@ -68,9 +95,19 @@ registry = AdapterRegistry()
 def get_adapter(circuit: object, framework: str | None = None) -> BaseAdapter:
     """Return an adapter by explicit framework or autodetection."""
 
-    adapter = registry.get(framework) if framework is not None else registry.detect(circuit)
-    if framework is not None and not adapter.can_handle(circuit):
+    if framework is None:
+        return registry.detect(circuit)
+
+    adapter = registry.get(framework)
+    if adapter.can_handle(circuit):
+        return adapter
+
+    detected_framework = registry.detect_framework_name(circuit)
+    if detected_framework is not None:
         raise UnsupportedFrameworkError(
-            f"framework '{framework}' does not match object of type {type(circuit)!r}"
+            f"requested framework '{framework}' does not match object of type {type(circuit)!r}; "
+            f"autodetected '{detected_framework}'"
         )
-    return adapter
+    raise UnsupportedFrameworkError(
+        f"requested framework '{framework}' does not match object of type {type(circuit)!r}"
+    )

@@ -6,6 +6,7 @@ from matplotlib.axes import Axes
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch
 
 from ..layout.scene import (
+    GateRenderStyle,
     LayoutScene,
     SceneBarrier,
     SceneConnection,
@@ -133,6 +134,10 @@ def draw_connection(ax: Axes, connection: SceneConnection, scene: LayoutScene) -
 
 
 def draw_gate_box(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
+    if gate.render_style is GateRenderStyle.X_TARGET:
+        draw_x_target(ax, gate, scene)
+        return
+
     patch = FancyBboxPatch(
         (gate.x - gate.width / 2, gate.y - gate.height / 2),
         gate.width,
@@ -146,7 +151,40 @@ def draw_gate_box(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
     ax.add_patch(patch)
 
 
+def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
+    radius = min(gate.width, gate.height) * 0.36
+    ax.add_patch(
+        Circle(
+            (gate.x, gate.y),
+            radius=radius,
+            facecolor=scene.style.theme.axes_facecolor,
+            edgecolor=scene.style.theme.wire_color,
+            linewidth=scene.style.line_width,
+            zorder=OCCLUSION_LAYER_ZORDER,
+        )
+    )
+    ax.plot(
+        [gate.x - radius, gate.x + radius],
+        [gate.y, gate.y],
+        color=scene.style.theme.wire_color,
+        linewidth=scene.style.line_width,
+        solid_capstyle="round",
+        zorder=SYMBOL_LAYER_ZORDER,
+    )
+    ax.plot(
+        [gate.x, gate.x],
+        [gate.y - radius, gate.y + radius],
+        color=scene.style.theme.wire_color,
+        linewidth=scene.style.line_width,
+        solid_capstyle="round",
+        zorder=SYMBOL_LAYER_ZORDER,
+    )
+
+
 def draw_gate_label(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
+    if gate.render_style is GateRenderStyle.X_TARGET:
+        return
+
     ax.text(
         gate.x,
         gate.y - 0.08 if gate.subtitle else gate.y,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import warnings
 from pathlib import Path
 from types import ModuleType
 
@@ -345,4 +346,19 @@ def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider
     assert output.exists()
     assert saved_axes_counts == [1]
     assert len(figure.axes) == 2
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_skips_show_warning_on_non_interactive_backend() -> None:
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always")
+        figure, axes = draw_quantum_circuit(build_sample_ir())
+
+    show_warnings = [
+        warning for warning in caught_warnings if "cannot be shown" in str(warning.message)
+    ]
+
+    assert figure is not None
+    assert axes.figure is figure
+    assert not show_warnings
     plt.close(figure)

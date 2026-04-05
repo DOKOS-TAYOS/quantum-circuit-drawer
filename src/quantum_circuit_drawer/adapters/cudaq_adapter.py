@@ -7,8 +7,8 @@ from collections.abc import Mapping
 
 from ..exceptions import UnsupportedOperationError
 from ..ir.circuit import CircuitIR
-from ..ir.wires import WireIR, WireKind
 from ._cudaq_quake_parser import CudaqQuakeParser
+from ._helpers import build_classical_register, extract_dependency_types, sequential_bit_labels
 from .base import BaseAdapter
 
 _ENTRYPOINT_RE = re.compile(r"func\.func\s+@(?P<name>[^\(\s]+)\((?P<args>[^\)]*)\)(?P<rest>.*)")
@@ -21,19 +21,7 @@ class CudaqAdapter(BaseAdapter):
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
-        try:
-            import cudaq
-        except ImportError:
-            return False
-
-        kernel_types = tuple(
-            candidate
-            for candidate in (
-                getattr(cudaq, "PyKernel", None),
-                getattr(cudaq, "PyKernelDecorator", None),
-            )
-            if isinstance(candidate, type)
-        )
+        kernel_types = extract_dependency_types("cudaq", ("PyKernel", "PyKernelDecorator"))
         return bool(kernel_types) and isinstance(circuit, kernel_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
@@ -44,17 +32,9 @@ class CudaqAdapter(BaseAdapter):
         mlir = self._materialize_mlir(circuit)
         parser = CudaqQuakeParser(mlir)
         quantum_wires, operations = parser.parse()
-        classical_wires: list[WireIR] = []
-        if parser.measurement_count:
-            classical_wires.append(
-                WireIR(
-                    id="c0",
-                    index=0,
-                    kind=WireKind.CLASSICAL,
-                    label="c",
-                    metadata={"bundle_size": parser.measurement_count},
-                )
-            )
+        classical_wires, _ = build_classical_register(
+            sequential_bit_labels(parser.measurement_count)
+        )
 
         return CircuitIR(
             quantum_wires=quantum_wires,

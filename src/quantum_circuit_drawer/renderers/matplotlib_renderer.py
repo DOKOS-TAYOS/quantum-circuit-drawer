@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from matplotlib.axes import Axes
@@ -42,6 +42,18 @@ from .matplotlib_primitives import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class _ProjectedPage:
+    wires: tuple[SceneWire, ...]
+    barriers: tuple[SceneBarrier, ...]
+    connections: tuple[SceneConnection, ...]
+    gates: tuple[SceneGate, ...]
+    measurements: tuple[SceneMeasurement, ...]
+    controls: tuple[SceneControl, ...]
+    swaps: tuple[SceneSwap, ...]
+    texts: tuple[SceneText, ...]
+
+
 class MatplotlibRenderer(BaseRenderer):
     """Render a neutral layout scene using Matplotlib."""
 
@@ -61,31 +73,18 @@ class MatplotlibRenderer(BaseRenderer):
             managed_figure = Figure(figsize=figsize)
             FigureCanvasAgg(managed_figure)
             axes = managed_figure.add_subplot(111)
+            logger.debug("Rendering scene on renderer-managed Agg figure")
+        else:
+            logger.debug("Rendering scene on caller-managed axes")
 
         figure: Figure | SubFigure = axes.figure
-
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
 
         for page in scene.pages:
             self._draw_page(axes, scene, page)
 
         finalize_axes(axes, scene)
-
-        if output is not None:
-            try:
-                output_path = Path(output)
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                save_figure: Figure
-                if isinstance(figure, SubFigure):
-                    save_figure = figure.figure
-                else:
-                    save_figure = figure
-                save_figure.savefig(output_path, bbox_inches="tight")
-            except (OSError, TypeError, ValueError) as exc:
-                raise RenderingError(
-                    f"failed to save rendered circuit to {output!r}: {exc}"
-                ) from exc
-            logger.debug("Saved rendered circuit to %s", output_path)
+        self._save_output(figure, output)
 
         if ax is None:
             assert managed_figure is not None
@@ -93,59 +92,82 @@ class MatplotlibRenderer(BaseRenderer):
         return axes
 
     def _draw_page(self, axes: Axes, scene: LayoutScene, page: ScenePage) -> None:
-        page_wires = tuple(self._wire_for_page(wire, page, scene) for wire in scene.wires)
-        page_barriers = tuple(
-            self._barrier_for_page(barrier, page, scene)
-            for barrier in scene.barriers
-            if self._is_in_page(barrier.column, page)
-        )
-        page_connections = tuple(
-            self._connection_for_page(connection, page, scene)
-            for connection in scene.connections
-            if self._is_in_page(connection.column, page)
-        )
-        page_gates = tuple(
-            self._gate_for_page(gate, page, scene)
-            for gate in scene.gates
-            if self._is_in_page(gate.column, page)
-        )
-        page_measurements = tuple(
-            self._measurement_for_page(measurement, page, scene)
-            for measurement in scene.measurements
-            if self._is_in_page(measurement.column, page)
-        )
-        page_controls = tuple(
-            self._control_for_page(control, page, scene)
-            for control in scene.controls
-            if self._is_in_page(control.column, page)
-        )
-        page_swaps = tuple(
-            self._swap_for_page(swap, page, scene)
-            for swap in scene.swaps
-            if self._is_in_page(swap.column, page)
-        )
-        page_texts = tuple(self._text_for_page(text, page) for text in scene.texts)
+        projected_page = self._project_page(scene, page)
 
-        for wire in page_wires:
+        for wire in projected_page.wires:
             draw_wire(axes, wire, scene)
-        for barrier in page_barriers:
+        for barrier in projected_page.barriers:
             draw_barrier(axes, barrier, scene)
-        for connection in page_connections:
+        for connection in projected_page.connections:
             draw_connection(axes, connection, scene)
-        for gate in page_gates:
+        for gate in projected_page.gates:
             draw_gate_box(axes, gate, scene)
-        for measurement in page_measurements:
+        for measurement in projected_page.measurements:
             draw_measurement_box(axes, measurement, scene)
-        for gate in page_gates:
+        for gate in projected_page.gates:
             draw_gate_label(axes, gate, scene)
-        for control in page_controls:
+        for control in projected_page.controls:
             draw_control(axes, control, scene)
-        for swap in page_swaps:
+        for swap in projected_page.swaps:
             draw_swap(axes, swap, scene)
-        for measurement in page_measurements:
+        for measurement in projected_page.measurements:
             draw_measurement_symbol(axes, measurement, scene)
-        for text in page_texts:
+        for text in projected_page.texts:
             draw_text(axes, text, scene)
+
+    def _project_page(self, scene: LayoutScene, page: ScenePage) -> _ProjectedPage:
+        return _ProjectedPage(
+            wires=tuple(self._wire_for_page(wire, page, scene) for wire in scene.wires),
+            barriers=tuple(
+                self._barrier_for_page(barrier, page, scene)
+                for barrier in scene.barriers
+                if self._is_in_page(barrier.column, page)
+            ),
+            connections=tuple(
+                self._connection_for_page(connection, page, scene)
+                for connection in scene.connections
+                if self._is_in_page(connection.column, page)
+            ),
+            gates=tuple(
+                self._gate_for_page(gate, page, scene)
+                for gate in scene.gates
+                if self._is_in_page(gate.column, page)
+            ),
+            measurements=tuple(
+                self._measurement_for_page(measurement, page, scene)
+                for measurement in scene.measurements
+                if self._is_in_page(measurement.column, page)
+            ),
+            controls=tuple(
+                self._control_for_page(control, page, scene)
+                for control in scene.controls
+                if self._is_in_page(control.column, page)
+            ),
+            swaps=tuple(
+                self._swap_for_page(swap, page, scene)
+                for swap in scene.swaps
+                if self._is_in_page(swap.column, page)
+            ),
+            texts=tuple(self._text_for_page(text, page) for text in scene.texts),
+        )
+
+    def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
+        if output is None:
+            return
+
+        try:
+            output_path = Path(output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            save_figure: Figure
+            if isinstance(figure, SubFigure):
+                save_figure = figure.figure
+            else:
+                save_figure = figure
+            save_figure.savefig(output_path, bbox_inches="tight")
+        except (OSError, TypeError, ValueError) as exc:
+            logger.debug("Failed to save rendered circuit to %r: %s", output, exc)
+            raise RenderingError(f"failed to save rendered circuit to {output!r}: {exc}") from exc
+        logger.debug("Saved rendered circuit to %s", output_path)
 
     def _is_in_page(self, column: int, page: ScenePage) -> bool:
         return page.start_column <= column <= page.end_column

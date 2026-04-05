@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import runpy
+from collections.abc import Callable
+from pathlib import Path
+from typing import cast
+
 import pytest
 
 cirq = pytest.importorskip("cirq")
 
 from quantum_circuit_drawer.adapters.cirq_adapter import CirqAdapter
-from quantum_circuit_drawer.ir.operations import OperationKind
+from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 
 
 def test_cirq_adapter_converts_common_operations() -> None:
@@ -43,3 +48,67 @@ def test_cirq_adapter_keeps_individual_classical_bit_labels() -> None:
         "c[0]",
         "c[1]",
     ]
+
+
+def test_cirq_adapter_maps_canonical_gate_families() -> None:
+    q0, q1, q2 = cirq.LineQubit.range(3)
+    circuit = cirq.Circuit(
+        cirq.H(q0),
+        cirq.rz(0.5)(q1),
+        cirq.CNOT(q0, q1),
+        cirq.CZ(q1, q2),
+        cirq.X(q2).controlled_by(q0, q1),
+        cirq.rz(0.25)(q2).controlled_by(q0),
+    )
+
+    ir = CirqAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+    signatures = [
+        (operation.kind, operation.canonical_family, len(operation.control_wires), operation.name)
+        for operation in operations
+    ]
+
+    assert (OperationKind.GATE, CanonicalGateFamily.H, 0, "H") in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.RZ, 0, "RZ") in signatures
+    assert (OperationKind.CONTROLLED_GATE, CanonicalGateFamily.X, 1, "X") in signatures
+    assert (OperationKind.CONTROLLED_GATE, CanonicalGateFamily.Z, 1, "Z") in signatures
+    assert (OperationKind.CONTROLLED_GATE, CanonicalGateFamily.X, 2, "X") in signatures
+    assert (OperationKind.CONTROLLED_GATE, CanonicalGateFamily.RZ, 1, "RZ") in signatures
+
+
+def test_cirq_adapter_maps_additional_canonical_gate_families() -> None:
+    q0, q1 = cirq.LineQubit.range(2)
+    circuit = cirq.Circuit(
+        cirq.S(q0),
+        cirq.Z(q1) ** -0.5,
+        cirq.T(q0),
+        cirq.Z(q1) ** -0.25,
+        cirq.X(q0) ** 0.5,
+        cirq.X(q1) ** -0.5,
+        cirq.ISWAP(q0, q1),
+    )
+
+    ir = CirqAdapter().to_ir(circuit)
+    signatures = [
+        (operation.canonical_family, operation.name, tuple(operation.parameters))
+        for layer in ir.layers
+        for operation in layer.operations
+    ]
+
+    assert (CanonicalGateFamily.S, "S", ()) in signatures
+    assert (CanonicalGateFamily.SDG, "Sdg", ()) in signatures
+    assert (CanonicalGateFamily.T, "T", ()) in signatures
+    assert (CanonicalGateFamily.TDG, "Tdg", ()) in signatures
+    assert (CanonicalGateFamily.SX, "SX", ()) in signatures
+    assert (CanonicalGateFamily.SXDG, "SXdg", ()) in signatures
+    assert (CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
+
+
+def test_cirq_example_builds_a_valid_circuit() -> None:
+    example_path = Path(__file__).resolve().parents[1] / "examples" / "cirq_example.py"
+    namespace = runpy.run_path(str(example_path))
+    build_circuit = cast(Callable[[], cirq.Circuit], namespace["build_circuit"])
+
+    circuit = build_circuit()
+
+    assert isinstance(circuit, cirq.Circuit)

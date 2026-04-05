@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch
+from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
 
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
-from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
+from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from quantum_circuit_drawer.style import DrawStyle
 
 
-def build_scene():
+def build_scene() -> object:
     circuit = CircuitIR(
         quantum_wires=[
             WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
@@ -206,3 +206,33 @@ def test_matplotlib_renderer_reuses_page_transforms_per_artist(monkeypatch) -> N
 
     assert gate_calls == len(scene.gates)
     assert measurement_calls == len(scene.measurements)
+
+
+def test_matplotlib_renderer_draws_canonical_cx_without_gate_box_text() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert not any(isinstance(patch, FancyBboxPatch) for patch in axes.patches)
+    assert sum(isinstance(patch, Circle) for patch in axes.patches) >= 2
+    assert not any(text.get_text() == "X" for text in axes.texts)

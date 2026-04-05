@@ -7,7 +7,7 @@ import pytest
 
 from quantum_circuit_drawer.adapters.pennylane_adapter import PennyLaneAdapter
 from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError
-from quantum_circuit_drawer.ir.operations import OperationKind
+from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 
 
 class FakeQuantumTape:
@@ -82,8 +82,40 @@ def test_pennylane_adapter_converts_tape_like_objects(monkeypatch: pytest.Monkey
     assert OperationKind.GATE in kinds
     assert OperationKind.CONTROLLED_GATE in kinds
     assert OperationKind.MEASUREMENT in kinds
-    assert "Hadamard" in names
-    assert "CNOT" in names
+    assert "H" in names
+    assert "X" in names
+
+
+def test_pennylane_adapter_maps_additional_canonical_gate_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(
+            FakeOperation(name="PhaseShift", wires=(0,), parameters=(0.125,)),
+            FakeOperation(name="Adjoint(S)", wires=(0,)),
+            FakeOperation(name="Adjoint(T)", wires=(1,)),
+            FakeOperation(name="SX", wires=(1,)),
+            FakeOperation(name="U3", wires=(0,), parameters=(0.1, 0.2, 0.3)),
+            FakeOperation(name="ISWAP", wires=(0, 1)),
+        ),
+        measurements=(),
+    )
+
+    ir = PennyLaneAdapter().to_ir(FakeTapeWrapper(tape))
+    signatures = [
+        (operation.kind, operation.canonical_family, operation.name, tuple(operation.parameters))
+        for layer in ir.layers
+        for operation in layer.operations
+    ]
+
+    assert (OperationKind.GATE, CanonicalGateFamily.P, "P", (0.125,)) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.SDG, "Sdg", ()) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.TDG, "Tdg", ()) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.SX, "SX", ()) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.U, "U", (0.1, 0.2, 0.3)) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
 
 
 def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPatch) -> None:

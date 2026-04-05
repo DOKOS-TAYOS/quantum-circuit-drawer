@@ -2,10 +2,11 @@
 
 from .circuit import CircuitIR, LayerIR, OperationNode
 from .measurements import MeasurementIR
-from .operations import OperationIR, OperationKind
+from .operations import CanonicalGateFamily, OperationIR, OperationKind, infer_canonical_gate_family
 from .wires import WireIR, WireKind
 
 __all__ = [
+    "CanonicalGateFamily",
     "CircuitIR",
     "LayerIR",
     "MeasurementIR",
@@ -14,4 +15,5 @@ __all__ = [
     "OperationNode",
     "WireIR",
     "WireKind",
+    "infer_canonical_gate_family",
 ]

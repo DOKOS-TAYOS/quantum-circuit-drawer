@@ -10,7 +10,7 @@ from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
-from ..utils.formatting import format_gate_name
+from ._helpers import canonical_gate_spec, extract_dependency_types
 from .base import BaseAdapter
 
 
@@ -35,11 +35,8 @@ class QiskitAdapter(BaseAdapter):
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
-        try:
-            from qiskit.circuit import QuantumCircuit
-        except ImportError:
-            return False
-        return isinstance(circuit, QuantumCircuit)
+        circuit_types = extract_dependency_types("qiskit", ("circuit.QuantumCircuit",))
+        return bool(circuit_types) and isinstance(circuit, circuit_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
         if not self.can_handle(circuit):
@@ -76,7 +73,8 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: dict[object, tuple[str, str]],
     ) -> OperationIR:
         operation, qubits, clbits = self._normalize_entry(entry)
-        name = getattr(operation, "name", operation.__class__.__name__).lower()
+        raw_name = getattr(operation, "name", operation.__class__.__name__)
+        name = str(raw_name).lower()
         target_wires = tuple(qubit_ids[qubit] for qubit in qubits)
         parameters = tuple(getattr(operation, "params", ()) or ())
 
@@ -91,7 +89,9 @@ class QiskitAdapter(BaseAdapter):
             )
         if name == "barrier":
             return OperationIR(
-                kind=OperationKind.BARRIER, name="BARRIER", target_wires=target_wires
+                kind=OperationKind.BARRIER,
+                name="BARRIER",
+                target_wires=target_wires,
             )
         if name == "swap":
             return OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=target_wires)
@@ -100,9 +100,11 @@ class QiskitAdapter(BaseAdapter):
         if control_count > 0 and len(target_wires) > control_count:
             base_gate = getattr(operation, "base_gate", None)
             base_name = getattr(base_gate, "name", None) or name.removeprefix("c")
+            canonical_gate = canonical_gate_spec(str(base_name))
             return OperationIR(
                 kind=OperationKind.CONTROLLED_GATE,
-                name=format_gate_name(base_name),
+                name=canonical_gate.label,
+                canonical_family=canonical_gate.family,
                 target_wires=target_wires[control_count:],
                 control_wires=target_wires[:control_count],
                 parameters=parameters,
@@ -110,9 +112,11 @@ class QiskitAdapter(BaseAdapter):
 
         if not target_wires:
             raise UnsupportedOperationError(f"Qiskit operation '{name}' has no drawable targets")
+        canonical_gate = canonical_gate_spec(name)
         return OperationIR(
             kind=OperationKind.GATE,
-            name=format_gate_name(name),
+            name=canonical_gate.label,
+            canonical_family=canonical_gate.family,
             target_wires=target_wires,
             parameters=parameters,
         )

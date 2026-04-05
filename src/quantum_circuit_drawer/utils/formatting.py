@@ -12,8 +12,13 @@ def format_gate_name(name: str) -> str:
     """Normalize a gate display name."""
 
     compact = name.replace("_", "").replace("-", "")
-    if compact.isalpha() and len(compact) <= 4:
-        return compact.upper()
+    uppercase = compact.upper()
+    if uppercase == "ISWAP":
+        return "iSWAP"
+    if uppercase.endswith("DG") and compact.isalpha() and 3 <= len(compact) <= 5:
+        return f"{uppercase[:-2]}dg"
+    if compact.isalnum() and len(compact) <= 4:
+        return uppercase
     return name.replace("_", " ")
 
 
