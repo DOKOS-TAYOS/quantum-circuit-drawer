@@ -204,7 +204,9 @@ class CirqAdapter(BaseAdapter):
         if special_label is not None:
             return canonical_gate_spec(special_label), ()
 
-        return canonical_gate_spec(self._raw_operation_name(operation)), self._extract_parameters(gate)
+        return canonical_gate_spec(self._raw_operation_name(operation)), self._extract_parameters(
+            gate
+        )
 
     def _special_canonical_label(self, gate: object) -> str | None:
         exponent = getattr(gate, "exponent", None)
@@ -241,6 +243,7 @@ class CirqAdapter(BaseAdapter):
             return operation.__class__.__name__
         class_name = gate.__class__.__name__.lower()
         mapping = {
+            "identitygate": "I",
             "hpowgate": "H",
             "xpowgate": "X",
             "ypowgate": "Y",
@@ -251,6 +254,11 @@ class CirqAdapter(BaseAdapter):
             "czpowgate": "CZ",
             "swappowgate": "SWAP",
             "iswappowgate": "iSWAP",
+            "resetchannel": "RESET",
+            "xxpowgate": "RXX",
+            "yypowgate": "RYY",
+            "zzpowgate": "RZZ",
+            "fsimgate": "FSIM",
         }
         return mapping.get(class_name, str(gate))
 

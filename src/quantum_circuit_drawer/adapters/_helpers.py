@@ -26,6 +26,9 @@ _ADJOINT_WRAPPER_RE = re.compile(
 )
 
 _CANONICAL_LABEL_BY_ALIAS: dict[str, str] = {
+    "I": "I",
+    "ID": "I",
+    "IDENTITY": "I",
     "H": "H",
     "HADAMARD": "H",
     "CH": "H",
@@ -67,14 +70,23 @@ _CANONICAL_LABEL_BY_ALIAS: dict[str, str] = {
     "PHASESHIFT": "P",
     "U1": "P",
     "RX": "RX",
+    "RXX": "RXX",
     "CRX": "RX",
     "RY": "RY",
+    "RYY": "RYY",
     "CRY": "RY",
     "RZ": "RZ",
+    "RZZ": "RZZ",
+    "RZX": "RZX",
     "CRZ": "RZ",
     "U": "U",
     "U3": "U",
     "U2": "U2",
+    "RESET": "RESET",
+    "RESETCHANNEL": "RESET",
+    "DELAY": "DELAY",
+    "ECR": "ECR",
+    "FSIM": "FSIM",
     "ISWAP": "iSWAP",
 }
 
@@ -165,9 +177,7 @@ def _normalized_gate_token(raw_name: str) -> str:
     normalized_name = raw_name.strip()
     wrapped_match = _ADJOINT_WRAPPER_RE.fullmatch(normalized_name)
     if wrapped_match is not None:
-        normalized_name = (
-            f"{wrapped_match.group('wrapper')}{wrapped_match.group('inner').strip()}"
-        )
+        normalized_name = f"{wrapped_match.group('wrapper')}{wrapped_match.group('inner').strip()}"
     else:
         normalized_name = normalized_name.split("(", 1)[0].strip()
 

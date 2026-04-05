@@ -32,5 +32,7 @@ def test_benchmark_render_script_emits_json_summary() -> None:
     assert payload["wires"] == 4
     assert payload["layers"] == 8
     assert payload["repeats"] == 1
+    assert payload["prepare_seconds"] >= 0.0
     assert payload["layout_seconds"] >= 0.0
     assert payload["render_seconds"] >= 0.0
+    assert payload["full_draw_seconds"] >= 0.0

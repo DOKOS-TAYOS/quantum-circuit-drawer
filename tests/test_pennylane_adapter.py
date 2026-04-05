@@ -123,3 +123,119 @@ def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPa
 
     with pytest.raises(UnsupportedFrameworkError, match="PennyLane support in v0.1"):
         PennyLaneAdapter().to_ir(object())
+
+
+def test_pennylane_adapter_supports_additional_common_operations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0, 1, 2),
+        operations=(
+            FakeOperation(name="Identity", wires=(0,)),
+            FakeOperation(name="Reset", wires=(1,)),
+            FakeOperation(name="Delay", wires=(2,), parameters=(12,)),
+            FakeOperation(name="ECR", wires=(0, 2)),
+            FakeOperation(name="RXX", wires=(0, 1), parameters=(0.5,)),
+            FakeOperation(name="RYY", wires=(1, 2), parameters=(0.6,)),
+            FakeOperation(name="RZZ", wires=(0, 2), parameters=(0.7,)),
+            FakeOperation(name="RZX", wires=(0, 1), parameters=(0.8,)),
+            FakeOperation(name="FSim", wires=(1, 2), parameters=(0.2, 0.3)),
+            FakeOperation(
+                name="RZZ",
+                wires=(0, 1, 2),
+                parameters=(0.125,),
+                control_wires=(0,),
+                target_wires=(1, 2),
+            ),
+        ),
+        measurements=(),
+    )
+
+    ir = PennyLaneAdapter().to_ir(FakeTapeWrapper(tape))
+    signatures = [
+        (
+            operation.kind,
+            operation.canonical_family,
+            operation.name,
+            tuple(operation.parameters),
+            tuple(operation.target_wires),
+            tuple(operation.control_wires),
+        )
+        for layer in ir.layers
+        for operation in layer.operations
+    ]
+
+    assert (OperationKind.GATE, CanonicalGateFamily.CUSTOM, "I", (), ("q0",), ()) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RESET",
+        (),
+        ("q1",),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "DELAY",
+        (12,),
+        ("q2",),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "ECR",
+        (),
+        ("q0", "q2"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RXX",
+        (0.5,),
+        ("q0", "q1"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RYY",
+        (0.6,),
+        ("q1", "q2"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RZZ",
+        (0.7,),
+        ("q0", "q2"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RZX",
+        (0.8,),
+        ("q0", "q1"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "FSIM",
+        (0.2, 0.3),
+        ("q1", "q2"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.CONTROLLED_GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RZZ",
+        (0.125,),
+        ("q1", "q2"),
+        ("q0",),
+    ) in signatures

@@ -236,3 +236,38 @@ def test_matplotlib_renderer_draws_canonical_cx_without_gate_box_text() -> None:
     assert not any(isinstance(patch, FancyBboxPatch) for patch in axes.patches)
     assert sum(isinstance(patch, Circle) for patch in axes.patches) >= 2
     assert not any(text.get_text() == "X" for text in axes.texts)
+
+
+def test_matplotlib_renderer_renders_large_wrapped_scene_without_errors() -> None:
+    quantum_wires = [
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(6)
+    ]
+    layers = [
+        LayerIR(
+            operations=[
+                OperationIR(
+                    kind=OperationKind.GATE,
+                    name="RX" if layer_index % 2 else "H",
+                    target_wires=(f"q{layer_index % 6}",),
+                    parameters=(0.5,) if layer_index % 2 else (),
+                ),
+                OperationIR(
+                    kind=OperationKind.CONTROLLED_GATE,
+                    name="X",
+                    target_wires=(f"q{(layer_index + 1) % 6}",),
+                    control_wires=(f"q{layer_index % 6}",),
+                ),
+            ]
+        )
+        for layer_index in range(18)
+    ]
+    circuit = CircuitIR(quantum_wires=quantum_wires, layers=layers)
+    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert len(scene.pages) > 1
+    assert axes.lines
+    assert axes.patches

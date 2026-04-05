@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from matplotlib.axes import Axes
-from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch
+from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Patch
 
 from ..layout.scene import (
     GateRenderStyle,
@@ -23,6 +23,17 @@ CONNECTION_LAYER_ZORDER = 2
 OCCLUSION_LAYER_ZORDER = 4
 SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
+
+
+def prepare_axes(ax: Axes, scene: LayoutScene) -> None:
+    ax.set_xlim(0.0, scene.width)
+    ax.set_ylim(scene.height, 0.0)
+    ax.set_facecolor(scene.style.theme.axes_facecolor)
+    ax.set_autoscale_on(False)
+
+
+def _add_patch_artist(ax: Axes, patch: Patch) -> None:
+    ax.add_artist(patch)
 
 
 def draw_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
@@ -113,7 +124,7 @@ def draw_connection(ax: Axes, connection: SceneConnection, scene: LayoutScene) -
             linestyle="solid",
             zorder=SYMBOL_LAYER_ZORDER,
         )
-        ax.add_patch(arrow)
+        _add_patch_artist(ax, arrow)
     if connection.label:
         direction = 1.0 if connection.y_end >= connection.y_start else -1.0
         ax.text(
@@ -148,12 +159,13 @@ def draw_gate_box(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
         linewidth=scene.style.line_width,
         zorder=OCCLUSION_LAYER_ZORDER,
     )
-    ax.add_patch(patch)
+    _add_patch_artist(ax, patch)
 
 
 def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
     radius = min(gate.width, gate.height) * 0.36
-    ax.add_patch(
+    _add_patch_artist(
+        ax,
         Circle(
             (gate.x, gate.y),
             radius=radius,
@@ -161,7 +173,7 @@ def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
             edgecolor=scene.style.theme.wire_color,
             linewidth=scene.style.line_width,
             zorder=OCCLUSION_LAYER_ZORDER,
-        )
+        ),
     )
     ax.plot(
         [gate.x - radius, gate.x + radius],
@@ -209,7 +221,8 @@ def draw_gate_label(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
 
 
 def draw_control(ax: Axes, control: SceneControl, scene: LayoutScene) -> None:
-    ax.add_patch(
+    _add_patch_artist(
+        ax,
         Circle(
             (control.x, control.y),
             radius=scene.style.control_radius,
@@ -217,7 +230,7 @@ def draw_control(ax: Axes, control: SceneControl, scene: LayoutScene) -> None:
             edgecolor=scene.style.theme.wire_color,
             linewidth=scene.style.line_width,
             zorder=SYMBOL_LAYER_ZORDER,
-        )
+        ),
     )
 
 
@@ -265,7 +278,7 @@ def draw_measurement_box(ax: Axes, measurement: SceneMeasurement, scene: LayoutS
         linewidth=scene.style.line_width,
         zorder=OCCLUSION_LAYER_ZORDER,
     )
-    ax.add_patch(patch)
+    _add_patch_artist(ax, patch)
 
 
 def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: LayoutScene) -> None:
@@ -280,7 +293,7 @@ def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: Layo
         linewidth=scene.style.line_width,
         zorder=SYMBOL_LAYER_ZORDER,
     )
-    ax.add_patch(arc)
+    _add_patch_artist(ax, arc)
     ax.plot(
         [measurement.x - measurement.width * 0.05, measurement.x + measurement.width * 0.16],
         [
@@ -318,7 +331,4 @@ def draw_text(ax: Axes, text: SceneText, scene: LayoutScene) -> None:
 
 
 def finalize_axes(ax: Axes, scene: LayoutScene) -> None:
-    ax.set_xlim(0.0, scene.width)
-    ax.set_ylim(scene.height, 0.0)
-    ax.set_facecolor(scene.style.theme.axes_facecolor)
     ax.axis("off")

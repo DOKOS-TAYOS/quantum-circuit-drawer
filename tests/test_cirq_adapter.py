@@ -104,6 +104,83 @@ def test_cirq_adapter_maps_additional_canonical_gate_families() -> None:
     assert (CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
 
 
+def test_cirq_adapter_supports_additional_common_operations() -> None:
+    q0, q1, q2, q3 = cirq.LineQubit.range(4)
+    circuit = cirq.Circuit(
+        cirq.I(q0),
+        cirq.reset(q1),
+        cirq.XXPowGate(exponent=0.25)(q0, q1),
+        cirq.YYPowGate(exponent=0.5)(q1, q2),
+        cirq.ZZPowGate(exponent=0.75)(q2, q3),
+        cirq.FSimGate(theta=0.2, phi=0.3)(q0, q3),
+        cirq.ZZPowGate(exponent=0.125)(q2, q3).controlled_by(q0),
+    )
+
+    ir = CirqAdapter().to_ir(circuit)
+    signatures = [
+        (
+            operation.kind,
+            operation.canonical_family,
+            operation.name,
+            tuple(operation.parameters),
+            tuple(operation.target_wires),
+            tuple(operation.control_wires),
+        )
+        for layer in ir.layers
+        for operation in layer.operations
+    ]
+
+    assert (OperationKind.GATE, CanonicalGateFamily.CUSTOM, "I", (), ("q0",), ()) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RESET",
+        (),
+        ("q1",),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RXX",
+        (0.25,),
+        ("q0", "q1"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RYY",
+        (0.5,),
+        ("q1", "q2"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RZZ",
+        (0.75,),
+        ("q2", "q3"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "FSIM",
+        (0.2, 0.3),
+        ("q0", "q3"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.CONTROLLED_GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RZZ",
+        (0.125,),
+        ("q2", "q3"),
+        ("q0",),
+    ) in signatures
+
+
 def test_cirq_example_builds_a_valid_circuit() -> None:
     example_path = Path(__file__).resolve().parents[1] / "examples" / "cirq_example.py"
     namespace = runpy.run_path(str(example_path))

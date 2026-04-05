@@ -7,6 +7,7 @@ from types import ModuleType
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 
@@ -266,6 +267,21 @@ def test_draw_quantum_circuit_skips_show_when_disabled(
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_uses_agg_canvas_for_managed_show_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_figure(*args: object, **kwargs: object) -> None:
+        raise AssertionError("matplotlib.pyplot.figure should not be called when show=False")
+
+    monkeypatch.setattr(plt, "figure", fail_figure)
+
+    figure, axes = draw_quantum_circuit(build_sample_ir(), show=False)
+
+    assert isinstance(figure.canvas, FigureCanvasAgg)
+    assert axes.figure is figure
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_does_not_show_existing_axes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -306,9 +322,14 @@ def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_fi
     )
 
     page_slider = getattr(figure, "_quantum_circuit_drawer_page_slider", None)
+    slider_axes = figure.axes[1]
+    _, slider_bottom, _, slider_height = slider_axes.get_position().bounds
 
     assert page_slider is not None
     assert len(figure.axes) == 2
+    assert figure.subplotpars.bottom > 0.25
+    assert slider_bottom < 0.1
+    assert slider_height > 0.06
     assert axes.get_xlim() == pytest.approx((0.0, paged_scene.width))
     assert axes.get_ylim() == pytest.approx((long_scene.height, 0.0))
 

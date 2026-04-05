@@ -11,6 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from quantum_circuit_drawer.api import _prepare_draw_pipeline, draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind  # noqa: E402
@@ -54,10 +55,22 @@ def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float |
     style = normalize_style(DrawStyle())
     layout_engine = LayoutEngine()
     renderer = MatplotlibRenderer()
+    prepare_seconds = 0.0
     layout_seconds = 0.0
     render_seconds = 0.0
+    full_draw_seconds = 0.0
 
     for _ in range(repeats):
+        prepare_start = perf_counter()
+        _prepare_draw_pipeline(
+            circuit=circuit,
+            framework="ir",
+            style=None,
+            layout=None,
+            options={},
+        )
+        prepare_seconds += perf_counter() - prepare_start
+
         layout_start = perf_counter()
         scene = layout_engine.compute(circuit, style)
         layout_seconds += perf_counter() - layout_start
@@ -67,12 +80,19 @@ def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float |
         render_seconds += perf_counter() - render_start
         figure.clear()
 
+        full_draw_start = perf_counter()
+        full_figure, _ = draw_quantum_circuit(circuit, framework="ir", show=False)
+        full_draw_seconds += perf_counter() - full_draw_start
+        full_figure.clear()
+
     return {
         "wires": wires,
         "layers": layers,
         "repeats": repeats,
+        "prepare_seconds": prepare_seconds / repeats,
         "layout_seconds": layout_seconds / repeats,
         "render_seconds": render_seconds / repeats,
+        "full_draw_seconds": full_draw_seconds / repeats,
     }
 
 
@@ -97,8 +117,10 @@ def main(argv: list[str] | None = None) -> int:
         f" wires={results['wires']}"
         f" layers={results['layers']}"
         f" repeats={results['repeats']}"
+        f" prepare={results['prepare_seconds']:.6f}s"
         f" layout={results['layout_seconds']:.6f}s"
         f" render={results['render_seconds']:.6f}s"
+        f" full_draw={results['full_draw_seconds']:.6f}s"
     )
     return 0
 

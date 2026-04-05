@@ -141,3 +141,132 @@ def test_qiskit_adapter_maps_additional_canonical_gate_families() -> None:
     assert (OperationKind.GATE, CanonicalGateFamily.P, "P", (0.25,)) in signatures
     assert (OperationKind.GATE, CanonicalGateFamily.U, "U", (0.1, 0.2, 0.3)) in signatures
     assert (OperationKind.GATE, CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
+
+
+def test_qiskit_adapter_supports_additional_common_operations() -> None:
+    circuit = qiskit.QuantumCircuit(4)
+    circuit.id(0)
+    circuit.reset(1)
+    circuit.delay(12, 2, unit="ns")
+    circuit.cy(0, 1)
+    circuit.ch(1, 2)
+    circuit.cp(0.125, 0, 3)
+    circuit.cu(0.1, 0.2, 0.3, 0.4, 1, 2)
+    circuit.rxx(0.5, 0, 1)
+    circuit.ryy(0.6, 1, 2)
+    circuit.rzz(0.7, 2, 3)
+    circuit.rzx(0.8, 0, 2)
+    circuit.ecr(1, 3)
+    circuit.cswap(0, 1, 2)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    signatures = [
+        (
+            operation.kind,
+            operation.canonical_family,
+            operation.name,
+            tuple(operation.parameters),
+            tuple(operation.target_wires),
+            tuple(operation.control_wires),
+        )
+        for layer in ir.layers
+        for operation in layer.operations
+    ]
+
+    assert (OperationKind.GATE, CanonicalGateFamily.CUSTOM, "I", (), ("q0",), ()) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RESET",
+        (),
+        ("q1",),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "DELAY",
+        (12,),
+        ("q2",),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.CONTROLLED_GATE,
+        CanonicalGateFamily.Y,
+        "Y",
+        (),
+        ("q1",),
+        ("q0",),
+    ) in signatures
+    assert (
+        OperationKind.CONTROLLED_GATE,
+        CanonicalGateFamily.H,
+        "H",
+        (),
+        ("q2",),
+        ("q1",),
+    ) in signatures
+    assert (
+        OperationKind.CONTROLLED_GATE,
+        CanonicalGateFamily.P,
+        "P",
+        (0.125,),
+        ("q3",),
+        ("q0",),
+    ) in signatures
+    assert (
+        OperationKind.CONTROLLED_GATE,
+        CanonicalGateFamily.U,
+        "U",
+        (0.1, 0.2, 0.3, 0.4),
+        ("q2",),
+        ("q1",),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RXX",
+        (0.5,),
+        ("q0", "q1"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RYY",
+        (0.6,),
+        ("q1", "q2"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RZZ",
+        (0.7,),
+        ("q2", "q3"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "RZX",
+        (0.8,),
+        ("q0", "q2"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.GATE,
+        CanonicalGateFamily.CUSTOM,
+        "ECR",
+        (),
+        ("q1", "q3"),
+        (),
+    ) in signatures
+    assert (
+        OperationKind.CONTROLLED_GATE,
+        CanonicalGateFamily.CUSTOM,
+        "SWAP",
+        (),
+        ("q1", "q2"),
+        ("q0",),
+    ) in signatures

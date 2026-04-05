@@ -145,6 +145,7 @@ def _render_managed_figure(
             slider_scene,
             figure_width=figure_width,
             figure_height=figure_height,
+            use_agg=not show,
         )
         if output is not None:
             pipeline.renderer.render(pipeline.paged_scene, output=output)
@@ -156,7 +157,7 @@ def _render_managed_figure(
             len(pipeline.paged_scene.pages),
         )
     else:
-        figure, axes = _create_managed_figure(pipeline.paged_scene)
+        figure, axes = _create_managed_figure(pipeline.paged_scene, use_agg=not show)
         pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
         logger.debug("Rendered managed figure without page slider")
 
@@ -185,7 +186,15 @@ def _create_managed_figure(
     *,
     figure_width: float | None = None,
     figure_height: float | None = None,
+    use_agg: bool = False,
 ) -> tuple[Figure, Axes]:
+    if use_agg:
+        return _create_agg_managed_figure(
+            scene,
+            figure_width=figure_width,
+            figure_height=figure_height,
+        )
+
     from matplotlib import pyplot as plt
 
     figsize = (
@@ -193,6 +202,25 @@ def _create_managed_figure(
         figure_height if figure_height is not None else max(2.4, scene.height * 0.9),
     )
     figure = plt.figure(figsize=figsize)
+    axes = figure.add_subplot(111)
+    return figure, axes
+
+
+def _create_agg_managed_figure(
+    scene: LayoutScene,
+    *,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
+) -> tuple[Figure, Axes]:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    figsize = (
+        figure_width if figure_width is not None else max(4.0, scene.width * 1.1),
+        figure_height if figure_height is not None else max(2.4, scene.height * 0.9),
+    )
+    figure = Figure(figsize=figsize)
+    FigureCanvasAgg(figure)
     axes = figure.add_subplot(111)
     return figure, axes
 
@@ -217,9 +245,9 @@ def _configure_page_slider(
 
     from matplotlib.widgets import Slider
 
-    figure.subplots_adjust(bottom=0.22)
+    figure.subplots_adjust(bottom=0.3)
     slider_axes = figure.add_axes(
-        (0.18, 0.08, 0.64, 0.04),
+        (0.14, 0.06, 0.72, 0.085),
         facecolor=scene.style.theme.axes_facecolor,
     )
     slider = Slider(
@@ -229,9 +257,20 @@ def _configure_page_slider(
         valmax=max_scroll,
         valinit=0.0,
         color=scene.style.theme.gate_edgecolor,
+        track_color=scene.style.theme.classical_wire_color,
+        handle_style={
+            "facecolor": scene.style.theme.accent_color,
+            "edgecolor": scene.style.theme.text_color,
+            "size": 16,
+        },
     )
     slider.label.set_color(scene.style.theme.text_color)
     slider.valtext.set_visible(False)
+    slider.track.set_y(0.12)
+    slider.track.set_height(0.76)
+    slider.track.set_alpha(0.45)
+    slider.poly.set_alpha(0.75)
+    slider.vline.set_linewidth(3.0)
 
     _set_slider_view(axes, scene, x_offset=0.0, viewport_width=viewport_width)
 
@@ -246,7 +285,7 @@ def _configure_page_slider(
 
 def _page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
     width = max(4.0, viewport_width * 1.1)
-    height = max(2.4, scene_height * 0.9) + 0.8
+    height = max(2.4, scene_height * 0.9) + 1.0
     return width, height
 
 

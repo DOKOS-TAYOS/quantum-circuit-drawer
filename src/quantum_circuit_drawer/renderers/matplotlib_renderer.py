@@ -37,6 +37,7 @@ from .matplotlib_primitives import (
     draw_text,
     draw_wire,
     finalize_axes,
+    prepare_axes,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ class MatplotlibRenderer(BaseRenderer):
 
         figure: Figure | SubFigure = axes.figure
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
+        prepare_axes(axes, scene)
 
         for page in scene.pages:
             self._draw_page(axes, scene, page)
