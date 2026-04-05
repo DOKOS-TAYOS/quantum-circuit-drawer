@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Improved circuit visualization and homogenized gate appearance across the drawer
+- Improved slider behavior
+- Adjusted font sizes and color palette for clearer typography and contrast
+- Reduced rendering and layout computation time
+
 ## [0.1.1] - 2026-04-05
 
 ### Added
