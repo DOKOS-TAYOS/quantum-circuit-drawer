@@ -1,68 +1,70 @@
 # quantum-circuit-drawer
 
-`quantum-circuit-drawer` is a Python library for rendering quantum circuits from different frameworks with one consistent Matplotlib-based visual style. The current public release target is `v0.1.1`.
+[![PyPI version](https://img.shields.io/pypi/v/quantum-circuit-drawer)](https://pypi.org/project/quantum-circuit-drawer/)
+[![Python versions](https://img.shields.io/pypi/pyversions/quantum-circuit-drawer)](https://pypi.org/project/quantum-circuit-drawer/)
+[![CI](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml/badge.svg)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Project links:
+`quantum-circuit-drawer` is a Python library for drawing quantum circuits from multiple ecosystems with one consistent Matplotlib-based visual style.
 
-- Repository: [github.com/DOKOS-TAYOS/quantum-circuit-drawer](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
-- Issue tracker: [github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues)
+It gives you a single public entry point, `draw_quantum_circuit(...)`, for supported Qiskit, Cirq, PennyLane, CUDA-Q, and internal IR inputs, so you can keep the same visualization workflow even when your circuit source changes.
 
-## What v0.1.1 supports
+## Why this library
 
-- A small public API centered on `draw_quantum_circuit(...)`
-- Matplotlib rendering
-- Qiskit and Cirq adapters for common gates, controlled gates, swap, barriers, and measurements
-- Conservative PennyLane support for tape-like objects such as `QuantumTape`, `QuantumScript`, or objects exposing `.qtape` / `.tape`
-- Initial CUDA-Q support for closed kernels through Quake/MLIR, including common gates, controlled gates, swap, and `mz` / `mx` / `my` measurements
-- Built-in `light`, `paper`, and `dark` themes, with `dark` as the default
-- Windows and Linux as the initial supported platforms
+Quantum tooling is fragmented: each framework has its own circuit objects, drawing conventions, and export behavior. This project focuses on the visualization layer and gives you a neutral, reusable drawing API on top of that diversity.
 
-## What is intentionally out of scope
+Use it when you want to:
 
-- Backends other than Matplotlib
-- Advanced classical control-flow visualization
-- Broad framework-specific formatting beyond the neutral IR used by the library
+- keep a consistent look across circuits coming from different frameworks
+- integrate circuit diagrams into existing Matplotlib scripts, notebooks, or reports
+- save publication or documentation figures without rewriting framework-specific drawing code
+- work with one small, typed API instead of learning multiple plotting entry points
+
+## Highlights
+
+- One public function: `draw_quantum_circuit(...)`
+- Framework autodetection for supported circuit objects
+- Matplotlib rendering with managed figures or caller-provided axes
+- Built-in `dark`, `light`, and `paper` themes
+- Optional file export through `output=...`
+- Optional continuous horizontal slider for wide circuits with `page_slider=True`
+- Clear exceptions for unsupported frameworks, unsupported backends, style validation issues, and render-write failures
+
+## Supported frameworks
+
+The package supports Python `3.11+`.
+
+| Framework | Install | Notes |
+| --- | --- | --- |
+| Core package | `pip install quantum-circuit-drawer` | Includes Matplotlib renderer and the internal IR path |
+| Qiskit | `pip install "quantum-circuit-drawer[qiskit]"` | Supports common gates, controlled gates, swap, barriers, and measurements |
+| Cirq | `pip install "quantum-circuit-drawer[cirq]"` | Supports common gates, controlled gates, swap, and measurements |
+| PennyLane | `pip install "quantum-circuit-drawer[pennylane]"` | Supports tape-like objects such as `QuantumTape`, `QuantumScript`, and objects exposing `.qtape` or `.tape` |
+| CUDA-Q | `pip install "quantum-circuit-drawer[cudaq]"` | Linux/WSL2-first extra; supports closed kernels through Quake/MLIR |
 
 ## Installation
 
-Install the published package:
+Install the base package inside your virtual environment:
 
 ```bash
-pip install quantum-circuit-drawer
+python -m pip install quantum-circuit-drawer
 ```
 
-The library officially supports Python `3.11+`.
-
-Install optional framework adapters only when you need them:
+Add only the framework extras you need:
 
 ```bash
-pip install "quantum-circuit-drawer[qiskit]"
-pip install "quantum-circuit-drawer[cirq]"
-pip install "quantum-circuit-drawer[pennylane]"
+python -m pip install "quantum-circuit-drawer[qiskit]"
+python -m pip install "quantum-circuit-drawer[cirq]"
+python -m pip install "quantum-circuit-drawer[pennylane]"
 ```
 
-CUDA-Q is Linux/WSL2-first in this release:
+For CUDA-Q on Linux or WSL2:
 
 ```bash
-pip install "quantum-circuit-drawer[cudaq]"
-```
-
-For local development inside a virtual environment:
-
-```bash
-python -m pip install -e ".[dev]"
-python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
-```
-
-For local CUDA-Q development on Linux or WSL2:
-
-```bash
-python -m pip install -e ".[dev,cudaq]"
+python -m pip install "quantum-circuit-drawer[cudaq]"
 ```
 
 ## Quick start
-
-Autodetect the framework and open an interactive dark-mode Matplotlib window:
 
 ```python
 from qiskit import QuantumCircuit
@@ -77,24 +79,27 @@ circuit.measure(1, 0)
 fig, ax = draw_quantum_circuit(circuit)
 ```
 
-Create the figure without opening the Matplotlib window:
+By default, the library uses the built-in `dark` theme and opens a Matplotlib-managed window when `show=True`.
+
+## Common usage patterns
+
+### Render without opening a window
 
 ```python
 fig, ax = draw_quantum_circuit(circuit, show=False)
 ```
 
-For long wrapped circuits, add a continuous horizontal slider to the managed interactive figure while keeping saved output as the paged circuit:
+### Save directly to a file
 
 ```python
 draw_quantum_circuit(
     circuit,
-    style={"max_page_width": 4.0},
-    page_slider=True,
+    style={"show_params": True},
     output="circuit.png",
 )
 ```
 
-Draw onto an existing Matplotlib axes:
+### Draw on existing Matplotlib axes
 
 ```python
 import matplotlib.pyplot as plt
@@ -105,17 +110,26 @@ fig, ax = plt.subplots(figsize=(8, 3))
 draw_quantum_circuit(circuit, ax=ax)
 ```
 
-Save directly to a file. Saving is optional and independent from rendering:
+### Use a different built-in theme
+
+```python
+draw_quantum_circuit(circuit, style={"theme": "paper"})
+```
+
+### Add a continuous slider for wide circuits
 
 ```python
 draw_quantum_circuit(
     circuit,
-    style={"show_params": True},
-    output="circuit.png",
+    style={"max_page_width": 4.0},
+    page_slider=True,
+    output="wide_circuit.png",
 )
 ```
 
-CUDA-Q example:
+When `page_slider=True`, the interactive figure becomes horizontally scrollable while saved output still uses the paged circuit layout.
+
+### CUDA-Q example
 
 ```python
 import cudaq
@@ -152,25 +166,82 @@ draw_quantum_circuit(
 )
 ```
 
-Behavior for `backend="matplotlib"`:
+Current behavior for `backend="matplotlib"`:
 
-- The default theme is `dark`.
-- If `ax` is `None`, the function creates a Matplotlib-managed figure, returns `(figure, axes)`, and opens an interactive window when `show=True`.
-- If `ax` is `None` and `show=False`, it still returns `(figure, axes)` without opening the interactive window.
-- If `page_slider=True`, the managed figure renders one long horizontal circuit and uses `max_page_width` as the visible window width for a continuous left-to-right slider.
-- If `page_slider=True` and `output` is provided, the saved file still contains the paged circuit without the slider UI.
-- If `ax` is provided, it draws in place and returns `ax`. In that mode `page_slider=True` raises `ValueError`.
-- If `output` is provided, it saves the rendered figure and raises `RenderingError` if writing fails.
+- If `ax` is `None`, the function creates and returns `(figure, axes)`.
+- If `show=True`, the managed figure is shown when the active Matplotlib backend is interactive.
+- If `ax` is provided, the circuit is drawn in place and the function returns that axes object.
+- If `output` is provided, the rendered figure is also saved to disk.
+- If `page_slider=True`, the function requires a managed figure and raises `ValueError` when used with `ax=...`.
 
-CUDA-Q support notes for v0.1.1:
+## Scope and current limitations
 
-- The adapter accepts closed kernels only. Kernels that still need runtime arguments raise a clear error.
-- The optional `cudaq` dependency is wired Linux/WSL2-first so the base package stays safe on standard Windows installs.
-- Classical control flow, `reset`, custom kernel composition, and other advanced CUDA-Q constructs are still outside the supported subset.
+The current public surface is intentionally focused.
+
+- Matplotlib is the only rendering backend today.
+- Advanced classical control-flow visualization is outside the current scope.
+- CUDA-Q support currently targets closed kernels only.
+- Advanced CUDA-Q constructs such as reset, custom kernel composition, and broader control-flow handling are not yet part of the supported subset.
+
+## Examples
+
+Runnable examples live in [`examples/`](examples/).
+
+List the demo catalog:
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe examples/run_demo.py --list
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python examples/run_demo.py --list
+```
+
+Run one of the demos:
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-balanced
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python examples/run_demo.py --demo qiskit-balanced
+```
+
+The example gallery covers balanced, wide, deep, Grover, and QAOA-style circuits across the supported adapters. More details are in [`examples/README.md`](examples/README.md).
 
 ## Development
 
-Run the core checks:
+Create and use a local virtual environment, then install the project in editable mode:
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+```
+
+For local CUDA-Q development on Linux or WSL2:
+
+```bash
+.venv/bin/python -m pip install -e ".[dev,cudaq]"
+```
+
+Run the main checks:
 
 ```bash
 python -m pytest
@@ -178,20 +249,25 @@ python -m ruff check .
 python -m mypy
 ```
 
-`pytest` now enforces the package coverage floor configured in `pyproject.toml`, so local development and CI use the same baseline.
-
-Build the distribution artifacts locally:
+Build distribution artifacts locally:
 
 ```bash
 python -m build
 python -m twine check dist/*
 ```
 
-Run the synthetic layout/render benchmark:
+Run the synthetic render benchmark:
 
 ```bash
 python scripts/benchmark_render.py --wires 16 --layers 120 --repeats 3
 ```
 
-Runnable framework examples live in `examples/`. Generated images are intentionally not committed.
+## Project links
 
+- Repository: [github.com/DOKOS-TAYOS/quantum-circuit-drawer](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
+- Issue tracker: [github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
+
+## License
+
+This project is distributed under the [MIT License](LICENSE).
