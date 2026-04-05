@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from ._shared import demo_style
+
 
 @dataclass(frozen=True, slots=True)
 class DemoSpec:
@@ -35,7 +37,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.qiskit_example",
             builder_name="build_circuit",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 8.25},
+            style=demo_style(max_page_width=8.25),
             page_slider=False,
         ),
         DemoSpec(
@@ -44,7 +46,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.qiskit_wide_example",
             builder_name="build_circuit",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 9.0},
+            style=demo_style(max_page_width=9.0),
             page_slider=True,
         ),
         DemoSpec(
@@ -53,7 +55,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.qiskit_deep_example",
             builder_name="build_circuit",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 6.75},
+            style=demo_style(max_page_width=6.75),
             page_slider=False,
         ),
         DemoSpec(
@@ -62,7 +64,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.qiskit_grover_example",
             builder_name="build_circuit",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 7.0},
+            style=demo_style(max_page_width=7.0),
             page_slider=False,
         ),
         DemoSpec(
@@ -71,7 +73,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.qiskit_qaoa_example",
             builder_name="build_circuit",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 8.25},
+            style=demo_style(max_page_width=8.25),
             page_slider=False,
         ),
         DemoSpec(
@@ -80,7 +82,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cirq_example",
             builder_name="build_circuit",
             framework="cirq",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 8.25},
+            style=demo_style(max_page_width=8.25),
             page_slider=False,
         ),
         DemoSpec(
@@ -89,7 +91,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cirq_wide_example",
             builder_name="build_circuit",
             framework="cirq",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 9.0},
+            style=demo_style(max_page_width=9.0),
             page_slider=True,
         ),
         DemoSpec(
@@ -98,7 +100,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cirq_deep_example",
             builder_name="build_circuit",
             framework="cirq",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 6.75},
+            style=demo_style(max_page_width=6.75),
             page_slider=False,
         ),
         DemoSpec(
@@ -107,7 +109,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cirq_grover_example",
             builder_name="build_circuit",
             framework="cirq",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 7.0},
+            style=demo_style(max_page_width=7.0),
             page_slider=False,
         ),
         DemoSpec(
@@ -116,7 +118,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cirq_qaoa_example",
             builder_name="build_circuit",
             framework="cirq",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 8.25},
+            style=demo_style(max_page_width=8.25),
             page_slider=False,
         ),
         DemoSpec(
@@ -125,7 +127,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.pennylane_example",
             builder_name="build_tape",
             framework="pennylane",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 8.25},
+            style=demo_style(max_page_width=8.25),
             page_slider=False,
         ),
         DemoSpec(
@@ -134,7 +136,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.pennylane_wide_example",
             builder_name="build_tape",
             framework="pennylane",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 9.0},
+            style=demo_style(max_page_width=9.0),
             page_slider=True,
         ),
         DemoSpec(
@@ -143,7 +145,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.pennylane_deep_example",
             builder_name="build_tape",
             framework="pennylane",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 6.75},
+            style=demo_style(max_page_width=6.75),
             page_slider=False,
         ),
         DemoSpec(
@@ -152,7 +154,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.pennylane_grover_example",
             builder_name="build_tape",
             framework="pennylane",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 7.0},
+            style=demo_style(max_page_width=7.0),
             page_slider=False,
         ),
         DemoSpec(
@@ -161,7 +163,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.pennylane_qaoa_example",
             builder_name="build_tape",
             framework="pennylane",
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 8.25},
+            style=demo_style(max_page_width=8.25),
             page_slider=False,
         ),
         DemoSpec(
@@ -170,7 +172,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cudaq_example",
             builder_name="build_kernel",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 8.25},
+            style=demo_style(max_page_width=8.25),
             page_slider=False,
         ),
         DemoSpec(
@@ -179,7 +181,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cudaq_wide_example",
             builder_name="build_kernel",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 9.0},
+            style=demo_style(max_page_width=9.0),
             page_slider=True,
         ),
         DemoSpec(
@@ -188,7 +190,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.cudaq_deep_example",
             builder_name="build_kernel",
             framework=None,
-            style={"font_size": 12.0, "show_params": True, "max_page_width": 6.75},
+            style=demo_style(max_page_width=6.75),
             page_slider=False,
         ),
     )

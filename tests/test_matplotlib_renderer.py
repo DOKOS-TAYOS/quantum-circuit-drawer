@@ -11,38 +11,7 @@ from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from quantum_circuit_drawer.style import DrawStyle
-
-
-def build_scene() -> object:
-    circuit = CircuitIR(
-        quantum_wires=[
-            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
-            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
-        ],
-        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c0")],
-        layers=[
-            LayerIR(
-                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
-            ),
-            LayerIR(
-                operations=[
-                    OperationIR(
-                        kind=OperationKind.CONTROLLED_GATE,
-                        name="X",
-                        target_wires=("q1",),
-                        control_wires=("q0",),
-                    ),
-                    MeasurementIR(
-                        kind=OperationKind.MEASUREMENT,
-                        name="M",
-                        target_wires=("q1",),
-                        classical_target="c0",
-                    ),
-                ]
-            ),
-        ],
-    )
-    return LayoutEngine().compute(circuit, DrawStyle())
+from tests.support import build_sample_scene
 
 
 def _display_patch_ratio(figure: object, patch: object) -> float:
@@ -61,7 +30,7 @@ def _display_bounds(figure: object, artist: object) -> tuple[float, float, float
 def test_matplotlib_renderer_adds_artists() -> None:
     figure, axes = plt.subplots()
 
-    MatplotlibRenderer().render(build_scene(), ax=axes)
+    MatplotlibRenderer().render(build_sample_scene(), ax=axes)
 
     assert axes.figure is figure
     assert len(axes.patches) >= 3
@@ -75,7 +44,7 @@ def test_matplotlib_renderer_does_not_require_pyplot_subplots(monkeypatch) -> No
 
     monkeypatch.setattr(plt, "subplots", fail_subplots)
 
-    figure, axes = MatplotlibRenderer().render(build_scene())
+    figure, axes = MatplotlibRenderer().render(build_sample_scene())
 
     assert figure is not None
     assert axes.figure is figure
@@ -84,7 +53,7 @@ def test_matplotlib_renderer_does_not_require_pyplot_subplots(monkeypatch) -> No
 def test_matplotlib_renderer_draws_occluding_patches_above_lines() -> None:
     figure, axes = plt.subplots()
 
-    MatplotlibRenderer().render(build_scene(), ax=axes)
+    MatplotlibRenderer().render(build_sample_scene(), ax=axes)
 
     patch_zorders = [patch.get_zorder() for patch in axes.patches]
     background_line_zorders = [line.get_zorder() for line in axes.lines if line.get_zorder() <= 2]
@@ -97,7 +66,7 @@ def test_matplotlib_renderer_draws_occluding_patches_above_lines() -> None:
 def test_matplotlib_renderer_draws_measurement_destination_arrow_and_label() -> None:
     figure, axes = plt.subplots()
 
-    MatplotlibRenderer().render(build_scene(), ax=axes)
+    MatplotlibRenderer().render(build_sample_scene(), ax=axes)
 
     assert any(isinstance(patch, FancyArrowPatch) for patch in axes.patches)
     assert sum(text.get_text() == "c0" for text in axes.texts) >= 2
@@ -179,7 +148,7 @@ def test_matplotlib_renderer_draws_classical_bus_marker_and_size() -> None:
 def test_matplotlib_renderer_draws_measurement_pointer_downward() -> None:
     figure, axes = plt.subplots()
 
-    MatplotlibRenderer().render(build_scene(), ax=axes)
+    MatplotlibRenderer().render(build_sample_scene(), ax=axes)
 
     angled_lines = [
         line
@@ -215,7 +184,7 @@ def test_matplotlib_renderer_reuses_page_transforms_per_artist(monkeypatch) -> N
     monkeypatch.setattr(renderer, "_gate_for_page", count_gate_for_page)
     monkeypatch.setattr(renderer, "_measurement_for_page", count_measurement_for_page)
 
-    scene = build_scene()
+    scene = build_sample_scene()
     renderer.render(scene, ax=axes)
 
     assert gate_calls == len(scene.gates)
@@ -344,7 +313,7 @@ def test_matplotlib_renderer_keeps_cx_target_and_control_circular_on_wide_axes()
 def test_matplotlib_renderer_uses_distinct_measurement_fill_in_dark_theme() -> None:
     figure, axes = plt.subplots()
 
-    MatplotlibRenderer().render(build_scene(), ax=axes)
+    MatplotlibRenderer().render(build_sample_scene(), ax=axes)
 
     box_patches = [patch for patch in axes.patches if isinstance(patch, FancyBboxPatch)]
 

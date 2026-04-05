@@ -763,7 +763,7 @@ class LayoutEngine:
         x: float,
         width: float,
         style: DrawStyle,
-        target_wires: tuple[str, ...] | list[str],
+        target_wires: Sequence[str],
         wire_positions: dict[str, float],
         gate_annotations: list[SceneGateAnnotation],
     ) -> None:
