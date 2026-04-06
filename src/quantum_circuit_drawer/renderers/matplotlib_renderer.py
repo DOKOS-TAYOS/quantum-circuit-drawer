@@ -27,17 +27,18 @@ from ..typing import OutputPath, RenderResult
 from ._matplotlib_figure import create_managed_figure
 from .base import BaseRenderer
 from .matplotlib_primitives import (
-    draw_barrier,
-    draw_connection,
+    draw_barriers,
+    draw_connections,
     draw_control,
     draw_gate_annotation,
     draw_gate_box,
     draw_gate_label,
     draw_measurement_box,
     draw_measurement_symbol,
-    draw_swap,
+    draw_swaps,
     draw_text,
-    draw_wire,
+    draw_wires,
+    draw_x_target_segments,
     finalize_axes,
     prepare_axes,
 )
@@ -96,14 +97,12 @@ class MatplotlibRenderer(BaseRenderer):
     def _draw_page(self, axes: Axes, scene: LayoutScene, page: ScenePage) -> None:
         projected_page = self._project_page(scene, page)
 
-        for wire in projected_page.wires:
-            draw_wire(axes, wire, scene)
-        for barrier in projected_page.barriers:
-            draw_barrier(axes, barrier, scene)
-        for connection in projected_page.connections:
-            draw_connection(axes, connection, scene)
+        draw_wires(axes, projected_page.wires, scene)
+        draw_barriers(axes, projected_page.barriers, scene)
+        draw_connections(axes, projected_page.connections, scene)
         for gate in projected_page.gates:
             draw_gate_box(axes, gate, scene)
+        draw_x_target_segments(axes, projected_page.gates, scene)
         for measurement in projected_page.measurements:
             draw_measurement_box(axes, measurement, scene)
         for gate in projected_page.gates:
@@ -112,8 +111,7 @@ class MatplotlibRenderer(BaseRenderer):
             draw_gate_annotation(axes, annotation, scene)
         for control in projected_page.controls:
             draw_control(axes, control, scene)
-        for swap in projected_page.swaps:
-            draw_swap(axes, swap, scene)
+        draw_swaps(axes, projected_page.swaps, scene)
         for measurement in projected_page.measurements:
             draw_measurement_symbol(axes, measurement, scene)
         for text in projected_page.texts:

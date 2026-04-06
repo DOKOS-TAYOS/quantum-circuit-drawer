@@ -27,6 +27,27 @@ def _display_bounds(figure: object, artist: object) -> tuple[float, float, float
     return bounds
 
 
+def _line_artist_count(axes: object) -> int:
+    collection_count = sum(
+        1
+        for collection in axes.collections
+        if hasattr(collection, "get_segments") and len(collection.get_segments()) > 0
+    )
+    return len(axes.lines) + collection_count
+
+
+def _background_line_zorders(axes: object) -> list[float]:
+    zorders = [line.get_zorder() for line in axes.lines if line.get_zorder() <= 2]
+    zorders.extend(
+        collection.get_zorder()
+        for collection in axes.collections
+        if hasattr(collection, "get_segments")
+        and len(collection.get_segments()) > 0
+        and collection.get_zorder() <= 2
+    )
+    return zorders
+
+
 def test_matplotlib_renderer_adds_artists() -> None:
     figure, axes = plt.subplots()
 
@@ -35,7 +56,7 @@ def test_matplotlib_renderer_adds_artists() -> None:
 
     assert axes.figure is figure
     assert len(axes.patches) >= len(scene.gates) + len(scene.measurements)
-    assert len(axes.lines) >= len(scene.wires)
+    assert _line_artist_count(axes) >= len(scene.wires)
     assert {"H", "M", "q0", "q1", "c0"}.issubset({text.get_text() for text in axes.texts})
 
 
@@ -58,7 +79,7 @@ def test_matplotlib_renderer_draws_occluding_patches_above_lines() -> None:
     MatplotlibRenderer().render(build_sample_scene(), ax=axes)
 
     patch_zorders = [patch.get_zorder() for patch in axes.patches]
-    background_line_zorders = [line.get_zorder() for line in axes.lines if line.get_zorder() <= 2]
+    background_line_zorders = _background_line_zorders(axes)
 
     assert patch_zorders
     assert background_line_zorders
@@ -162,6 +183,42 @@ def test_matplotlib_renderer_draws_measurement_pointer_downward() -> None:
 
     assert angled_lines
     assert any(line.get_ydata()[1] > line.get_ydata()[0] for line in angled_lines)
+
+
+def test_matplotlib_renderer_batches_dense_wire_segments_into_collections() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=(f"q{(layer_index + 1) % 4}",),
+                        control_wires=(f"q{layer_index % 4}",),
+                    )
+                ]
+            )
+            for layer_index in range(16)
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    segmented_collections = [
+        collection
+        for collection in axes.collections
+        if hasattr(collection, "get_segments") and len(collection.get_segments()) >= 8
+    ]
+
+    assert segmented_collections
+    assert len(axes.lines) <= 2
 
 
 def test_matplotlib_renderer_reuses_page_transforms_per_artist(monkeypatch) -> None:

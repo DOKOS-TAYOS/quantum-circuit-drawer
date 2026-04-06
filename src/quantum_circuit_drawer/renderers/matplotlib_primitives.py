@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import lru_cache
 
 from matplotlib.axes import Axes
+from matplotlib.collections import LineCollection
 from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Patch
 from matplotlib.textpath import TextPath
@@ -29,6 +31,7 @@ CONNECTION_LAYER_ZORDER = 2
 OCCLUSION_LAYER_ZORDER = 4
 SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
+LineSegment = tuple[tuple[float, float], tuple[float, float]]
 
 
 def prepare_axes(ax: Axes, scene: LayoutScene) -> None:
@@ -43,117 +46,181 @@ def _add_patch_artist(ax: Axes, patch: Patch) -> None:
     ax.add_artist(patch)
 
 
-def draw_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
-    if wire.kind.value == "classical":
-        draw_classical_wire(ax, wire, scene)
+def _add_line_collection(
+    ax: Axes,
+    segments: Sequence[LineSegment],
+    *,
+    color: str,
+    linewidth: float,
+    zorder: int,
+    linestyle: str | tuple[int, tuple[int, int]] = "solid",
+    capstyle: str = "round",
+) -> None:
+    if not segments:
         return
 
-    ax.plot(
-        [wire.x_start, wire.x_end],
-        [wire.y, wire.y],
+    ax.add_collection(
+        LineCollection(
+            segments,
+            colors=color,
+            linewidths=linewidth,
+            linestyles=linestyle,
+            capstyle=capstyle,
+            zorder=zorder,
+            clip_on=False,
+        )
+    )
+
+
+def draw_wires(ax: Axes, wires: Sequence[SceneWire], scene: LayoutScene) -> None:
+    quantum_segments: list[LineSegment] = []
+    classical_segments: list[LineSegment] = []
+    classical_marker_segments: list[LineSegment] = []
+
+    for wire in wires:
+        if wire.kind.value == "classical":
+            offset = max(0.025, scene.style.line_width * 0.01)
+            classical_segments.extend(
+                (
+                    ((wire.x_start, wire.y - offset), (wire.x_end, wire.y - offset)),
+                    ((wire.x_start, wire.y + offset), (wire.x_end, wire.y + offset)),
+                )
+            )
+            marker_x = wire.x_start + 0.18
+            classical_marker_segments.append(
+                ((marker_x - 0.06, wire.y - 0.12), (marker_x + 0.06, wire.y + 0.12))
+            )
+            ax.text(
+                marker_x,
+                wire.y - 0.22,
+                str(wire.bundle_size),
+                ha="center",
+                va="center",
+                fontsize=scene.style.font_size * 0.66,
+                color=scene.style.theme.classical_wire_color,
+                zorder=TEXT_LAYER_ZORDER,
+                bbox={
+                    "boxstyle": "round,pad=0.08,rounding_size=0.05",
+                    "facecolor": scene.style.theme.axes_facecolor,
+                    "edgecolor": "none",
+                },
+            )
+            continue
+
+        quantum_segments.append(((wire.x_start, wire.y), (wire.x_end, wire.y)))
+
+    _add_line_collection(
+        ax,
+        quantum_segments,
         color=scene.style.theme.wire_color,
         linewidth=scene.style.line_width,
-        solid_capstyle="round",
         zorder=BASE_LAYER_ZORDER,
     )
+    _add_line_collection(
+        ax,
+        classical_segments,
+        color=scene.style.theme.classical_wire_color,
+        linewidth=scene.style.line_width * 0.9,
+        zorder=BASE_LAYER_ZORDER,
+        capstyle="butt",
+    )
+    _add_line_collection(
+        ax,
+        classical_marker_segments,
+        color=scene.style.theme.classical_wire_color,
+        linewidth=scene.style.line_width * 0.9,
+        zorder=SYMBOL_LAYER_ZORDER,
+    )
+
+
+def draw_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
+    draw_wires(ax, (wire,), scene)
 
 
 def draw_classical_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
-    color = scene.style.theme.classical_wire_color
-    offset = max(0.025, scene.style.line_width * 0.01)
-    for y in (wire.y - offset, wire.y + offset):
-        ax.plot(
-            [wire.x_start, wire.x_end],
-            [y, y],
-            color=color,
-            linewidth=scene.style.line_width * 0.9,
-            solid_capstyle="butt",
-            zorder=BASE_LAYER_ZORDER,
-        )
+    draw_wires(ax, (wire,), scene)
 
-    marker_x = wire.x_start + 0.18
-    ax.plot(
-        [marker_x - 0.06, marker_x + 0.06],
-        [wire.y - 0.12, wire.y + 0.12],
-        color=color,
-        linewidth=scene.style.line_width * 0.9,
-        solid_capstyle="round",
-        zorder=SYMBOL_LAYER_ZORDER,
+
+def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: LayoutScene) -> None:
+    quantum_segments: list[LineSegment] = []
+    classical_segments: list[LineSegment] = []
+
+    for connection in connections:
+        line_end_y = connection.y_end
+        if connection.arrow_at_end:
+            direction = 1.0 if connection.y_end >= connection.y_start else -1.0
+            arrow_length = max(0.12, scene.style.wire_spacing * 0.18)
+            line_end_y = connection.y_end - (direction * arrow_length)
+
+        segment = ((connection.x, connection.y_start), (connection.x, line_end_y))
+        if connection.is_classical:
+            classical_segments.append(segment)
+        else:
+            quantum_segments.append(segment)
+
+        if connection.arrow_at_end:
+            color = (
+                scene.style.theme.classical_wire_color
+                if connection.is_classical
+                else scene.style.theme.wire_color
+            )
+            arrow = FancyArrowPatch(
+                (connection.x, line_end_y),
+                (connection.x, connection.y_end),
+                arrowstyle="-|>",
+                mutation_scale=10 + (scene.style.font_size * 0.45),
+                linewidth=scene.style.line_width * 0.9,
+                color=color,
+                linestyle="solid",
+                zorder=SYMBOL_LAYER_ZORDER,
+            )
+            _add_patch_artist(ax, arrow)
+        if connection.label:
+            direction = 1.0 if connection.y_end >= connection.y_start else -1.0
+            ax.text(
+                connection.x + 0.12,
+                connection.y_end - (direction * 0.12),
+                connection.label,
+                ha="left",
+                va="center",
+                fontsize=scene.style.font_size * 0.7,
+                color=scene.style.theme.classical_wire_color
+                if connection.is_classical
+                else scene.style.theme.wire_color,
+                zorder=TEXT_LAYER_ZORDER,
+                bbox={
+                    "boxstyle": "round,pad=0.12,rounding_size=0.08",
+                    "facecolor": scene.style.theme.axes_facecolor,
+                    "edgecolor": "none",
+                },
+            )
+
+    _add_line_collection(
+        ax,
+        quantum_segments,
+        color=scene.style.theme.wire_color,
+        linewidth=scene.style.line_width,
+        zorder=CONNECTION_LAYER_ZORDER,
+        capstyle="butt",
     )
-    ax.text(
-        marker_x,
-        wire.y - 0.22,
-        str(wire.bundle_size),
-        ha="center",
-        va="center",
-        fontsize=scene.style.font_size * 0.66,
-        color=color,
-        zorder=TEXT_LAYER_ZORDER,
-        bbox={
-            "boxstyle": "round,pad=0.08,rounding_size=0.05",
-            "facecolor": scene.style.theme.axes_facecolor,
-            "edgecolor": "none",
-        },
+    _add_line_collection(
+        ax,
+        classical_segments,
+        color=scene.style.theme.classical_wire_color,
+        linewidth=scene.style.line_width,
+        zorder=CONNECTION_LAYER_ZORDER,
+        linestyle=(0, (3, 2)),
+        capstyle="butt",
     )
 
 
 def draw_connection(ax: Axes, connection: SceneConnection, scene: LayoutScene) -> None:
-    color = (
-        scene.style.theme.classical_wire_color
-        if connection.is_classical
-        else scene.style.theme.wire_color
-    )
-    linestyle: str | tuple[int, tuple[int, int]]
-    linestyle = (0, (3, 2)) if connection.linestyle == "dashed" else "-"
-    line_end_y = connection.y_end
-    if connection.arrow_at_end:
-        direction = 1.0 if connection.y_end >= connection.y_start else -1.0
-        arrow_length = max(0.12, scene.style.wire_spacing * 0.18)
-        line_end_y = connection.y_end - (direction * arrow_length)
-    ax.plot(
-        [connection.x, connection.x],
-        [connection.y_start, line_end_y],
-        color=color,
-        linewidth=scene.style.line_width,
-        linestyle=linestyle,
-        dash_capstyle="butt",
-        solid_capstyle="butt",
-        zorder=CONNECTION_LAYER_ZORDER,
-    )
-    if connection.arrow_at_end:
-        arrow = FancyArrowPatch(
-            (connection.x, line_end_y),
-            (connection.x, connection.y_end),
-            arrowstyle="-|>",
-            mutation_scale=10 + (scene.style.font_size * 0.45),
-            linewidth=scene.style.line_width * 0.9,
-            color=color,
-            linestyle="solid",
-            zorder=SYMBOL_LAYER_ZORDER,
-        )
-        _add_patch_artist(ax, arrow)
-    if connection.label:
-        direction = 1.0 if connection.y_end >= connection.y_start else -1.0
-        ax.text(
-            connection.x + 0.12,
-            connection.y_end - (direction * 0.12),
-            connection.label,
-            ha="left",
-            va="center",
-            fontsize=scene.style.font_size * 0.7,
-            color=color,
-            zorder=TEXT_LAYER_ZORDER,
-            bbox={
-                "boxstyle": "round,pad=0.12,rounding_size=0.08",
-                "facecolor": scene.style.theme.axes_facecolor,
-                "edgecolor": "none",
-            },
-        )
+    draw_connections(ax, (connection,), scene)
 
 
 def draw_gate_box(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
     if gate.render_style is GateRenderStyle.X_TARGET:
-        draw_x_target(ax, gate, scene)
+        draw_x_target_circle(ax, gate, scene)
         return
 
     patch = FancyBboxPatch(
@@ -169,7 +236,7 @@ def draw_gate_box(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
     _add_patch_artist(ax, patch)
 
 
-def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
+def draw_x_target_circle(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
     radius = min(gate.width, gate.height) * 0.36
     _add_patch_artist(
         ax,
@@ -182,20 +249,31 @@ def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
             zorder=OCCLUSION_LAYER_ZORDER,
         ),
     )
-    ax.plot(
-        [gate.x - radius, gate.x + radius],
-        [gate.y, gate.y],
+
+
+def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
+    draw_x_target_circle(ax, gate, scene)
+    draw_x_target_segments(ax, (gate,), scene)
+
+
+def draw_x_target_segments(ax: Axes, gates: Sequence[SceneGate], scene: LayoutScene) -> None:
+    segments: list[LineSegment] = []
+    for gate in gates:
+        if gate.render_style is not GateRenderStyle.X_TARGET:
+            continue
+        radius = min(gate.width, gate.height) * 0.36
+        segments.extend(
+            (
+                ((gate.x - radius, gate.y), (gate.x + radius, gate.y)),
+                ((gate.x, gate.y - radius), (gate.x, gate.y + radius)),
+            )
+        )
+
+    _add_line_collection(
+        ax,
+        segments,
         color=scene.style.theme.wire_color,
         linewidth=scene.style.line_width,
-        solid_capstyle="round",
-        zorder=SYMBOL_LAYER_ZORDER,
-    )
-    ax.plot(
-        [gate.x, gate.x],
-        [gate.y - radius, gate.y + radius],
-        color=scene.style.theme.wire_color,
-        linewidth=scene.style.line_width,
-        solid_capstyle="round",
         zorder=SYMBOL_LAYER_ZORDER,
     )
 
@@ -256,35 +334,43 @@ def draw_control(ax: Axes, control: SceneControl, scene: LayoutScene) -> None:
 
 
 def draw_swap(ax: Axes, swap: SceneSwap, scene: LayoutScene) -> None:
-    half = swap.marker_size
-    for y in (swap.y_top, swap.y_bottom):
-        ax.plot(
-            [swap.x - half, swap.x + half],
-            [y - half, y + half],
-            color=scene.style.theme.wire_color,
-            linewidth=scene.style.line_width,
-            solid_capstyle="round",
-            zorder=SYMBOL_LAYER_ZORDER,
-        )
-        ax.plot(
-            [swap.x - half, swap.x + half],
-            [y + half, y - half],
-            color=scene.style.theme.wire_color,
-            linewidth=scene.style.line_width,
-            solid_capstyle="round",
-            zorder=SYMBOL_LAYER_ZORDER,
-        )
+    draw_swaps(ax, (swap,), scene)
+
+
+def draw_swaps(ax: Axes, swaps: Sequence[SceneSwap], scene: LayoutScene) -> None:
+    segments: list[LineSegment] = []
+    for swap in swaps:
+        half = swap.marker_size
+        for y in (swap.y_top, swap.y_bottom):
+            segments.extend(
+                (
+                    ((swap.x - half, y - half), (swap.x + half, y + half)),
+                    ((swap.x - half, y + half), (swap.x + half, y - half)),
+                )
+            )
+
+    _add_line_collection(
+        ax,
+        segments,
+        color=scene.style.theme.wire_color,
+        linewidth=scene.style.line_width,
+        zorder=SYMBOL_LAYER_ZORDER,
+    )
 
 
 def draw_barrier(ax: Axes, barrier: SceneBarrier, scene: LayoutScene) -> None:
-    ax.plot(
-        [barrier.x, barrier.x],
-        [barrier.y_top, barrier.y_bottom],
+    draw_barriers(ax, (barrier,), scene)
+
+
+def draw_barriers(ax: Axes, barriers: Sequence[SceneBarrier], scene: LayoutScene) -> None:
+    _add_line_collection(
+        ax,
+        [((barrier.x, barrier.y_top), (barrier.x, barrier.y_bottom)) for barrier in barriers],
         color=scene.style.theme.barrier_color,
         linewidth=scene.style.line_width,
-        linestyle=(0, (4, 2)),
-        dash_capstyle="butt",
         zorder=BASE_LAYER_ZORDER,
+        linestyle=(0, (4, 2)),
+        capstyle="butt",
     )
 
 

@@ -270,4 +270,3 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
         ("q1", "q2"),
         ("q0",),
     ) in signatures
-

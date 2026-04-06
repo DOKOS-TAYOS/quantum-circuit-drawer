@@ -171,6 +171,39 @@ def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_slider_with_output_reuses_single_managed_figure(
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_tmp_path,
+) -> None:
+    import quantum_circuit_drawer.renderers._matplotlib_figure as figure_support
+    import quantum_circuit_drawer.renderers.matplotlib_renderer as renderer_module
+
+    output = sandbox_tmp_path / "wrapped-circuit.png"
+    create_calls = 0
+    original_create_managed_figure = figure_support.create_managed_figure
+
+    def count_create_managed_figure(*args: object, **kwargs: object) -> tuple[Figure, object]:
+        nonlocal create_calls
+        create_calls += 1
+        return original_create_managed_figure(*args, **kwargs)
+
+    monkeypatch.setattr(figure_support, "create_managed_figure", count_create_managed_figure)
+    monkeypatch.setattr(renderer_module, "create_managed_figure", count_create_managed_figure)
+
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        output=output,
+        page_slider=True,
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert output.exists()
+    assert create_calls == 1
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_skips_show_warning_on_non_interactive_backend() -> None:
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("always")

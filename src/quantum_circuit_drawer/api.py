@@ -99,17 +99,21 @@ def _render_managed_figure(
             initial_viewport_width,
             slider_scene.height,
         )
-        figure, axes = create_managed_figure(
-            slider_scene,
-            figure_width=figure_width,
-            figure_height=figure_height,
-            use_agg=not show,
-        )
+        if output is None:
+            figure, axes = create_managed_figure(
+                slider_scene,
+                figure_width=figure_width,
+                figure_height=figure_height,
+                use_agg=not show,
+            )
+        else:
+            figure, axes = create_managed_figure(pipeline.paged_scene, use_agg=not show)
+            pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
+            axes.clear()
+            figure.set_size_inches(figure_width, figure_height, forward=True)
         figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
         viewport_width = _slider_viewport_width(axes, slider_scene)
         set_viewport_width(figure, viewport_width=viewport_width)
-        if output is not None:
-            pipeline.renderer.render(pipeline.paged_scene, output=output)
         pipeline.renderer.render(slider_scene, ax=axes)
         _configure_page_slider(
             figure=figure,

@@ -174,4 +174,3 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
         ("q2", "q3"),
         ("q0",),
     ) in signatures
-
