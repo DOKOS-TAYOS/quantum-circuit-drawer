@@ -5,7 +5,7 @@ from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
-from quantum_circuit_drawer.layout.spacing import operation_width
+from quantum_circuit_drawer.layout.spacing import estimate_text_width, operation_width
 from quantum_circuit_drawer.style import DrawStyle
 
 
@@ -259,6 +259,22 @@ def test_operation_width_keeps_parametric_rotation_gates_compact() -> None:
     )
 
     assert operation_width(operation, style) == style.gate_width
+
+
+def test_estimate_text_width_returns_zero_for_empty_labels() -> None:
+    assert estimate_text_width("", font_size=12.0) == 0.0
+
+
+def test_operation_width_expands_for_long_labels_and_subtitles() -> None:
+    style = DrawStyle(show_params=True)
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="LONGGATE",
+        target_wires=("q0",),
+        parameters=(3.1415926535,),
+    )
+
+    assert operation_width(operation, style) > style.gate_width
 
 
 def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() -> None:

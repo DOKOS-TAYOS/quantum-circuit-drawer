@@ -6,12 +6,29 @@ import matplotlib.pyplot as plt
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.transforms import Bbox
 
-from quantum_circuit_drawer.api import draw_quantum_circuit
+from quantum_circuit_drawer.api import (
+    _configure_page_slider,
+    _figure_backend_name,
+    _normalize_backend_name,
+    _page_slider_figsize,
+    _show_managed_figure_if_supported,
+    _slider_viewport_width,
+    draw_quantum_circuit,
+)
 from quantum_circuit_drawer.layout.engine import LayoutEngine
-from quantum_circuit_drawer.renderers._matplotlib_figure import get_page_slider
+from quantum_circuit_drawer.renderers._matplotlib_figure import (
+    create_managed_figure,
+    get_page_slider,
+)
 from quantum_circuit_drawer.style import DrawStyle
-from tests.support import build_dense_rotation_ir, build_sample_ir, build_wrapped_ir
+from tests.support import (
+    build_dense_rotation_ir,
+    build_sample_ir,
+    build_sample_scene,
+    build_wrapped_ir,
+)
 
 
 def test_draw_quantum_circuit_shows_managed_figures_by_default(
@@ -26,9 +43,9 @@ def test_draw_quantum_circuit_shows_managed_figures_by_default(
 
     figure, axes = draw_quantum_circuit(build_sample_ir())
 
-    assert figure is not None
     assert axes.figure is figure
     assert show_calls == [True]
+    assert get_page_slider(figure) is None
     plt.close(figure)
 
 
@@ -42,7 +59,7 @@ def test_draw_quantum_circuit_skips_show_when_disabled(
 
     figure, axes = draw_quantum_circuit(build_sample_ir(), show=False)
 
-    assert figure is not None
+    assert isinstance(figure.canvas, FigureCanvasAgg)
     assert axes.figure is figure
     plt.close(figure)
 
@@ -116,7 +133,6 @@ def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_fi
     assert axes.get_ylim() == pytest.approx((long_scene.height, 0.0))
     initial_viewport_width = axes.get_xlim()[1] - axes.get_xlim()[0]
 
-    assert hasattr(page_slider, "set_val")
     page_slider.set_val(page_slider.valmax)
 
     assert axes.get_xlim() == pytest.approx(
@@ -149,6 +165,7 @@ def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider
 
     assert axes.figure is figure
     assert output.exists()
+    assert output.stat().st_size > 0
     assert saved_axes_counts == [1]
     assert len(figure.axes) == 2
     plt.close(figure)
@@ -163,9 +180,25 @@ def test_draw_quantum_circuit_skips_show_warning_on_non_interactive_backend() ->
         warning for warning in caught_warnings if "cannot be shown" in str(warning.message)
     ]
 
-    assert figure is not None
     assert axes.figure is figure
     assert not show_warnings
+    plt.close(figure)
+
+
+def test_show_managed_figure_calls_patched_show_on_non_interactive_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    show_calls: list[bool] = []
+    figure, _ = draw_quantum_circuit(build_sample_ir(), show=False)
+
+    def fake_show(*args: object, **kwargs: object) -> None:
+        show_calls.append(True)
+
+    monkeypatch.setattr(plt, "show", fake_show)
+
+    _show_managed_figure_if_supported(figure, show=True)
+
+    assert show_calls == [True]
     plt.close(figure)
 
 
@@ -251,3 +284,60 @@ def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_
 
     assert page_to_font_size[2] > page_to_font_size[3] > page_to_font_size[10]
     assert page_to_font_size[10] < page_to_font_size[2] * 0.75
+
+
+def test_slider_viewport_width_falls_back_to_scene_width_for_zero_sized_axes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = build_sample_scene()
+    figure, axes = create_managed_figure(scene, use_agg=True)
+
+    monkeypatch.setattr(axes, "get_position", lambda: Bbox.from_bounds(0.0, 0.0, 0.0, 0.0))
+
+    assert _slider_viewport_width(axes, scene) == scene.width
+    plt.close(figure)
+
+
+def test_configure_page_slider_skips_slider_when_viewport_already_fits_scene() -> None:
+    scene = build_sample_scene()
+    figure, axes = plt.subplots()
+    attached_sliders: list[object] = []
+
+    _configure_page_slider(
+        figure=figure,
+        axes=axes,
+        scene=scene,
+        viewport_width=scene.width,
+        set_page_slider=lambda _figure, slider: attached_sliders.append(slider),
+    )
+
+    assert len(figure.axes) == 1
+    assert attached_sliders == []
+    plt.close(figure)
+
+
+@pytest.mark.parametrize(
+    ("backend_name", "expected"),
+    [
+        ("module://matplotlib.backends.backend_agg", "agg"),
+        ("matplotlib.backends.backend_svg", "svg"),
+        ("backend_qt5agg", "qt5agg"),
+        ("Agg", "agg"),
+    ],
+)
+def test_normalize_backend_name_strips_known_prefixes(
+    backend_name: str,
+    expected: str,
+) -> None:
+    assert _normalize_backend_name(backend_name) == expected
+
+
+def test_page_slider_figsize_respects_minimum_dimensions() -> None:
+    assert _page_slider_figsize(1.0, 0.5) == pytest.approx((4.8, 3.0))
+
+
+def test_figure_backend_name_prefers_canvas_type_name() -> None:
+    figure, _ = draw_quantum_circuit(build_sample_ir(), show=False)
+
+    assert _figure_backend_name(figure) == "agg"
+    plt.close(figure)

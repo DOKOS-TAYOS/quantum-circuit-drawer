@@ -57,6 +57,12 @@ def test_adapter_registry_detects_using_registration_order() -> None:
     assert isinstance(adapter, _SecondAdapter)
 
 
+def test_adapter_registry_lists_default_frameworks() -> None:
+    registry = AdapterRegistry()
+
+    assert registry.available_frameworks() == ("ir", "qiskit", "cirq", "pennylane", "cudaq")
+
+
 def test_get_adapter_reports_detected_framework_on_explicit_mismatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -71,3 +77,19 @@ def test_get_adapter_reports_detected_framework_on_explicit_mismatch(
         match=r"requested framework 'first'.*autodetected 'second'",
     ):
         get_adapter(_Marker(), framework="first")
+
+
+def test_get_adapter_lists_available_frameworks_for_unknown_names() -> None:
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"unsupported framework 'bogus'.*cirq.*cudaq.*ir.*pennylane.*qiskit",
+    ):
+        get_adapter(object(), framework="bogus")
+
+
+def test_get_adapter_reports_requested_framework_when_object_is_not_supported() -> None:
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"requested framework 'qiskit' does not match object of type",
+    ):
+        get_adapter(object(), framework="qiskit")

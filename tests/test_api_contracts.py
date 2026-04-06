@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
+from matplotlib.text import Text
 
 import quantum_circuit_drawer
 from quantum_circuit_drawer.api import draw_quantum_circuit
@@ -18,53 +21,59 @@ from quantum_circuit_drawer.exceptions import (
 from tests.support import build_sample_ir, install_fake_cudaq
 
 
-def test_draw_quantum_circuit_returns_figure_and_axes_for_ir() -> None:
+def _text_labels(texts: Iterable[Text]) -> set[str]:
+    return {text.get_text() for text in texts}
+
+
+def test_draw_quantum_circuit_returns_populated_managed_agg_figure_for_ir() -> None:
     figure, axes = draw_quantum_circuit(build_sample_ir(), show=False)
 
-    assert figure is not None
+    assert isinstance(figure.canvas, FigureCanvasAgg)
     assert axes.figure is figure
+    assert axes.lines
+    assert axes.patches
+    assert {"H", "M", "q0", "q1", "c0"}.issubset(_text_labels(axes.texts))
+    plt.close(figure)
 
 
 def test_draw_quantum_circuit_draws_on_existing_axes() -> None:
-    _, axes = plt.subplots()
+    figure, axes = plt.subplots()
 
     result = draw_quantum_circuit(build_sample_ir(), ax=axes)
 
     assert result is axes
+    assert axes.figure is figure
+    assert axes.lines
+    assert axes.patches
+    plt.close(figure)
 
 
-def test_draw_quantum_circuit_saves_output(sandbox_tmp_path: Path) -> None:
+def test_draw_quantum_circuit_saves_non_empty_output(sandbox_tmp_path: Path) -> None:
     output = sandbox_tmp_path / "circuit.png"
 
-    draw_quantum_circuit(build_sample_ir(), output=output, show=False)
+    figure, _ = draw_quantum_circuit(build_sample_ir(), output=output, show=False)
 
     assert output.exists()
+    assert output.stat().st_size > 0
+    plt.close(figure)
 
 
 def test_draw_quantum_circuit_rejects_invalid_backend() -> None:
-    with pytest.raises(UnsupportedBackendError):
+    with pytest.raises(UnsupportedBackendError, match="unsupported backend 'svg'"):
         draw_quantum_circuit(build_sample_ir(), backend="svg")
 
 
 def test_draw_quantum_circuit_validates_style_input() -> None:
-    with pytest.raises(StyleValidationError):
+    with pytest.raises(StyleValidationError, match="font_size must be a positive number"):
         draw_quantum_circuit(build_sample_ir(), style={"font_size": -1})
 
 
-def test_draw_quantum_circuit_accepts_dark_theme() -> None:
-    figure, axes = draw_quantum_circuit(build_sample_ir(), style={"theme": "dark"}, show=False)
+def test_draw_quantum_circuit_applies_requested_theme() -> None:
+    figure, axes = draw_quantum_circuit(build_sample_ir(), style={"theme": "paper"}, show=False)
 
-    assert figure is not None
-    assert axes.figure is figure
-
-
-def test_draw_quantum_circuit_accepts_page_wrapping_style() -> None:
-    figure, axes = draw_quantum_circuit(
-        build_sample_ir(), style={"max_page_width": 4.0}, show=False
-    )
-
-    assert figure is not None
-    assert axes.figure is figure
+    assert figure.get_facecolor() == to_rgba("#fffdf7")
+    assert axes.get_facecolor() == to_rgba("#fffdf7")
+    plt.close(figure)
 
 
 def test_draw_quantum_circuit_uses_dark_theme_by_default() -> None:
@@ -72,10 +81,14 @@ def test_draw_quantum_circuit_uses_dark_theme_by_default() -> None:
 
     assert figure.get_facecolor() == to_rgba("#000000")
     assert axes.get_facecolor() == to_rgba("#000000")
+    plt.close(figure)
 
 
-def test_draw_quantum_circuit_honors_explicit_framework_override() -> None:
-    with pytest.raises(UnsupportedFrameworkError):
+def test_draw_quantum_circuit_reports_explicit_framework_mismatches() -> None:
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"requested framework 'qiskit'.*autodetected 'ir'",
+    ):
         draw_quantum_circuit(build_sample_ir(), framework="qiskit")
 
 
@@ -86,8 +99,9 @@ def test_draw_quantum_circuit_accepts_cudaq_framework_override(
 
     figure, axes = draw_quantum_circuit(fake_kernel_type(), framework="cudaq", show=False)
 
-    assert figure is not None
-    assert axes.figure is figure
+    assert isinstance(figure.canvas, FigureCanvasAgg)
+    assert {"H", "MZ", "q0", "c"}.issubset(_text_labels(axes.texts))
+    plt.close(figure)
 
 
 def test_draw_quantum_circuit_wraps_output_errors() -> None:
@@ -103,11 +117,49 @@ def test_draw_quantum_circuit_wraps_output_errors() -> None:
         monkeypatch.undo()
 
 
-def test_package_level_draw_quantum_circuit_forwards_show_parameter() -> None:
-    figure, axes = quantum_circuit_drawer.draw_quantum_circuit(build_sample_ir(), show=False)
+def test_package_level_draw_quantum_circuit_forwards_show_parameter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    expected_result = (object(), object())
 
-    assert figure is not None
-    assert axes.figure is figure
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        framework: str | None = None,
+        *,
+        style: object = None,
+        layout: object = None,
+        backend: str = "matplotlib",
+        ax: object = None,
+        output: object = None,
+        show: bool = True,
+        page_slider: bool = False,
+        **options: object,
+    ) -> tuple[object, object]:
+        captured.update(
+            {
+                "circuit": circuit,
+                "framework": framework,
+                "style": style,
+                "layout": layout,
+                "backend": backend,
+                "ax": ax,
+                "output": output,
+                "show": show,
+                "page_slider": page_slider,
+                "options": options,
+            }
+        )
+        return expected_result
+
+    monkeypatch.setattr("quantum_circuit_drawer.api.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    result = quantum_circuit_drawer.draw_quantum_circuit(build_sample_ir(), show=False)
+
+    assert result is expected_result
+    assert captured["show"] is False
+    assert captured["backend"] == "matplotlib"
+    assert captured["framework"] is None
 
 
 def test_draw_quantum_circuit_exposes_version() -> None:
@@ -119,6 +171,11 @@ def test_draw_quantum_circuit_emits_debug_logs_when_enabled(
 ) -> None:
     caplog.set_level("DEBUG", logger="quantum_circuit_drawer")
 
-    draw_quantum_circuit(build_sample_ir(), show=False)
+    figure, _ = draw_quantum_circuit(build_sample_ir(), show=False)
 
-    assert any("backend='matplotlib'" in record.getMessage() for record in caplog.records)
+    messages = [record.getMessage() for record in caplog.records]
+
+    assert any("backend='matplotlib'" in message for message in messages)
+    assert any("Prepared render pipeline" in message for message in messages)
+    assert any("Rendered managed figure without page slider" in message for message in messages)
+    plt.close(figure)

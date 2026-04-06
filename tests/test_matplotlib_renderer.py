@@ -30,12 +30,13 @@ def _display_bounds(figure: object, artist: object) -> tuple[float, float, float
 def test_matplotlib_renderer_adds_artists() -> None:
     figure, axes = plt.subplots()
 
-    MatplotlibRenderer().render(build_sample_scene(), ax=axes)
+    scene = build_sample_scene()
+    MatplotlibRenderer().render(scene, ax=axes)
 
     assert axes.figure is figure
-    assert len(axes.patches) >= 3
-    assert len(axes.lines) >= 3
-    assert axes.texts
+    assert len(axes.patches) >= len(scene.gates) + len(scene.measurements)
+    assert len(axes.lines) >= len(scene.wires)
+    assert {"H", "M", "q0", "q1", "c0"}.issubset({text.get_text() for text in axes.texts})
 
 
 def test_matplotlib_renderer_does_not_require_pyplot_subplots(monkeypatch) -> None:
@@ -46,8 +47,9 @@ def test_matplotlib_renderer_does_not_require_pyplot_subplots(monkeypatch) -> No
 
     figure, axes = MatplotlibRenderer().render(build_sample_scene())
 
-    assert figure is not None
     assert axes.figure is figure
+    assert axes.patches
+    assert axes.lines
 
 
 def test_matplotlib_renderer_draws_occluding_patches_above_lines() -> None:
@@ -252,8 +254,10 @@ def test_matplotlib_renderer_renders_large_wrapped_scene_without_errors() -> Non
     MatplotlibRenderer().render(scene, ax=axes)
 
     assert len(scene.pages) > 1
-    assert axes.lines
-    assert axes.patches
+    assert sum(text.get_text() == "q0" for text in axes.texts) == len(scene.pages)
+    assert any(text.get_text() == "RX" for text in axes.texts)
+    assert any(text.get_text() == "H" for text in axes.texts)
+    assert axes.get_xlim() == approx((0.0, scene.width))
 
 
 def test_matplotlib_renderer_keeps_compact_gate_boxes_square_on_wide_axes() -> None:

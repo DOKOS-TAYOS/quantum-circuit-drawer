@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import runpy
-from collections.abc import Callable
-from pathlib import Path
-from typing import cast
-
 import pytest
 
 qiskit = pytest.importorskip("qiskit")
@@ -276,22 +271,3 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
         ("q0",),
     ) in signatures
 
-
-@pytest.mark.parametrize(
-    ("example_name", "builder_name"),
-    [
-        ("qiskit_example.py", "build_circuit"),
-        ("qiskit_wide_example.py", "build_circuit"),
-        ("qiskit_deep_example.py", "build_circuit"),
-        ("qiskit_grover_example.py", "build_circuit"),
-        ("qiskit_qaoa_example.py", "build_circuit"),
-    ],
-)
-def test_qiskit_examples_build_valid_circuits(example_name: str, builder_name: str) -> None:
-    example_path = Path(__file__).resolve().parents[1] / "examples" / example_name
-    namespace = runpy.run_path(str(example_path))
-    build_circuit = cast(Callable[[], qiskit.QuantumCircuit], namespace[builder_name])
-
-    circuit = build_circuit()
-
-    assert isinstance(circuit, qiskit.QuantumCircuit)

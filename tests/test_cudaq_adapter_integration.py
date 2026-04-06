@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
 from quantum_circuit_drawer.adapters.cudaq_adapter import CudaqAdapter
+from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.ir.operations import OperationKind
 
 pytestmark = pytest.mark.skipif(
@@ -54,3 +56,17 @@ def test_cudaq_adapter_converts_decorated_kernel_on_linux() -> None:
     assert ir.metadata["framework"] == "cudaq"
     assert any(operation.kind is OperationKind.CONTROLLED_GATE for operation in operations)
     assert [operation.name for operation in operations[-2:]] == ["MZ", "MZ"]
+
+
+def test_cudaq_example_smoke_render_on_linux(sandbox_tmp_path: Path) -> None:
+    from examples.cudaq_example import build_kernel
+
+    output = sandbox_tmp_path / "cudaq-demo.png"
+
+    figure, axes = draw_quantum_circuit(build_kernel, framework="cudaq", output=output, show=False)
+
+    assert output.exists()
+    assert output.stat().st_size > 0
+    assert axes.lines
+    assert axes.patches
+    figure.clear()
