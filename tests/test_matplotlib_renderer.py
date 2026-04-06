@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
 from pytest import approx
 
+from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
@@ -93,6 +94,42 @@ def test_matplotlib_renderer_draws_measurement_destination_arrow_and_label() -> 
 
     assert any(isinstance(patch, FancyArrowPatch) for patch in axes.patches)
     assert sum(text.get_text() == "c0" for text in axes.texts) >= 2
+
+
+def test_matplotlib_renderer_draws_classical_condition_with_arrow_and_bottom_label() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    label = next(text for text in axes.texts if text.get_text() == "if c[0]=1")
+
+    assert abs(label.get_position()[1] - scene.wire_y_positions["c0"]) < abs(
+        label.get_position()[1] - scene.wire_y_positions["q0"]
+    )
+    assert (
+        scene.wire_y_positions["c0"] - 0.3 < label.get_position()[1] < scene.wire_y_positions["c0"]
+    )
+    assert any(isinstance(patch, FancyArrowPatch) for patch in axes.patches)
+    assert axes.collections[-1].get_linestyle()[0][1] is None
 
 
 def test_matplotlib_renderer_repeats_wire_labels_when_wrapping_pages() -> None:

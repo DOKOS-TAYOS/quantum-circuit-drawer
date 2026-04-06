@@ -64,6 +64,7 @@ class SceneConnection:
     y_start: float
     y_end: float
     is_classical: bool = False
+    double_line: bool = False
     linestyle: str = "solid"
     arrow_at_end: bool = False
     label: str | None = None

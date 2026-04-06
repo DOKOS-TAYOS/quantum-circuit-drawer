@@ -17,7 +17,9 @@ def _benchmark_script_path() -> Path:
 
 
 def _load_benchmark_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("benchmark_render_script", _benchmark_script_path())
+    spec = importlib.util.spec_from_file_location(
+        "benchmark_render_script", _benchmark_script_path()
+    )
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -43,7 +45,9 @@ def test_build_synthetic_circuit_creates_expected_shape() -> None:
 def test_parse_args_reads_custom_values() -> None:
     benchmark_module = _load_benchmark_module()
 
-    args = benchmark_module.parse_args(["--wires", "4", "--layers", "8", "--repeats", "2", "--json"])
+    args = benchmark_module.parse_args(
+        ["--wires", "4", "--layers", "8", "--repeats", "2", "--json"]
+    )
 
     assert args.wires == 4
     assert args.layers == 8

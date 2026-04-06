@@ -8,7 +8,9 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="clean.bat is only runnable on Windows")
+pytestmark = pytest.mark.skipif(
+    sys.platform != "win32", reason="clean.bat is only runnable on Windows"
+)
 
 
 @dataclass(slots=True)

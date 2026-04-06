@@ -18,11 +18,12 @@ draw_quantum_circuit(
     output=None,
     show=True,
     page_slider=False,
+    composite_mode="compact",
     **options,
 )
 ```
 
-Most users only need `circuit`, and sometimes `style`, `output`, `show`, or `ax`.
+Most users only need `circuit`, and sometimes `style`, `output`, `show`, `ax`, or `composite_mode`.
 
 ## What you can pass as `circuit`
 
@@ -156,6 +157,30 @@ Important behavior:
 - if you also pass `output=...`, the saved file contains the paged circuit without the slider UI
 
 This makes `page_slider` useful for interactive exploration while keeping exported images clean.
+
+## Composite operations and `composite_mode`
+
+Some frameworks can hand the drawer a subcircuit, composite instruction, or operation with a decomposition.
+
+- `composite_mode="compact"` keeps that operation as one labeled box when the adapter can represent it that way.
+- `composite_mode="expand"` asks the adapter to use the available decomposition instead.
+
+Example:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    composite_mode="expand",
+)
+```
+
+This is especially useful for Qiskit instructions built from subcircuits, Cirq `CircuitOperation`, and PennyLane operations such as `QFT`.
+
+## Classical conditions
+
+For supported frameworks, classical conditions are rendered as a classical double-line connection plus a short label such as `if c[0]=1` or `if c=3`.
+
+The current goal is to show when an operation is conditioned on classical data, not to render full control-flow branches.
 
 ## Choosing the framework explicitly
 

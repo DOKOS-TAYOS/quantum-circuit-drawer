@@ -37,7 +37,7 @@ circuit.measure(1, 0)
 draw_quantum_circuit(circuit)
 ```
 
-Current support includes common gates, controlled gates, swap, barriers, and measurements.
+Current support includes common gates, controlled gates, classical `if` conditions, composite instructions, swap, barriers, and measurements.
 
 ## Cirq
 
@@ -66,6 +66,8 @@ draw_quantum_circuit(circuit, framework="cirq")
 
 Explicit `framework="cirq"` is optional, but many users like it because it makes the code more readable.
 
+Current support also includes `ClassicallyControlledOperation` and compact or expanded `CircuitOperation` rendering through `composite_mode`.
+
 ## PennyLane
 
 Install the `pennylane` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[pennylane]`.
@@ -91,7 +93,7 @@ with qml.tape.QuantumTape() as tape:
 draw_quantum_circuit(tape, framework="pennylane")
 ```
 
-PennyLane support is intentionally conservative. If your workflow produces a tape-like object, this path is often the best starting point.
+PennyLane support includes mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
 
 ## CUDA-Q
 
@@ -141,6 +143,7 @@ Example:
 ```python
 from quantum_circuit_drawer import draw_quantum_circuit
 from quantum_circuit_drawer.ir import (
+    ClassicalConditionIR,
     CircuitIR,
     LayerIR,
     MeasurementIR,
@@ -175,6 +178,12 @@ ir = CircuitIR(
                     name="X",
                     control_wires=["q0"],
                     target_wires=["q1"],
+                    classical_conditions=[
+                        ClassicalConditionIR(
+                            wire_ids=["c0"],
+                            expression="if c[0]=1",
+                        )
+                    ],
                 )
             ]
         ),
@@ -198,6 +207,7 @@ draw_quantum_circuit(ir, show=False)
 Some useful IR rules to remember:
 
 - wire ids must be unique across quantum and classical wires
+- classical conditions reference classical wire ids through `ClassicalConditionIR`
 - measurements require a `classical_target`
 - non-barrier operations need at least one target wire
 

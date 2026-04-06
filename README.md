@@ -28,6 +28,8 @@ Use it when you want to:
 - Built-in `dark`, `light`, and `paper` themes
 - Optional file export through `output=...`
 - Optional continuous horizontal slider for wide circuits with `page_slider=True`
+- Classical-condition annotations for supported framework conditionals
+- Composite-operation rendering with `composite_mode="compact"` or `"expand"`
 - Clear exceptions for unsupported frameworks, unsupported backends, style validation issues, and render-write failures
 
 ## Supported frameworks
@@ -37,9 +39,9 @@ The package supports Python `3.11+`.
 | Framework | Install | Notes |
 | --- | --- | --- |
 | Core package | `pip install quantum-circuit-drawer` | Includes Matplotlib renderer and the internal IR path |
-| Qiskit | `pip install "quantum-circuit-drawer[qiskit]"` | Supports common gates, controlled gates, swap, barriers, and measurements |
-| Cirq | `pip install "quantum-circuit-drawer[cirq]"` | Supports common gates, controlled gates, swap, and measurements |
-| PennyLane | `pip install "quantum-circuit-drawer[pennylane]"` | Supports tape-like objects such as `QuantumTape`, `QuantumScript`, and objects exposing `.qtape` or `.tape` |
+| Qiskit | `pip install "quantum-circuit-drawer[qiskit]"` | Supports common gates, controlled gates, classical `if` conditions, composite instructions, swap, barriers, and measurements |
+| Cirq | `pip install "quantum-circuit-drawer[cirq]"` | Supports common gates, controlled gates, classically controlled operations, `CircuitOperation`, swap, and measurements |
+| PennyLane | `pip install "quantum-circuit-drawer[pennylane]"` | Supports tape-like objects such as `QuantumTape`, `QuantumScript`, mid-circuit measurement conditionals, and decomposable composite operations |
 | CUDA-Q | `pip install "quantum-circuit-drawer[cudaq]"` | Linux/WSL2-first extra; supports closed kernels through Quake/MLIR |
 
 ## Installation
@@ -129,6 +131,17 @@ draw_quantum_circuit(
 
 When `page_slider=True`, the interactive figure becomes horizontally scrollable while saved output still uses the paged circuit layout.
 
+### Expand a composite operation instead of drawing one box
+
+```python
+draw_quantum_circuit(
+    circuit,
+    composite_mode="expand",
+)
+```
+
+The default is `composite_mode="compact"`, which keeps subcircuits or framework-specific composite operations as a single labeled box when possible.
+
 ### CUDA-Q example
 
 ```python
@@ -162,6 +175,7 @@ draw_quantum_circuit(
     output=None,
     show=True,
     page_slider=False,
+    composite_mode="compact",
     **options,
 )
 ```
@@ -173,13 +187,14 @@ Current behavior for `backend="matplotlib"`:
 - If `ax` is provided, the circuit is drawn in place and the function returns that axes object.
 - If `output` is provided, the rendered figure is also saved to disk.
 - If `page_slider=True`, the function requires a managed figure and raises `ValueError` when used with `ax=...`.
+- If `composite_mode="expand"`, supported composite instructions or subcircuits are expanded into their constituent operations.
 
 ## Scope and current limitations
 
 The current public surface is intentionally focused.
 
 - Matplotlib is the only rendering backend today.
-- Advanced classical control-flow visualization is outside the current scope.
+- Classical control is currently shown as an annotated classical condition, not as full branching flow.
 - CUDA-Q support currently targets closed kernels only.
 - Advanced CUDA-Q constructs such as reset, custom kernel composition, and broader control-flow handling are not yet part of the supported subset.
 

@@ -78,6 +78,7 @@ def run_demo(spec: DemoSpec, *, output: Path | None, show: bool) -> None:
         output=output,
         show=show,
         page_slider=spec.page_slider,
+        composite_mode=spec.composite_mode,
     )
 
     if output is not None:

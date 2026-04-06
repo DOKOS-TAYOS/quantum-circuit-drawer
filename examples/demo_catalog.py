@@ -19,6 +19,7 @@ class DemoSpec:
     framework: str | None
     style: dict[str, object]
     page_slider: bool
+    composite_mode: str = "compact"
 
 
 def examples_directory() -> Path:
@@ -77,6 +78,16 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             page_slider=False,
         ),
         DemoSpec(
+            demo_id="qiskit-conditional-composite",
+            description="Qiskit classical control and composite expansion",
+            module_name="examples.qiskit_conditional_composite_example",
+            builder_name="build_circuit",
+            framework=None,
+            style=demo_style(max_page_width=7.0),
+            page_slider=False,
+            composite_mode="expand",
+        ),
+        DemoSpec(
             demo_id="cirq-balanced",
             description="Balanced Cirq showcase",
             module_name="examples.cirq_example",
@@ -122,6 +133,16 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             page_slider=False,
         ),
         DemoSpec(
+            demo_id="cirq-conditional-composite",
+            description="Cirq classical control and composite expansion",
+            module_name="examples.cirq_conditional_composite_example",
+            builder_name="build_circuit",
+            framework="cirq",
+            style=demo_style(max_page_width=7.0),
+            page_slider=False,
+            composite_mode="expand",
+        ),
+        DemoSpec(
             demo_id="pennylane-balanced",
             description="Balanced PennyLane showcase",
             module_name="examples.pennylane_example",
@@ -165,6 +186,16 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             framework="pennylane",
             style=demo_style(max_page_width=8.25),
             page_slider=False,
+        ),
+        DemoSpec(
+            demo_id="pennylane-conditional-composite",
+            description="PennyLane mid-measurement conditionals and composite expansion",
+            module_name="examples.pennylane_conditional_composite_example",
+            builder_name="build_tape",
+            framework="pennylane",
+            style=demo_style(max_page_width=7.0),
+            page_slider=False,
+            composite_mode="expand",
         ),
         DemoSpec(
             demo_id="cudaq-balanced",

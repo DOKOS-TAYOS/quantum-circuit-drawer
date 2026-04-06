@@ -134,6 +134,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
         output: object = None,
         show: bool = True,
         page_slider: bool = False,
+        composite_mode: str = "compact",
         **options: object,
     ) -> tuple[object, object]:
         captured.update(
@@ -147,18 +148,26 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
                 "output": output,
                 "show": show,
                 "page_slider": page_slider,
+                "composite_mode": composite_mode,
                 "options": options,
             }
         )
         return expected_result
 
-    monkeypatch.setattr("quantum_circuit_drawer.api.draw_quantum_circuit", fake_draw_quantum_circuit)
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.api.draw_quantum_circuit", fake_draw_quantum_circuit
+    )
 
-    result = quantum_circuit_drawer.draw_quantum_circuit(build_sample_ir(), show=False)
+    result = quantum_circuit_drawer.draw_quantum_circuit(
+        build_sample_ir(),
+        show=False,
+        composite_mode="expand",
+    )
 
     assert result is expected_result
     assert captured["show"] is False
     assert captured["backend"] == "matplotlib"
+    assert captured["composite_mode"] == "expand"
     assert captured["framework"] is None
 
 

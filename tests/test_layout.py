@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
@@ -191,6 +192,41 @@ def test_layout_engine_wraps_long_circuits_into_vertical_pages() -> None:
     assert scene.width <= 6.5
 
 
+def test_layout_engine_places_classical_condition_connection_from_classical_wire() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    classical_connection = next(
+        connection
+        for connection in scene.connections
+        if connection.is_classical and connection.label == "if c[0]=1"
+    )
+
+    assert classical_connection.y_start == scene.wire_y_positions["c0"]
+    assert classical_connection.y_end == scene.gates[0].y + (scene.gates[0].height / 2)
+    assert classical_connection.double_line is True
+    assert classical_connection.linestyle == "solid"
+    assert classical_connection.arrow_at_end is True
+
+
 def test_layout_engine_separates_independent_operations_with_overlapping_vertical_spans() -> None:
     circuit = CircuitIR(
         quantum_wires=[
@@ -311,6 +347,75 @@ def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() 
     )
 
     assert classical_connection.label == "alpha[1]"
+
+
+def test_layout_engine_splits_measurements_and_classically_conditioned_gates_by_classical_wire() -> (
+    None
+):
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        layers=[
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                    ),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    ),
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert [measurement.column for measurement in scene.measurements] == [0]
+    assert [gate.column for gate in scene.gates] == [1]
+
+
+def test_layout_engine_draws_classical_condition_connection_and_label() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    classical_connection = next(
+        connection
+        for connection in scene.connections
+        if connection.is_classical and connection.label == "if c[0]=1"
+    )
+
+    assert classical_connection.arrow_at_end is True
+    assert classical_connection.linestyle == "solid"
 
 
 def test_layout_engine_reuses_cached_operation_metrics(monkeypatch) -> None:

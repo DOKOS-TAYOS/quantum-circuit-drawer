@@ -21,5 +21,17 @@ class MeasurementIR(OperationIR):
 
     @property
     def occupied_wire_ids(self) -> tuple[str, ...]:
-        base_wires = tuple(dict.fromkeys((*self.control_wires, *self.target_wires)))
-        return tuple((*base_wires, f"classical:{self.classical_target}"))
+        base_wires = tuple(
+            dict.fromkeys(
+                (
+                    *self.control_wires,
+                    *self.target_wires,
+                    *(
+                        wire_id
+                        for condition in self.classical_conditions
+                        for wire_id in condition.wire_ids
+                    ),
+                )
+            )
+        )
+        return tuple((*base_wires, self.classical_target))

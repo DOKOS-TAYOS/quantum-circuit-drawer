@@ -46,6 +46,7 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
         framework="qiskit",
         style={"theme": "paper"},
         page_slider=True,
+        composite_mode="expand",
     )
 
     def fake_builder() -> object:
@@ -60,6 +61,7 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
         output: Path | None = None,
         show: bool = True,
         page_slider: bool = False,
+        composite_mode: str = "compact",
     ) -> None:
         draw_calls.append(
             {
@@ -69,6 +71,7 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
                 "output": output,
                 "show": show,
                 "page_slider": page_slider,
+                "composite_mode": composite_mode,
             }
         )
 
@@ -88,6 +91,7 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
             "output": output,
             "show": False,
             "page_slider": True,
+            "composite_mode": "expand",
         }
     ]
     assert f"Saved {spec.demo_id} to {output}" in captured.out
@@ -120,12 +124,25 @@ def test_examples_runner_lists_all_demo_ids() -> None:
         assert spec.demo_id in result.stdout
 
 
+def test_demo_catalog_exposes_new_classical_control_and_composite_demos() -> None:
+    demo_ids = {spec.demo_id for spec in get_demo_catalog()}
+
+    assert {
+        "qiskit-conditional-composite",
+        "cirq-conditional-composite",
+        "pennylane-conditional-composite",
+    }.issubset(demo_ids)
+
+
 @pytest.mark.parametrize(
     ("demo_id", "dependency"),
     [
         ("qiskit-balanced", "qiskit"),
+        ("qiskit-conditional-composite", "qiskit"),
         ("cirq-balanced", "cirq"),
+        ("cirq-conditional-composite", "cirq"),
         ("pennylane-balanced", "pennylane"),
+        ("pennylane-conditional-composite", "pennylane"),
     ],
 )
 def test_examples_runner_can_render_selected_optional_demo(

@@ -49,6 +49,7 @@ class FakeTapeWrapper:
     def __init__(self, tape: FakeQuantumTape) -> None:
         self.qtape = tape
 
+
 def install_fake_pennylane(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_module = ModuleType("pennylane")
     fake_module.tape = SimpleNamespace(QuantumTape=FakeQuantumTape, QuantumScript=FakeQuantumTape)
@@ -124,6 +125,48 @@ def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPa
         PennyLaneAdapter().to_ir(object())
 
 
+def test_pennylane_adapter_converts_mid_measure_and_conditional_operations() -> None:
+    qml = pytest.importorskip("pennylane")
+
+    with qml.tape.QuantumTape() as tape:
+        measured_bit = qml.measure(0)
+        qml.cond(measured_bit, qml.X)(1)
+
+    ir = PennyLaneAdapter().to_ir(tape)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert operations[0].kind is OperationKind.MEASUREMENT
+    assert operations[1].name == "X"
+    assert operations[1].classical_conditions[0].wire_ids == ("c0",)
+    assert operations[1].classical_conditions[0].expression == "if c[0]=1"
+
+
+def test_pennylane_adapter_keeps_composite_operations_compact_by_default() -> None:
+    qml = pytest.importorskip("pennylane")
+
+    with qml.tape.QuantumTape() as tape:
+        qml.QFT(wires=[0, 1, 2])
+
+    ir = PennyLaneAdapter().to_ir(tape)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(operations) == 1
+    assert operations[0].name == "QFT"
+
+
+def test_pennylane_adapter_expands_composite_operations_when_requested() -> None:
+    qml = pytest.importorskip("pennylane")
+
+    with qml.tape.QuantumTape() as tape:
+        qml.QFT(wires=[0, 1, 2])
+
+    ir = PennyLaneAdapter().to_ir(tape, options={"composite_mode": "expand"})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(operations) > 1
+    assert operations[0].name == "H"
+
+
 def test_pennylane_adapter_supports_additional_common_operations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -165,10 +208,10 @@ def test_pennylane_adapter_supports_additional_common_operations(
         for operation in layer.operations
     ]
 
-    assert (OperationKind.GATE, CanonicalGateFamily.CUSTOM, "I", (), ("q0",), ()) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.I, "I", (), ("q0",), ()) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RESET,
         "RESET",
         (),
         ("q1",),
@@ -176,7 +219,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.DELAY,
         "DELAY",
         (12,),
         ("q2",),
@@ -184,7 +227,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.ECR,
         "ECR",
         (),
         ("q0", "q2"),
@@ -192,7 +235,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RXX,
         "RXX",
         (0.5,),
         ("q0", "q1"),
@@ -200,7 +243,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RYY,
         "RYY",
         (0.6,),
         ("q1", "q2"),
@@ -208,7 +251,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RZZ,
         "RZZ",
         (0.7,),
         ("q0", "q2"),
@@ -216,7 +259,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RZX,
         "RZX",
         (0.8,),
         ("q0", "q1"),
@@ -224,7 +267,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.FSIM,
         "FSIM",
         (0.2, 0.3),
         ("q1", "q2"),
@@ -232,7 +275,7 @@ def test_pennylane_adapter_supports_additional_common_operations(
     ) in signatures
     assert (
         OperationKind.CONTROLLED_GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RZZ,
         "RZZ",
         (0.125,),
         ("q1", "q2"),

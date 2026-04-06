@@ -257,6 +257,8 @@ class LayoutEngine:
         wire_order: dict[str, int],
     ) -> tuple[int, ...]:
         involved_wires = list(operation.control_wires) + list(operation.target_wires)
+        for condition in operation.classical_conditions:
+            involved_wires.extend(condition.wire_ids)
         if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
             involved_wires.append(operation.classical_target)
 
@@ -491,7 +493,38 @@ class LayoutEngine:
             wire_positions=wire_positions,
             gates=gates,
             gate_annotations=gate_annotations,
+            connections=connections,
         )
+
+    def _append_classical_condition_connections(
+        self,
+        *,
+        operation: OperationIR,
+        column: int,
+        x: float,
+        anchor_center_y: float,
+        anchor_half_extent: float,
+        wire_positions: dict[str, float],
+        connections: list[SceneConnection],
+    ) -> None:
+        for condition in operation.classical_conditions:
+            for condition_index, wire_id in enumerate(condition.wire_ids):
+                wire_y = wire_positions[wire_id]
+                label = condition.expression if condition_index == 0 else None
+                direction = 1.0 if wire_y >= anchor_center_y else -1.0
+                connections.append(
+                    SceneConnection(
+                        column=column,
+                        x=x,
+                        y_start=wire_y,
+                        y_end=anchor_center_y + (direction * anchor_half_extent),
+                        is_classical=True,
+                        double_line=True,
+                        linestyle="solid",
+                        arrow_at_end=True,
+                        label=label,
+                    )
+                )
 
     def _layout_measurement(
         self,
@@ -586,6 +619,15 @@ class LayoutEngine:
                 marker_size=style.swap_marker_size,
             )
         )
+        self._append_classical_condition_connections(
+            operation=operation,
+            column=column,
+            x=x,
+            anchor_center_y=(y_top + y_bottom) / 2,
+            anchor_half_extent=style.swap_marker_size,
+            wire_positions=wire_positions,
+            connections=connections,
+        )
 
     def _layout_controlled_gate(
         self,
@@ -606,6 +648,7 @@ class LayoutEngine:
                 operation=operation,
                 column=column,
                 x=x,
+                style=style,
                 wire_positions=wire_positions,
                 controls=controls,
                 connections=connections,
@@ -626,11 +669,12 @@ class LayoutEngine:
             return
 
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
+        gate_y = (y_top + y_bottom) / 2
         gates.append(
             SceneGate(
                 column=column,
                 x=x,
-                y=(y_top + y_bottom) / 2,
+                y=gate_y,
                 width=metrics.width,
                 height=max(style.gate_height, (y_bottom - y_top) + style.gate_height),
                 label=metrics.display_label,
@@ -655,6 +699,15 @@ class LayoutEngine:
             wire_positions, (*control_ids, *operation.target_wires)
         )
         connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
+        self._append_classical_condition_connections(
+            operation=operation,
+            column=column,
+            x=x,
+            anchor_center_y=gate_y,
+            anchor_half_extent=max(style.gate_height, (y_bottom - y_top) + style.gate_height) / 2,
+            wire_positions=wire_positions,
+            connections=connections,
+        )
 
     def _layout_controlled_z(
         self,
@@ -662,6 +715,7 @@ class LayoutEngine:
         operation: OperationIR,
         column: int,
         x: float,
+        style: DrawStyle,
         wire_positions: dict[str, float],
         controls: list[SceneControl],
         connections: list[SceneConnection],
@@ -671,6 +725,15 @@ class LayoutEngine:
             controls.append(SceneControl(column=column, x=x, y=wire_positions[control_id]))
         span_top, span_bottom = vertical_span(wire_positions, control_ids)
         connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
+        self._append_classical_condition_connections(
+            operation=operation,
+            column=column,
+            x=x,
+            anchor_center_y=wire_positions[operation.target_wires[0]],
+            anchor_half_extent=style.control_radius,
+            wire_positions=wire_positions,
+            connections=connections,
+        )
 
     def _layout_controlled_x(
         self,
@@ -705,6 +768,15 @@ class LayoutEngine:
             wire_positions, (*operation.control_wires, target_wire)
         )
         connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
+        self._append_classical_condition_connections(
+            operation=operation,
+            column=column,
+            x=x,
+            anchor_center_y=target_y,
+            anchor_half_extent=style.gate_height * 0.36,
+            wire_positions=wire_positions,
+            connections=connections,
+        )
 
     def _layout_gate(
         self,
@@ -717,6 +789,7 @@ class LayoutEngine:
         wire_positions: dict[str, float],
         gates: list[SceneGate],
         gate_annotations: list[SceneGateAnnotation],
+        connections: list[SceneConnection],
     ) -> None:
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
         gates.append(
@@ -740,6 +813,15 @@ class LayoutEngine:
             target_wires=operation.target_wires,
             wire_positions=wire_positions,
             gate_annotations=gate_annotations,
+        )
+        self._append_classical_condition_connections(
+            operation=operation,
+            column=column,
+            x=x,
+            anchor_center_y=(y_top + y_bottom) / 2,
+            anchor_half_extent=max(style.gate_height, (y_bottom - y_top) + style.gate_height) / 2,
+            wire_positions=wire_positions,
+            connections=connections,
         )
 
     def _uses_canonical_controlled_x_target(self, operation: OperationIR) -> bool:

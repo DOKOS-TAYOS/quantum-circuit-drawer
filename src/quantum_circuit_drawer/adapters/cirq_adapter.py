@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from dataclasses import replace
 from math import isclose
 from typing import Any, Protocol, cast
 
-from ..ir.circuit import CircuitIR, LayerIR
+from ..exceptions import UnsupportedOperationError
+from ..ir import ClassicalConditionIR
+from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
@@ -51,6 +54,7 @@ class CirqAdapter(BaseAdapter):
         import cirq
 
         typed_circuit = cast(_CirqCircuitLike, circuit)
+        composite_mode = self._composite_mode(options)
         qubits = sorted(typed_circuit.all_qubits(), key=str)
         qubit_ids = {qubit: f"q{index}" for index, qubit in enumerate(qubits)}
         quantum_wires = [
@@ -59,42 +63,51 @@ class CirqAdapter(BaseAdapter):
         ]
 
         measurement_slots: dict[tuple[int, int, int], tuple[str, str]] = {}
+        measurement_key_targets: dict[str, tuple[tuple[str, str], ...]] = {}
         measurement_labels: list[str] = []
         for moment_index, moment in enumerate(typed_circuit):
             for operation_index, operation in enumerate(moment.operations):
-                if self._is_measurement(operation):
-                    for slot_index, _ in enumerate(operation.qubits):
-                        measurement_labels.append(f"c[{len(measurement_labels)}]")
-                        measurement_slots[(moment_index, operation_index, slot_index)] = (
-                            "c0",
-                            measurement_labels[-1],
-                        )
+                if not self._is_measurement(operation):
+                    continue
+                key_targets: list[tuple[str, str]] = []
+                for slot_index, _ in enumerate(operation.qubits):
+                    measurement_labels.append(f"c[{len(measurement_labels)}]")
+                    measurement_slots[(moment_index, operation_index, slot_index)] = (
+                        "c0",
+                        measurement_labels[-1],
+                    )
+                    key_targets.append(("c0", measurement_labels[-1]))
+                measurement_key_targets[str(self._measurement_key(operation))] = tuple(key_targets)
 
         classical_wires, _ = build_classical_register(
             sequential_bit_labels(len(measurement_labels))
         )
 
-        layers: list[LayerIR] = []
+        flattened_operations: list[OperationIR | MeasurementIR] = []
         for moment_index, moment in enumerate(typed_circuit):
-            operations: list[OperationIR | MeasurementIR] = []
             for operation_index, operation in enumerate(moment.operations):
-                operations.extend(
+                flattened_operations.extend(
                     self._convert_operation(
                         cirq=cirq,
                         operation=operation,
                         qubit_ids=qubit_ids,
                         measurement_slots=measurement_slots,
+                        measurement_key_targets=measurement_key_targets,
                         operation_key=(moment_index, operation_index),
+                        composite_mode=composite_mode,
                     )
                 )
-            layers.append(LayerIR(operations=operations))
 
         return CircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
-            layers=layers,
+            layers=self.pack_operations(flattened_operations),
             metadata={"framework": self.framework_name},
         )
+
+    def _composite_mode(self, options: Mapping[str, object] | None) -> str:
+        requested_mode = options.get("composite_mode") if options is not None else None
+        return str(requested_mode) if requested_mode is not None else "compact"
 
     def _convert_operation(
         self,
@@ -103,7 +116,9 @@ class CirqAdapter(BaseAdapter):
         operation: _CirqOperationLike,
         qubit_ids: dict[object, str],
         measurement_slots: dict[tuple[int, int, int], tuple[str, str]],
+        measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
         operation_key: tuple[int, int],
+        composite_mode: str,
     ) -> list[OperationIR | MeasurementIR]:
         if self._is_measurement(operation):
             converted: list[OperationIR | MeasurementIR] = []
@@ -121,6 +136,61 @@ class CirqAdapter(BaseAdapter):
                     )
                 )
             return converted
+
+        if isinstance(operation, cirq.ClassicallyControlledOperation):
+            base_operation = cast(
+                _CirqOperationLike,
+                operation.without_classical_controls(),
+            )
+            conditions = self._classical_conditions_for_controls(
+                operation.classical_controls,
+                measurement_key_targets,
+            )
+            converted = self._convert_operation(
+                cirq=cirq,
+                operation=base_operation,
+                qubit_ids=qubit_ids,
+                measurement_slots=measurement_slots,
+                measurement_key_targets=measurement_key_targets,
+                operation_key=operation_key,
+                composite_mode=composite_mode,
+            )
+            return [
+                replace(
+                    node,
+                    classical_conditions=(*node.classical_conditions, *conditions),
+                )
+                for node in converted
+            ]
+
+        if isinstance(operation, cirq.CircuitOperation):
+            if composite_mode == "expand":
+                expanded: list[OperationIR | MeasurementIR] = []
+                for nested_moment_index, moment in enumerate(operation.mapped_circuit()):
+                    for nested_operation_index, nested_operation in enumerate(moment.operations):
+                        expanded.extend(
+                            self._convert_operation(
+                                cirq=cirq,
+                                operation=nested_operation,
+                                qubit_ids=qubit_ids,
+                                measurement_slots=measurement_slots,
+                                measurement_key_targets=measurement_key_targets,
+                                operation_key=(
+                                    operation_key[0] + nested_moment_index,
+                                    nested_operation_index,
+                                ),
+                                composite_mode=composite_mode,
+                            )
+                        )
+                return expanded
+            return [
+                OperationIR(
+                    kind=OperationKind.GATE,
+                    name=operation.__class__.__name__,
+                    label=operation.__class__.__name__,
+                    target_wires=tuple(qubit_ids[qubit] for qubit in operation.qubits),
+                )
+            ]
 
         gate = getattr(operation, "gate", None)
         class_name = (
@@ -193,8 +263,33 @@ class CirqAdapter(BaseAdapter):
         gate = getattr(operation, "gate", None)
         return gate is not None and gate.__class__.__name__ == "MeasurementGate"
 
+    def _measurement_key(self, operation: object) -> object:
+        gate = getattr(operation, "gate", None)
+        return getattr(gate, "key", None)
+
+    def _classical_conditions_for_controls(
+        self,
+        controls: Sequence[object],
+        measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
+    ) -> tuple[ClassicalConditionIR, ...]:
+        conditions: list[ClassicalConditionIR] = []
+        for control in controls:
+            key = getattr(control, "key", None)
+            key_targets = measurement_key_targets.get(str(key))
+            if key is None or not key_targets:
+                raise UnsupportedOperationError("unsupported Cirq classical condition")
+            wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
+            if len(key_targets) == 1:
+                _, bit_label = key_targets[0]
+                expression = f"if {bit_label}=1"
+            else:
+                expression = "if c=1"
+            conditions.append(ClassicalConditionIR(wire_ids=wire_ids, expression=expression))
+        return tuple(conditions)
+
     def _canonical_gate_for_operation(
-        self, operation: object
+        self,
+        operation: object,
     ) -> tuple[CanonicalGateSpec, tuple[object, ...]]:
         gate = getattr(operation, "gate", None)
         if gate is None:

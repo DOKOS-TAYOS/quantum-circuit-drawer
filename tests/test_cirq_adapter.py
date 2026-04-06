@@ -99,6 +99,42 @@ def test_cirq_adapter_maps_additional_canonical_gate_families() -> None:
     assert (CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
 
 
+def test_cirq_adapter_converts_classically_controlled_operations() -> None:
+    q0, q1 = cirq.LineQubit.range(2)
+    circuit = cirq.Circuit(cirq.measure(q0, key="m"), cirq.X(q1).with_classical_controls("m"))
+
+    ir = CirqAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert operations[-1].name == "X"
+    assert operations[-1].classical_conditions[0].wire_ids == ("c0",)
+    assert operations[-1].classical_conditions[0].expression == "if c[0]=1"
+
+
+def test_cirq_adapter_keeps_circuit_operation_compact_by_default() -> None:
+    q0, q1 = cirq.LineQubit.range(2)
+    subcircuit = cirq.Circuit(cirq.H(q0), cirq.CNOT(q0, q1))
+    circuit = cirq.Circuit(cirq.CircuitOperation(subcircuit.freeze()))
+
+    ir = CirqAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(operations) == 1
+    assert operations[0].name == "CircuitOperation"
+    assert operations[0].target_wires == ("q0", "q1")
+
+
+def test_cirq_adapter_expands_circuit_operation_when_requested() -> None:
+    q0, q1 = cirq.LineQubit.range(2)
+    subcircuit = cirq.Circuit(cirq.H(q0), cirq.CNOT(q0, q1))
+    circuit = cirq.Circuit(cirq.CircuitOperation(subcircuit.freeze()))
+
+    ir = CirqAdapter().to_ir(circuit, options={"composite_mode": "expand"})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [operation.name for operation in operations] == ["H", "X"]
+
+
 def test_cirq_adapter_supports_additional_common_operations() -> None:
     q0, q1, q2, q3 = cirq.LineQubit.range(4)
     circuit = cirq.Circuit(
@@ -125,10 +161,10 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
         for operation in layer.operations
     ]
 
-    assert (OperationKind.GATE, CanonicalGateFamily.CUSTOM, "I", (), ("q0",), ()) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.I, "I", (), ("q0",), ()) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RESET,
         "RESET",
         (),
         ("q1",),
@@ -136,7 +172,7 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RXX,
         "RXX",
         (0.25,),
         ("q0", "q1"),
@@ -144,7 +180,7 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RYY,
         "RYY",
         (0.5,),
         ("q1", "q2"),
@@ -152,7 +188,7 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RZZ,
         "RZZ",
         (0.75,),
         ("q2", "q3"),
@@ -160,7 +196,7 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.FSIM,
         "FSIM",
         (0.2, 0.3),
         ("q0", "q3"),
@@ -168,7 +204,7 @@ def test_cirq_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.CONTROLLED_GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RZZ,
         "RZZ",
         (0.125,),
         ("q2", "q3"),

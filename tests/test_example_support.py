@@ -54,6 +54,7 @@ def test_run_example_draws_and_reports_saved_output(
         style: dict[str, object],
         output: Path | None = None,
         page_slider: bool = False,
+        composite_mode: str = "compact",
     ) -> None:
         draw_calls.append(
             {
@@ -62,6 +63,7 @@ def test_run_example_draws_and_reports_saved_output(
                 "style": style,
                 "output": output,
                 "page_slider": page_slider,
+                "composite_mode": composite_mode,
             }
         )
 
@@ -87,6 +89,7 @@ def test_run_example_draws_and_reports_saved_output(
             "style": {"max_page_width": 7.5},
             "output": output,
             "page_slider": True,
+            "composite_mode": "compact",
         }
     ]
     assert f"Saved demo to {output}" in captured.out
@@ -114,6 +117,7 @@ def test_run_prebuilt_example_draws_subject_and_reports_saved_output(
         style: dict[str, object],
         output: Path | None = None,
         page_slider: bool = False,
+        composite_mode: str = "compact",
     ) -> None:
         draw_calls.append(
             {
@@ -122,6 +126,7 @@ def test_run_prebuilt_example_draws_subject_and_reports_saved_output(
                 "style": style,
                 "output": output,
                 "page_slider": page_slider,
+                "composite_mode": composite_mode,
             }
         )
 
@@ -146,6 +151,72 @@ def test_run_prebuilt_example_draws_subject_and_reports_saved_output(
             "style": {"theme": "paper"},
             "output": output,
             "page_slider": False,
+            "composite_mode": "compact",
         }
     ]
     assert f"Saved prebuilt demo to {output}" in captured.out
+
+
+def test_run_example_forwards_requested_composite_mode(
+    monkeypatch,
+    sandbox_tmp_path: Path,
+    capsys,
+) -> None:
+    from examples._shared import run_example
+
+    output = sandbox_tmp_path / "conditional-demo.png"
+    draw_calls: list[dict[str, object]] = []
+
+    def build_demo() -> object:
+        return {"kind": "conditional-demo"}
+
+    def fake_parse_output_args(*, description: str) -> Namespace:
+        assert description == "Render a conditional example."
+        return Namespace(output=output)
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        framework: str | None = None,
+        *,
+        style: dict[str, object],
+        output: Path | None = None,
+        page_slider: bool = False,
+        composite_mode: str = "compact",
+    ) -> None:
+        draw_calls.append(
+            {
+                "circuit": circuit,
+                "framework": framework,
+                "style": style,
+                "output": output,
+                "page_slider": page_slider,
+                "composite_mode": composite_mode,
+            }
+        )
+
+    monkeypatch.setattr("examples._shared.parse_output_args", fake_parse_output_args)
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    run_example(
+        build_demo,
+        description="Render a conditional example.",
+        framework="qiskit",
+        style={"max_page_width": 6.5},
+        page_slider=False,
+        composite_mode="expand",
+        saved_label="conditional demo",
+    )
+
+    captured = capsys.readouterr()
+
+    assert draw_calls == [
+        {
+            "circuit": {"kind": "conditional-demo"},
+            "framework": "qiskit",
+            "style": {"max_page_width": 6.5},
+            "output": output,
+            "page_slider": False,
+            "composite_mode": "expand",
+        }
+    ]
+    assert f"Saved conditional demo to {output}" in captured.out

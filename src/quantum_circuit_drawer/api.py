@@ -36,6 +36,7 @@ def draw_quantum_circuit(
     output: OutputPath | None = None,
     show: bool = True,
     page_slider: bool = False,
+    composite_mode: str = "compact",
     **options: object,
 ) -> RenderResult:
     """Draw a quantum circuit from a supported framework."""
@@ -46,7 +47,7 @@ def draw_quantum_circuit(
         framework=framework,
         style=style,
         layout=layout,
-        options=options,
+        options={"composite_mode": composite_mode, **options},
     )
 
     if ax is None:

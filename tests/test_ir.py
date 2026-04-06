@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
@@ -57,6 +58,31 @@ def test_operation_ir_normalizes_tuple_fields() -> None:
     assert operation.parameters == (3.1415,)
 
 
+def test_classical_condition_ir_normalizes_wire_ids_and_requires_expression() -> None:
+    condition = ClassicalConditionIR(wire_ids=["c0", "c1"], expression="if c=3")
+
+    assert condition.wire_ids == ("c0", "c1")
+    assert condition.expression == "if c=3"
+    assert condition.metadata == {}
+
+    with pytest.raises(ValueError, match="classical condition expression cannot be empty"):
+        ClassicalConditionIR(wire_ids=("c0",), expression="")
+
+
+def test_operation_ir_normalizes_classical_conditions_and_occupied_wire_ids() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="X",
+        target_wires=["q1"],
+        classical_conditions=[ClassicalConditionIR(wire_ids=["c0", "c1"], expression="if c=3")],
+    )
+
+    assert operation.classical_conditions == (
+        ClassicalConditionIR(wire_ids=("c0", "c1"), expression="if c=3"),
+    )
+    assert set(operation.occupied_wire_ids) == {"c0", "c1", "q1"}
+
+
 def test_operation_ir_rejects_empty_name_and_missing_targets_for_non_barriers() -> None:
     with pytest.raises(ValueError, match="operation name cannot be empty"):
         OperationIR(kind=OperationKind.GATE, name="", target_wires=("q0",))
@@ -97,7 +123,8 @@ def test_measurement_ir_requires_classical_target_and_tracks_classical_slot() ->
     )
 
     assert measurement.kind is OperationKind.MEASUREMENT
-    assert measurement.occupied_wire_ids == ("q0", "classical:c0")
+    assert "q0" in measurement.occupied_wire_ids
+    assert "c0" in measurement.occupied_wire_ids
 
 
 def test_wire_ir_defaults_label_and_rejects_empty_ids() -> None:

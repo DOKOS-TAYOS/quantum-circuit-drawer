@@ -143,7 +143,7 @@ def draw_classical_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
 
 def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: LayoutScene) -> None:
     quantum_segments: list[LineSegment] = []
-    classical_segments: list[LineSegment] = []
+    classical_segments_by_style: dict[str | tuple[int, tuple[int, int]], list[LineSegment]] = {}
 
     for connection in connections:
         line_end_y = connection.y_end
@@ -152,11 +152,30 @@ def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: La
             arrow_length = max(0.12, scene.style.wire_spacing * 0.18)
             line_end_y = connection.y_end - (direction * arrow_length)
 
-        segment = ((connection.x, connection.y_start), (connection.x, line_end_y))
-        if connection.is_classical:
-            classical_segments.append(segment)
+        if connection.is_classical and connection.double_line:
+            offset = max(0.02, scene.style.line_width * 0.008)
+            classical_segments = classical_segments_by_style.setdefault(connection.linestyle, [])
+            classical_segments.extend(
+                (
+                    (
+                        (connection.x - offset, connection.y_start),
+                        (connection.x - offset, line_end_y),
+                    ),
+                    (
+                        (connection.x + offset, connection.y_start),
+                        (connection.x + offset, line_end_y),
+                    ),
+                )
+            )
         else:
-            quantum_segments.append(segment)
+            segment = ((connection.x, connection.y_start), (connection.x, line_end_y))
+            if connection.is_classical:
+                classical_segments = classical_segments_by_style.setdefault(
+                    connection.linestyle, []
+                )
+                classical_segments.append(segment)
+            else:
+                quantum_segments.append(segment)
 
         if connection.arrow_at_end:
             color = (
@@ -176,10 +195,17 @@ def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: La
             )
             _add_patch_artist(ax, arrow)
         if connection.label:
-            direction = 1.0 if connection.y_end >= connection.y_start else -1.0
+            label_y = (
+                connection.y_start - 0.12
+                if connection.is_classical and connection.double_line
+                else None
+            )
+            if label_y is None:
+                direction = 1.0 if connection.y_end >= connection.y_start else -1.0
+                label_y = connection.y_end - (direction * 0.12)
             ax.text(
                 connection.x + 0.12,
-                connection.y_end - (direction * 0.12),
+                label_y,
                 connection.label,
                 ha="left",
                 va="center",
@@ -203,15 +229,16 @@ def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: La
         zorder=CONNECTION_LAYER_ZORDER,
         capstyle="butt",
     )
-    _add_line_collection(
-        ax,
-        classical_segments,
-        color=scene.style.theme.classical_wire_color,
-        linewidth=scene.style.line_width,
-        zorder=CONNECTION_LAYER_ZORDER,
-        linestyle=(0, (3, 2)),
-        capstyle="butt",
-    )
+    for linestyle, classical_segments in classical_segments_by_style.items():
+        _add_line_collection(
+            ax,
+            classical_segments,
+            color=scene.style.theme.classical_wire_color,
+            linewidth=scene.style.line_width,
+            zorder=CONNECTION_LAYER_ZORDER,
+            linestyle=linestyle,
+            capstyle="butt",
+        )
 
 
 def draw_connection(ax: Axes, connection: SceneConnection, scene: LayoutScene) -> None:

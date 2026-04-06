@@ -38,6 +38,7 @@ def run_example(
     framework: str | None,
     style: Mapping[str, object],
     page_slider: bool,
+    composite_mode: str = "compact",
     saved_label: str,
 ) -> None:
     """Build a demo object, draw it, and optionally report the saved file."""
@@ -49,6 +50,7 @@ def run_example(
         style=style,
         output=args.output,
         page_slider=page_slider,
+        composite_mode=composite_mode,
         saved_label=saved_label,
     )
 
@@ -60,6 +62,7 @@ def run_prebuilt_example(
     framework: str | None,
     style: Mapping[str, object],
     page_slider: bool,
+    composite_mode: str = "compact",
     saved_label: str,
 ) -> None:
     """Draw a prebuilt demo object and optionally report the saved file."""
@@ -71,6 +74,7 @@ def run_prebuilt_example(
         style=style,
         output=args.output,
         page_slider=page_slider,
+        composite_mode=composite_mode,
         saved_label=saved_label,
     )
 
@@ -82,6 +86,7 @@ def _render_example(
     style: Mapping[str, object],
     output: Path | None,
     page_slider: bool,
+    composite_mode: str,
     saved_label: str,
 ) -> None:
     draw_quantum_circuit(
@@ -90,6 +95,7 @@ def _render_example(
         style=style,
         output=output,
         page_slider=page_slider,
+        composite_mode=composite_mode,
     )
 
     if output is not None:

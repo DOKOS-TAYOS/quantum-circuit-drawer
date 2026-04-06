@@ -143,6 +143,104 @@ def test_qiskit_adapter_maps_additional_canonical_gate_families() -> None:
     assert (OperationKind.GATE, CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
 
 
+def test_qiskit_adapter_converts_bit_if_test_into_classically_conditioned_operation() -> None:
+    quantum = qiskit.QuantumRegister(2, "q")
+    classical = qiskit.ClassicalRegister(2, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test((classical[0], 1)):
+        circuit.x(1)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    conditioned_operation = next(operation for layer in ir.layers for operation in layer.operations)
+
+    assert conditioned_operation.name == "X"
+    assert conditioned_operation.classical_conditions[0].wire_ids == ("c0",)
+    assert conditioned_operation.classical_conditions[0].expression == "if c[0]=1"
+
+
+def test_qiskit_adapter_converts_register_if_test_into_classically_conditioned_operation() -> None:
+    quantum = qiskit.QuantumRegister(2, "q")
+    classical = qiskit.ClassicalRegister(2, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test((classical, 3)):
+        circuit.z(1)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    conditioned_operation = next(operation for layer in ir.layers for operation in layer.operations)
+
+    assert conditioned_operation.name == "Z"
+    assert conditioned_operation.classical_conditions[0].wire_ids == ("c0",)
+    assert conditioned_operation.classical_conditions[0].expression == "if c=3"
+
+
+def test_qiskit_adapter_expands_multi_operation_if_block() -> None:
+    quantum = qiskit.QuantumRegister(2, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test((classical[0], 1)):
+        circuit.x(1)
+        circuit.z(1)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [operation.name for operation in operations] == ["X", "Z"]
+    assert [operation.classical_conditions[0].expression for operation in operations] == [
+        "if c[0]=1",
+        "if c[0]=1",
+    ]
+
+
+def test_qiskit_adapter_keeps_if_else_as_compact_composite() -> None:
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test((classical[0], 1)) as else_:
+        circuit.x(0)
+    with else_:
+        circuit.z(0)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(operations) == 1
+    assert operations[0].name == "IF/ELSE"
+
+
+def test_qiskit_adapter_keeps_composite_instruction_compact_by_default() -> None:
+    subcircuit = qiskit.QuantumCircuit(2, name="my_sub")
+    subcircuit.h(0)
+    subcircuit.cx(0, 1)
+
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.append(subcircuit.to_instruction(), [0, 1])
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(operations) == 1
+    assert operations[0].name == "my_sub"
+    assert operations[0].target_wires == ("q0", "q1")
+
+
+def test_qiskit_adapter_expands_composite_instruction_when_requested() -> None:
+    subcircuit = qiskit.QuantumCircuit(2, name="my_sub")
+    subcircuit.h(0)
+    subcircuit.cx(0, 1)
+
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.append(subcircuit.to_instruction(), [0, 1])
+
+    ir = QiskitAdapter().to_ir(circuit, options={"composite_mode": "expand"})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [operation.name for operation in operations] == ["H", "X"]
+
+
 def test_qiskit_adapter_supports_additional_common_operations() -> None:
     circuit = qiskit.QuantumCircuit(4)
     circuit.id(0)
@@ -173,10 +271,10 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
         for operation in layer.operations
     ]
 
-    assert (OperationKind.GATE, CanonicalGateFamily.CUSTOM, "I", (), ("q0",), ()) in signatures
+    assert (OperationKind.GATE, CanonicalGateFamily.I, "I", (), ("q0",), ()) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RESET,
         "RESET",
         (),
         ("q1",),
@@ -184,7 +282,7 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.DELAY,
         "DELAY",
         (12,),
         ("q2",),
@@ -224,7 +322,7 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RXX,
         "RXX",
         (0.5,),
         ("q0", "q1"),
@@ -232,7 +330,7 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RYY,
         "RYY",
         (0.6,),
         ("q1", "q2"),
@@ -240,7 +338,7 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RZZ,
         "RZZ",
         (0.7,),
         ("q2", "q3"),
@@ -248,7 +346,7 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.RZX,
         "RZX",
         (0.8,),
         ("q0", "q2"),
@@ -256,7 +354,7 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
     ) in signatures
     assert (
         OperationKind.GATE,
-        CanonicalGateFamily.CUSTOM,
+        CanonicalGateFamily.ECR,
         "ECR",
         (),
         ("q1", "q3"),

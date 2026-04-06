@@ -13,16 +13,19 @@ The available demo ids are:
 - `qiskit-deep`
 - `qiskit-grover`
 - `qiskit-qaoa`
+- `qiskit-conditional-composite`
 - `cirq-balanced`
 - `cirq-wide`
 - `cirq-deep`
 - `cirq-grover`
 - `cirq-qaoa`
+- `cirq-conditional-composite`
 - `pennylane-balanced`
 - `pennylane-wide`
 - `pennylane-deep`
 - `pennylane-grover`
 - `pennylane-qaoa`
+- `pennylane-conditional-composite`
 - `cudaq-balanced`
 - `cudaq-wide`
 - `cudaq-deep`
@@ -30,7 +33,9 @@ The available demo ids are:
 ## Default behavior
 
 - Balanced, deep, Grover, and QAOA demos use wrapped paged views by default.
+- The `*-conditional-composite` demos focus on classical conditions and composite operations.
 - Only the `wide` demos open with a horizontal slider.
+- The conditional/composite demos request `composite_mode="expand"` so the decomposition is visible.
 - The windows are tuned to be a bit wider and less tall than before.
 - The default theme is the library dark theme with the black background.
 - Saving is optional. Pass `--output <path>` if you also want an image file.
@@ -82,16 +87,19 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-deep
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-grover
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-conditional-composite
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-balanced
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-wide
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-deep
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-grover
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-qaoa
+.\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-conditional-composite
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-balanced
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-wide
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-deep
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-grover
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-qaoa
+.\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-conditional-composite
 ```
 
 Linux or WSL:
@@ -102,16 +110,19 @@ Linux or WSL:
 .venv/bin/python examples/run_demo.py --demo qiskit-deep
 .venv/bin/python examples/run_demo.py --demo qiskit-grover
 .venv/bin/python examples/run_demo.py --demo qiskit-qaoa
+.venv/bin/python examples/run_demo.py --demo qiskit-conditional-composite
 .venv/bin/python examples/run_demo.py --demo cirq-balanced
 .venv/bin/python examples/run_demo.py --demo cirq-wide
 .venv/bin/python examples/run_demo.py --demo cirq-deep
 .venv/bin/python examples/run_demo.py --demo cirq-grover
 .venv/bin/python examples/run_demo.py --demo cirq-qaoa
+.venv/bin/python examples/run_demo.py --demo cirq-conditional-composite
 .venv/bin/python examples/run_demo.py --demo pennylane-balanced
 .venv/bin/python examples/run_demo.py --demo pennylane-wide
 .venv/bin/python examples/run_demo.py --demo pennylane-deep
 .venv/bin/python examples/run_demo.py --demo pennylane-grover
 .venv/bin/python examples/run_demo.py --demo pennylane-qaoa
+.venv/bin/python examples/run_demo.py --demo pennylane-conditional-composite
 .venv/bin/python examples/run_demo.py --demo cudaq-balanced
 .venv/bin/python examples/run_demo.py --demo cudaq-wide
 .venv/bin/python examples/run_demo.py --demo cudaq-deep
