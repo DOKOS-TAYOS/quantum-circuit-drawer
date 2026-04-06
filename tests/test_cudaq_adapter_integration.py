@@ -59,6 +59,7 @@ def test_cudaq_adapter_converts_decorated_kernel_on_linux() -> None:
 
 
 def test_cudaq_example_smoke_render_on_linux(sandbox_tmp_path: Path) -> None:
+    pytest.importorskip("cudaq")
     from examples.cudaq_example import build_kernel
 
     output = sandbox_tmp_path / "cudaq-demo.png"
