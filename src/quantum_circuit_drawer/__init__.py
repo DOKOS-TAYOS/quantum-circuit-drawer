@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ._version import __version__
 from .exceptions import (
@@ -35,6 +35,10 @@ def draw_quantum_circuit(
     show: bool = True,
     page_slider: bool = False,
     composite_mode: str = "compact",
+    view: Literal["2d", "3d"] = "2d",
+    topology: Literal["line", "grid", "star", "star_tree", "honeycomb"] = "line",
+    direct: bool = True,
+    hover: bool = False,
     **options: object,
 ) -> RenderResult:
     """Draw a quantum circuit from a supported framework."""
@@ -52,6 +56,10 @@ def draw_quantum_circuit(
         show=show,
         page_slider=page_slider,
         composite_mode=composite_mode,
+        view=view,
+        topology=topology,
+        direct=direct,
+        hover=hover,
         **options,
     )
 

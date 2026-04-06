@@ -28,6 +28,7 @@ Use it when you want to:
 - Built-in `dark`, `light`, and `paper` themes
 - Optional file export through `output=...`
 - Optional continuous horizontal slider for wide circuits with `page_slider=True`
+- Optional topology-aware 3D rendering with `view="3d"`
 - Classical-condition annotations for supported framework conditionals
 - Composite-operation rendering with `composite_mode="compact"` or `"expand"`
 - Clear exceptions for unsupported frameworks, unsupported backends, style validation issues, and render-write failures
@@ -131,6 +132,35 @@ draw_quantum_circuit(
 
 When `page_slider=True`, the interactive figure becomes horizontally scrollable while saved output still uses the paged circuit layout.
 
+### Render a topology-aware 3D circuit
+
+```python
+draw_quantum_circuit(
+    circuit,
+    view="3d",
+    topology="grid",
+    direct=False,
+    hover=True,
+)
+```
+
+Available 3D topologies in this first version:
+
+- `line`
+- `grid`
+- `star`
+- `star_tree`
+- `honeycomb`
+
+Notes for the current 3D view:
+
+- `view="3d"` keeps the quantum wires on the chip topology and evolves the circuit along a depth axis
+- `topology="line"` is the default in 3D
+- `direct=True` draws control connections as straight segments, while `direct=False` follows the topology path
+- `hover=True` hides gate and qubit labels only when the figure is interactive; saved or non-interactive renders fall back to visible labels
+- `page_slider=True` is currently a 2D-only feature
+- `honeycomb` currently targets the 53-qubit reference pattern inspired by the provided chip image
+
 ### Expand a composite operation instead of drawing one box
 
 ```python
@@ -176,6 +206,10 @@ draw_quantum_circuit(
     show=True,
     page_slider=False,
     composite_mode="compact",
+    view="2d",
+    topology="line",
+    direct=True,
+    hover=False,
     **options,
 )
 ```
@@ -187,6 +221,8 @@ Current behavior for `backend="matplotlib"`:
 - If `ax` is provided, the circuit is drawn in place and the function returns that axes object.
 - If `output` is provided, the rendered figure is also saved to disk.
 - If `page_slider=True`, the function requires a managed figure and raises `ValueError` when used with `ax=...`.
+- If `view="3d"`, the function requires a 3D axes when `ax=...` is provided.
+- If `view="3d"`, `page_slider=True` raises `ValueError`.
 - If `composite_mode="expand"`, supported composite instructions or subcircuits are expanded into their constituent operations.
 
 ## Scope and current limitations

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from argparse import Namespace
@@ -47,6 +48,7 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
         style={"theme": "paper"},
         page_slider=True,
         composite_mode="expand",
+        render_options={"view": "3d", "topology": "grid", "direct": False, "hover": True},
     )
 
     def fake_builder() -> object:
@@ -62,6 +64,10 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
         show: bool = True,
         page_slider: bool = False,
         composite_mode: str = "compact",
+        view: str = "2d",
+        topology: str = "line",
+        direct: bool = True,
+        hover: bool = False,
     ) -> None:
         draw_calls.append(
             {
@@ -72,6 +78,10 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
                 "show": show,
                 "page_slider": page_slider,
                 "composite_mode": composite_mode,
+                "view": view,
+                "topology": topology,
+                "direct": direct,
+                "hover": hover,
             }
         )
 
@@ -92,6 +102,10 @@ def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
             "show": False,
             "page_slider": True,
             "composite_mode": "expand",
+            "view": "3d",
+            "topology": "grid",
+            "direct": False,
+            "hover": True,
         }
     ]
     assert f"Saved {spec.demo_id} to {output}" in captured.out
@@ -132,6 +146,46 @@ def test_demo_catalog_exposes_new_classical_control_and_composite_demos() -> Non
         "cirq-conditional-composite",
         "pennylane-conditional-composite",
     }.issubset(demo_ids)
+
+
+def test_demo_catalog_exposes_qiskit_3d_demos() -> None:
+    demo_ids = {spec.demo_id for spec in get_demo_catalog()}
+
+    assert {
+        "qiskit-3d-line",
+        "qiskit-3d-grid",
+        "qiskit-3d-honeycomb",
+    }.issubset(demo_ids)
+
+
+def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
+    worktree_root = Path(__file__).resolve().parents[1]
+    workspace_root = Path(__file__).resolve().parents[3]
+    script_path = worktree_root / "examples" / "run_demo.py"
+    expected_module_path = worktree_root / "src" / "quantum_circuit_drawer" / "__init__.py"
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import pathlib, runpy; "
+                f"runpy.run_path(r'{script_path}', run_name='codex_examples_test'); "
+                "import quantum_circuit_drawer; "
+                "print(pathlib.Path(quantum_circuit_drawer.__file__).resolve())"
+            ),
+        ],
+        cwd=workspace_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(expected_module_path.resolve())
 
 
 @pytest.mark.parametrize(

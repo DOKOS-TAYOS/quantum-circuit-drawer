@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
+    from .layout.scene_3d import LayoutScene3D
+    from .layout.topology_3d import TopologyName
     from .style import DrawStyle
 else:
     Axes = Any
@@ -26,3 +28,18 @@ class LayoutEngineLike(Protocol):
 
     def compute(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
         """Compute a drawable scene from a circuit IR and validated style."""
+
+
+class LayoutEngine3DLike(Protocol):
+    """Protocol for 3D layout engines accepted by the public API."""
+
+    def compute(
+        self,
+        circuit: CircuitIR,
+        style: DrawStyle,
+        *,
+        topology_name: TopologyName,
+        direct: bool,
+        hover_enabled: bool,
+    ) -> LayoutScene3D:
+        """Compute a 3D drawable scene from a circuit IR and validated style."""

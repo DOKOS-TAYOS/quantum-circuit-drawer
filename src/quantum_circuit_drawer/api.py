@@ -5,19 +5,20 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, TypeGuard, cast
 
 from ._draw_pipeline import PreparedDrawPipeline, prepare_draw_pipeline
 from .exceptions import UnsupportedBackendError
 from .style import DrawStyle
-from .typing import LayoutEngineLike, OutputPath, RenderResult
+from .typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath, RenderResult
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
-    from matplotlib.figure import Figure
+    from matplotlib.figure import Figure, SubFigure
 
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
+    from .layout.scene_3d import LayoutScene3D
 
 logger = logging.getLogger(__name__)
 
@@ -30,24 +31,42 @@ def draw_quantum_circuit(
     framework: str | None = None,
     *,
     style: DrawStyle | Mapping[str, object] | None = None,
-    layout: LayoutEngineLike | None = None,
+    layout: LayoutEngineLike | LayoutEngine3DLike | None = None,
     backend: str = "matplotlib",
     ax: Axes | None = None,
     output: OutputPath | None = None,
     show: bool = True,
     page_slider: bool = False,
     composite_mode: str = "compact",
+    view: Literal["2d", "3d"] = "2d",
+    topology: Literal["line", "grid", "star", "star_tree", "honeycomb"] = "line",
+    direct: bool = True,
+    hover: bool = False,
     **options: object,
 ) -> RenderResult:
     """Draw a quantum circuit from a supported framework."""
 
-    _validate_draw_request(backend=backend, ax=ax, page_slider=page_slider)
+    _validate_draw_request(backend=backend, ax=ax, page_slider=page_slider, view=view)
+    effective_hover = _resolve_effective_hover(
+        hover=hover,
+        view=view,
+        ax=ax,
+        output=output,
+        show=show,
+    )
     pipeline = prepare_draw_pipeline(
         circuit=circuit,
         framework=framework,
         style=style,
         layout=layout,
-        options={"composite_mode": composite_mode, **options},
+        options={
+            "composite_mode": composite_mode,
+            "view": view,
+            "topology": topology,
+            "direct": direct,
+            "hover": effective_hover,
+            **options,
+        },
     )
 
     if ax is None:
@@ -58,6 +77,8 @@ def draw_quantum_circuit(
             page_slider=page_slider,
         )
 
+    if view == "3d" and not _is_3d_axes(ax):
+        raise ValueError("view='3d' requires a 3D Matplotlib axes")
     logger.debug("Rendering scene on caller-managed Matplotlib axes")
     return pipeline.renderer.render(pipeline.paged_scene, ax=ax, output=output)
 
@@ -67,6 +88,7 @@ def _validate_draw_request(
     backend: str,
     ax: Axes | None,
     page_slider: bool,
+    view: Literal["2d", "3d"],
 ) -> None:
     if backend != "matplotlib":
         raise UnsupportedBackendError(f"unsupported backend '{backend}'")
@@ -74,6 +96,8 @@ def _validate_draw_request(
         raise ValueError(
             "page_slider=True requires a Matplotlib-managed figure and cannot be used with ax"
         )
+    if view == "3d" and page_slider:
+        raise ValueError("page_slider=True is only supported for view='2d'")
 
 
 def _render_managed_figure(
@@ -89,13 +113,26 @@ def _render_managed_figure(
         set_viewport_width,
     )
 
+    if _is_3d_scene(pipeline.paged_scene):
+        figure, axes = create_managed_figure(
+            pipeline.paged_scene,
+            use_agg=not show,
+            projection="3d",
+        )
+        pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
+        logger.debug("Rendered managed 3D figure without page slider")
+        _show_managed_figure_if_supported(figure, show=show)
+        return figure, axes
+
     if page_slider:
+        scene_2d = cast("LayoutScene", pipeline.paged_scene)
+        layout_engine = cast(LayoutEngineLike, pipeline.layout_engine)
         slider_scene = _build_continuous_slider_scene(
             pipeline.ir,
-            pipeline.layout_engine,
+            layout_engine,
             pipeline.normalized_style,
         )
-        initial_viewport_width = min(pipeline.paged_scene.width, slider_scene.width)
+        initial_viewport_width = min(scene_2d.width, slider_scene.width)
         figure_width, figure_height = _page_slider_figsize(
             initial_viewport_width,
             slider_scene.height,
@@ -108,8 +145,8 @@ def _render_managed_figure(
                 use_agg=not show,
             )
         else:
-            figure, axes = create_managed_figure(pipeline.paged_scene, use_agg=not show)
-            pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
+            figure, axes = create_managed_figure(scene_2d, use_agg=not show)
+            pipeline.renderer.render(scene_2d, ax=axes, output=output)
             axes.clear()
             figure.set_size_inches(figure_width, figure_height, forward=True)
         figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
@@ -126,7 +163,7 @@ def _render_managed_figure(
         logger.debug(
             "Rendered managed figure with page slider viewport_width=%.2f pages=%d",
             viewport_width,
-            len(pipeline.paged_scene.pages),
+            len(scene_2d.pages),
         )
     else:
         figure, axes = create_managed_figure(pipeline.paged_scene, use_agg=not show)
@@ -250,7 +287,7 @@ def _is_builtin_pyplot_show(show_function: object) -> bool:
     return getattr(show_function, "__module__", "") == "matplotlib.pyplot"
 
 
-def _figure_backend_name(figure: Figure) -> str:
+def _figure_backend_name(figure: Figure | SubFigure) -> str:
     canvas_name = type(figure.canvas).__name__.lower()
     if canvas_name.startswith("figurecanvas"):
         return _normalize_backend_name(canvas_name.removeprefix("figurecanvas"))
@@ -270,3 +307,30 @@ def _normalize_backend_name(backend_name: str) -> str:
         if normalized_name.startswith(prefix):
             normalized_name = normalized_name.removeprefix(prefix)
     return normalized_name
+
+
+def _is_3d_axes(ax: Axes) -> bool:
+    return getattr(ax, "name", "") == "3d"
+
+
+def _is_3d_scene(scene: LayoutScene | LayoutScene3D) -> TypeGuard[LayoutScene3D]:
+    return hasattr(scene, "depth")
+
+
+def _resolve_effective_hover(
+    *,
+    hover: bool,
+    view: Literal["2d", "3d"],
+    ax: Axes | None,
+    output: OutputPath | None,
+    show: bool,
+) -> bool:
+    if not hover or view != "3d" or output is not None:
+        return False
+    if ax is not None:
+        return _figure_backend_name(ax.figure) not in _NON_INTERACTIVE_BACKENDS
+    if not show:
+        return False
+    from matplotlib import pyplot as plt
+
+    return _normalize_backend_name(str(plt.get_backend())) not in _NON_INTERACTIVE_BACKENDS

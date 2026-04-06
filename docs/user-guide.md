@@ -19,11 +19,15 @@ draw_quantum_circuit(
     show=True,
     page_slider=False,
     composite_mode="compact",
+    view="2d",
+    topology="line",
+    direct=True,
+    hover=False,
     **options,
 )
 ```
 
-Most users only need `circuit`, and sometimes `style`, `output`, `show`, `ax`, or `composite_mode`.
+Most users only need `circuit`, and sometimes `style`, `output`, `show`, `ax`, `composite_mode`, or the new 3D arguments.
 
 ## What you can pass as `circuit`
 
@@ -154,9 +158,47 @@ Important behavior:
 
 - `page_slider=True` only works when the library manages the figure for you
 - if you pass `ax=...` together with `page_slider=True`, the call raises `ValueError`
+- `page_slider=True` is currently only available for `view="2d"`
 - if you also pass `output=...`, the saved file contains the paged circuit without the slider UI
 
 This makes `page_slider` useful for interactive exploration while keeping exported images clean.
+
+## Topology-aware 3D view
+
+Use `view="3d"` when you want the circuit to grow along a depth axis while the qubits stay placed on a chip-like topology.
+
+```python
+draw_quantum_circuit(
+    circuit,
+    view="3d",
+    topology="grid",
+    direct=False,
+    hover=True,
+)
+```
+
+### 3D options
+
+- `view="2d"` is the default and keeps the current planar renderer.
+- `view="3d"` activates the new topology-aware renderer.
+- `topology` chooses the chip layout. The supported values are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
+- `direct=True` draws straight control-to-target connections.
+- `direct=False` routes those connections along the chip topology.
+- `hover=True` hides gate and qubit labels only when the figure is interactive. In saved or non-interactive renders, the library falls back to visible labels.
+
+### 3D topology notes
+
+- `line` works for any number of qubits and is the default when `view="3d"`.
+- `grid` requires an exact rectangular factorization with at least `2 x 2`.
+- `star` requires at least 2 qubits.
+- `star_tree` currently accepts sizes of the form `3 * 2^d - 2`.
+- `honeycomb` currently targets the 53-qubit reference pattern inspired by the heavy-hex style image used for this feature.
+
+### 3D axes behavior
+
+- If `ax is None`, the library creates a managed 3D Matplotlib figure for you.
+- If you pass `ax=...`, it must already be a 3D Matplotlib axes.
+- `page_slider=True` cannot be combined with `view="3d"` in this first version.
 
 ## Composite operations and `composite_mode`
 

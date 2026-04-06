@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from matplotlib.axes import Axes
 
 from ..layout.scene import LayoutScene
+from ..layout.scene_3d import LayoutScene3D
 from ..typing import OutputPath, RenderResult
 
 
@@ -18,7 +19,7 @@ class BaseRenderer(ABC):
     @abstractmethod
     def render(
         self,
-        scene: LayoutScene,
+        scene: LayoutScene | LayoutScene3D,
         *,
         ax: Axes | None = None,
         output: OutputPath | None = None,

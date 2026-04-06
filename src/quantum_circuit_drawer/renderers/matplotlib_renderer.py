@@ -23,6 +23,7 @@ from ..layout.scene import (
     SceneText,
     SceneWire,
 )
+from ..layout.scene_3d import LayoutScene3D
 from ..typing import OutputPath, RenderResult
 from ._matplotlib_figure import create_managed_figure
 from .base import BaseRenderer
@@ -66,11 +67,13 @@ class MatplotlibRenderer(BaseRenderer):
 
     def render(
         self,
-        scene: LayoutScene,
+        scene: LayoutScene | LayoutScene3D,
         *,
         ax: Axes | None = None,
         output: OutputPath | None = None,
     ) -> RenderResult:
+        if not isinstance(scene, LayoutScene):
+            raise TypeError("MatplotlibRenderer only supports 2D layout scenes")
         axes = ax
         managed_figure: Figure | None = None
         if axes is None:

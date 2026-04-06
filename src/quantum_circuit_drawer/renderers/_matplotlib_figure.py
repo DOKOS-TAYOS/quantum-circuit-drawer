@@ -11,6 +11,7 @@ from matplotlib.figure import Figure, SubFigure
 
 if TYPE_CHECKING:
     from ..layout.scene import LayoutScene
+    from ..layout.scene_3d import LayoutScene3D
 
 _MANAGED_SUBPLOT_LEFT = 0.02
 _MANAGED_SUBPLOT_RIGHT = 0.98
@@ -26,11 +27,12 @@ class _ManagedFigureMetadata:
 
 
 def create_managed_figure(
-    scene: LayoutScene,
+    scene: LayoutScene | LayoutScene3D,
     *,
     figure_width: float | None = None,
     figure_height: float | None = None,
     use_agg: bool = False,
+    projection: str | None = None,
 ) -> tuple[Figure, Axes]:
     """Create a managed Matplotlib figure with consistent padding."""
 
@@ -47,7 +49,7 @@ def create_managed_figure(
 
         figure = plt.figure(figsize=figsize)
 
-    axes = figure.add_subplot(111)
+    axes = figure.add_subplot(111, projection=projection)
     figure.subplots_adjust(
         left=_MANAGED_SUBPLOT_LEFT,
         right=_MANAGED_SUBPLOT_RIGHT,

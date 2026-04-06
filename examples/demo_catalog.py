@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ._shared import demo_style
@@ -20,6 +20,7 @@ class DemoSpec:
     style: dict[str, object]
     page_slider: bool
     composite_mode: str = "compact"
+    render_options: dict[str, object] = field(default_factory=dict)
 
 
 def examples_directory() -> Path:
@@ -86,6 +87,41 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             style=demo_style(max_page_width=7.0),
             page_slider=False,
             composite_mode="expand",
+        ),
+        DemoSpec(
+            demo_id="qiskit-3d-line",
+            description="Qiskit 3D line topology showcase",
+            module_name="examples.qiskit_3d_line_example",
+            builder_name="build_circuit",
+            framework=None,
+            style=demo_style(max_page_width=8.25),
+            page_slider=False,
+            render_options={"view": "3d", "topology": "line", "direct": True, "hover": False},
+        ),
+        DemoSpec(
+            demo_id="qiskit-3d-grid",
+            description="Qiskit 3D grid topology showcase",
+            module_name="examples.qiskit_3d_grid_example",
+            builder_name="build_circuit",
+            framework=None,
+            style=demo_style(max_page_width=8.25),
+            page_slider=False,
+            render_options={"view": "3d", "topology": "grid", "direct": False, "hover": True},
+        ),
+        DemoSpec(
+            demo_id="qiskit-3d-honeycomb",
+            description="Qiskit 3D honeycomb topology showcase",
+            module_name="examples.qiskit_3d_honeycomb_example",
+            builder_name="build_circuit",
+            framework=None,
+            style=demo_style(max_page_width=8.25),
+            page_slider=False,
+            render_options={
+                "view": "3d",
+                "topology": "honeycomb",
+                "direct": False,
+                "hover": False,
+            },
         ),
         DemoSpec(
             demo_id="cirq-balanced",

@@ -14,6 +14,9 @@ The available demo ids are:
 - `qiskit-grover`
 - `qiskit-qaoa`
 - `qiskit-conditional-composite`
+- `qiskit-3d-line`
+- `qiskit-3d-grid`
+- `qiskit-3d-honeycomb`
 - `cirq-balanced`
 - `cirq-wide`
 - `cirq-deep`
@@ -34,6 +37,7 @@ The available demo ids are:
 
 - Balanced, deep, Grover, and QAOA demos use wrapped paged views by default.
 - The `*-conditional-composite` demos focus on classical conditions and composite operations.
+- The `qiskit-3d-*` demos showcase the new topological 3D view with different chip layouts.
 - Only the `wide` demos open with a horizontal slider.
 - The conditional/composite demos request `composite_mode="expand"` so the decomposition is visible.
 - The windows are tuned to be a bit wider and less tall than before.
@@ -88,6 +92,9 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-grover
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-conditional-composite
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-3d-line
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-3d-grid
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-3d-honeycomb
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-balanced
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-wide
 .\.venv\Scripts\python.exe examples/run_demo.py --demo cirq-deep
@@ -111,6 +118,9 @@ Linux or WSL:
 .venv/bin/python examples/run_demo.py --demo qiskit-grover
 .venv/bin/python examples/run_demo.py --demo qiskit-qaoa
 .venv/bin/python examples/run_demo.py --demo qiskit-conditional-composite
+.venv/bin/python examples/run_demo.py --demo qiskit-3d-line
+.venv/bin/python examples/run_demo.py --demo qiskit-3d-grid
+.venv/bin/python examples/run_demo.py --demo qiskit-3d-honeycomb
 .venv/bin/python examples/run_demo.py --demo cirq-balanced
 .venv/bin/python examples/run_demo.py --demo cirq-wide
 .venv/bin/python examples/run_demo.py --demo cirq-deep

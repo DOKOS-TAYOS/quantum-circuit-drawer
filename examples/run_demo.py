@@ -8,12 +8,19 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Any
 
-from quantum_circuit_drawer import draw_quantum_circuit
+_EXAMPLES_DIR = Path(__file__).resolve().parent
+if str(_EXAMPLES_DIR) not in sys.path:
+    sys.path.insert(0, str(_EXAMPLES_DIR))
 
-if str(Path(__file__).resolve().parents[1]) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+try:
+    from examples._bootstrap import ensure_local_project_on_path
+except ImportError:
+    from _bootstrap import ensure_local_project_on_path
 
-from examples.demo_catalog import DemoSpec, catalog_by_id, get_demo_catalog
+ensure_local_project_on_path(__file__)
+
+from examples.demo_catalog import DemoSpec, catalog_by_id, get_demo_catalog  # noqa: E402
+from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
 
 
 def parse_args() -> Namespace:
@@ -79,6 +86,7 @@ def run_demo(spec: DemoSpec, *, output: Path | None, show: bool) -> None:
         show=show,
         page_slider=spec.page_slider,
         composite_mode=spec.composite_mode,
+        **spec.render_options,
     )
 
     if output is not None:

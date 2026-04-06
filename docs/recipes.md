@@ -59,6 +59,22 @@ draw_quantum_circuit(
 )
 ```
 
+## Draw a topology-aware 3D circuit
+
+```python
+from quantum_circuit_drawer import draw_quantum_circuit
+
+draw_quantum_circuit(
+    circuit,
+    view="3d",
+    topology="star",
+    direct=False,
+    hover=True,
+)
+```
+
+Supported 3D topologies in this first version are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
+
 ## Draw a wide circuit with a horizontal slider
 
 ```python

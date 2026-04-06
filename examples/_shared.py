@@ -6,7 +6,14 @@ from argparse import ArgumentParser, Namespace
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from quantum_circuit_drawer import draw_quantum_circuit
+try:
+    from examples._bootstrap import ensure_local_project_on_path
+except ImportError:
+    from _bootstrap import ensure_local_project_on_path
+
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
 
 
 def parse_output_args(*, description: str) -> Namespace:
@@ -40,6 +47,7 @@ def run_example(
     page_slider: bool,
     composite_mode: str = "compact",
     saved_label: str,
+    render_options: Mapping[str, object] | None = None,
 ) -> None:
     """Build a demo object, draw it, and optionally report the saved file."""
 
@@ -52,6 +60,7 @@ def run_example(
         page_slider=page_slider,
         composite_mode=composite_mode,
         saved_label=saved_label,
+        render_options=render_options,
     )
 
 
@@ -64,6 +73,7 @@ def run_prebuilt_example(
     page_slider: bool,
     composite_mode: str = "compact",
     saved_label: str,
+    render_options: Mapping[str, object] | None = None,
 ) -> None:
     """Draw a prebuilt demo object and optionally report the saved file."""
 
@@ -76,6 +86,7 @@ def run_prebuilt_example(
         page_slider=page_slider,
         composite_mode=composite_mode,
         saved_label=saved_label,
+        render_options=render_options,
     )
 
 
@@ -88,6 +99,7 @@ def _render_example(
     page_slider: bool,
     composite_mode: str,
     saved_label: str,
+    render_options: Mapping[str, object] | None,
 ) -> None:
     draw_quantum_circuit(
         subject,
@@ -96,6 +108,7 @@ def _render_example(
         output=output,
         page_slider=page_slider,
         composite_mode=composite_mode,
+        **dict(render_options or {}),
     )
 
     if output is not None:
