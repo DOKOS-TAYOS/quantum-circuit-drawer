@@ -1,4 +1,4 @@
-"""Shared typing helpers."""
+"""Shared type aliases and public protocol definitions."""
 
 from __future__ import annotations
 
@@ -24,14 +24,14 @@ RenderResult: TypeAlias = tuple[Figure, Axes] | Axes
 
 
 class LayoutEngineLike(Protocol):
-    """Protocol for layout engines accepted by the public API."""
+    """Protocol for custom 2D layout engines accepted by the public API."""
 
     def compute(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
-        """Compute a drawable scene from a circuit IR and validated style."""
+        """Compute a 2D drawable scene from circuit IR and validated style."""
 
 
 class LayoutEngine3DLike(Protocol):
-    """Protocol for 3D layout engines accepted by the public API."""
+    """Protocol for custom 3D layout engines accepted by the public API."""
 
     def compute(
         self,
@@ -42,4 +42,4 @@ class LayoutEngine3DLike(Protocol):
         direct: bool,
         hover_enabled: bool,
     ) -> LayoutScene3D:
-        """Compute a 3D drawable scene from a circuit IR and validated style."""
+        """Compute a 3D drawable scene from circuit IR and validated style."""

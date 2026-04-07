@@ -1,4 +1,4 @@
-"""Typed request models and validation for drawing orchestration."""
+"""Normalized request objects and runtime validation for draw orchestration."""
 
 from __future__ import annotations
 
@@ -24,7 +24,12 @@ TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
 
 @dataclass(frozen=True, slots=True)
 class DrawPipelineOptions:
-    """Normalized internal draw options passed through the pipeline."""
+    """Typed rendering options carried through adapter, layout, and rendering.
+
+    The object keeps the stable public options together and stores any
+    additional adapter-specific keyword arguments in ``extra`` so the
+    public signature does not need to expose every future extension.
+    """
 
     composite_mode: str = "compact"
     view: ViewMode = "2d"
@@ -37,6 +42,8 @@ class DrawPipelineOptions:
         object.__setattr__(self, "extra", dict(self.extra))
 
     def to_mapping(self) -> dict[str, object]:
+        """Return the full option set as a plain mapping."""
+
         return {
             "composite_mode": self.composite_mode,
             "view": self.view,
@@ -47,6 +54,13 @@ class DrawPipelineOptions:
         }
 
     def adapter_options(self) -> dict[str, object]:
+        """Return only the options that adapters should see.
+
+        View-specific render controls such as ``view`` and ``hover`` are kept
+        out of adapter conversion because they affect layout or rendering, not
+        framework-to-IR translation.
+        """
+
         options = self.to_mapping()
         for key in ("view", "topology", "direct", "hover"):
             options.pop(key, None)
@@ -55,7 +69,7 @@ class DrawPipelineOptions:
 
 @dataclass(frozen=True, slots=True)
 class DrawRequest:
-    """Normalized request consumed by the public API orchestration."""
+    """High-level draw request after public arguments are normalized."""
 
     circuit: object
     framework: str | None
@@ -87,7 +101,11 @@ def build_draw_request(
     hover: bool = False,
     **options: object,
 ) -> DrawRequest:
-    """Build a normalized internal request without changing the public signature."""
+    """Build the internal draw request without changing the public signature.
+
+    This step resolves effective hover behavior and packages the runtime
+    options into typed structures used by later orchestration stages.
+    """
 
     effective_hover = resolve_effective_hover(
         hover=hover,
@@ -118,7 +136,7 @@ def build_draw_request(
 
 
 def validate_draw_request(request: DrawRequest) -> None:
-    """Validate high-level request constraints before preparing the pipeline."""
+    """Validate public runtime combinations before preparing the pipeline."""
 
     if request.backend != "matplotlib":
         raise UnsupportedBackendError(f"unsupported backend '{request.backend}'")
@@ -138,7 +156,12 @@ def resolve_effective_hover(
     output: OutputPath | None,
     show: bool,
 ) -> bool:
-    """Resolve whether hover labels can actually be enabled at runtime."""
+    """Resolve whether hover annotations can actually stay interactive.
+
+    Hover labels are intentionally disabled for 2D renders, saved output,
+    caller-supplied axes on non-interactive backends, and managed figures
+    created with ``show=False``.
+    """
 
     if not hover or view != "3d" or output is not None:
         return False

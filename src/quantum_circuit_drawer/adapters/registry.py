@@ -1,4 +1,4 @@
-"""Adapter registration and lookup."""
+"""Registration, autodetection, and explicit lookup for framework adapters."""
 
 from __future__ import annotations
 
@@ -13,11 +13,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class AdapterRegistry:
-    """Registry of framework adapters."""
+    """Registry of adapter types, with lazy registration of built-in adapters."""
 
     _adapter_types: dict[str, type[BaseAdapter]] = field(default_factory=dict)
 
     def register(self, adapter_type: type[BaseAdapter]) -> None:
+        """Register one adapter class under its declared framework name."""
+
         self._adapter_types[adapter_type.framework_name] = adapter_type
         logger.debug(
             "Registered adapter %s for framework=%r",
@@ -26,6 +28,8 @@ class AdapterRegistry:
         )
 
     def get(self, framework_name: str) -> BaseAdapter:
+        """Instantiate the adapter registered for one explicit framework name."""
+
         self._ensure_defaults_registered()
         adapter_type = self._adapter_type_for_framework(framework_name)
         adapter = adapter_type()
@@ -35,6 +39,8 @@ class AdapterRegistry:
         return adapter
 
     def detect(self, circuit: object) -> BaseAdapter:
+        """Instantiate the first built-in adapter that recognizes ``circuit``."""
+
         adapter_type = self.detect_adapter_type(circuit)
         adapter = adapter_type()
         logger.debug(
@@ -45,6 +51,8 @@ class AdapterRegistry:
         return adapter
 
     def detect_adapter_type(self, circuit: object) -> type[BaseAdapter]:
+        """Return the adapter class that can handle ``circuit``."""
+
         self._ensure_defaults_registered()
         for adapter_type in self._adapter_types.values():
             if adapter_type.can_handle(circuit):
@@ -54,12 +62,16 @@ class AdapterRegistry:
         )
 
     def detect_framework_name(self, circuit: object) -> str | None:
+        """Return the detected framework name, or ``None`` if none match."""
+
         try:
             return self.detect_adapter_type(circuit).framework_name
         except UnsupportedFrameworkError:
             return None
 
     def available_frameworks(self) -> tuple[str, ...]:
+        """Return the registered framework names in registration order."""
+
         self._ensure_defaults_registered()
         return tuple(self._adapter_types)
 
@@ -93,7 +105,11 @@ registry = AdapterRegistry()
 
 
 def get_adapter(circuit: object, framework: str | None = None) -> BaseAdapter:
-    """Return an adapter by explicit framework or autodetection."""
+    """Return an adapter by explicit framework request or autodetection.
+
+    When ``framework`` is provided, mismatches are reported clearly instead of
+    silently falling back to autodetection.
+    """
 
     if framework is None:
         return registry.detect(circuit)

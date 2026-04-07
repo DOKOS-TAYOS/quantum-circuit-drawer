@@ -17,7 +17,11 @@ class WireKind(StrEnum):
 
 @dataclass(slots=True)
 class WireIR:
-    """Neutral wire description."""
+    """Framework-neutral wire description.
+
+    ``index`` preserves source ordering, while ``label`` stores the human-facing
+    text drawn next to the wire. When omitted, the label defaults to ``id``.
+    """
 
     id: str
     index: int

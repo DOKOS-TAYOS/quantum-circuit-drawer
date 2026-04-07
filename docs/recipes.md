@@ -75,6 +75,8 @@ draw_quantum_circuit(
 
 Supported 3D topologies in this first version are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
 
+If you also set `hover=True`, labels are hidden only in interactive 3D figures. Saved renders or non-interactive backends fall back to visible labels.
+
 ## Draw a wide circuit with a horizontal slider
 
 ```python
@@ -117,6 +119,8 @@ draw_quantum_circuit(circuit, framework="qiskit")
 
 This can be helpful when you want your code to be easier to read or to fail clearly if the wrong object is passed.
 
+If the explicit framework does not match the object, the call raises `UnsupportedFrameworkError`.
+
 ## Use a `DrawStyle` instance instead of a mapping
 
 ```python
@@ -140,6 +144,8 @@ draw_quantum_circuit(ir_circuit)
 ```
 
 If your own pipeline can build a `CircuitIR`, this gives you a framework-neutral route into the renderer.
+
+Passing `framework="ir"` is optional, but allowed when you want to make that intent explicit.
 
 ## Explore the full example gallery
 

@@ -99,6 +99,7 @@ draw_quantum_circuit(
     circuit,
     style={"show_params": True},
     output="circuit.png",
+    show=False,
 )
 ```
 
@@ -220,9 +221,11 @@ Current behavior for `backend="matplotlib"`:
 - If `show=True`, the managed figure is shown when the active Matplotlib backend is interactive.
 - If `ax` is provided, the circuit is drawn in place and the function returns that axes object.
 - If `output` is provided, the rendered figure is also saved to disk.
+- `backend` currently only accepts `"matplotlib"`.
 - If `page_slider=True`, the function requires a managed figure and raises `ValueError` when used with `ax=...`.
 - If `view="3d"`, the function requires a 3D axes when `ax=...` is provided.
 - If `view="3d"`, `page_slider=True` raises `ValueError`.
+- If `hover=True`, labels are hidden only for interactive 3D renders without `output=...`; saved or non-interactive renders fall back to visible labels.
 - If `composite_mode="expand"`, supported composite instructions or subcircuits are expanded into their constituent operations.
 
 ## Scope and current limitations
@@ -231,6 +234,7 @@ The current public surface is intentionally focused.
 
 - Matplotlib is the only rendering backend today.
 - Classical control is currently shown as an annotated classical condition, not as full branching flow.
+- The 3D topologies have shape constraints: `grid` needs a rectangular factorization with at least `2 x 2`, `star` needs at least 2 qubits, `star_tree` only accepts sizes of the form `3 * 2^d - 2`, and `honeycomb` is currently defined for 53 qubits.
 - CUDA-Q support currently targets closed kernels only.
 - Advanced CUDA-Q constructs such as reset, custom kernel composition, and broader control-flow handling are not yet part of the supported subset.
 

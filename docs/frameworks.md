@@ -39,6 +39,8 @@ draw_quantum_circuit(circuit)
 
 Current support includes common gates, controlled gates, classical `if` conditions, composite instructions, swap, barriers, and measurements.
 
+If you pass `framework="qiskit"` explicitly and the object is not really a Qiskit circuit, the call raises `UnsupportedFrameworkError` instead of silently guessing.
+
 ## Cirq
 
 Install the `cirq` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[cirq]`.
@@ -122,9 +124,11 @@ def bell_pair() -> None:
 draw_quantum_circuit(bell_pair)
 ```
 
+Here, "closed" means the kernel can be inspected without additional runtime arguments.
+
 Important limits:
 
-- this extra is Linux/WSL2-first
+- this extra is Linux/WSL2-first and is not intended for native Windows installs
 - kernels that still require runtime arguments are not supported
 - advanced CUDA-Q control flow and other advanced constructs are outside the supported subset
 
@@ -210,6 +214,8 @@ Some useful IR rules to remember:
 - classical conditions reference classical wire ids through `ClassicalConditionIR`
 - measurements require a `classical_target`
 - non-barrier operations need at least one target wire
+
+If you already built a `CircuitIR`, autodetection is enough, but you can also pass `framework="ir"` when you want to be explicit.
 
 ## When to choose the IR path
 

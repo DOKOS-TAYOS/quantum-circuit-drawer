@@ -1,4 +1,4 @@
-"""Operation-level intermediate representation."""
+"""Operation-level intermediate representation and canonical gate mapping."""
 
 from __future__ import annotations
 
@@ -104,7 +104,11 @@ def infer_canonical_gate_family(name: str) -> CanonicalGateFamily:
 
 @dataclass(slots=True)
 class OperationIR:
-    """Neutral operation description."""
+    """Framework-neutral description of one drawable operation.
+
+    Non-barrier operations must target at least one wire. When ``label`` or
+    ``canonical_family`` is omitted, they are inferred from ``name``.
+    """
 
     kind: OperationKind
     name: str
@@ -132,6 +136,12 @@ class OperationIR:
 
     @property
     def occupied_wire_ids(self) -> tuple[str, ...]:
+        """Return every wire id that the operation occupies for layering.
+
+        The returned order is stable and de-duplicated so adapters and layout
+        helpers can preserve temporal intent while avoiding slot collisions.
+        """
+
         classical_wire_ids = tuple(
             wire_id for condition in self.classical_conditions for wire_id in condition.wire_ids
         )

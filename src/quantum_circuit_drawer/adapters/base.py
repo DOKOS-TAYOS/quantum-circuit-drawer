@@ -1,4 +1,4 @@
-"""Base adapter definitions."""
+"""Base adapter contracts for framework-to-IR conversion."""
 
 from __future__ import annotations
 
@@ -13,21 +13,26 @@ OperationNode = OperationIR | MeasurementIR
 
 
 class BaseAdapter(ABC):
-    """Base contract for framework adapters."""
+    """Base contract for adapters that translate framework objects into IR."""
 
     framework_name: str
 
     @classmethod
     @abstractmethod
     def can_handle(cls, circuit: object) -> bool:
-        """Return whether the adapter can handle the given circuit object."""
+        """Return whether this adapter recognizes the given circuit object."""
 
     @abstractmethod
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
-        """Convert a framework circuit into CircuitIR."""
+        """Convert a framework object into the library's neutral ``CircuitIR``."""
 
     def pack_operations(self, operations: Iterable[OperationNode]) -> tuple[LayerIR, ...]:
-        """Pack operations while preserving temporal order across occupied wires."""
+        """Pack operations into drawable layers without wire collisions.
+
+        The packing logic respects every occupied slot reported by the
+        operation, including control wires, classical conditions, and
+        measurement targets.
+        """
 
         layer_operations: list[list[OperationNode]] = []
         latest_layer_by_slot: dict[str, int] = {}

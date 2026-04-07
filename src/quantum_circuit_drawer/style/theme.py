@@ -1,4 +1,4 @@
-"""Theme definitions."""
+"""Built-in drawing themes and theme resolution helpers."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from ..exceptions import StyleValidationError
 
 @dataclass(frozen=True, slots=True)
 class DrawTheme:
-    """Resolved drawing theme."""
+    """Resolved theme palette used by the renderer after style normalization."""
 
     name: str
     figure_facecolor: str
@@ -72,7 +72,11 @@ THEMES: dict[str, DrawTheme] = {
 
 
 def resolve_theme(theme: str | DrawTheme | None) -> DrawTheme:
-    """Return a concrete theme object."""
+    """Return a concrete theme object.
+
+    ``None`` selects the default dark theme. Unknown string names raise
+    ``StyleValidationError``.
+    """
 
     if isinstance(theme, DrawTheme):
         return theme

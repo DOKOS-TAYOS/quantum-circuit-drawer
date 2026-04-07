@@ -6,6 +6,8 @@ Use the shared entrypoint:
 
 - `examples/run_demo.py`
 
+Use `--list` whenever you want the current source-of-truth catalog directly from the runner.
+
 The available demo ids are:
 
 - `qiskit-balanced`
@@ -40,10 +42,9 @@ The available demo ids are:
 - The `qiskit-3d-*` demos showcase the new topological 3D view with different chip layouts.
 - Only the `wide` demos open with a horizontal slider.
 - The conditional/composite demos request `composite_mode="expand"` so the decomposition is visible.
-- The windows are tuned to be a bit wider and less tall than before.
 - The default theme is the library dark theme with the black background.
 - Saving is optional. Pass `--output <path>` if you also want an image file.
-- Use `--list` to print the catalog without running anything.
+- Pass `--no-show` when you want to render without opening a Matplotlib window.
 
 ## Requirements
 
@@ -66,6 +67,8 @@ For CUDA-Q on Linux or WSL2:
 ```bash
 .venv/bin/python -m pip install -e ".[cudaq]"
 ```
+
+On native Windows, keep to the Qiskit, Cirq, and PennyLane demos.
 
 ## List demos
 
@@ -138,12 +141,14 @@ Linux or WSL:
 .venv/bin/python examples/run_demo.py --demo cudaq-deep
 ```
 
-## Save while showing
+CUDA-Q demo commands are intentionally listed only for Linux or WSL2.
+
+## Save without showing
 
 Any demo can optionally save the rendered figure too:
 
 ```powershell
-.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa --output examples/output/qiskit_qaoa.png
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa --no-show --output examples/output/qiskit_qaoa.png
 ```
 
 Generated images are not committed.

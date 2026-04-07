@@ -1,4 +1,4 @@
-"""Internal draw pipeline preparation."""
+"""Adapter, layout, and renderer preparation for one draw request."""
 
 from __future__ import annotations
 
@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class PreparedDrawPipeline:
+    """Resolved components needed by the final rendering stage."""
+
     normalized_style: DrawStyle
     ir: CircuitIR
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
@@ -39,7 +41,11 @@ def prepare_draw_pipeline(
     layout: LayoutEngineLike | LayoutEngine3DLike | None,
     options: Mapping[str, object] | DrawPipelineOptions,
 ) -> PreparedDrawPipeline:
-    """Prepare the adapter, layout scene, and renderer used for drawing."""
+    """Prepare the adapter, layout scene, and renderer used for drawing.
+
+    The resulting object is the handoff point between public request
+    validation and actual Matplotlib rendering.
+    """
 
     from .adapters.registry import get_adapter
     from .renderers.matplotlib_renderer import MatplotlibRenderer
@@ -108,7 +114,7 @@ def prepare_draw_pipeline(
 def coerce_pipeline_options(
     options: Mapping[str, object] | DrawPipelineOptions,
 ) -> DrawPipelineOptions:
-    """Normalize legacy mapping options into a typed pipeline-options object."""
+    """Normalize legacy mapping options into ``DrawPipelineOptions``."""
 
     if isinstance(options, DrawPipelineOptions):
         return options
@@ -127,7 +133,7 @@ def coerce_pipeline_options(
 
 
 def resolve_layout_engine(layout: LayoutEngineLike | LayoutEngine3DLike | None) -> LayoutEngineLike:
-    """Return the default layout engine or validate a custom one."""
+    """Return the default 2D layout engine or validate a custom replacement."""
 
     from .layout import LayoutEngine
 
@@ -143,7 +149,7 @@ def resolve_layout_engine(layout: LayoutEngineLike | LayoutEngine3DLike | None) 
 def resolve_layout_engine_3d(
     layout: LayoutEngineLike | LayoutEngine3DLike | None,
 ) -> LayoutEngine3DLike:
-    """Return the default 3D layout engine or validate a custom one."""
+    """Return the default 3D layout engine or validate a custom replacement."""
 
     from .layout import LayoutEngine3D
 

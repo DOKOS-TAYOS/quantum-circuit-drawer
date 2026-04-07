@@ -1,4 +1,4 @@
-"""Renderer interfaces."""
+"""Renderer interfaces used by the drawing pipeline."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from ..typing import OutputPath, RenderResult
 
 
 class BaseRenderer(ABC):
-    """Backend renderer contract."""
+    """Backend renderer contract for 2D and 3D layout scenes."""
 
     backend_name: str
 
@@ -24,4 +24,8 @@ class BaseRenderer(ABC):
         ax: Axes | None = None,
         output: OutputPath | None = None,
     ) -> RenderResult:
-        """Render a layout scene."""
+        """Render a layout scene to a managed figure or caller-owned axes.
+
+        Implementations return ``(figure, axes)`` when they create the figure
+        themselves, or the same axes object when rendering into ``ax``.
+        """

@@ -1,4 +1,4 @@
-"""Style defaults."""
+"""Default values for the public drawing style configuration."""
 
 from __future__ import annotations
 
@@ -9,7 +9,12 @@ from .theme import DrawTheme, resolve_theme
 
 @dataclass(slots=True)
 class DrawStyle:
-    """Typed style configuration."""
+    """Typed style configuration accepted by ``style=...``.
+
+    ``DrawStyle`` mirrors the user-facing style options documented for the
+    public API. Instances are typically passed directly or produced by
+    ``normalize_style(...)`` after validating a mapping.
+    """
 
     font_size: float = 12.0
     wire_spacing: float = 1.2

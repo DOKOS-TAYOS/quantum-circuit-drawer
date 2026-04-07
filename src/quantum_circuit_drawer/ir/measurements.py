@@ -1,4 +1,4 @@
-"""Measurement-specific intermediate representation."""
+"""Measurement-specific specialization of the operation IR."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .operations import OperationIR, OperationKind
 
 @dataclass(slots=True)
 class MeasurementIR(OperationIR):
-    """Neutral measurement operation."""
+    """Framework-neutral measurement operation with a required classical target."""
 
     classical_target: str | None = None
 
@@ -21,6 +21,8 @@ class MeasurementIR(OperationIR):
 
     @property
     def occupied_wire_ids(self) -> tuple[str, ...]:
+        """Return all occupied wires, including the measurement bit target."""
+
         base_wires = tuple(
             dict.fromkeys(
                 (

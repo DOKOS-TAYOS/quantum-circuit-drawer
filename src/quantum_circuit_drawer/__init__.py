@@ -1,4 +1,9 @@
-"""Public package exports for quantum_circuit_drawer."""
+"""Public package exports for :mod:`quantum_circuit_drawer`.
+
+The package-level namespace intentionally stays small: the convenience
+``draw_quantum_circuit(...)`` entrypoint, style types, version information,
+and the exception types that callers are most likely to handle directly.
+"""
 
 from __future__ import annotations
 
@@ -41,7 +46,19 @@ def draw_quantum_circuit(
     hover: bool = False,
     **options: object,
 ) -> RenderResult:
-    """Draw a quantum circuit from a supported framework."""
+    """Draw a supported circuit through the package-level convenience API.
+
+    This wrapper preserves the full public signature while deferring the
+    internal API import until call time.
+
+    Returns:
+        ``(figure, axes)`` when the library manages the Matplotlib figure, or
+        the caller-provided axes when ``ax=...`` is used.
+
+    Notes:
+        ``page_slider=True`` requires a managed 2D figure.
+        ``view="3d"`` requires a 3D Matplotlib axes when ``ax`` is provided.
+    """
 
     from .api import draw_quantum_circuit as _draw_quantum_circuit
 

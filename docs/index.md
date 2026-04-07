@@ -24,7 +24,7 @@ The shortest path from installation to a rendered circuit.
 
 ### [User guide](user-guide.md)
 
-How `draw_quantum_circuit(...)` behaves, what it returns, how styling works, and what the main options do.
+How `draw_quantum_circuit(...)` behaves, what it returns, how styling works, and what the main options do, including wide-circuit sliders and the topology-aware 3D view.
 
 ### [Frameworks](frameworks.md)
 
@@ -39,6 +39,7 @@ Task-oriented examples such as saving images, drawing on existing axes, changing
 - Keeping one visual style across multiple quantum frameworks
 - Working naturally with Matplotlib figures and axes
 - Saving circuit diagrams for documentation, reports, or notebooks
+- Exploring wide or topology-aware views without changing the core drawing call
 - Offering a small typed public API instead of many framework-specific drawing calls
 
 ## What this library does not try to do

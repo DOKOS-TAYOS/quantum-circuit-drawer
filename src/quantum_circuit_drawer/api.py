@@ -1,4 +1,10 @@
-"""Public API entrypoints."""
+"""Public API orchestration for drawing supported circuit objects.
+
+The functions in this module normalize the user request, validate
+high-level runtime constraints, prepare the adapter/layout/renderer
+pipeline, and then dispatch to managed or caller-owned Matplotlib
+rendering.
+"""
 
 from __future__ import annotations
 
@@ -55,7 +61,27 @@ def draw_quantum_circuit(
     hover: bool = False,
     **options: object,
 ) -> RenderResult:
-    """Draw a quantum circuit from a supported framework."""
+    """Draw a supported circuit with the current public API contract.
+
+    The function accepts framework objects or the internal ``CircuitIR``,
+    normalizes style and rendering options, and then renders through the
+    Matplotlib backend.
+
+    Returns:
+        ``(figure, axes)`` when ``ax`` is not provided, otherwise the same axes
+        object that was passed in.
+
+    Raises:
+        UnsupportedBackendError: If ``backend`` is not ``"matplotlib"``.
+        UnsupportedFrameworkError: If the circuit cannot be adapted, or an
+            explicit ``framework`` does not match the object.
+        StyleValidationError: If a style mapping contains unknown or invalid
+            values.
+        ValueError: If mutually incompatible runtime options are combined, such
+            as ``page_slider=True`` with ``ax=...`` or ``view="3d"`` on a 2D
+            axes.
+        RenderingError: If saving to ``output`` fails.
+    """
 
     request = build_draw_request(
         circuit=circuit,

@@ -2,6 +2,8 @@
 
 This guide shows the recommended installation paths for `quantum-circuit-drawer`.
 
+All command examples below assume you are working inside a local `.venv`.
+
 ## Requirements
 
 - Python `3.11+`
@@ -69,7 +71,7 @@ Linux or WSL examples:
 .venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
 ```
 
-CUDA-Q is currently Linux/WSL2-first:
+CUDA-Q is currently Linux/WSL2-first. On native Windows, this extra is not expected to install because the dependency is declared only for Linux environments:
 
 ```bash
 .venv/bin/python -m pip install "quantum-circuit-drawer[cudaq]"
@@ -120,6 +122,8 @@ Linux or WSL:
 ```bash
 .venv/bin/python -m pip install -e ".[qiskit]"
 ```
+
+You can combine extras when that matches your workflow, for example `".[dev,qiskit,cirq]"`.
 
 ## Next step
 

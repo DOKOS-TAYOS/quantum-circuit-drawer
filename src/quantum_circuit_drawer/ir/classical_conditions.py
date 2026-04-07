@@ -14,7 +14,11 @@ def _normalize_wire_ids(values: Sequence[str]) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class ClassicalConditionIR:
-    """Neutral description of a classical condition attached to an operation."""
+    """Framework-neutral classical condition attached to an operation.
+
+    ``wire_ids`` identifies the classical wires involved in the condition, and
+    ``expression`` is the display text rendered next to the classical link.
+    """
 
     wire_ids: Sequence[str]
     expression: str

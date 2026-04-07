@@ -29,6 +29,8 @@ draw_quantum_circuit(
 
 Most users only need `circuit`, and sometimes `style`, `output`, `show`, `ax`, `composite_mode`, or the new 3D arguments.
 
+`backend` is part of the public signature for forward compatibility, but the current release only supports `backend="matplotlib"`.
+
 ## What you can pass as `circuit`
 
 You can pass:
@@ -49,7 +51,7 @@ The return value depends on how you render:
 - If `ax is None`, the library creates a managed Matplotlib figure and returns `(figure, axes)`.
 - If `ax` is provided, the library draws on that axes and returns the same axes object.
 
-This small difference is worth remembering when you write reusable code.
+This small difference is worth remembering when you write reusable code. In 3D mode, the same rule applies: the managed path returns `(figure, axes)`, and the caller-managed path returns your 3D axes object.
 
 ## Showing and saving
 
@@ -70,6 +72,8 @@ draw_quantum_circuit(circuit, output="circuit.png", show=False)
 
 The path can be a string or another path-like object.
 
+If saving fails, the library raises `RenderingError`.
+
 ### `ax`
 
 Use `ax` when you want to place the circuit inside your own Matplotlib layout:
@@ -89,6 +93,8 @@ You can configure styling in two ways:
 
 - pass a mapping such as `style={"theme": "paper", "show_params": False}`
 - pass a `DrawStyle` instance
+
+Unknown style keys or invalid values are rejected early with `StyleValidationError`.
 
 The built-in themes are:
 
@@ -184,7 +190,7 @@ draw_quantum_circuit(
 - `topology` chooses the chip layout. The supported values are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
 - `direct=True` draws straight control-to-target connections.
 - `direct=False` routes those connections along the chip topology.
-- `hover=True` hides gate and qubit labels only when the figure is interactive. In saved or non-interactive renders, the library falls back to visible labels.
+- `hover=True` hides gate and qubit labels only when the figure is interactive and you are not also saving with `output=...`. In saved or non-interactive renders, the library falls back to visible labels.
 
 ### 3D topology notes
 
@@ -192,7 +198,7 @@ draw_quantum_circuit(
 - `grid` requires an exact rectangular factorization with at least `2 x 2`.
 - `star` requires at least 2 qubits.
 - `star_tree` currently accepts sizes of the form `3 * 2^d - 2`.
-- `honeycomb` currently targets the 53-qubit reference pattern inspired by the heavy-hex style image used for this feature.
+- `honeycomb` currently targets one 53-qubit reference layout.
 
 ### 3D axes behavior
 
@@ -241,7 +247,12 @@ Use this when:
 
 Most users can ignore the `layout` parameter.
 
-It exists for advanced integrations where you want to provide your own layout engine object. That object must provide a `compute(circuit, style)` method compatible with the library's layout protocol.
+It exists for advanced integrations where you want to provide your own layout engine object.
+
+The required protocol depends on the view:
+
+- For `view="2d"`, the object must provide `compute(circuit_ir, style)` and return a 2D `LayoutScene`.
+- For `view="3d"`, the object must provide `compute(circuit_ir, style, *, topology_name, direct, hover_enabled)` and return a 3D `LayoutScene3D`.
 
 If you are only drawing circuits, stay with the default layout engine.
 
@@ -255,6 +266,7 @@ If you are only drawing circuits, stay with the default layout engine.
 | `RenderingError` | The figure could not be written to the requested output path |
 | `UnsupportedOperationError` | The adapter found an operation that cannot be represented meaningfully |
 | `LayoutError` | Layout computation failed |
+| `ValueError` | You combined incompatible runtime options such as `page_slider=True` with `ax=...`, or requested a 3D topology that does not fit the qubit count |
 
 ## Practical guidance
 

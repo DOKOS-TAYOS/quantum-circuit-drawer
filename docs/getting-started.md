@@ -29,6 +29,8 @@ By default:
 - the default built-in theme is `dark`
 - the window is shown when `show=True`
 
+If you prefer a script-friendly first run, use `show=False`.
+
 ## Save an image without opening a window
 
 ```python
@@ -70,6 +72,8 @@ returned_axes = draw_quantum_circuit(circuit, ax=axes)
 ```
 
 In this mode, the function returns the same axes object instead of a `(figure, axes)` tuple.
+
+The same managed-versus-caller-owned rule also applies to `view="3d"`: managed rendering returns `(figure, axes)`, while caller-managed rendering returns the 3D axes you pass in.
 
 ## What to read next
 

@@ -1,4 +1,4 @@
-"""Style parsing and validation."""
+"""Normalization and validation helpers for ``DrawStyle`` inputs."""
 
 from __future__ import annotations
 
@@ -32,7 +32,11 @@ BOOLEAN_FIELDS = {"show_params", "show_wire_labels"}
 
 
 def normalize_style(style: DrawStyle | Mapping[str, object] | None) -> DrawStyle:
-    """Normalize style input into a validated DrawStyle instance."""
+    """Normalize style input into a validated ``DrawStyle`` instance.
+
+    Accepted inputs are ``None`` for defaults, an existing ``DrawStyle``, or a
+    mapping with documented style keys.
+    """
 
     if style is None:
         normalized = DrawStyle()
@@ -57,6 +61,8 @@ def normalize_style(style: DrawStyle | Mapping[str, object] | None) -> DrawStyle
 
 
 def _validate_style_values(style: DrawStyle) -> None:
+    """Validate the value-level constraints applied to normalized styles."""
+
     for field_name in POSITIVE_FIELDS:
         value = getattr(style, field_name)
         if not isinstance(value, (int, float)) or value <= 0:

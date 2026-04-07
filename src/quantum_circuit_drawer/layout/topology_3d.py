@@ -1,4 +1,8 @@
-"""Deterministic chip-topology builders for the 3D circuit view."""
+"""Deterministic chip-topology builders for the 3D circuit view.
+
+Each topology maps the ordered quantum wires of a ``CircuitIR`` onto a fixed
+2D footprint that the 3D layout engine then extrudes along circuit depth.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +18,7 @@ TopologyName = Literal["line", "grid", "star", "star_tree", "honeycomb"]
 
 @dataclass(frozen=True, slots=True)
 class TopologyNode:
-    """Planar position assigned to a quantum wire."""
+    """Planar position assigned to one quantum wire within a topology."""
 
     wire_id: str
     index: int
@@ -32,10 +36,14 @@ class Topology3D:
 
     @property
     def positions(self) -> dict[str, tuple[float, float]]:
+        """Return node positions keyed by wire id."""
+
         return {node.wire_id: (node.x, node.y) for node in self.nodes}
 
     @property
     def neighbor_map(self) -> dict[str, tuple[str, ...]]:
+        """Return the undirected adjacency map implied by ``edges``."""
+
         neighbors: dict[str, list[str]] = {node.wire_id: [] for node in self.nodes}
         for first, second in self.edges:
             neighbors.setdefault(first, []).append(second)
@@ -43,7 +51,7 @@ class Topology3D:
         return {wire_id: tuple(values) for wire_id, values in neighbors.items()}
 
     def shortest_path(self, start_wire_id: str, end_wire_id: str) -> tuple[str, ...]:
-        """Return the shortest wire-id path between two nodes."""
+        """Return the shortest wire-id path between two connected topology nodes."""
 
         if start_wire_id == end_wire_id:
             return (start_wire_id,)
@@ -65,7 +73,13 @@ class Topology3D:
 
 
 def build_topology(topology: TopologyName, quantum_wires: tuple[WireIR, ...]) -> Topology3D:
-    """Build a validated topology for the provided wire ordering."""
+    """Build a validated topology for the provided wire ordering.
+
+    The supported topology names intentionally encode real constraints:
+    ``grid`` needs a rectangular factorization, ``star`` needs at least two
+    wires, ``star_tree`` only accepts sizes of the form ``3 * 2^d - 2``, and
+    ``honeycomb`` is currently defined for 53 wires.
+    """
 
     if topology == "line":
         return _build_line_topology(quantum_wires)
