@@ -5,6 +5,7 @@ from collections.abc import Mapping
 import pytest
 
 from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline, resolve_layout_engine
+from quantum_circuit_drawer._draw_request import DrawPipelineOptions, build_draw_request
 from quantum_circuit_drawer.exceptions import LayoutError
 from quantum_circuit_drawer.ir.circuit import CircuitIR
 from quantum_circuit_drawer.layout import LayoutEngine
@@ -70,13 +71,51 @@ def test_prepare_draw_pipeline_forwards_options_and_uses_custom_layout(
     assert adapter.calls == [
         {
             "circuit": {"kind": "input"},
-            "options": {"precision": 3, "page_slider": True},
+            "options": {"composite_mode": "compact", "precision": 3, "page_slider": True},
         }
     ]
     assert pipeline.layout_engine is layout
     assert layout.calls[0][0] is circuit
     assert layout.calls[0][1].theme.name == "paper"
     assert layout.calls[0][1].font_size == 10.0
+
+
+def test_draw_pipeline_options_keep_adapter_options_separate_from_view_controls() -> None:
+    options = DrawPipelineOptions(
+        composite_mode="expand",
+        view="3d",
+        topology="grid",
+        direct=False,
+        hover=True,
+        extra={"precision": 3, "page_slider": True},
+    )
+
+    assert options.to_mapping() == {
+        "composite_mode": "expand",
+        "view": "3d",
+        "topology": "grid",
+        "direct": False,
+        "hover": True,
+        "precision": 3,
+        "page_slider": True,
+    }
+    assert options.adapter_options() == {
+        "composite_mode": "expand",
+        "precision": 3,
+        "page_slider": True,
+    }
+
+
+def test_build_draw_request_disables_hover_when_not_interactive() -> None:
+    request = build_draw_request(
+        circuit=build_sample_ir(),
+        hover=True,
+        view="3d",
+        show=False,
+    )
+
+    assert request.pipeline_options.hover is False
+    assert request.pipeline_options.view == "3d"
 
 
 def test_resolve_layout_engine_returns_default_layout_engine_for_none() -> None:

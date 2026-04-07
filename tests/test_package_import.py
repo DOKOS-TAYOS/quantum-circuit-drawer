@@ -1,8 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
+
+
+def _subprocess_env() -> dict[str, str]:
+    src_path = Path(__file__).resolve().parents[1] / "src"
+    current_pythonpath = os.environ.get("PYTHONPATH")
+    pythonpath_parts = [str(src_path)]
+    if current_pythonpath:
+        pythonpath_parts.append(current_pythonpath)
+    return {**os.environ, "PYTHONPATH": os.pathsep.join(pythonpath_parts)}
 
 
 def test_package_import_does_not_eagerly_import_matplotlib() -> None:
@@ -22,6 +33,7 @@ def test_package_import_does_not_eagerly_import_matplotlib() -> None:
             ),
         ],
         capture_output=True,
+        env=_subprocess_env(),
         text=True,
         check=False,
     )
@@ -47,6 +59,7 @@ def test_api_module_import_does_not_eagerly_import_matplotlib() -> None:
             ),
         ],
         capture_output=True,
+        env=_subprocess_env(),
         text=True,
         check=False,
     )

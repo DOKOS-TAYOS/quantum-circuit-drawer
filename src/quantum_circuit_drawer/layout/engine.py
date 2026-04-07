@@ -12,7 +12,9 @@ from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from ..ir.wires import WireIR
 from ..style import DrawStyle, normalize_style
-from ..utils.formatting import format_gate_name
+from ._classical_conditions import iter_classical_condition_anchors
+from ._layering import normalize_draw_layers
+from ._operation_text import build_operation_text_metrics
 from .routing import vertical_span
 from .scene import (
     GateRenderStyle,
@@ -28,7 +30,7 @@ from .scene import (
     SceneText,
     SceneWire,
 )
-from .spacing import estimate_text_width, operation_label_parts, operation_width
+from .spacing import estimate_text_width, operation_width
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +109,7 @@ class LayoutEngine:
 
     def _build_layout_scaffold(self, circuit: CircuitIR, style: DrawStyle) -> _LayoutScaffold:
         draw_style = self._resolve_scene_style(circuit, normalize_style(style))
-        normalized_layers = self._normalize_layers(circuit)
+        normalized_layers = normalize_draw_layers(circuit)
         operation_metrics = self._build_operation_metrics(normalized_layers, draw_style)
         wire_positions = self._build_wire_positions(circuit, draw_style)
         column_widths = tuple(
@@ -216,59 +218,23 @@ class LayoutEngine:
         )
 
     def _normalize_layers(self, circuit: CircuitIR) -> tuple[LayerIR, ...]:
-        wire_order = {wire.id: index for index, wire in enumerate(circuit.all_wires)}
-        normalized_layers: list[LayerIR] = []
-        for layer in circuit.layers:
-            drawable_layers: list[list[OperationIR | MeasurementIR]] = []
-            latest_layer_by_slot: dict[int, int] = {}
-            for operation in layer.operations:
-                span_slots = self._operation_draw_span_slots(operation, wire_order)
-                target_layer = (
-                    max((latest_layer_by_slot.get(slot, -1) for slot in span_slots), default=-1) + 1
-                )
-                while len(drawable_layers) <= target_layer:
-                    drawable_layers.append([])
-                drawable_layers[target_layer].append(operation)
-                for slot in span_slots:
-                    latest_layer_by_slot[slot] = target_layer
-            normalized_layers.extend(
-                LayerIR(operations=tuple(drawable_layer)) for drawable_layer in drawable_layers
-            )
-        return tuple(normalized_layers)
+        return normalize_draw_layers(circuit)
 
     def _build_operation_metrics(
         self, layers: Sequence[LayerIR], style: DrawStyle
     ) -> dict[int, _OperationMetrics]:
+        text_metrics = build_operation_text_metrics(layers, style)
         metrics: dict[int, _OperationMetrics] = {}
         for layer in layers:
             for operation in layer.operations:
-                label, subtitle = operation_label_parts(operation, style)
+                operation_text = text_metrics[id(operation)]
                 metrics[id(operation)] = _OperationMetrics(
                     width=operation_width(operation, style),
-                    label=label,
-                    display_label=format_gate_name(label),
-                    subtitle=subtitle,
+                    label=operation_text.label,
+                    display_label=operation_text.display_label,
+                    subtitle=operation_text.subtitle,
                 )
         return metrics
-
-    def _operation_draw_span_slots(
-        self,
-        operation: OperationIR | MeasurementIR,
-        wire_order: dict[str, int],
-    ) -> tuple[int, ...]:
-        involved_wires = list(operation.control_wires) + list(operation.target_wires)
-        for condition in operation.classical_conditions:
-            involved_wires.extend(condition.wire_ids)
-        if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
-            involved_wires.append(operation.classical_target)
-
-        slot_indexes = sorted(
-            wire_order[wire_id] for wire_id in involved_wires if wire_id in wire_order
-        )
-        if not slot_indexes:
-            return ()
-
-        return tuple(range(slot_indexes[0], slot_indexes[-1] + 1))
 
     def _build_wire_positions(self, circuit: CircuitIR, style: DrawStyle) -> dict[str, float]:
         positions: dict[str, float] = {}
@@ -507,24 +473,22 @@ class LayoutEngine:
         wire_positions: dict[str, float],
         connections: list[SceneConnection],
     ) -> None:
-        for condition in operation.classical_conditions:
-            for condition_index, wire_id in enumerate(condition.wire_ids):
-                wire_y = wire_positions[wire_id]
-                label = condition.expression if condition_index == 0 else None
-                direction = 1.0 if wire_y >= anchor_center_y else -1.0
-                connections.append(
-                    SceneConnection(
-                        column=column,
-                        x=x,
-                        y_start=wire_y,
-                        y_end=anchor_center_y + (direction * anchor_half_extent),
-                        is_classical=True,
-                        double_line=True,
-                        linestyle="solid",
-                        arrow_at_end=True,
-                        label=label,
-                    )
+        for anchor in iter_classical_condition_anchors(operation.classical_conditions):
+            wire_y = wire_positions[anchor.wire_id]
+            direction = 1.0 if wire_y >= anchor_center_y else -1.0
+            connections.append(
+                SceneConnection(
+                    column=column,
+                    x=x,
+                    y_start=wire_y,
+                    y_end=anchor_center_y + (direction * anchor_half_extent),
+                    is_classical=True,
+                    double_line=True,
+                    linestyle="solid",
+                    arrow_at_end=True,
+                    label=anchor.label,
                 )
+            )
 
     def _layout_measurement(
         self,

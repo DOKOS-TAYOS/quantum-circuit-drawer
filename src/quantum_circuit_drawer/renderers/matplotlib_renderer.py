@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
-from pathlib import Path
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
@@ -26,6 +25,7 @@ from ..layout.scene import (
 from ..layout.scene_3d import LayoutScene3D
 from ..typing import OutputPath, RenderResult
 from ._matplotlib_figure import create_managed_figure
+from ._render_support import save_rendered_figure
 from .base import BaseRenderer
 from .matplotlib_primitives import (
     draw_barriers,
@@ -162,22 +162,11 @@ class MatplotlibRenderer(BaseRenderer):
         )
 
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
-        if output is None:
-            return
-
         try:
-            output_path = Path(output)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            save_figure: Figure
-            if isinstance(figure, SubFigure):
-                save_figure = figure.figure
-            else:
-                save_figure = figure
-            save_figure.savefig(output_path, bbox_inches="tight")
-        except (OSError, TypeError, ValueError) as exc:
+            save_rendered_figure(figure, output)
+        except RenderingError as exc:
             logger.debug("Failed to save rendered circuit to %r: %s", output, exc)
-            raise RenderingError(f"failed to save rendered circuit to {output!r}: {exc}") from exc
-        logger.debug("Saved rendered circuit to %s", output_path)
+            raise
 
     def _is_in_page(self, column: int, page: ScenePage) -> bool:
         return page.start_column <= column <= page.end_column

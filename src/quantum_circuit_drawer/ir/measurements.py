@@ -34,4 +34,6 @@ class MeasurementIR(OperationIR):
                 )
             )
         )
-        return tuple((*base_wires, self.classical_target))
+        classical_target = self.classical_target
+        assert classical_target is not None
+        return tuple((*base_wires, classical_target))

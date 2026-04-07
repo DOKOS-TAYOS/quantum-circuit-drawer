@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import replace
 from math import isclose
 from typing import Any, Protocol, cast
 
@@ -15,9 +14,12 @@ from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
 from ._helpers import (
     CanonicalGateSpec,
+    append_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
+    expand_operation_sequence,
     extract_dependency_types,
+    resolve_composite_mode,
     sequential_bit_labels,
 )
 from .base import BaseAdapter
@@ -54,7 +56,7 @@ class CirqAdapter(BaseAdapter):
         import cirq
 
         typed_circuit = cast(_CirqCircuitLike, circuit)
-        composite_mode = self._composite_mode(options)
+        composite_mode = resolve_composite_mode(options)
         qubits = sorted(typed_circuit.all_qubits(), key=str)
         qubit_ids = {qubit: f"q{index}" for index, qubit in enumerate(qubits)}
         quantum_wires = [
@@ -105,10 +107,6 @@ class CirqAdapter(BaseAdapter):
             metadata={"framework": self.framework_name},
         )
 
-    def _composite_mode(self, options: Mapping[str, object] | None) -> str:
-        requested_mode = options.get("composite_mode") if options is not None else None
-        return str(requested_mode) if requested_mode is not None else "compact"
-
     def _convert_operation(
         self,
         *,
@@ -155,34 +153,27 @@ class CirqAdapter(BaseAdapter):
                 operation_key=operation_key,
                 composite_mode=composite_mode,
             )
-            return [
-                replace(
-                    node,
-                    classical_conditions=(*node.classical_conditions, *conditions),
-                )
-                for node in converted
-            ]
+            return [append_classical_conditions(node, conditions) for node in converted]
 
         if isinstance(operation, cirq.CircuitOperation):
             if composite_mode == "expand":
-                expanded: list[OperationIR | MeasurementIR] = []
-                for nested_moment_index, moment in enumerate(operation.mapped_circuit()):
-                    for nested_operation_index, nested_operation in enumerate(moment.operations):
-                        expanded.extend(
-                            self._convert_operation(
-                                cirq=cirq,
-                                operation=nested_operation,
-                                qubit_ids=qubit_ids,
-                                measurement_slots=measurement_slots,
-                                measurement_key_targets=measurement_key_targets,
-                                operation_key=(
-                                    operation_key[0] + nested_moment_index,
-                                    nested_operation_index,
-                                ),
-                                composite_mode=composite_mode,
-                            )
-                        )
-                return expanded
+                nested_operations = (
+                    (nested_moment_index, nested_operation_index, nested_operation)
+                    for nested_moment_index, moment in enumerate(operation.mapped_circuit())
+                    for nested_operation_index, nested_operation in enumerate(moment.operations)
+                )
+                return expand_operation_sequence(
+                    nested_operations,
+                    lambda item: self._convert_operation(
+                        cirq=cirq,
+                        operation=item[2],
+                        qubit_ids=qubit_ids,
+                        measurement_slots=measurement_slots,
+                        measurement_key_targets=measurement_key_targets,
+                        operation_key=(operation_key[0] + item[0], item[1]),
+                        composite_mode=composite_mode,
+                    ),
+                )
             return [
                 OperationIR(
                     kind=OperationKind.GATE,

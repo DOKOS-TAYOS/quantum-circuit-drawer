@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, cast
 
+from ._draw_request import DrawPipelineOptions, TopologyMode, ViewMode
 from .exceptions import LayoutError
 from .style import DrawStyle, normalize_style
 from .typing import LayoutEngine3DLike, LayoutEngineLike
@@ -19,8 +20,6 @@ if TYPE_CHECKING:
     from .renderers import BaseRenderer
 
 logger = logging.getLogger(__name__)
-
-ViewMode = Literal["2d", "3d"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,25 +37,23 @@ def prepare_draw_pipeline(
     framework: str | None,
     style: DrawStyle | Mapping[str, object] | None,
     layout: LayoutEngineLike | LayoutEngine3DLike | None,
-    options: Mapping[str, object],
+    options: Mapping[str, object] | DrawPipelineOptions,
 ) -> PreparedDrawPipeline:
     """Prepare the adapter, layout scene, and renderer used for drawing."""
 
     from .adapters.registry import get_adapter
-    from .renderers import MatplotlibRenderer, MatplotlibRenderer3D
+    from .renderers.matplotlib_renderer import MatplotlibRenderer
+    from .renderers.matplotlib_renderer_3d import MatplotlibRenderer3D
 
-    view = str(options.get("view", "2d")).lower()
-    internal_option_keys = {"view", "topology", "direct", "hover"}
-    adapter_options = {
-        key: value for key, value in options.items() if key not in internal_option_keys
-    }
+    draw_options = coerce_pipeline_options(options)
+    adapter_options = draw_options.adapter_options()
 
     logger.debug(
         "Drawing circuit with backend=%r framework=%r view=%r and %d option(s)",
         "matplotlib",
         framework,
-        view,
-        len(options),
+        draw_options.view,
+        len(draw_options.to_mapping()),
     )
 
     normalized_style = normalize_style(style)
@@ -65,10 +62,10 @@ def prepare_draw_pipeline(
     paged_scene: LayoutScene | LayoutScene3D
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     renderer: BaseRenderer
-    if view == "3d":
-        topology = cast("TopologyName", str(options.get("topology", "line")).lower())
-        direct = bool(options.get("direct", True))
-        hover_enabled = bool(options.get("hover", False))
+    if draw_options.view == "3d":
+        topology: TopologyName = draw_options.topology
+        direct = draw_options.direct
+        hover_enabled = draw_options.hover
         layout_engine_3d = resolve_layout_engine_3d(layout)
         paged_scene = layout_engine_3d.compute(
             ir,
@@ -105,6 +102,27 @@ def prepare_draw_pipeline(
         layout_engine=layout_engine,
         paged_scene=paged_scene,
         renderer=renderer,
+    )
+
+
+def coerce_pipeline_options(
+    options: Mapping[str, object] | DrawPipelineOptions,
+) -> DrawPipelineOptions:
+    """Normalize legacy mapping options into a typed pipeline-options object."""
+
+    if isinstance(options, DrawPipelineOptions):
+        return options
+    return DrawPipelineOptions(
+        composite_mode=str(options.get("composite_mode", "compact")),
+        view=cast(ViewMode, str(options.get("view", "2d"))),
+        topology=cast(TopologyMode, str(options.get("topology", "line"))),
+        direct=bool(options.get("direct", True)),
+        hover=bool(options.get("hover", False)),
+        extra={
+            key: value
+            for key, value in options.items()
+            if key not in {"composite_mode", "view", "topology", "direct", "hover"}
+        },
     )
 
 

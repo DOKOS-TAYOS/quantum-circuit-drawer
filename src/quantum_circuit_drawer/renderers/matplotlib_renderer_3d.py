@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -27,6 +26,7 @@ from ..layout.scene_3d import (
 )
 from ..typing import OutputPath, RenderResult
 from ._matplotlib_figure import create_managed_figure
+from ._render_support import save_rendered_figure
 from .base import BaseRenderer
 
 if TYPE_CHECKING:
@@ -421,20 +421,8 @@ class MatplotlibRenderer3D(BaseRenderer):
         ]
 
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
-        if output is None:
-            return
-
         try:
-            from matplotlib.figure import SubFigure as MatplotlibSubFigure
-
-            output_path = Path(output)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            save_figure: Figure
-            if isinstance(figure, MatplotlibSubFigure):
-                save_figure = figure.figure
-            else:
-                save_figure = figure
-            save_figure.savefig(output_path, bbox_inches="tight")
-        except (OSError, TypeError, ValueError) as exc:
+            save_rendered_figure(figure, output)
+        except RenderingError as exc:
             logger.debug("Failed to save rendered 3D circuit to %r: %s", output, exc)
-            raise RenderingError(f"failed to save rendered circuit to {output!r}: {exc}") from exc
+            raise

@@ -10,8 +10,9 @@ from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from ..style import DrawStyle, normalize_style
-from ..utils.formatting import format_gate_name
-from .engine import LayoutEngine
+from ._classical_conditions import iter_classical_condition_anchors
+from ._layering import normalize_draw_layers
+from ._operation_text import build_operation_text_metrics
 from .scene_3d import (
     ConnectionRenderStyle3D,
     GateRenderStyle3D,
@@ -24,7 +25,6 @@ from .scene_3d import (
     SceneText3D,
     SceneWire3D,
 )
-from .spacing import operation_label_parts
 from .topology_3d import Topology3D, TopologyName, build_topology
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ class LayoutEngine3D:
         hover_enabled: bool,
     ) -> LayoutScene3D:
         draw_style = normalize_style(style)
-        normalized_layers = self._normalize_layers(circuit)
+        normalized_layers = normalize_draw_layers(circuit)
         topology = build_topology(topology_name, tuple(circuit.quantum_wires))
         metrics = self._build_operation_metrics(normalized_layers, draw_style)
         gate_depth = max(_GATE_DEPTH, draw_style.gate_height)
@@ -159,21 +159,22 @@ class LayoutEngine3D:
         return scene
 
     def _normalize_layers(self, circuit: CircuitIR) -> tuple[LayerIR, ...]:
-        return LayoutEngine()._normalize_layers(circuit)  # noqa: SLF001
+        return normalize_draw_layers(circuit)
 
     def _build_operation_metrics(
         self,
         layers: Sequence[LayerIR],
         style: DrawStyle,
     ) -> dict[int, _OperationMetrics3D]:
+        text_metrics = build_operation_text_metrics(layers, style)
         metrics: dict[int, _OperationMetrics3D] = {}
         for layer in layers:
             for operation in layer.operations:
-                label, subtitle = operation_label_parts(operation, style)
+                operation_text = text_metrics[id(operation)]
                 metrics[id(operation)] = _OperationMetrics3D(
-                    label=label,
-                    display_label=format_gate_name(label),
-                    subtitle=subtitle,
+                    label=operation_text.label,
+                    display_label=operation_text.display_label,
+                    subtitle=operation_text.subtitle,
                 )
         return metrics
 
@@ -582,21 +583,20 @@ class LayoutEngine3D:
         classical_wire_positions: dict[str, Point3D],
         connections: list[SceneConnection3D],
     ) -> None:
-        for condition in operation.classical_conditions:
-            for condition_index, wire_id in enumerate(condition.wire_ids):
-                classical_point = classical_wire_positions[wire_id]
-                connections.append(
-                    SceneConnection3D(
-                        column=column,
-                        points=(
-                            Point3D(x=classical_point.x, y=classical_point.y, z=gate_center.z),
-                            gate_center,
-                        ),
-                        is_classical=True,
-                        double_line=True,
-                        label=condition.expression if condition_index == 0 else None,
-                    )
+        for anchor in iter_classical_condition_anchors(operation.classical_conditions):
+            classical_point = classical_wire_positions[anchor.wire_id]
+            connections.append(
+                SceneConnection3D(
+                    column=column,
+                    points=(
+                        Point3D(x=classical_point.x, y=classical_point.y, z=gate_center.z),
+                        gate_center,
+                    ),
+                    is_classical=True,
+                    double_line=True,
+                    label=anchor.label,
                 )
+            )
 
     def _point_for_wire(
         self,

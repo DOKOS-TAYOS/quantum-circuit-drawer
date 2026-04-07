@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
 from typing import Protocol, cast
 
 from ..exceptions import UnsupportedFrameworkError
@@ -13,9 +12,12 @@ from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
 from ._helpers import (
+    append_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
+    expand_operation_sequence,
     extract_dependency_types,
+    resolve_composite_mode,
     sequential_bit_labels,
 )
 from .base import BaseAdapter
@@ -57,7 +59,7 @@ class PennyLaneAdapter(BaseAdapter):
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
         tape = self._extract_tape(circuit)
-        composite_mode = self._composite_mode(options)
+        composite_mode = resolve_composite_mode(options)
         wire_ids = {wire: f"q{index}" for index, wire in enumerate(tape.wires)}
         quantum_wires = [
             WireIR(id=wire_ids[wire], index=index, kind=WireKind.QUANTUM, label=str(wire))
@@ -110,10 +112,6 @@ class PennyLaneAdapter(BaseAdapter):
             metadata={"framework": self.framework_name},
         )
 
-    def _composite_mode(self, options: Mapping[str, object] | None) -> str:
-        requested_mode = options.get("composite_mode") if options is not None else None
-        return str(requested_mode) if requested_mode is not None else "compact"
-
     def _extract_tape(self, circuit: object) -> _PennyLaneTapeLike:
         if not self.can_handle(circuit):
             raise UnsupportedFrameworkError(
@@ -158,13 +156,7 @@ class PennyLaneAdapter(BaseAdapter):
                 mid_measure_targets=mid_measure_targets,
                 composite_mode=composite_mode,
             )
-            return [
-                replace(
-                    node,
-                    classical_conditions=(*node.classical_conditions, condition),
-                )
-                for node in converted_base
-            ]
+            return [append_classical_conditions(node, (condition,)) for node in converted_base]
 
         canonical_gate = canonical_gate_spec(
             getattr(operation, "name", operation.__class__.__name__)
@@ -172,17 +164,15 @@ class PennyLaneAdapter(BaseAdapter):
         if composite_mode == "expand" and canonical_gate.family is CanonicalGateFamily.CUSTOM:
             decomposition = self._decomposition(operation)
             if decomposition:
-                expanded: list[OperationIR | MeasurementIR] = []
-                for nested_operation in decomposition:
-                    expanded.extend(
-                        self._convert_operation(
-                            cast(_PennyLaneOperationLike, nested_operation),
-                            wire_ids,
-                            mid_measure_targets=mid_measure_targets,
-                            composite_mode=composite_mode,
-                        )
-                    )
-                return expanded
+                return expand_operation_sequence(
+                    decomposition,
+                    lambda nested_operation: self._convert_operation(
+                        cast(_PennyLaneOperationLike, nested_operation),
+                        wire_ids,
+                        mid_measure_targets=mid_measure_targets,
+                        composite_mode=composite_mode,
+                    ),
+                )
 
         control_wires = tuple(
             wire_ids[wire] for wire in getattr(operation, "control_wires", ()) if wire in wire_ids
@@ -256,16 +246,17 @@ class PennyLaneAdapter(BaseAdapter):
         )
         if matching_branch is None:
             matching_branch = next(iter(branches), ())
+        branch_bits = tuple(matching_branch)
         wire_targets = [
             mid_measure_targets[self._mid_measure_id(measurement)] for measurement in measurements
         ]
         wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in wire_targets))
-        if len(wire_targets) == 1 and len(matching_branch) == 1:
+        if len(wire_targets) == 1 and len(branch_bits) == 1:
             _, bit_label = wire_targets[0]
-            expression = f"if {bit_label}={matching_branch[0]}"
+            expression = f"if {bit_label}={branch_bits[0]}"
         else:
             integer_value = 0
-            for bit in matching_branch:
+            for bit in branch_bits:
                 integer_value = (integer_value << 1) | int(bit)
             expression = f"if c={integer_value}"
         return ClassicalConditionIR(wire_ids=wire_ids, expression=expression)

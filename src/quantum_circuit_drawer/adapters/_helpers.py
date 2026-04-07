@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import re
 import sys
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from types import ModuleType
+from typing import TypeVar
 
-from ..ir.operations import CanonicalGateFamily, infer_canonical_gate_family
+from ..ir.classical_conditions import ClassicalConditionIR
+from ..ir.measurements import MeasurementIR
+from ..ir.operations import CanonicalGateFamily, OperationIR, infer_canonical_gate_family
 from ..ir.wires import WireIR, WireKind
+
+OperationNode = OperationIR | MeasurementIR
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +163,41 @@ def build_classical_register(
     ]
     bit_targets = tuple((wire_id, bit_label) for bit_label in bit_labels)
     return classical_wires, bit_targets
+
+
+def resolve_composite_mode(
+    options: Mapping[str, object] | None,
+    *,
+    default: str = "compact",
+) -> str:
+    """Return the requested composite-mode override or the default mode."""
+
+    requested_mode = options.get("composite_mode") if options is not None else None
+    return str(requested_mode) if requested_mode is not None else default
+
+
+def append_classical_conditions(
+    operation: OperationNode,
+    conditions: Sequence[ClassicalConditionIR],
+) -> OperationNode:
+    """Return a copy of an operation with additional classical conditions."""
+
+    return replace(
+        operation,
+        classical_conditions=(*operation.classical_conditions, *conditions),
+    )
+
+
+def expand_operation_sequence(
+    items: Iterable[_T],
+    converter: Callable[[_T], Sequence[OperationNode]],
+) -> list[OperationNode]:
+    """Expand nested operation sequences while preserving order."""
+
+    expanded: list[OperationNode] = []
+    for item in items:
+        expanded.extend(converter(item))
+    return expanded
 
 
 def canonical_gate_spec(raw_name: str) -> CanonicalGateSpec:

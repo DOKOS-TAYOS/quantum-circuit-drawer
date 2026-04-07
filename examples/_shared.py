@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 try:
-    from examples._bootstrap import ensure_local_project_on_path
+    from ._bootstrap import ensure_local_project_on_path
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
 

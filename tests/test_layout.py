@@ -5,6 +5,7 @@ from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
+from quantum_circuit_drawer.layout._layering import normalize_draw_layers
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.spacing import estimate_text_width, operation_width
 from quantum_circuit_drawer.style import DrawStyle
@@ -151,6 +152,42 @@ def test_layout_engine_keeps_late_measurements_after_swap_and_barrier() -> None:
     assert classical_connection.y_start == first_measurement.connector_y
     assert classical_connection.arrow_at_end is True
     assert classical_connection.label == "c0"
+
+
+def test_normalize_draw_layers_splits_operations_that_share_wire_span() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        layers=[
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                    ),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    ),
+                ]
+            )
+        ],
+    )
+
+    normalized_layers = normalize_draw_layers(circuit)
+
+    assert len(normalized_layers) == 2
+    assert isinstance(normalized_layers[0].operations[0], MeasurementIR)
+    assert normalized_layers[1].operations[0].name == "X"
 
 
 def test_layout_engine_wraps_long_circuits_into_vertical_pages() -> None:

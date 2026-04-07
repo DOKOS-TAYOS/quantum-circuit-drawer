@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import replace
 from typing import Protocol, cast
 
 from ..exceptions import UnsupportedOperationError
@@ -12,7 +11,13 @@ from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
-from ._helpers import canonical_gate_spec, extract_dependency_types
+from ._helpers import (
+    append_classical_conditions,
+    canonical_gate_spec,
+    expand_operation_sequence,
+    extract_dependency_types,
+    resolve_composite_mode,
+)
 from .base import BaseAdapter
 
 
@@ -45,7 +50,7 @@ class QiskitAdapter(BaseAdapter):
             raise TypeError("QiskitAdapter received a non-Qiskit circuit")
 
         typed_circuit = cast(_QiskitCircuitLike, circuit)
-        composite_mode = self._composite_mode(options)
+        composite_mode = resolve_composite_mode(options)
         qubits = list(typed_circuit.qubits)
         clbits = list(typed_circuit.clbits)
         qubit_ids = {bit: f"q{index}" for index, bit in enumerate(qubits)}
@@ -79,10 +84,6 @@ class QiskitAdapter(BaseAdapter):
             name=typed_circuit.name,
             metadata={"framework": self.framework_name},
         )
-
-    def _composite_mode(self, options: Mapping[str, object] | None) -> str:
-        requested_mode = options.get("composite_mode") if options is not None else None
-        return str(requested_mode) if requested_mode is not None else "compact"
 
     def _convert_instruction(
         self,
@@ -226,18 +227,17 @@ class QiskitAdapter(BaseAdapter):
             if outer_clbit in classical_targets
         }
 
-        converted_operations: list[OperationIR | MeasurementIR] = []
-        for inner_entry in true_block.data:
-            converted_operations.extend(
-                self._convert_instruction(
-                    inner_entry,
-                    nested_qubit_ids,
-                    nested_classical_targets,
-                    register_targets={},
-                    composite_mode=composite_mode,
-                )
-            )
-        return [self._append_classical_condition(node, condition) for node in converted_operations]
+        converted_operations = expand_operation_sequence(
+            true_block.data,
+            lambda inner_entry: self._convert_instruction(
+                inner_entry,
+                nested_qubit_ids,
+                nested_classical_targets,
+                register_targets={},
+                composite_mode=composite_mode,
+            ),
+        )
+        return [append_classical_conditions(node, (condition,)) for node in converted_operations]
 
     def _condition_from_qiskit(
         self,
@@ -259,16 +259,6 @@ class QiskitAdapter(BaseAdapter):
                 expression=f"if {register_label}={value}",
             )
         raise UnsupportedOperationError("unsupported Qiskit classical condition target")
-
-    def _append_classical_condition(
-        self,
-        operation: OperationIR | MeasurementIR,
-        condition: ClassicalConditionIR,
-    ) -> OperationIR | MeasurementIR:
-        return replace(
-            operation,
-            classical_conditions=(*operation.classical_conditions, condition),
-        )
 
     def _expand_definition(
         self,
@@ -294,18 +284,16 @@ class QiskitAdapter(BaseAdapter):
             if outer_clbit in classical_targets
         }
 
-        converted_operations: list[OperationIR | MeasurementIR] = []
-        for inner_entry in definition.data:
-            converted_operations.extend(
-                self._convert_instruction(
-                    inner_entry,
-                    nested_qubit_ids,
-                    nested_classical_targets,
-                    register_targets={},
-                    composite_mode=composite_mode,
-                )
-            )
-        return converted_operations
+        return expand_operation_sequence(
+            definition.data,
+            lambda inner_entry: self._convert_instruction(
+                inner_entry,
+                nested_qubit_ids,
+                nested_classical_targets,
+                register_targets={},
+                composite_mode=composite_mode,
+            ),
+        )
 
     def _is_composite_instruction(self, operation: object) -> bool:
         definition = getattr(operation, "definition", None)

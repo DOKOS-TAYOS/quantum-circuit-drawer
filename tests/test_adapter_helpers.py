@@ -7,13 +7,18 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from quantum_circuit_drawer.adapters._helpers import (
+    append_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
+    expand_operation_sequence,
     extract_dependency_types,
     load_optional_dependency,
+    resolve_composite_mode,
     sequential_bit_labels,
 )
-from quantum_circuit_drawer.ir.operations import CanonicalGateFamily
+from quantum_circuit_drawer.ir import ClassicalConditionIR
+from quantum_circuit_drawer.ir.measurements import MeasurementIR
+from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 
 
 def test_load_optional_dependency_returns_none_when_module_is_missing(
@@ -90,6 +95,43 @@ def test_build_classical_register_handles_empty_and_non_empty_bit_labels() -> No
     assert wires[0].label == "beta"
     assert wires[0].metadata["bundle_size"] == 2
     assert bit_targets == (("c0", "beta[0]"), ("c0", "beta[1]"))
+
+
+def test_resolve_composite_mode_defaults_to_compact_and_accepts_explicit_override() -> None:
+    assert resolve_composite_mode(None) == "compact"
+    assert resolve_composite_mode({"composite_mode": "expand"}) == "expand"
+
+
+def test_append_classical_conditions_returns_node_with_appended_conditions() -> None:
+    condition = ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1")
+    measurement = MeasurementIR(
+        kind=OperationKind.MEASUREMENT,
+        name="M",
+        target_wires=("q0",),
+        classical_target="c0",
+    )
+
+    updated = append_classical_conditions(measurement, (condition,))
+
+    assert updated.classical_conditions == (condition,)
+    assert updated is not measurement
+
+
+def test_expand_operation_sequence_flattens_nested_results_in_order() -> None:
+    operation = OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))
+    measurement = MeasurementIR(
+        kind=OperationKind.MEASUREMENT,
+        name="M",
+        target_wires=("q0",),
+        classical_target="c0",
+    )
+
+    expanded = expand_operation_sequence(
+        ("first", "second"),
+        lambda item: [operation] if item == "first" else [measurement],
+    )
+
+    assert expanded == [operation, measurement]
 
 
 @pytest.mark.parametrize(

@@ -13,7 +13,7 @@ if str(_EXAMPLES_DIR) not in sys.path:
     sys.path.insert(0, str(_EXAMPLES_DIR))
 
 try:
-    from examples._bootstrap import ensure_local_project_on_path
+    from ._bootstrap import ensure_local_project_on_path
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
 
