@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import quantum_circuit_drawer.layout._operation_text as operation_text_module
+import quantum_circuit_drawer.layout.spacing as spacing_module
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -7,7 +9,11 @@ from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationI
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout._layering import normalize_draw_layers
 from quantum_circuit_drawer.layout.engine import LayoutEngine
-from quantum_circuit_drawer.layout.spacing import estimate_text_width, operation_width
+from quantum_circuit_drawer.layout.spacing import (
+    estimate_text_width,
+    operation_width,
+    operation_width_from_parts,
+)
 from quantum_circuit_drawer.style import DrawStyle
 
 
@@ -457,7 +463,7 @@ def test_layout_engine_draws_classical_condition_connection_and_label() -> None:
 
 def test_layout_engine_reuses_cached_operation_metrics(monkeypatch) -> None:
     operation_width_calls = 0
-    original_operation_width = operation_width
+    original_operation_width = operation_width_from_parts
 
     def count_operation_width(*args, **kwargs):
         nonlocal operation_width_calls
@@ -465,7 +471,8 @@ def test_layout_engine_reuses_cached_operation_metrics(monkeypatch) -> None:
         return original_operation_width(*args, **kwargs)
 
     monkeypatch.setattr(
-        "quantum_circuit_drawer.layout.engine.operation_width", count_operation_width
+        "quantum_circuit_drawer.layout.engine.operation_width_from_parts",
+        count_operation_width,
     )
 
     circuit = build_layout_ir()
@@ -633,3 +640,72 @@ def test_layout_engine_only_labels_target_wires_for_controlled_multi_wire_boxes(
         scene.wire_y_positions["q1"],
         scene.wire_y_positions["q2"],
     ]
+
+
+def test_layout_engine_reads_wire_map_once_per_compute(monkeypatch) -> None:
+    wire_map_calls = 0
+    original_wire_map = CircuitIR.wire_map.fget
+    assert original_wire_map is not None
+
+    def count_wire_map(self: CircuitIR) -> dict[str, WireIR]:
+        nonlocal wire_map_calls
+        wire_map_calls += 1
+        return original_wire_map(self)
+
+    monkeypatch.setattr(CircuitIR, "wire_map", property(count_wire_map))
+
+    LayoutEngine().compute(build_layout_ir(), DrawStyle())
+
+    assert wire_map_calls == 1
+
+
+def test_layout_engine_reuses_formatted_metrics_for_repeated_operations(
+    monkeypatch,
+) -> None:
+    format_gate_name_calls = 0
+    format_parameters_calls = 0
+    original_format_gate_name = operation_text_module.format_gate_name
+    original_format_parameters = spacing_module.format_parameters
+
+    def count_format_gate_name(label: str) -> str:
+        nonlocal format_gate_name_calls
+        format_gate_name_calls += 1
+        return original_format_gate_name(label)
+
+    def count_format_parameters(parameters: object) -> str:
+        nonlocal format_parameters_calls
+        format_parameters_calls += 1
+        return original_format_parameters(parameters)
+
+    monkeypatch.setattr(operation_text_module, "format_gate_name", count_format_gate_name)
+    monkeypatch.setattr(spacing_module, "format_parameters", count_format_parameters)
+
+    repeated_rotations = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=(f"q{layer_index % 2}",),
+                        parameters=(0.5,),
+                    ),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=(f"q{(layer_index + 1) % 2}",),
+                    ),
+                ]
+            )
+            for layer_index in range(8)
+        ],
+    )
+
+    LayoutEngine().compute(repeated_rotations, DrawStyle(show_params=True))
+
+    assert format_gate_name_calls <= 2
+    assert format_parameters_calls <= 2

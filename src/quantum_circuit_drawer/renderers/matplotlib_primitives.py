@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from functools import lru_cache
+from typing import Any, cast
 
 from matplotlib.axes import Axes
 from matplotlib.collections import LineCollection
 from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Patch
+from matplotlib.text import Text
 from matplotlib.textpath import TextPath
 
 from ..layout.scene import (
@@ -32,6 +35,13 @@ OCCLUSION_LAYER_ZORDER = 4
 SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
 LineSegment = tuple[tuple[float, float], tuple[float, float]]
+_GateTextCacheKey = tuple[str, float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class _GateTextFittingContext:
+    default_scale: float
+    points_per_layout_unit: float
 
 
 def prepare_axes(ax: Axes, scene: LayoutScene) -> None:
@@ -42,8 +52,55 @@ def prepare_axes(ax: Axes, scene: LayoutScene) -> None:
     ax.set_aspect("equal", adjustable="box")
 
 
-def _add_patch_artist(ax: Axes, patch: Patch) -> None:
-    ax.add_artist(patch)
+def _supports_fast_patch_artist_path(ax: Axes) -> bool:
+    return callable(getattr(ax, "_set_artist_props", None)) and isinstance(
+        getattr(ax, "_children", None), list
+    )
+
+
+def _supports_fast_text_artist_path(ax: Axes) -> bool:
+    return callable(getattr(ax, "_add_text", None))
+
+
+def _add_patch_artist(ax: Axes, patch: Patch) -> Patch:
+    if not _supports_fast_patch_artist_path(ax):
+        ax.add_artist(patch)
+        return patch
+
+    children = cast(list[object], getattr(ax, "_children"))
+    set_artist_props = cast(Any, getattr(ax, "_set_artist_props"))
+    patch.axes = ax
+    children.append(patch)
+    setattr(patch, "_remove_method", children.remove)
+    set_artist_props(patch)
+    ax.stale = True
+    return patch
+
+
+def _add_text_artist(
+    ax: Axes,
+    x: float,
+    y: float,
+    text: str,
+    fontdict: Mapping[str, Any] | None = None,
+    **kwargs: Any,
+) -> Text:
+    fontdict_dict = dict(fontdict) if fontdict is not None else None
+    if not _supports_fast_text_artist_path(ax):
+        return ax.text(x, y, text, fontdict=fontdict_dict, **kwargs)
+
+    effective_kwargs: dict[str, Any] = {
+        "verticalalignment": "baseline",
+        "horizontalalignment": "left",
+        "transform": ax.transData,
+        "clip_on": False,
+    }
+    if fontdict_dict is not None:
+        effective_kwargs.update(fontdict_dict)
+    effective_kwargs.update(kwargs)
+    text_artist = Text(x=x, y=y, text=text, **effective_kwargs)
+    add_text = cast(Any, getattr(ax, "_add_text"))
+    return cast(Text, add_text(text_artist))
 
 
 def _add_line_collection(
@@ -90,7 +147,8 @@ def draw_wires(ax: Axes, wires: Sequence[SceneWire], scene: LayoutScene) -> None
             classical_marker_segments.append(
                 ((marker_x - 0.06, wire.y - 0.12), (marker_x + 0.06, wire.y + 0.12))
             )
-            ax.text(
+            _add_text_artist(
+                ax,
                 marker_x,
                 wire.y - 0.22,
                 str(wire.bundle_size),
@@ -203,7 +261,8 @@ def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: La
             if label_y is None:
                 direction = 1.0 if connection.y_end >= connection.y_start else -1.0
                 label_y = connection.y_end - (direction * 0.12)
-            ax.text(
+            _add_text_artist(
+                ax,
                 connection.x + 0.12,
                 label_y,
                 connection.label,
@@ -305,42 +364,51 @@ def draw_x_target_segments(ax: Axes, gates: Sequence[SceneGate], scene: LayoutSc
     )
 
 
-def draw_gate_label(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
+def draw_gate_label(
+    ax: Axes,
+    gate: SceneGate,
+    scene: LayoutScene,
+    *,
+    label_font_size: float | None = None,
+    subtitle_font_size: float | None = None,
+) -> None:
     if gate.render_style is GateRenderStyle.X_TARGET:
         return
 
-    label_font_size = _fit_gate_text_font_size(
+    resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
         ax=ax,
         scene=scene,
         width=gate.width,
         text=gate.label,
         default_font_size=scene.style.font_size,
     )
-    ax.text(
+    _add_text_artist(
+        ax,
         gate.x,
         gate.y - 0.08 if gate.subtitle else gate.y,
         gate.label,
         ha="center",
         va="center",
-        fontsize=label_font_size,
+        fontsize=resolved_label_font_size,
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
     )
     if gate.subtitle:
-        subtitle_font_size = _fit_gate_text_font_size(
+        resolved_subtitle_font_size = subtitle_font_size or _fit_gate_text_font_size(
             ax=ax,
             scene=scene,
             width=gate.width,
             text=gate.subtitle,
             default_font_size=scene.style.font_size * 0.78,
         )
-        ax.text(
+        _add_text_artist(
+            ax,
             gate.x,
             gate.y + 0.16,
             gate.subtitle,
             ha="center",
             va="center",
-            fontsize=subtitle_font_size,
+            fontsize=resolved_subtitle_font_size,
             color=scene.style.theme.text_color,
             zorder=TEXT_LAYER_ZORDER,
         )
@@ -439,7 +507,8 @@ def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: Layo
         solid_capstyle="round",
         zorder=SYMBOL_LAYER_ZORDER,
     )
-    ax.text(
+    _add_text_artist(
+        ax,
         measurement.x,
         measurement.quantum_y + measurement.height * 0.34,
         measurement.label,
@@ -452,7 +521,8 @@ def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: Layo
 
 
 def draw_text(ax: Axes, text: SceneText, scene: LayoutScene) -> None:
-    ax.text(
+    _add_text_artist(
+        ax,
         text.x,
         text.y,
         text.text,
@@ -465,7 +535,8 @@ def draw_text(ax: Axes, text: SceneText, scene: LayoutScene) -> None:
 
 
 def draw_gate_annotation(ax: Axes, annotation: SceneGateAnnotation, scene: LayoutScene) -> None:
-    ax.text(
+    _add_text_artist(
+        ax,
         annotation.x,
         annotation.y,
         annotation.text,
@@ -487,39 +558,78 @@ def _fit_gate_text_font_size(
 ) -> float:
     """Shrink gate text when the rendered box is too narrow for the label."""
 
-    if not text:
-        return default_font_size
+    context = _build_gate_text_fitting_context(ax, scene)
+    return _fit_gate_text_font_size_with_context(
+        context=context,
+        width=width,
+        text=text,
+        default_font_size=default_font_size,
+        cache={},
+    )
 
-    effective_default_font_size = default_font_size * _page_wrapped_font_scale(scene)
-    figure = ax.figure
+
+def _build_gate_text_fitting_context(ax: Axes, scene: LayoutScene) -> _GateTextFittingContext:
+    effective_default_scale = _page_wrapped_font_scale(scene)
     axes_width_fraction = ax.get_position().width
     x_limits = ax.get_xlim()
     scene_width = abs(x_limits[1] - x_limits[0])
     if axes_width_fraction <= 0.0 or scene_width <= 0.0:
-        return effective_default_font_size
+        return _GateTextFittingContext(
+            default_scale=effective_default_scale,
+            points_per_layout_unit=0.0,
+        )
 
+    figure = ax.figure
     canvas_width_pixels = (
         figure.canvas.get_width_height()[0]
         if figure.canvas is not None
         else figure.get_size_inches()[0] * figure.dpi
     )
-    available_width_fraction = 0.74
     effective_scene_width = min(
         scene_width,
         get_viewport_width(figure, default=scene_width),
     )
-    axes_width_pixels = canvas_width_pixels * axes_width_fraction
-    available_width_points = (
-        (axes_width_pixels * (width / effective_scene_width) * available_width_fraction)
-        * 72.0
-        / figure.dpi
+    axes_width_points = (canvas_width_pixels * axes_width_fraction) * 72.0 / figure.dpi
+    available_width_fraction = 0.74
+    return _GateTextFittingContext(
+        default_scale=effective_default_scale,
+        points_per_layout_unit=(axes_width_points * available_width_fraction)
+        / effective_scene_width,
     )
+
+
+def _fit_gate_text_font_size_with_context(
+    *,
+    context: _GateTextFittingContext,
+    width: float,
+    text: str,
+    default_font_size: float,
+    cache: dict[_GateTextCacheKey, float],
+) -> float:
+    """Shrink gate text using a per-page context and cache."""
+
+    if not text:
+        return default_font_size
+
+    effective_default_font_size = default_font_size * context.default_scale
+    if context.points_per_layout_unit <= 0.0:
+        return effective_default_font_size
+
+    cache_key = (text, width, default_font_size)
+    cached_font_size = cache.get(cache_key)
+    if cached_font_size is not None:
+        return cached_font_size
+
+    available_width_points = context.points_per_layout_unit * width
     text_width_at_one_point = _text_width_in_points(text)
     if text_width_at_one_point <= 0.0:
+        cache[cache_key] = effective_default_font_size
         return effective_default_font_size
 
     fitted_font_size = available_width_points / text_width_at_one_point
-    return max(3.5, min(effective_default_font_size, fitted_font_size))
+    resolved_font_size = max(3.5, min(effective_default_font_size, fitted_font_size))
+    cache[cache_key] = resolved_font_size
+    return resolved_font_size
 
 
 def _page_wrapped_font_scale(scene: LayoutScene) -> float:

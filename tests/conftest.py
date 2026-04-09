@@ -6,6 +6,7 @@ from shutil import rmtree
 from uuid import uuid4
 
 import matplotlib
+import matplotlib.pyplot as plt
 import pytest
 
 matplotlib.use("Agg")
@@ -13,6 +14,14 @@ matplotlib.use("Agg")
 SRC = Path(__file__).resolve().parents[1] / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+
+@pytest.fixture(autouse=True)
+def close_matplotlib_figures() -> None:
+    try:
+        yield
+    finally:
+        plt.close("all")
 
 
 @pytest.fixture
