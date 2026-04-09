@@ -59,10 +59,27 @@ def uses_compact_label_width(
 def operation_width(operation: OperationIR | MeasurementIR, style: DrawStyle) -> float:
     """Estimate minimum width required by an operation."""
 
+    label, subtitle = operation_label_parts(operation, style)
+    return operation_width_from_parts(
+        operation=operation,
+        style=style,
+        label=label,
+        subtitle=subtitle,
+    )
+
+
+def operation_width_from_parts(
+    *,
+    operation: OperationIR | MeasurementIR,
+    style: DrawStyle,
+    label: str,
+    subtitle: str | None,
+) -> float:
+    """Estimate minimum width from precomputed label parts."""
+
     if operation.kind is OperationKind.BARRIER:
         return max(0.35, style.gate_width * 0.35)
 
-    label, subtitle = operation_label_parts(operation, style)
     if uses_compact_parametric_width(operation, label, subtitle):
         return style.gate_width
     if uses_compact_label_width(operation, label, subtitle):

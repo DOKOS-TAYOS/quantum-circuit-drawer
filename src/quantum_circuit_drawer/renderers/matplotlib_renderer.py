@@ -28,6 +28,8 @@ from ._matplotlib_figure import create_managed_figure
 from ._render_support import save_rendered_figure
 from .base import BaseRenderer
 from .matplotlib_primitives import (
+    _build_gate_text_fitting_context,
+    _fit_gate_text_font_size_with_context,
     draw_barriers,
     draw_connections,
     draw_control,
@@ -99,6 +101,8 @@ class MatplotlibRenderer(BaseRenderer):
 
     def _draw_page(self, axes: Axes, scene: LayoutScene, page: ScenePage) -> None:
         projected_page = self._project_page(scene, page)
+        gate_text_context = _build_gate_text_fitting_context(axes, scene)
+        gate_text_cache: dict[tuple[str, float, float], float] = {}
 
         draw_wires(axes, projected_page.wires, scene)
         draw_barriers(axes, projected_page.barriers, scene)
@@ -109,6 +113,33 @@ class MatplotlibRenderer(BaseRenderer):
         for measurement in projected_page.measurements:
             draw_measurement_box(axes, measurement, scene)
         for gate in projected_page.gates:
+            if gate.render_style.value != "x_target":
+                label_font_size = _fit_gate_text_font_size_with_context(
+                    context=gate_text_context,
+                    width=gate.width,
+                    text=gate.label,
+                    default_font_size=scene.style.font_size,
+                    cache=gate_text_cache,
+                )
+                subtitle_font_size = (
+                    _fit_gate_text_font_size_with_context(
+                        context=gate_text_context,
+                        width=gate.width,
+                        text=gate.subtitle,
+                        default_font_size=scene.style.font_size * 0.78,
+                        cache=gate_text_cache,
+                    )
+                    if gate.subtitle
+                    else None
+                )
+                draw_gate_label(
+                    axes,
+                    gate,
+                    scene,
+                    label_font_size=label_font_size,
+                    subtitle_font_size=subtitle_font_size,
+                )
+                continue
             draw_gate_label(axes, gate, scene)
         for annotation in projected_page.gate_annotations:
             draw_gate_annotation(axes, annotation, scene)

@@ -30,7 +30,7 @@ from .scene import (
     SceneText,
     SceneWire,
 )
-from .spacing import estimate_text_width, operation_width
+from .spacing import estimate_text_width, operation_width_from_parts
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +159,7 @@ class LayoutEngine:
         circuit: CircuitIR,
         scaffold: _LayoutScaffold,
     ) -> _SceneCollections:
+        wire_map = circuit.wire_map
         wires = tuple(
             SceneWire(
                 id=wire.id,
@@ -194,7 +195,7 @@ class LayoutEngine:
                     column=column,
                     x=x,
                     style=scaffold.draw_style,
-                    wire_map=circuit.wire_map,
+                    wire_map=wire_map,
                     wire_positions=scaffold.wire_positions,
                     gates=gates,
                     gate_annotations=gate_annotations,
@@ -225,11 +226,26 @@ class LayoutEngine:
     ) -> dict[int, _OperationMetrics]:
         text_metrics = build_operation_text_metrics(layers, style)
         metrics: dict[int, _OperationMetrics] = {}
+        cached_widths: dict[tuple[OperationKind, str, str | None], float] = {}
         for layer in layers:
             for operation in layer.operations:
                 operation_text = text_metrics[id(operation)]
+                width_key = (
+                    operation.kind,
+                    operation_text.label,
+                    operation_text.subtitle,
+                )
+                width = cached_widths.get(width_key)
+                if width is None:
+                    width = operation_width_from_parts(
+                        operation=operation,
+                        style=style,
+                        label=operation_text.label,
+                        subtitle=operation_text.subtitle,
+                    )
+                    cached_widths[width_key] = width
                 metrics[id(operation)] = _OperationMetrics(
-                    width=operation_width(operation, style),
+                    width=width,
                     label=operation_text.label,
                     display_label=operation_text.display_label,
                     subtitle=operation_text.subtitle,

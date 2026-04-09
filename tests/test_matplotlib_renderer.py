@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+from matplotlib.artist import Artist
 from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
+from matplotlib.text import Text
 from pytest import approx
 
+import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -12,7 +15,7 @@ from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from quantum_circuit_drawer.style import DrawStyle
-from tests.support import build_sample_scene
+from tests.support import build_dense_rotation_ir, build_sample_scene
 
 
 def _display_patch_ratio(figure: object, patch: object) -> float:
@@ -26,6 +29,22 @@ def _display_bounds(figure: object, artist: object) -> tuple[float, float, float
     renderer = figure.canvas.get_renderer()
     bounds = artist.get_window_extent(renderer=renderer).bounds
     return bounds
+
+
+def _outside_axes_artist_count(figure: object, axes: object, artists: object) -> int:
+    renderer = figure.canvas.get_renderer()
+    axes_bounds = axes.get_window_extent(renderer=renderer)
+    outside = 0
+    for artist in artists:
+        x, y, width, height = artist.get_window_extent(renderer=renderer).bounds
+        if (
+            x < axes_bounds.x0
+            or x + width > axes_bounds.x1
+            or y < axes_bounds.y0
+            or y + height > axes_bounds.y1
+        ):
+            outside += 1
+    return outside
 
 
 def _line_artist_count(axes: object) -> int:
@@ -560,3 +579,263 @@ def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_narrow_wra
 
     assert text_x >= patch_x
     assert text_x + text_width <= patch_x + patch_width
+
+
+def test_gate_text_fitting_context_matches_existing_font_fit_for_wrapped_subtitles() -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=24),
+        DrawStyle(max_page_width=4.0, show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(2.1, 18.0))
+    gate = next(gate for gate in scene.gates if gate.subtitle == "0.5")
+
+    matplotlib_primitives.prepare_axes(axes, scene)
+    context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
+    cache: dict[tuple[str, float, float], float] = {}
+
+    label_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
+        context=context,
+        width=gate.width,
+        text=gate.label,
+        default_font_size=scene.style.font_size,
+        cache=cache,
+    )
+    subtitle_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
+        context=context,
+        width=gate.width,
+        text=gate.subtitle or "",
+        default_font_size=scene.style.font_size * 0.78,
+        cache=cache,
+    )
+
+    assert len(scene.pages) > 1
+    assert label_size == approx(
+        matplotlib_primitives._fit_gate_text_font_size(
+            ax=axes,
+            scene=scene,
+            width=gate.width,
+            text=gate.label,
+            default_font_size=scene.style.font_size,
+        )
+    )
+    assert subtitle_size == approx(
+        matplotlib_primitives._fit_gate_text_font_size(
+            ax=axes,
+            scene=scene,
+            width=gate.width,
+            text=gate.subtitle or "",
+            default_font_size=scene.style.font_size * 0.78,
+        )
+    )
+
+
+def test_gate_text_fitting_context_caches_repeated_inputs(monkeypatch) -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=8),
+        DrawStyle(show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(2.5, 4.0))
+    gate = scene.gates[0]
+    text_width_calls = 0
+
+    matplotlib_primitives.prepare_axes(axes, scene)
+    context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
+    original_text_width = matplotlib_primitives._text_width_in_points
+
+    def count_text_width(text: str) -> float:
+        nonlocal text_width_calls
+        text_width_calls += 1
+        return original_text_width(text)
+
+    monkeypatch.setattr(matplotlib_primitives, "_text_width_in_points", count_text_width)
+
+    cache: dict[tuple[str, float, float], float] = {}
+    first_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
+        context=context,
+        width=gate.width,
+        text=gate.label,
+        default_font_size=scene.style.font_size,
+        cache=cache,
+    )
+    second_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
+        context=context,
+        width=gate.width,
+        text=gate.label,
+        default_font_size=scene.style.font_size,
+        cache=cache,
+    )
+
+    assert first_size == approx(second_size)
+    assert text_width_calls == 1
+    assert cache == {(gate.label, gate.width, scene.style.font_size): first_size}
+
+
+def test_matplotlib_renderer_reuses_gate_text_context_per_wrapped_page(monkeypatch) -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=24),
+        DrawStyle(max_page_width=4.0, show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(2.1, 18.0))
+    viewport_calls = 0
+    original_get_viewport_width = matplotlib_primitives.get_viewport_width
+
+    def count_viewport_width(*args, **kwargs) -> float:
+        nonlocal viewport_calls
+        viewport_calls += 1
+        return original_get_viewport_width(*args, **kwargs)
+
+    monkeypatch.setattr(matplotlib_primitives, "get_viewport_width", count_viewport_width)
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert len(scene.pages) > 1
+    assert 0 < viewport_calls <= len(scene.pages)
+
+
+def test_add_text_artist_skips_clip_path_when_fast_path_available(
+    monkeypatch: object,
+) -> None:
+    figure, axes = plt.subplots()
+    clip_path_calls = 0
+    original_set_clip_path = Text.set_clip_path
+
+    def count_set_clip_path(self: Text, path: object, transform: object = None) -> object:
+        nonlocal clip_path_calls
+        clip_path_calls += 1
+        return original_set_clip_path(self, path, transform)
+
+    monkeypatch.setattr(Text, "set_clip_path", count_set_clip_path)
+
+    text_artist = matplotlib_primitives._add_text_artist(
+        axes,
+        0.5,
+        0.5,
+        "H",
+        ha="center",
+        va="center",
+        fontsize=12.0,
+    )
+
+    assert text_artist in axes.texts
+    assert clip_path_calls == 0
+
+
+def test_add_patch_artist_skips_clip_path_when_fast_path_available(
+    monkeypatch: object,
+) -> None:
+    figure, axes = plt.subplots()
+    clip_path_calls = 0
+    original_set_clip_path = Artist.set_clip_path
+
+    def count_set_clip_path(self: Artist, path: object, transform: object = None) -> object:
+        nonlocal clip_path_calls
+        clip_path_calls += 1
+        return original_set_clip_path(self, path, transform)
+
+    monkeypatch.setattr(Artist, "set_clip_path", count_set_clip_path)
+    patch = FancyBboxPatch((0.1, 0.1), 1.0, 1.0)
+
+    matplotlib_primitives._add_patch_artist(axes, patch)
+
+    assert patch in axes.patches
+    assert clip_path_calls == 0
+
+
+def test_add_text_artist_falls_back_to_axes_text_when_fast_path_unavailable(
+    monkeypatch: object,
+) -> None:
+    figure, axes = plt.subplots()
+    fallback_calls = 0
+    original_axes_text = axes.text
+
+    def count_axes_text(*args: object, **kwargs: object) -> Text:
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return original_axes_text(*args, **kwargs)
+
+    monkeypatch.setattr(
+        matplotlib_primitives,
+        "_supports_fast_text_artist_path",
+        lambda _: False,
+    )
+    monkeypatch.setattr(axes, "text", count_axes_text)
+
+    text_artist = matplotlib_primitives._add_text_artist(
+        axes,
+        0.5,
+        0.5,
+        "fallback",
+        fontsize=12.0,
+    )
+
+    assert fallback_calls == 1
+    assert text_artist in axes.texts
+
+
+def test_add_patch_artist_falls_back_to_add_artist_when_fast_path_unavailable(
+    monkeypatch: object,
+) -> None:
+    figure, axes = plt.subplots()
+    fallback_calls = 0
+    original_add_artist = axes.add_artist
+
+    def count_add_artist(artist: object) -> object:
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return original_add_artist(artist)
+
+    monkeypatch.setattr(
+        matplotlib_primitives,
+        "_supports_fast_patch_artist_path",
+        lambda _: False,
+    )
+    monkeypatch.setattr(axes, "add_artist", count_add_artist)
+    patch = FancyBboxPatch((0.1, 0.1), 1.0, 1.0)
+
+    matplotlib_primitives._add_patch_artist(axes, patch)
+
+    assert fallback_calls == 1
+    assert patch in axes.patches
+
+
+def test_matplotlib_renderer_keeps_large_wrapped_artists_within_axes_bounds() -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=24),
+        DrawStyle(max_page_width=4.0, show_params=True),
+    )
+
+    figure, axes = MatplotlibRenderer().render(scene)
+    figure.canvas.draw()
+
+    assert _outside_axes_artist_count(figure, axes, axes.texts) == 0
+    assert _outside_axes_artist_count(figure, axes, axes.patches) == 0
+
+
+def test_matplotlib_renderer_keeps_narrow_wrapped_artists_within_axes_bounds() -> None:
+    quantum_wires = [
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=str(index))
+        for index in range(4)
+    ]
+    circuit = CircuitIR(
+        quantum_wires=quantum_wires,
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="SWAP",
+                        target_wires=(f"q{layer_index % 4}",),
+                    )
+                ]
+            )
+            for layer_index in range(24)
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+    figure, axes = plt.subplots(figsize=(2.1, 18.0))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    assert _outside_axes_artist_count(figure, axes, axes.texts) == 0
+    assert _outside_axes_artist_count(figure, axes, axes.patches) == 0
