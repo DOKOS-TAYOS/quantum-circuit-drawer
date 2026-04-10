@@ -44,6 +44,9 @@ cirq = [
 pennylane = [
   "pennylane>=0.35",
 ]
+myqlm = [
+  "myqlm>=1.11",
+]
 cudaq = [
   "cudaq>=0.13; platform_system == 'Linux'",
 ]

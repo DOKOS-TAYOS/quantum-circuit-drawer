@@ -18,7 +18,12 @@ from quantum_circuit_drawer.exceptions import (
     UnsupportedBackendError,
     UnsupportedFrameworkError,
 )
-from tests.support import build_sample_ir, install_fake_cudaq
+from tests.support import (
+    build_sample_ir,
+    build_sample_myqlm_circuit,
+    install_fake_cudaq,
+    install_fake_myqlm,
+)
 
 
 def _text_labels(texts: Iterable[Text]) -> set[str]:
@@ -101,6 +106,22 @@ def test_draw_quantum_circuit_accepts_cudaq_framework_override(
 
     assert isinstance(figure.canvas, FigureCanvasAgg)
     assert {"H", "MZ", "q0", "c"}.issubset(_text_labels(axes.texts))
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_accepts_myqlm_framework_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+
+    figure, axes = draw_quantum_circuit(
+        build_sample_myqlm_circuit(),
+        framework="myqlm",
+        show=False,
+    )
+
+    assert isinstance(figure.canvas, FigureCanvasAgg)
+    assert {"H", "M", "q0", "c"}.issubset(_text_labels(axes.texts))
     plt.close(figure)
 
 

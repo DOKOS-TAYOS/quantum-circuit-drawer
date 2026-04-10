@@ -51,9 +51,11 @@ _CANONICAL_LABEL_BY_ALIAS: dict[str, str] = {
     "Z": "Z",
     "PAULIZ": "Z",
     "CZ": "Z",
+    "CSIGN": "Z",
     "S": "S",
     "CS": "S",
     "SDG": "Sdg",
+    "DS": "Sdg",
     "CSDG": "Sdg",
     "ADJOINTS": "Sdg",
     "INVERSES": "Sdg",
@@ -61,6 +63,7 @@ _CANONICAL_LABEL_BY_ALIAS: dict[str, str] = {
     "T": "T",
     "CT": "T",
     "TDG": "Tdg",
+    "DT": "Tdg",
     "CTDG": "Tdg",
     "ADJOINTT": "Tdg",
     "INVERSET": "Tdg",
@@ -68,10 +71,12 @@ _CANONICAL_LABEL_BY_ALIAS: dict[str, str] = {
     "SX": "SX",
     "CSX": "SX",
     "SXDG": "SXdg",
+    "DSX": "SXdg",
     "ADJOINTSX": "SXdg",
     "INVERSESX": "SXdg",
     "DAGGERSX": "SXdg",
     "P": "P",
+    "PH": "P",
     "PHASE": "P",
     "PHASESHIFT": "P",
     "U1": "P",
@@ -103,8 +108,10 @@ def load_optional_dependency(module_name: str) -> ModuleType | None:
 
     try:
         __import__(module_name)
-    except ImportError:
-        return None
+    except ModuleNotFoundError as exc:
+        if _matches_missing_module(exc, module_name):
+            return None
+        raise
 
     module = sys.modules.get(module_name)
     if module is None:
@@ -124,14 +131,63 @@ def extract_dependency_types(
 
     resolved_types: list[type[object]] = []
     for attribute_path in attribute_paths:
-        candidate: object | None = module
-        for attribute in attribute_path.split("."):
-            candidate = getattr(candidate, attribute, None)
-            if candidate is None:
-                break
+        candidate = _resolve_dependency_candidate(module_name, module, attribute_path)
         if isinstance(candidate, type):
             resolved_types.append(candidate)
     return tuple(resolved_types)
+
+
+def _resolve_dependency_candidate(
+    module_name: str,
+    module: ModuleType,
+    attribute_path: str,
+) -> object | None:
+    candidate: object = module
+    current_module_name = module_name
+    path_parts = attribute_path.split(".")
+    last_index = len(path_parts) - 1
+
+    for index, attribute in enumerate(path_parts):
+        next_candidate = getattr(candidate, attribute, None)
+        if next_candidate is not None:
+            candidate = next_candidate
+            if isinstance(candidate, ModuleType):
+                current_module_name = candidate.__name__
+            continue
+        if index == last_index or not isinstance(candidate, ModuleType):
+            return None
+
+        imported_submodule = _load_optional_submodule(current_module_name, attribute)
+        if imported_submodule is None:
+            return None
+        candidate = imported_submodule
+        current_module_name = imported_submodule.__name__
+    return candidate
+
+
+def _load_optional_submodule(
+    parent_module_name: str,
+    submodule_name: str,
+) -> ModuleType | None:
+    qualified_name = f"{parent_module_name}.{submodule_name}"
+    try:
+        __import__(qualified_name)
+    except ModuleNotFoundError as exc:
+        if _matches_missing_module(exc, qualified_name):
+            return None
+        raise
+
+    module = sys.modules.get(qualified_name)
+    if module is None:
+        raise ImportError(f"optional dependency submodule {qualified_name!r} was not loaded")
+    return module
+
+
+def _matches_missing_module(exc: ModuleNotFoundError, module_name: str) -> bool:
+    missing_name = getattr(exc, "name", None)
+    if missing_name == module_name:
+        return True
+    return bool(exc.args) and exc.args[0] == module_name
 
 
 def sequential_bit_labels(count: int, *, label: str = "c") -> tuple[str, ...]:

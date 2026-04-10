@@ -9,6 +9,7 @@ The library currently supports these user-facing inputs:
 - Qiskit circuits
 - Cirq circuits
 - PennyLane tape-like objects
+- MyQLM circuits
 - CUDA-Q closed kernels
 - The internal `CircuitIR` representation
 
@@ -96,6 +97,46 @@ draw_quantum_circuit(tape, framework="pennylane")
 ```
 
 PennyLane support includes mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
+
+## MyQLM
+
+Install the `myqlm` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[myqlm]`.
+
+Typical input:
+
+- `qat.core.Circuit`
+
+Recommended workflow:
+
+- build your circuit with `Program()`
+- export it with `to_circ()`
+- pass the resulting circuit to `draw_quantum_circuit(...)`
+
+Example:
+
+```python
+from qat.lang.AQASM import CNOT, H, Program
+
+from quantum_circuit_drawer import draw_quantum_circuit
+
+program = Program()
+qbits = program.qalloc(2)
+
+H(qbits[0])
+CNOT(qbits[0], qbits[1])
+
+circuit = program.to_circ()
+draw_quantum_circuit(circuit, framework="myqlm")
+```
+
+Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, simple single-bit classical control, and compact or expanded composite gates backed by `gateDic`.
+
+Important limits:
+
+- this first version is intentionally focused on `qat.core.Circuit`, not on `Program` or `QRoutine` objects directly
+- advanced classical formulas, `BREAK`, `CLASSIC`, and `REMAP` operations are not rendered yet
+- MyQLM is installed from the upstream package under its own EULA terms
+- if you already have a MyQLM `Program`, convert it first with `to_circ()`
 
 ## CUDA-Q
 

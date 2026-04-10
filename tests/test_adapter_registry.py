@@ -60,7 +60,14 @@ def test_adapter_registry_detects_using_registration_order() -> None:
 def test_adapter_registry_lists_default_frameworks() -> None:
     registry = AdapterRegistry()
 
-    assert registry.available_frameworks() == ("ir", "qiskit", "cirq", "pennylane", "cudaq")
+    assert registry.available_frameworks() == (
+        "ir",
+        "qiskit",
+        "cirq",
+        "pennylane",
+        "myqlm",
+        "cudaq",
+    )
 
 
 def test_get_adapter_reports_detected_framework_on_explicit_mismatch(
@@ -82,7 +89,7 @@ def test_get_adapter_reports_detected_framework_on_explicit_mismatch(
 def test_get_adapter_lists_available_frameworks_for_unknown_names() -> None:
     with pytest.raises(
         UnsupportedFrameworkError,
-        match=r"unsupported framework 'bogus'.*cirq.*cudaq.*ir.*pennylane.*qiskit",
+        match=r"unsupported framework 'bogus'.*cirq.*cudaq.*ir.*myqlm.*pennylane.*qiskit",
     ):
         get_adapter(object(), framework="bogus")
 

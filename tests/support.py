@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import sys
-from types import ModuleType
+from dataclasses import dataclass
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -139,3 +140,76 @@ module {
     fake_module.PyKernelDecorator = FakePyKernel
     monkeypatch.setitem(sys.modules, "cudaq", fake_module)
     return FakePyKernel
+
+
+@dataclass(slots=True)
+class FakeMyQLMSyntax:
+    name: str
+    parameters: tuple[object, ...] = ()
+
+
+@dataclass(slots=True)
+class FakeMyQLMCircuitImplementation:
+    ops: tuple[object, ...]
+    ancillas: int = 0
+    nbqbits: int = 0
+
+
+@dataclass(slots=True)
+class FakeMyQLMGateDefinition:
+    name: str
+    arity: int
+    syntax: FakeMyQLMSyntax | None = None
+    nbctrls: int | None = None
+    subgate: str | None = None
+    circuit_implementation: FakeMyQLMCircuitImplementation | None = None
+
+
+@dataclass(slots=True)
+class FakeMyQLMOp:
+    gate: str | None = None
+    qbits: tuple[int, ...] = ()
+    type: str = "GATETYPE"
+    cbits: tuple[int, ...] = ()
+    formula: str | None = None
+    remap: tuple[int, ...] | None = None
+
+
+class FakeMyQLMCircuit:
+    def __init__(
+        self,
+        *,
+        ops: tuple[FakeMyQLMOp, ...],
+        gate_dic: dict[str, FakeMyQLMGateDefinition],
+        nbqbits: int,
+        nbcbits: int,
+        name: str | None = None,
+    ) -> None:
+        self.ops = ops
+        self.gateDic = gate_dic
+        self.nbqbits = nbqbits
+        self.nbcbits = nbcbits
+        self.name = name
+
+
+def build_sample_myqlm_circuit() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "H": FakeMyQLMGateDefinition(name="H", arity=1, syntax=FakeMyQLMSyntax(name="H")),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(gate="H", qbits=(0,)),
+            FakeMyQLMOp(type="MEASURE", qbits=(0,), cbits=(0,)),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=1,
+        name="fake_myqlm_demo",
+    )
+
+
+def install_fake_myqlm(monkeypatch: pytest.MonkeyPatch) -> type[FakeMyQLMCircuit]:
+    fake_module = ModuleType("qat")
+    fake_module.core = SimpleNamespace(Circuit=FakeMyQLMCircuit)
+    monkeypatch.setitem(sys.modules, "qat", fake_module)
+    return FakeMyQLMCircuit

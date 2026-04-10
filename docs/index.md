@@ -28,7 +28,7 @@ How `draw_quantum_circuit(...)` behaves, what it returns, how styling works, and
 
 ### [Frameworks](frameworks.md)
 
-How to use the library with Qiskit, Cirq, PennyLane, CUDA-Q, or the internal IR.
+How to use the library with Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, or the internal IR.
 
 ### [Recipes](recipes.md)
 

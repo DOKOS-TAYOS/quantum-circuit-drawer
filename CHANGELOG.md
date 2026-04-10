@@ -2,12 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- Native MyQLM adapter support for `qat.core.Circuit` inputs, including common gates, measurements, reset, simple single-bit classical control, and composite gate expansion through `gateDic`
+- Optional `myqlm` package extra and three runnable MyQLM demos in the shared example catalog
+
 ### Changed
 
 - Improved circuit visualization and homogenized gate appearance across the drawer
 - Improved slider behavior
 - Adjusted font sizes and color palette for clearer typography and contrast
 - Reduced rendering and layout computation time
+- Updated README and user docs to cover MyQLM installation, usage, and current support limits
 
 ## [0.1.1] - 2026-04-05
 

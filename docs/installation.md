@@ -53,6 +53,7 @@ Install only the extras you need for your circuit source.
 | `qiskit` | `quantum-circuit-drawer[qiskit]` | Draw `QuantumCircuit` objects |
 | `cirq` | `quantum-circuit-drawer[cirq]` | Draw `cirq.Circuit` objects |
 | `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw tape-like PennyLane objects |
+| `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit` objects produced by flows such as `Program().to_circ()` |
 | `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported CUDA-Q kernels on Linux or WSL2 |
 
 Windows PowerShell examples:
@@ -61,6 +62,7 @@ Windows PowerShell examples:
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
 ```
 
 Linux or WSL examples:
@@ -69,7 +71,10 @@ Linux or WSL examples:
 .venv/bin/python -m pip install "quantum-circuit-drawer[qiskit]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[cirq]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
 ```
+
+For MyQLM specifically, remember that the upstream package is distributed under its own EULA. This project only adds the optional adapter and does not change the upstream licensing terms.
 
 CUDA-Q is currently Linux/WSL2-first. On native Windows, this extra is not expected to install because the dependency is declared only for Linux environments:
 

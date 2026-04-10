@@ -145,6 +145,7 @@ def test_demo_catalog_exposes_new_classical_control_and_composite_demos() -> Non
         "qiskit-conditional-composite",
         "cirq-conditional-composite",
         "pennylane-conditional-composite",
+        "myqlm-conditional-composite",
     }.issubset(demo_ids)
 
 
@@ -155,6 +156,16 @@ def test_demo_catalog_exposes_qiskit_3d_demos() -> None:
         "qiskit-3d-line",
         "qiskit-3d-grid",
         "qiskit-3d-honeycomb",
+    }.issubset(demo_ids)
+
+
+def test_demo_catalog_exposes_myqlm_demos() -> None:
+    demo_ids = {spec.demo_id for spec in get_demo_catalog()}
+
+    assert {
+        "myqlm-balanced",
+        "myqlm-wide",
+        "myqlm-conditional-composite",
     }.issubset(demo_ids)
 
 
@@ -197,6 +208,7 @@ def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
         ("cirq-conditional-composite", "cirq"),
         ("pennylane-balanced", "pennylane"),
         ("pennylane-conditional-composite", "pennylane"),
+        ("myqlm-balanced", "qat"),
     ],
 )
 def test_examples_runner_can_render_selected_optional_demo(

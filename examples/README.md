@@ -31,6 +31,9 @@ The available demo ids are:
 - `pennylane-grover`
 - `pennylane-qaoa`
 - `pennylane-conditional-composite`
+- `myqlm-balanced`
+- `myqlm-wide`
+- `myqlm-conditional-composite`
 - `cudaq-balanced`
 - `cudaq-wide`
 - `cudaq-deep`
@@ -53,13 +56,13 @@ Install the project in your local virtual environment with the extras you want t
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[qiskit,cirq,pennylane]"
+.\.venv\Scripts\python.exe -m pip install -e ".[qiskit,cirq,pennylane,myqlm]"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip install -e ".[qiskit,cirq,pennylane]"
+.venv/bin/python -m pip install -e ".[qiskit,cirq,pennylane,myqlm]"
 ```
 
 For CUDA-Q on Linux or WSL2:
@@ -68,7 +71,7 @@ For CUDA-Q on Linux or WSL2:
 .venv/bin/python -m pip install -e ".[cudaq]"
 ```
 
-On native Windows, keep to the Qiskit, Cirq, and PennyLane demos.
+On native Windows, Qiskit, Cirq, PennyLane, and MyQLM are the main optional demo paths.
 
 ## List demos
 
@@ -110,6 +113,9 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-grover
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-qaoa
 .\.venv\Scripts\python.exe examples/run_demo.py --demo pennylane-conditional-composite
+.\.venv\Scripts\python.exe examples/run_demo.py --demo myqlm-balanced
+.\.venv\Scripts\python.exe examples/run_demo.py --demo myqlm-wide
+.\.venv\Scripts\python.exe examples/run_demo.py --demo myqlm-conditional-composite
 ```
 
 Linux or WSL:
@@ -136,6 +142,9 @@ Linux or WSL:
 .venv/bin/python examples/run_demo.py --demo pennylane-grover
 .venv/bin/python examples/run_demo.py --demo pennylane-qaoa
 .venv/bin/python examples/run_demo.py --demo pennylane-conditional-composite
+.venv/bin/python examples/run_demo.py --demo myqlm-balanced
+.venv/bin/python examples/run_demo.py --demo myqlm-wide
+.venv/bin/python examples/run_demo.py --demo myqlm-conditional-composite
 .venv/bin/python examples/run_demo.py --demo cudaq-balanced
 .venv/bin/python examples/run_demo.py --demo cudaq-wide
 .venv/bin/python examples/run_demo.py --demo cudaq-deep

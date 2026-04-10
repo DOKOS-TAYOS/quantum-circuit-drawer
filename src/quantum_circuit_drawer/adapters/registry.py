@@ -95,10 +95,11 @@ def _default_adapter_types() -> tuple[type[BaseAdapter], ...]:
     from .cirq_adapter import CirqAdapter
     from .cudaq_adapter import CudaqAdapter
     from .ir_adapter import IRAdapter
+    from .myqlm_adapter import MyQLMAdapter
     from .pennylane_adapter import PennyLaneAdapter
     from .qiskit_adapter import QiskitAdapter
 
-    return (IRAdapter, QiskitAdapter, CirqAdapter, PennyLaneAdapter, CudaqAdapter)
+    return (IRAdapter, QiskitAdapter, CirqAdapter, PennyLaneAdapter, MyQLMAdapter, CudaqAdapter)
 
 
 registry = AdapterRegistry()

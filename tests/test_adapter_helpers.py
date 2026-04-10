@@ -82,6 +82,37 @@ def test_extract_dependency_types_returns_only_available_runtime_types(
     ) == (top_level, nested)
 
 
+def test_extract_dependency_types_imports_nested_submodules_when_needed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nested_type = type("NestedCircuit", (), {})
+    fake_package = ModuleType("fake_nested_quantum_dep")
+    fake_package.__path__ = []
+    fake_submodule = ModuleType("fake_nested_quantum_dep.core")
+    fake_submodule.Circuit = nested_type
+    original_import = builtins.__import__
+
+    monkeypatch.setitem(sys.modules, "fake_nested_quantum_dep", fake_package)
+    monkeypatch.setitem(sys.modules, "fake_nested_quantum_dep.core", fake_submodule)
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "fake_nested_quantum_dep":
+            return fake_package
+        if name == "fake_nested_quantum_dep.core":
+            return fake_package
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert extract_dependency_types("fake_nested_quantum_dep", ("core.Circuit",)) == (nested_type,)
+
+
 def test_sequential_bit_labels_build_expected_labels() -> None:
     assert sequential_bit_labels(3, label="alpha") == ("alpha[0]", "alpha[1]", "alpha[2]")
 
@@ -143,6 +174,7 @@ def test_expand_operation_sequence_flattens_nested_results_in_order() -> None:
         ("u2", "U2", CanonicalGateFamily.U2),
         ("Identity", "I", CanonicalGateFamily.I),
         ("id", "I", CanonicalGateFamily.I),
+        ("CSIGN", "Z", CanonicalGateFamily.Z),
         ("ResetChannel", "RESET", CanonicalGateFamily.RESET),
         ("delay", "DELAY", CanonicalGateFamily.DELAY),
         ("Adjoint(S)", "Sdg", CanonicalGateFamily.SDG),

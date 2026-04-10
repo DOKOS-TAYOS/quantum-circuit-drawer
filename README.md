@@ -7,7 +7,7 @@
 
 `quantum-circuit-drawer` is a Python library for drawing quantum circuits from multiple ecosystems with one consistent Matplotlib-based visual style.
 
-It gives you a single public entry point, `draw_quantum_circuit(...)`, for supported Qiskit, Cirq, PennyLane, CUDA-Q, and internal IR inputs, so you can keep the same visualization workflow even when your circuit source changes.
+It gives you a single public entry point, `draw_quantum_circuit(...)`, for supported Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR inputs, so you can keep the same visualization workflow even when your circuit source changes.
 
 ## Why this library
 
@@ -43,6 +43,7 @@ The package supports Python `3.11+`.
 | Qiskit | `pip install "quantum-circuit-drawer[qiskit]"` | Supports common gates, controlled gates, classical `if` conditions, composite instructions, swap, barriers, and measurements |
 | Cirq | `pip install "quantum-circuit-drawer[cirq]"` | Supports common gates, controlled gates, classically controlled operations, `CircuitOperation`, swap, and measurements |
 | PennyLane | `pip install "quantum-circuit-drawer[pennylane]"` | Supports tape-like objects such as `QuantumTape`, `QuantumScript`, mid-circuit measurement conditionals, and decomposable composite operations |
+| MyQLM | `pip install "quantum-circuit-drawer[myqlm]"` | Supports `qat.core.Circuit` inputs, including common gates, controlled gates, simple classical control, measurements, reset, and composite gates backed by `gateDic` |
 | CUDA-Q | `pip install "quantum-circuit-drawer[cudaq]"` | Linux/WSL2-first extra; supports closed kernels through Quake/MLIR |
 
 ## Installation
@@ -59,7 +60,10 @@ Add only the framework extras you need:
 python -m pip install "quantum-circuit-drawer[qiskit]"
 python -m pip install "quantum-circuit-drawer[cirq]"
 python -m pip install "quantum-circuit-drawer[pennylane]"
+python -m pip install "quantum-circuit-drawer[myqlm]"
 ```
+
+The optional MyQLM extra depends on the upstream `myqlm` package, which is distributed under its own EULA.
 
 For CUDA-Q on Linux or WSL2:
 
@@ -173,6 +177,25 @@ draw_quantum_circuit(
 
 The default is `composite_mode="compact"`, which keeps subcircuits or framework-specific composite operations as a single labeled box when possible.
 
+### MyQLM example
+
+```python
+from qat.lang.AQASM import CNOT, H, Program
+
+from quantum_circuit_drawer import draw_quantum_circuit
+
+program = Program()
+qbits = program.qalloc(2)
+
+H(qbits[0])
+CNOT(qbits[0], qbits[1])
+
+circuit = program.to_circ()
+draw_quantum_circuit(circuit, framework="myqlm")
+```
+
+In this first version, the native MyQLM path is focused on `qat.core.Circuit`. The usual workflow is to build with `Program()` and then call `to_circ()`.
+
 ### CUDA-Q example
 
 ```python
@@ -234,6 +257,8 @@ The current public surface is intentionally focused.
 
 - Matplotlib is the only rendering backend today.
 - Classical control is currently shown as an annotated classical condition, not as full branching flow.
+- MyQLM support currently targets `qat.core.Circuit` inputs produced by flows such as `Program().to_circ()`.
+- MyQLM advanced classical formulas, remaps, and break-style control flow are not yet part of the supported subset.
 - The 3D topologies have shape constraints: `grid` needs a rectangular factorization with at least `2 x 2`, `star` needs at least 2 qubits, `star_tree` only accepts sizes of the form `3 * 2^d - 2`, and `honeycomb` is currently defined for 53 qubits.
 - CUDA-Q support currently targets closed kernels only.
 - Advanced CUDA-Q constructs such as reset, custom kernel composition, and broader control-flow handling are not yet part of the supported subset.
@@ -270,7 +295,7 @@ Linux or WSL:
 .venv/bin/python examples/run_demo.py --demo qiskit-balanced
 ```
 
-The example gallery covers balanced, wide, deep, Grover, and QAOA-style circuits across the supported adapters. More details are in [`examples/README.md`](examples/README.md).
+The example gallery covers balanced, wide, deep, Grover, QAOA-style, and conditional/composite circuits across the supported adapters. More details are in [`examples/README.md`](examples/README.md).
 
 ## Development
 
@@ -280,14 +305,14 @@ Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
 ```
 
 Linux or WSL:
 
 ```bash
 .venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+.venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
 ```
 
 For local CUDA-Q development on Linux or WSL2:
