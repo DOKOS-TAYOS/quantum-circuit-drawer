@@ -25,7 +25,7 @@ from .style import DrawStyle, DrawTheme
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-    from .typing import LayoutEngineLike, OutputPath, RenderResult
+    from .typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath, RenderResult
 
 
 def draw_quantum_circuit(
@@ -33,7 +33,7 @@ def draw_quantum_circuit(
     framework: str | None = None,
     *,
     style: DrawStyle | Mapping[str, object] | None = None,
-    layout: LayoutEngineLike | None = None,
+    layout: LayoutEngineLike | LayoutEngine3DLike | None = None,
     backend: str = "matplotlib",
     ax: Axes | None = None,
     output: OutputPath | None = None,

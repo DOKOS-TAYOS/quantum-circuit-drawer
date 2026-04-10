@@ -218,9 +218,6 @@ class LayoutEngine:
             measurements=tuple(measurements),
         )
 
-    def _normalize_layers(self, circuit: CircuitIR) -> tuple[LayerIR, ...]:
-        return normalize_draw_layers(circuit)
-
     def _build_operation_metrics(
         self, layers: Sequence[LayerIR], style: DrawStyle
     ) -> dict[int, _OperationMetrics]:

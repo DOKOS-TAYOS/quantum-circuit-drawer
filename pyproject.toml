@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-circuit-drawer"
-version = "0.1.1"
 description = "Backend-agnostic quantum circuit drawing library with Matplotlib as the first renderer."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
+dynamic = ["version"]
 authors = [
   { name = "Alejandro Mata Ali" },
 ]
@@ -67,6 +67,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 quantum_circuit_drawer = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = { attr = "quantum_circuit_drawer._version.__version__" }
 
 [tool.pytest.ini_options]
 minversion = "8.0"

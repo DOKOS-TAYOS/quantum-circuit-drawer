@@ -158,9 +158,6 @@ class LayoutEngine3D:
         )
         return scene
 
-    def _normalize_layers(self, circuit: CircuitIR) -> tuple[LayerIR, ...]:
-        return normalize_draw_layers(circuit)
-
     def _build_operation_metrics(
         self,
         layers: Sequence[LayerIR],
@@ -441,8 +438,6 @@ class LayoutEngine3D:
                         size=draw_style.control_radius * 6.5,
                     )
                 )
-        if gate is not None and gate.render_style is GateRenderStyle3D.X_TARGET:
-            return
         self._append_classical_condition_connections(
             operation=operation,
             column=column,

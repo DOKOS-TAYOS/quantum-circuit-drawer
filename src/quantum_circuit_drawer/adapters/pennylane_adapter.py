@@ -69,8 +69,13 @@ class PennyLaneAdapter(BaseAdapter):
         mid_measure_operations = [
             operation for operation in tape.operations if self._is_mid_measure(operation)
         ]
+        terminal_measurement_wires = tuple(
+            self._terminal_measurement_wires(measurement, tape.wires)
+            for measurement in tape.measurements
+        )
+        terminal_measurement_count = sum(len(wires) for wires in terminal_measurement_wires)
         measurement_labels = sequential_bit_labels(
-            len(mid_measure_operations) + len(tape.measurements)
+            len(mid_measure_operations) + terminal_measurement_count
         )
         classical_wires, measurement_targets = build_classical_register(measurement_labels)
         mid_measure_targets = {
@@ -90,20 +95,20 @@ class PennyLaneAdapter(BaseAdapter):
             )
 
         terminal_measurement_operations: list[MeasurementIR] = []
-        for measurement_index, measurement in enumerate(tape.measurements):
-            measured_wires = tuple(wire_ids[wire] for wire in measurement.wires) or tuple(
-                wire.id for wire in quantum_wires
-            )
-            target_index = len(mid_measure_operations) + measurement_index
-            terminal_measurement_operations.append(
-                MeasurementIR(
-                    kind=OperationKind.MEASUREMENT,
-                    name="M",
-                    target_wires=(measured_wires[0],),
-                    classical_target=measurement_targets[target_index][0],
-                    metadata={"classical_bit_label": measurement_targets[target_index][1]},
+        target_index = len(mid_measure_operations)
+        for measured_wires in terminal_measurement_wires:
+            for measured_wire in measured_wires:
+                classical_target, classical_bit_label = measurement_targets[target_index]
+                terminal_measurement_operations.append(
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=(wire_ids[measured_wire],),
+                        classical_target=classical_target,
+                        metadata={"classical_bit_label": classical_bit_label},
+                    )
                 )
-            )
+                target_index += 1
 
         return CircuitIR(
             quantum_wires=quantum_wires,
@@ -111,6 +116,13 @@ class PennyLaneAdapter(BaseAdapter):
             layers=self.pack_operations((*sequential_operations, *terminal_measurement_operations)),
             metadata={"framework": self.framework_name},
         )
+
+    def _terminal_measurement_wires(
+        self,
+        measurement: _PennyLaneMeasurementLike,
+        tape_wires: Sequence[object],
+    ) -> tuple[object, ...]:
+        return tuple(measurement.wires) or tuple(tape_wires)
 
     def _extract_tape(self, circuit: object) -> _PennyLaneTapeLike:
         if not self.can_handle(circuit):

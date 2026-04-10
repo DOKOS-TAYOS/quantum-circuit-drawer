@@ -135,6 +135,21 @@ def test_cirq_adapter_expands_circuit_operation_when_requested() -> None:
     assert [operation.name for operation in operations] == ["H", "X"]
 
 
+def test_cirq_adapter_expands_circuit_operation_with_measurement() -> None:
+    q0 = cirq.LineQubit(0)
+    subcircuit = cirq.FrozenCircuit(cirq.measure(q0, key="nested"))
+    circuit = cirq.Circuit(cirq.CircuitOperation(subcircuit))
+
+    ir = CirqAdapter().to_ir(circuit, options={"composite_mode": "expand"})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(ir.classical_wires) == 1
+    assert ir.classical_wires[0].metadata["bundle_size"] == 1
+    assert [operation.kind for operation in operations] == [OperationKind.MEASUREMENT]
+    assert operations[0].target_wires == ("q0",)
+    assert operations[0].metadata["classical_bit_label"] == "c[0]"
+
+
 def test_cirq_adapter_supports_additional_common_operations() -> None:
     q0, q1, q2, q3 = cirq.LineQubit.range(4)
     circuit = cirq.Circuit(

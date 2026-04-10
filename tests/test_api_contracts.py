@@ -68,6 +68,27 @@ def test_draw_quantum_circuit_rejects_invalid_backend() -> None:
         draw_quantum_circuit(build_sample_ir(), backend="svg")
 
 
+@pytest.mark.parametrize(
+    ("option_name", "option_value", "message"),
+    [
+        ("view", "bogus", "view must be one of: 2d, 3d"),
+        ("topology", "bogus", "topology must be one of: grid, honeycomb, line, star, star_tree"),
+        ("composite_mode", "typo", "composite_mode must be one of: compact, expand"),
+        ("show", "yes", "show must be a boolean"),
+        ("page_slider", 1, "page_slider must be a boolean"),
+        ("direct", "yes", "direct must be a boolean"),
+        ("hover", 1, "hover must be a boolean"),
+    ],
+)
+def test_draw_quantum_circuit_rejects_invalid_public_options(
+    option_name: str,
+    option_value: object,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        draw_quantum_circuit(build_sample_ir(), **{option_name: option_value})
+
+
 def test_draw_quantum_circuit_validates_style_input() -> None:
     with pytest.raises(StyleValidationError, match="font_size must be a positive number"):
         draw_quantum_circuit(build_sample_ir(), style={"font_size": -1})

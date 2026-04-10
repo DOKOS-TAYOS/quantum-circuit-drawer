@@ -167,6 +167,30 @@ def test_pennylane_adapter_expands_composite_operations_when_requested() -> None
     assert operations[0].name == "H"
 
 
+def test_pennylane_adapter_converts_multi_wire_terminal_measurements() -> None:
+    qml = pytest.importorskip("pennylane")
+
+    with qml.tape.QuantumTape() as tape:
+        qml.Hadamard(0)
+        qml.CNOT(wires=[0, 1])
+        qml.probs(wires=[0, 1])
+
+    ir = PennyLaneAdapter().to_ir(tape)
+    measurements = [
+        operation
+        for layer in ir.layers
+        for operation in layer.operations
+        if operation.kind is OperationKind.MEASUREMENT
+    ]
+
+    assert ir.classical_wires[0].metadata["bundle_size"] == 2
+    assert [measurement.target_wires for measurement in measurements] == [("q0",), ("q1",)]
+    assert [measurement.metadata["classical_bit_label"] for measurement in measurements] == [
+        "c[0]",
+        "c[1]",
+    ]
+
+
 def test_pennylane_adapter_supports_additional_common_operations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

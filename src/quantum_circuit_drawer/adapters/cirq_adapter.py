@@ -64,22 +64,20 @@ class CirqAdapter(BaseAdapter):
             for index, qubit in enumerate(qubits)
         ]
 
-        measurement_slots: dict[tuple[int, int, int], tuple[str, str]] = {}
+        measurement_slots: dict[tuple[int, ...], tuple[tuple[str, str], ...]] = {}
         measurement_key_targets: dict[str, tuple[tuple[str, str], ...]] = {}
         measurement_labels: list[str] = []
         for moment_index, moment in enumerate(typed_circuit):
             for operation_index, operation in enumerate(moment.operations):
-                if not self._is_measurement(operation):
-                    continue
-                key_targets: list[tuple[str, str]] = []
-                for slot_index, _ in enumerate(operation.qubits):
-                    measurement_labels.append(f"c[{len(measurement_labels)}]")
-                    measurement_slots[(moment_index, operation_index, slot_index)] = (
-                        "c0",
-                        measurement_labels[-1],
-                    )
-                    key_targets.append(("c0", measurement_labels[-1]))
-                measurement_key_targets[str(self._measurement_key(operation))] = tuple(key_targets)
+                self._collect_measurement_targets(
+                    cirq=cirq,
+                    operation=operation,
+                    measurement_slots=measurement_slots,
+                    measurement_key_targets=measurement_key_targets,
+                    measurement_labels=measurement_labels,
+                    operation_key=(moment_index, operation_index),
+                    composite_mode=composite_mode,
+                )
 
         classical_wires, _ = build_classical_register(
             sequential_bit_labels(len(measurement_labels))
@@ -107,23 +105,84 @@ class CirqAdapter(BaseAdapter):
             metadata={"framework": self.framework_name},
         )
 
+    def _collect_measurement_targets(
+        self,
+        *,
+        cirq: Any,
+        operation: _CirqOperationLike,
+        measurement_slots: dict[tuple[int, ...], tuple[tuple[str, str], ...]],
+        measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
+        measurement_labels: list[str],
+        operation_key: tuple[int, ...],
+        composite_mode: str,
+    ) -> None:
+        if self._is_measurement(operation):
+            key_targets: list[tuple[str, str]] = []
+            for _ in operation.qubits:
+                measurement_labels.append(f"c[{len(measurement_labels)}]")
+                key_targets.append(("c0", measurement_labels[-1]))
+            measurement_slots[operation_key] = tuple(key_targets)
+            measurement_key_targets[str(self._measurement_key(operation))] = tuple(key_targets)
+            return
+
+        if isinstance(operation, cirq.ClassicallyControlledOperation):
+            base_operation = cast(
+                _CirqOperationLike,
+                operation.without_classical_controls(),
+            )
+            self._collect_measurement_targets(
+                cirq=cirq,
+                operation=base_operation,
+                measurement_slots=measurement_slots,
+                measurement_key_targets=measurement_key_targets,
+                measurement_labels=measurement_labels,
+                operation_key=operation_key,
+                composite_mode=composite_mode,
+            )
+            return
+
+        if not isinstance(operation, cirq.CircuitOperation) or composite_mode != "expand":
+            return
+
+        for nested_moment_index, moment in enumerate(operation.mapped_circuit()):
+            for nested_operation_index, nested_operation in enumerate(moment.operations):
+                self._collect_measurement_targets(
+                    cirq=cirq,
+                    operation=cast(_CirqOperationLike, nested_operation),
+                    measurement_slots=measurement_slots,
+                    measurement_key_targets=measurement_key_targets,
+                    measurement_labels=measurement_labels,
+                    operation_key=(
+                        *operation_key,
+                        nested_moment_index,
+                        nested_operation_index,
+                    ),
+                    composite_mode=composite_mode,
+                )
+
     def _convert_operation(
         self,
         *,
         cirq: Any,
         operation: _CirqOperationLike,
         qubit_ids: dict[object, str],
-        measurement_slots: dict[tuple[int, int, int], tuple[str, str]],
+        measurement_slots: dict[tuple[int, ...], tuple[tuple[str, str], ...]],
         measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
-        operation_key: tuple[int, int],
+        operation_key: tuple[int, ...],
         composite_mode: str,
     ) -> list[OperationIR | MeasurementIR]:
         if self._is_measurement(operation):
             converted: list[OperationIR | MeasurementIR] = []
-            for slot_index, qubit in enumerate(operation.qubits):
-                classical_target, classical_bit_label = measurement_slots[
-                    (*operation_key, slot_index)
-                ]
+            slot_targets = measurement_slots.get(operation_key)
+            if slot_targets is None:
+                raise UnsupportedOperationError(
+                    "Cirq measurement was not registered before conversion"
+                )
+            for qubit, (classical_target, classical_bit_label) in zip(
+                operation.qubits,
+                slot_targets,
+                strict=True,
+            ):
                 converted.append(
                     MeasurementIR(
                         kind=OperationKind.MEASUREMENT,
@@ -170,7 +229,7 @@ class CirqAdapter(BaseAdapter):
                         qubit_ids=qubit_ids,
                         measurement_slots=measurement_slots,
                         measurement_key_targets=measurement_key_targets,
-                        operation_key=(operation_key[0] + item[0], item[1]),
+                        operation_key=(*operation_key, item[0], item[1]),
                         composite_mode=composite_mode,
                     ),
                 )

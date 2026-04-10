@@ -55,6 +55,13 @@ def test_parse_args_reads_custom_values() -> None:
     assert args.emit_json is True
 
 
+def test_parse_args_rejects_non_positive_values() -> None:
+    benchmark_module = _load_benchmark_module()
+
+    with pytest.raises(SystemExit):
+        benchmark_module.parse_args(["--repeats", "0"])
+
+
 def test_main_emits_human_readable_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

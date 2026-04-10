@@ -20,6 +20,9 @@ if TYPE_CHECKING:
 
 ViewMode = Literal["2d", "3d"]
 TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
+_VALID_VIEW_MODES = frozenset({"2d", "3d"})
+_VALID_TOPOLOGIES = frozenset({"line", "grid", "star", "star_tree", "honeycomb"})
+_VALID_COMPOSITE_MODES = frozenset({"compact", "expand"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +110,15 @@ def build_draw_request(
     options into typed structures used by later orchestration stages.
     """
 
+    validate_public_options(
+        view=view,
+        topology=topology,
+        composite_mode=composite_mode,
+        direct=direct,
+        hover=hover,
+        show=show,
+        page_slider=page_slider,
+    )
     effective_hover = resolve_effective_hover(
         hover=hover,
         view=view,
@@ -133,6 +145,40 @@ def build_draw_request(
             extra=options,
         ),
     )
+
+
+def validate_public_options(
+    *,
+    view: object,
+    topology: object,
+    composite_mode: object,
+    direct: object,
+    hover: object,
+    show: object,
+    page_slider: object,
+) -> None:
+    """Validate public draw options that are not enforced by Python typing."""
+
+    _validate_choice("view", view, _VALID_VIEW_MODES)
+    _validate_choice("topology", topology, _VALID_TOPOLOGIES)
+    _validate_choice("composite_mode", composite_mode, _VALID_COMPOSITE_MODES)
+    _validate_bool("direct", direct)
+    _validate_bool("hover", hover)
+    _validate_bool("show", show)
+    _validate_bool("page_slider", page_slider)
+
+
+def _validate_choice(name: str, value: object, allowed_values: frozenset[str]) -> None:
+    if isinstance(value, str) and value in allowed_values:
+        return
+    choices = ", ".join(sorted(allowed_values))
+    raise ValueError(f"{name} must be one of: {choices}")
+
+
+def _validate_bool(name: str, value: object) -> None:
+    if isinstance(value, bool):
+        return
+    raise ValueError(f"{name} must be a boolean")
 
 
 def validate_draw_request(request: DrawRequest) -> None:

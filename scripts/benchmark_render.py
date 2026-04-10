@@ -99,11 +99,20 @@ def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float |
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Benchmark synthetic layout and render passes.")
-    parser.add_argument("--wires", type=int, default=16)
-    parser.add_argument("--layers", type=int, default=120)
-    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--wires", type=positive_int, default=16)
+    parser.add_argument("--layers", type=positive_int, default=120)
+    parser.add_argument("--repeats", type=positive_int, default=3)
     parser.add_argument("--json", action="store_true", dest="emit_json")
     return parser.parse_args(argv)
+
+
+def positive_int(raw_value: str) -> int:
+    """Parse a strictly positive integer for benchmark dimensions."""
+
+    value = int(raw_value)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("value must be a positive integer")
+    return value
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -11,6 +11,7 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection  # type: ignore[import-u
 
 from quantum_circuit_drawer import draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
+from quantum_circuit_drawer.ir.classical_conditions import ClassicalConditionIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine_3d import LayoutEngine3D
@@ -137,6 +138,55 @@ def test_layout_engine_3d_routes_non_direct_controls_along_topology_path() -> No
 
     assert len(connection.points) == 4
     assert connection.hover_text == "2 intermediate qubits"
+
+
+def test_layout_engine_3d_keeps_classical_conditions_for_controlled_x() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        classical_wires=[
+            WireIR(
+                id="c0",
+                index=0,
+                kind=WireKind.CLASSICAL,
+                label="c",
+                metadata={"bundle_size": 1},
+            )
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine3D().compute(
+        circuit,
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+
+    classical_connections = [
+        connection for connection in scene.connections if connection.is_classical
+    ]
+
+    assert len(classical_connections) == 1
+    assert classical_connections[0].double_line is True
+    assert classical_connections[0].label == "if c[0]=1"
 
 
 def test_layout_engine_3d_places_classical_wires_below_quantum_plane() -> None:
