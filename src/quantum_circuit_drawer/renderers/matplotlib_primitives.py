@@ -35,7 +35,11 @@ OCCLUSION_LAYER_ZORDER = 4
 SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
 LineSegment = tuple[tuple[float, float], tuple[float, float]]
-_GateTextCacheKey = tuple[str, float, float]
+_GateTextCacheKey = tuple[str, float, float | None, float]
+_GATE_TEXT_WIDTH_FRACTION = 0.7
+_GATE_TEXT_HEIGHT_FRACTION = 0.74
+_GATE_LABEL_Y_OFFSET_FRACTION = 0.11
+_GATE_SUBTITLE_Y_OFFSET_FRACTION = 0.22
 
 
 @dataclass(frozen=True, slots=True)
@@ -379,13 +383,14 @@ def draw_gate_label(
         ax=ax,
         scene=scene,
         width=gate.width,
+        height=_gate_label_band_height(gate),
         text=gate.label,
         default_font_size=scene.style.font_size,
     )
     _add_text_artist(
         ax,
         gate.x,
-        gate.y - 0.08 if gate.subtitle else gate.y,
+        _gate_label_y(gate),
         gate.label,
         ha="center",
         va="center",
@@ -398,13 +403,14 @@ def draw_gate_label(
             ax=ax,
             scene=scene,
             width=gate.width,
+            height=_gate_subtitle_band_height(gate),
             text=gate.subtitle,
             default_font_size=scene.style.font_size * 0.78,
         )
         _add_text_artist(
             ax,
             gate.x,
-            gate.y + 0.16,
+            _gate_subtitle_y(gate),
             gate.subtitle,
             ha="center",
             va="center",
@@ -553,6 +559,7 @@ def _fit_gate_text_font_size(
     ax: Axes,
     scene: LayoutScene,
     width: float,
+    height: float | None = None,
     text: str,
     default_font_size: float,
 ) -> float:
@@ -562,6 +569,7 @@ def _fit_gate_text_font_size(
     return _fit_gate_text_font_size_with_context(
         context=context,
         width=width,
+        height=height,
         text=text,
         default_font_size=default_font_size,
         cache={},
@@ -590,11 +598,9 @@ def _build_gate_text_fitting_context(ax: Axes, scene: LayoutScene) -> _GateTextF
         get_viewport_width(figure, default=scene_width),
     )
     axes_width_points = (canvas_width_pixels * axes_width_fraction) * 72.0 / figure.dpi
-    available_width_fraction = 0.74
     return _GateTextFittingContext(
         default_scale=effective_default_scale,
-        points_per_layout_unit=(axes_width_points * available_width_fraction)
-        / effective_scene_width,
+        points_per_layout_unit=axes_width_points / effective_scene_width,
     )
 
 
@@ -602,6 +608,7 @@ def _fit_gate_text_font_size_with_context(
     *,
     context: _GateTextFittingContext,
     width: float,
+    height: float | None = None,
     text: str,
     default_font_size: float,
     cache: dict[_GateTextCacheKey, float],
@@ -615,18 +622,26 @@ def _fit_gate_text_font_size_with_context(
     if context.points_per_layout_unit <= 0.0:
         return effective_default_font_size
 
-    cache_key = (text, width, default_font_size)
+    cache_key = (text, width, height, default_font_size)
     cached_font_size = cache.get(cache_key)
     if cached_font_size is not None:
         return cached_font_size
 
-    available_width_points = context.points_per_layout_unit * width
-    text_width_at_one_point = _text_width_in_points(text)
-    if text_width_at_one_point <= 0.0:
+    available_width_points = context.points_per_layout_unit * width * _GATE_TEXT_WIDTH_FRACTION
+    text_width_at_one_point, text_height_at_one_point = _text_size_in_points(text)
+    if text_width_at_one_point <= 0.0 or text_height_at_one_point <= 0.0:
         cache[cache_key] = effective_default_font_size
         return effective_default_font_size
 
     fitted_font_size = available_width_points / text_width_at_one_point
+    if height is not None:
+        available_height_points = (
+            context.points_per_layout_unit * height * _GATE_TEXT_HEIGHT_FRACTION
+        )
+        fitted_font_size = min(
+            fitted_font_size,
+            available_height_points / text_height_at_one_point,
+        )
     resolved_font_size = max(3.5, min(effective_default_font_size, fitted_font_size))
     cache[cache_key] = resolved_font_size
     return resolved_font_size
@@ -640,8 +655,33 @@ def _page_wrapped_font_scale(scene: LayoutScene) -> float:
 
 
 @lru_cache(maxsize=128)
-def _text_width_in_points(text: str) -> float:
-    return TextPath((0.0, 0.0), text, size=1.0, prop=FontProperties()).get_extents().width
+def _text_size_in_points(text: str) -> tuple[float, float]:
+    bounds = TextPath((0.0, 0.0), text, size=1.0, prop=FontProperties()).get_extents()
+    return bounds.width, bounds.height
+
+
+def _gate_label_y(gate: SceneGate) -> float:
+    if gate.subtitle is None:
+        return gate.y
+    return gate.y - (gate.height * _GATE_LABEL_Y_OFFSET_FRACTION)
+
+
+def _gate_subtitle_y(gate: SceneGate) -> float:
+    return gate.y + (gate.height * _GATE_SUBTITLE_Y_OFFSET_FRACTION)
+
+
+def _gate_label_band_height(gate: SceneGate) -> float | None:
+    if gate.subtitle is None:
+        return gate.height
+    split_y = (_gate_label_y(gate) + _gate_subtitle_y(gate)) / 2.0
+    top_y = gate.y - (gate.height / 2.0)
+    return max(0.0, split_y - top_y)
+
+
+def _gate_subtitle_band_height(gate: SceneGate) -> float:
+    split_y = (_gate_label_y(gate) + _gate_subtitle_y(gate)) / 2.0
+    bottom_y = gate.y + (gate.height / 2.0)
+    return max(0.0, bottom_y - split_y)
 
 
 def finalize_axes(ax: Axes, scene: LayoutScene) -> None:

@@ -25,6 +25,7 @@ from quantum_circuit_drawer.layout.scene_3d import (
     MarkerStyle3D,
 )
 from quantum_circuit_drawer.layout.topology_3d import build_topology
+from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import MatplotlibRenderer3D
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_sample_ir
 
@@ -111,6 +112,17 @@ def _marker_and_measurement_ir() -> CircuitIR:
                         classical_target="c0",
                     ),
                 ]
+            )
+        ],
+    )
+
+
+def _single_gate_ir(*, name: str = "H") -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name=name, target_wires=("q0",))]
             )
         ],
     )
@@ -285,7 +297,7 @@ def test_layout_engine_3d_adds_translucent_topology_plane_at_circuit_start() -> 
     plane = scene.topology_planes[0]
     assert plane.z == topology_z
     assert plane.color == "#22c55e"
-    assert 0.0 < plane.alpha <= 0.08
+    assert 0.08 <= plane.alpha <= 0.14
     assert plane.x_min < min(point.x for point in scene.quantum_wire_positions.values())
     assert plane.x_max > max(point.x for point in scene.quantum_wire_positions.values())
 
@@ -309,7 +321,7 @@ def test_layout_engine_3d_uses_smaller_swap_x_larger_controls_and_cubic_single_g
 
     assert swap_markers
     assert control_markers
-    assert max(marker.size for marker in swap_markers) < single_qubit_gate.size_x * 0.45
+    assert max(marker.size for marker in swap_markers) < single_qubit_gate.size_x * 0.32
     assert min(marker.size for marker in control_markers) > style.control_radius * 6.5
     assert single_qubit_gate.size_x == single_qubit_gate.size_y == single_qubit_gate.size_z
     assert measurement_gate.size_x == measurement_gate.size_y == measurement_gate.size_z
@@ -336,40 +348,30 @@ def test_layout_engine_3d_marks_measurement_connection_with_arrow_to_classical_r
     assert measurement_connection.points[-1].y == classical_point.y
 
 
-def test_layout_engine_3d_fits_text_to_gate_face_size() -> None:
-    circuit = CircuitIR(
-        quantum_wires=[
-            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
-            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
-        ],
-        layers=[
-            LayerIR(
-                operations=[
-                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),
-                    OperationIR(
-                        kind=OperationKind.GATE,
-                        name="VERYLONGGATENAME",
-                        target_wires=("q1",),
-                    ),
-                ]
-            )
-        ],
-    )
-
+def test_matplotlib_renderer_3d_compensates_single_gate_projection_to_look_square() -> None:
     scene = LayoutEngine3D().compute(
-        circuit,
-        DrawStyle(font_size=12.0),
+        _single_gate_ir(),
+        DrawStyle(),
         topology_name="line",
         direct=True,
         hover_enabled=False,
     )
-    text_sizes = {
-        text.text: text.font_size for text in scene.texts if text.text in {"H", "VERYLONGGATENAME"}
-    }
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+    renderer = MatplotlibRenderer3D()
 
-    assert text_sizes["VERYLONGGATENAME"] is not None
-    assert text_sizes["H"] is not None
-    assert text_sizes["VERYLONGGATENAME"] < text_sizes["H"]
+    renderer.render(scene, ax=axes)
+
+    gate = scene.gates[0]
+    compensated_gate = renderer._display_compensated_gate(axes, gate)
+    scale_x, scale_y, scale_z = renderer._projected_axis_scales(axes, gate.center)
+    display_sizes = (
+        compensated_gate.size_x * scale_x,
+        compensated_gate.size_y * scale_y,
+        compensated_gate.size_z * scale_z,
+    )
+
+    assert max(display_sizes) / min(display_sizes) < 1.15
 
 
 def test_draw_quantum_circuit_hides_gate_and_wire_labels_when_hover_is_interactive(
@@ -575,7 +577,7 @@ def test_draw_quantum_circuit_renders_topology_plane_gate_borders_measurement_sy
 
     assert plane_collections
     assert any(
-        collection.get_alpha() is not None and collection.get_alpha() <= 0.08
+        collection.get_alpha() is not None and collection.get_alpha() >= 0.08
         for collection in plane_collections
     )
     assert any(

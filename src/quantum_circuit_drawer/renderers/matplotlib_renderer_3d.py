@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from matplotlib.artist import Artist
 from matplotlib.backend_bases import MouseEvent
+from mpl_toolkits.mplot3d import proj3d  # type: ignore[import-untyped]
 from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
     Line3DCollection,
     Poly3DCollection,
@@ -44,6 +46,7 @@ _CONTROL_CONNECTION_WIDTH_SCALE = 1.55
 _TOPOLOGY_EDGE_WIDTH_SCALE = 0.6
 _GATE_EDGE_WIDTH_SCALE = 0.56
 _HOVER_ZORDER = 10_000.0
+_CUBIC_GATE_SIZE_TOLERANCE = 1e-6
 
 
 class MatplotlibRenderer3D(BaseRenderer):
@@ -211,8 +214,9 @@ class MatplotlibRenderer3D(BaseRenderer):
             if gate.render_style is GateRenderStyle3D.X_TARGET:
                 hover_targets.extend(self._draw_x_target(axes, gate, scene))
                 continue
+            display_gate = self._display_compensated_gate(axes, gate)
             collection = Poly3DCollection(
-                self._cuboid_faces(gate),
+                self._cuboid_faces(display_gate),
                 facecolors=scene.style.theme.measurement_facecolor
                 if gate.render_style is GateRenderStyle3D.MEASUREMENT
                 else scene.style.theme.gate_facecolor,
@@ -226,7 +230,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             if gate.hover_text:
                 hover_targets.append((collection, gate.hover_text))
             if gate.render_style is GateRenderStyle3D.MEASUREMENT and not scene.hover_enabled:
-                self._draw_measurement_symbol(axes, gate, scene)
+                self._draw_measurement_symbol(axes, display_gate, scene)
         return hover_targets
 
     def _draw_topology_planes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
@@ -505,6 +509,64 @@ class MatplotlibRenderer3D(BaseRenderer):
             [(x0, y0, z0), (x0, y1, z0), (x0, y1, z1), (x0, y0, z1)],
             [(x1, y0, z0), (x1, y1, z0), (x1, y1, z1), (x1, y0, z1)],
         ]
+
+    def _display_compensated_gate(self, axes: Axes3D, gate: SceneGate3D) -> SceneGate3D:
+        if not self._should_compensate_gate(gate):
+            return gate
+
+        scale_x, scale_y, scale_z = self._projected_axis_scales(axes, gate.center)
+        if min(scale_x, scale_y, scale_z) <= 0.0:
+            return gate
+
+        target_display_size = min(
+            gate.size_x * scale_x,
+            gate.size_y * scale_y,
+            gate.size_z * scale_z,
+        )
+        if target_display_size <= 0.0:
+            return gate
+
+        return replace(
+            gate,
+            size_x=target_display_size / scale_x,
+            size_y=target_display_size / scale_y,
+            size_z=target_display_size / scale_z,
+        )
+
+    def _should_compensate_gate(self, gate: SceneGate3D) -> bool:
+        if gate.render_style is GateRenderStyle3D.X_TARGET:
+            return False
+        return (
+            abs(gate.size_x - gate.size_y) <= _CUBIC_GATE_SIZE_TOLERANCE
+            and abs(gate.size_y - gate.size_z) <= _CUBIC_GATE_SIZE_TOLERANCE
+        )
+
+    def _projected_axis_scales(self, axes: Axes3D, center: Point3D) -> tuple[float, float, float]:
+        origin = self._projected_display_point(axes, center)
+        x_axis_point = self._projected_display_point(
+            axes, Point3D(x=center.x + 1.0, y=center.y, z=center.z)
+        )
+        y_axis_point = self._projected_display_point(
+            axes, Point3D(x=center.x, y=center.y + 1.0, z=center.z)
+        )
+        z_axis_point = self._projected_display_point(
+            axes, Point3D(x=center.x, y=center.y, z=center.z + 1.0)
+        )
+        return (
+            float(np.linalg.norm(x_axis_point - origin)),
+            float(np.linalg.norm(y_axis_point - origin)),
+            float(np.linalg.norm(z_axis_point - origin)),
+        )
+
+    def _projected_display_point(self, axes: Axes3D, point: Point3D) -> np.ndarray:
+        projected_x, projected_y, _ = proj3d.proj_transform(
+            point.x,
+            point.y,
+            point.z,
+            axes.get_proj(),
+        )
+        display_x, display_y = axes.transData.transform((projected_x, projected_y))
+        return np.array([float(display_x), float(display_y)], dtype=float)
 
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
         try:
