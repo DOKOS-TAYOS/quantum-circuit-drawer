@@ -2,7 +2,25 @@
 
 This page collects small examples for common tasks.
 
-## Draw a circuit without opening a window
+For deeper explanation, read the [User guide](user-guide.md). For exact parameter details, read the [API reference](api.md).
+
+## Contents
+
+- [Draw without opening a window](#draw-without-opening-a-window)
+- [Save a PNG file](#save-a-png-file)
+- [Draw inside an existing Matplotlib figure](#draw-inside-an-existing-matplotlib-figure)
+- [Display cleanly in a notebook](#display-cleanly-in-a-notebook)
+- [Use the `paper` theme for reports](#use-the-paper-theme-for-reports)
+- [Hide gate parameters](#hide-gate-parameters)
+- [Draw a topology-aware 3D circuit](#draw-a-topology-aware-3d-circuit)
+- [Draw a wide circuit with a slider](#draw-a-wide-circuit-with-a-slider)
+- [Save a wide circuit while keeping slider exploration](#save-a-wide-circuit-while-keeping-slider-exploration)
+- [Be explicit about the framework](#be-explicit-about-the-framework)
+- [Use a `DrawStyle` instance](#use-a-drawstyle-instance)
+- [Render from the internal IR](#render-from-the-internal-ir)
+- [Explore the example gallery](#explore-the-example-gallery)
+
+## Draw without opening a window
 
 ```python
 from quantum_circuit_drawer import draw_quantum_circuit
@@ -10,7 +28,7 @@ from quantum_circuit_drawer import draw_quantum_circuit
 figure, axes = draw_quantum_circuit(circuit, show=False)
 ```
 
-Use this in scripts, tests, and batch jobs.
+Use this in scripts, tests, notebooks, and batch jobs.
 
 ## Save a PNG file
 
@@ -37,6 +55,17 @@ draw_quantum_circuit(circuit, ax=axes)
 
 This is the right pattern when the circuit is part of a larger report figure or dashboard layout.
 
+## Display cleanly in a notebook
+
+```python
+from quantum_circuit_drawer import draw_quantum_circuit
+
+figure, axes = draw_quantum_circuit(circuit, show=False)
+figure
+```
+
+Install notebook tools in the same `.venv`; see [Installation](installation.md#use-the-library-in-jupyter).
+
 ## Use the `paper` theme for reports
 
 ```python
@@ -48,7 +77,7 @@ draw_quantum_circuit(
 )
 ```
 
-## Hide gate parameters for a cleaner diagram
+## Hide gate parameters
 
 ```python
 from quantum_circuit_drawer import draw_quantum_circuit
@@ -73,11 +102,11 @@ draw_quantum_circuit(
 )
 ```
 
-Supported 3D topologies in this first version are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
+Supported 3D topologies are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
 
-If you also set `hover=True`, labels are hidden only in interactive 3D figures. Saved renders or non-interactive backends fall back to visible labels.
+If `hover=True`, labels are hidden only in interactive 3D figures. Saved renders or non-interactive backends fall back to visible labels.
 
-## Draw a wide circuit with a horizontal slider
+## Draw a wide circuit with a slider
 
 ```python
 from quantum_circuit_drawer import draw_quantum_circuit
@@ -93,8 +122,9 @@ Remember:
 
 - this only works when the library creates the figure
 - do not combine `page_slider=True` with `ax=...`
+- do not combine `page_slider=True` with `view="3d"`
 
-## Save a wide circuit while keeping the interactive slider view
+## Save a wide circuit while keeping slider exploration
 
 ```python
 from quantum_circuit_drawer import draw_quantum_circuit
@@ -117,11 +147,9 @@ from quantum_circuit_drawer import draw_quantum_circuit
 draw_quantum_circuit(circuit, framework="qiskit")
 ```
 
-This can be helpful when you want your code to be easier to read or to fail clearly if the wrong object is passed.
+This can make reusable code easier to read. If the explicit framework does not match the object, the call raises `UnsupportedFrameworkError`.
 
-If the explicit framework does not match the object, the call raises `UnsupportedFrameworkError`.
-
-## Use a `DrawStyle` instance instead of a mapping
+## Use a `DrawStyle` instance
 
 ```python
 from quantum_circuit_drawer import DrawStyle, draw_quantum_circuit
@@ -134,22 +162,25 @@ style = DrawStyle(
 draw_quantum_circuit(circuit, style=style)
 ```
 
+Mappings such as `style={"theme": "paper"}` are usually shorter. A `DrawStyle` instance is useful when you want typed configuration in your own code.
+
 ## Render from the internal IR
 
 ```python
 from quantum_circuit_drawer import draw_quantum_circuit
-from quantum_circuit_drawer.ir import CircuitIR
 
-draw_quantum_circuit(ir_circuit)
+draw_quantum_circuit(ir_circuit, framework="ir")
 ```
 
-If your own pipeline can build a `CircuitIR`, this gives you a framework-neutral route into the renderer.
+Passing `framework="ir"` is optional, but it can make your intent clear.
 
-Passing `framework="ir"` is optional, but allowed when you want to make that intent explicit.
+For a full IR construction example, see [Frameworks](frameworks.md#internal-ir).
 
-## Explore the full example gallery
+## Explore the example gallery
 
-The repository includes runnable examples for balanced, wide, deep, Grover, and QAOA-style circuits across the supported adapters.
+The repository includes runnable examples for balanced, wide, deep, Grover, QAOA-style, 3D, and conditional/composite circuits across supported adapters.
+
+List the demo catalog.
 
 Windows PowerShell:
 
@@ -163,4 +194,18 @@ Linux or WSL:
 .venv/bin/python examples/run_demo.py --list
 ```
 
-For more detail, see [`../examples/README.md`](../examples/README.md).
+Run one demo without opening a window.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-balanced --no-show
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python examples/run_demo.py --demo qiskit-balanced --no-show
+```
+
+For the full demo list, see [`../examples/README.md`](../examples/README.md).

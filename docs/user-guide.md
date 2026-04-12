@@ -1,108 +1,118 @@
 # User guide
 
-This guide explains the main behavior of `quantum-circuit-drawer` from a user point of view.
+This guide explains how to use `quantum-circuit-drawer` in everyday workflows.
 
-## The core idea
+For the exact public signature, style table, and exception list, use the [API reference](api.md). This page focuses on how the pieces fit together when you are drawing circuits.
+
+## Contents
+
+- [Core idea](#core-idea)
+- [Choose a rendering workflow](#choose-a-rendering-workflow)
+- [Scripts and batch exports](#scripts-and-batch-exports)
+- [Notebooks](#notebooks)
+- [Reports and custom Matplotlib figures](#reports-and-custom-matplotlib-figures)
+- [Styling in practice](#styling-in-practice)
+- [Wide circuits](#wide-circuits)
+- [Topology-aware 3D view](#topology-aware-3d-view)
+- [Composite operations](#composite-operations)
+- [Classical conditions](#classical-conditions)
+- [Framework selection](#framework-selection)
+- [Practical tips](#practical-tips)
+
+## Core idea
 
 The library is built around one public function:
 
 ```python
-draw_quantum_circuit(
-    circuit,
-    framework=None,
-    *,
-    style=None,
-    layout=None,
-    backend="matplotlib",
-    ax=None,
-    output=None,
-    show=True,
-    page_slider=False,
-    composite_mode="compact",
-    view="2d",
-    topology="line",
-    direct=True,
-    hover=False,
-    **options,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
+
+figure, axes = draw_quantum_circuit(circuit)
 ```
 
-Most users only need `circuit`, and sometimes `style`, `output`, `show`, `ax`, `composite_mode`, or the new 3D arguments.
+The input can be a supported framework object or the internal `CircuitIR`. In normal use, the library adapts the circuit, computes a drawable layout, and renders it with Matplotlib.
 
-`backend` is part of the public signature for forward compatibility, but the current release only supports `backend="matplotlib"`.
+Most users only need these options regularly:
 
-## What you can pass as `circuit`
+- `show=False` to avoid opening a window
+- `output="path.png"` to save a file
+- `ax=axes` to draw inside an existing Matplotlib figure
+- `style={...}` to change theme, spacing, labels, or pagination
+- `page_slider=True` for interactive wide 2D circuits
+- `view="3d"` for topology-aware 3D views
+- `composite_mode="expand"` when you want to inspect supported decompositions
 
-You can pass:
+## Choose a rendering workflow
 
-- a supported framework object such as a Qiskit, Cirq, PennyLane, or CUDA-Q circuit representation
-- a `CircuitIR` object from `quantum_circuit_drawer.ir`
+There are two main workflows.
 
-By default, the library tries to detect the right adapter automatically.
-
-If you already know the framework and want to be explicit, pass `framework="qiskit"` or another supported framework name.
-
-If the explicit framework does not match the object you pass, the call raises `UnsupportedFrameworkError`.
-
-## What the function returns
-
-The return value depends on how you render:
-
-- If `ax is None`, the library creates a managed Matplotlib figure and returns `(figure, axes)`.
-- If `ax` is provided, the library draws on that axes and returns the same axes object.
-
-This small difference is worth remembering when you write reusable code. In 3D mode, the same rule applies: the managed path returns `(figure, axes)`, and the caller-managed path returns your 3D axes object.
-
-## Showing and saving
-
-### `show`
-
-- `show=True` means the managed figure is shown when the current Matplotlib backend is interactive.
-- `show=False` means no window is opened.
-
-Use `show=False` for scripts, tests, automated exports, or notebook flows where you want full control.
-
-### `output`
-
-Pass a path to save the rendered result:
+Managed rendering:
 
 ```python
-draw_quantum_circuit(circuit, output="circuit.png", show=False)
+figure, axes = draw_quantum_circuit(circuit, show=False)
 ```
 
-The path can be a string or another path-like object.
+The library creates the Matplotlib figure and axes. Use this when you want the simplest path, or when you need features that require a managed figure such as `page_slider=True`.
 
-If saving fails, the library raises `RenderingError`.
-
-### `ax`
-
-Use `ax` when you want to place the circuit inside your own Matplotlib layout:
+Caller-managed rendering:
 
 ```python
 import matplotlib.pyplot as plt
 
-fig, ax = plt.subplots(figsize=(8, 3))
-draw_quantum_circuit(circuit, ax=ax)
+figure, axes = plt.subplots(figsize=(8, 3))
+returned_axes = draw_quantum_circuit(circuit, ax=axes)
 ```
 
-This is useful when the circuit is only one panel in a larger figure.
+You create the figure and the library draws into it. Use this when the circuit is part of a larger Matplotlib layout.
 
-## Styling
+## Scripts and batch exports
 
-You can configure styling in two ways:
+For scripts, tests, and batch jobs, prefer `show=False`.
 
-- pass a mapping such as `style={"theme": "paper", "show_params": False}`
-- pass a `DrawStyle` instance
+```python
+draw_quantum_circuit(
+    circuit,
+    output="circuit.png",
+    show=False,
+)
+```
 
-Unknown style keys or invalid values are rejected early with `StyleValidationError`.
+This avoids depending on an interactive Matplotlib backend. If saving fails, the library raises `RenderingError`; see [Troubleshooting](troubleshooting.md#saving-output-fails).
 
-The built-in themes are:
+## Notebooks
 
-- `dark` for a high-contrast dark background
-- `light` for a clean bright background
-- `paper` for a softer publication-style look
+Install Jupyter tooling in the same virtual environment as the library; see [Installation](installation.md#use-the-library-in-jupyter).
 
-### Quick styling example
+In notebooks, it is often clearest to request a figure without opening an external window:
+
+```python
+figure, axes = draw_quantum_circuit(circuit, show=False)
+figure
+```
+
+If you save files from a notebook, keep paths simple at first:
+
+```python
+draw_quantum_circuit(circuit, output="notebook_circuit.png", show=False)
+```
+
+## Reports and custom Matplotlib figures
+
+Use `ax=...` when the circuit is one panel in a larger figure.
+
+```python
+import matplotlib.pyplot as plt
+
+figure, axes = plt.subplots(1, 2, figsize=(12, 4))
+draw_quantum_circuit(circuit_a, ax=axes[0], style={"theme": "paper"})
+draw_quantum_circuit(circuit_b, ax=axes[1], style={"theme": "paper"})
+figure.tight_layout()
+```
+
+When you pass `ax`, `draw_quantum_circuit(...)` returns that same axes object. This is useful in helper functions because you can keep working with the same Matplotlib object.
+
+## Styling in practice
+
+You can pass a style mapping:
 
 ```python
 draw_quantum_circuit(
@@ -115,63 +125,50 @@ draw_quantum_circuit(
 )
 ```
 
-### Style options
+Useful starting points:
 
-These are the user-facing style fields accepted by the current public API.
+- `theme="dark"` for the default high-contrast look
+- `theme="light"` for bright backgrounds
+- `theme="paper"` for reports and documentation
+- `show_params=False` for cleaner diagrams when parameters are not the focus
+- `show_wire_labels=False` when labels are already explained in surrounding text
+- `max_page_width=...` when wide circuits wrap too late or too early
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `font_size` | `12.0` | Base text size used in the drawing |
-| `wire_spacing` | `1.2` | Vertical distance between wires |
-| `layer_spacing` | `0.45` | Horizontal distance between layers |
-| `gate_width` | `0.72` | Gate box width |
-| `gate_height` | `0.72` | Gate box height |
-| `line_width` | `1.6` | Main line thickness |
-| `control_radius` | `0.08` | Controlled-gate dot radius |
-| `show_params` | `True` | Whether gate parameters are shown |
-| `show_wire_labels` | `True` | Whether wire labels are shown |
-| `theme` | `dark` | Built-in theme or a `DrawTheme` |
-| `margin_left` | `0.85` | Left outer margin |
-| `margin_right` | `0.35` | Right outer margin |
-| `margin_top` | `0.8` | Top outer margin |
-| `margin_bottom` | `0.8` | Bottom outer margin |
-| `label_margin` | `0.18` | Space between wires and labels |
-| `classical_wire_gap` | `0.75` | Separation inside classical-wire rendering |
-| `swap_marker_size` | `0.14` | Size of swap markers |
-| `max_page_width` | `20.0` | Page width before wrapping to another page |
-| `page_vertical_gap` | `1.8` | Vertical gap between wrapped pages |
+For all accepted style fields, see [API reference](api.md#style-fields).
 
-If you pass an unknown style key or an invalid value, the library raises `StyleValidationError`.
+## Wide circuits
 
-## Wide circuits and `page_slider`
+Wide circuits can either wrap across pages or use an interactive horizontal slider.
 
-For wide circuits, there are two main modes:
-
-- normal wrapped rendering, controlled mainly by `max_page_width`
-- interactive horizontal scrolling, enabled with `page_slider=True`
-
-Example:
+Wrapped rendering is controlled mainly by `max_page_width`:
 
 ```python
 draw_quantum_circuit(
+    circuit,
+    style={"max_page_width": 5.0},
+    show=False,
+)
+```
+
+Interactive scrolling uses `page_slider=True`:
+
+```python
+figure, axes = draw_quantum_circuit(
     circuit,
     style={"max_page_width": 4.0},
     page_slider=True,
 )
 ```
 
-Important behavior:
+Important rules:
 
-- `page_slider=True` only works when the library manages the figure for you
-- if you pass `ax=...` together with `page_slider=True`, the call raises `ValueError`
-- `page_slider=True` is currently only available for `view="2d"`
-- if you also pass `output=...`, the saved file contains the paged circuit without the slider UI
-
-This makes `page_slider` useful for interactive exploration while keeping exported images clean.
+- `page_slider=True` requires a managed figure, so do not combine it with `ax=...`.
+- `page_slider=True` is currently 2D-only.
+- If you also pass `output=...`, the saved file uses the clean paged layout without the slider UI.
 
 ## Topology-aware 3D view
 
-Use `view="3d"` when you want the circuit to grow along a depth axis while the qubits stay placed on a chip-like topology.
+Use `view="3d"` when you want the qubits placed on a chip-like topology while the circuit evolves along a depth axis.
 
 ```python
 draw_quantum_circuit(
@@ -183,100 +180,64 @@ draw_quantum_circuit(
 )
 ```
 
-### 3D options
+3D options:
 
-- `view="2d"` is the default and keeps the current planar renderer.
-- `view="3d"` activates the new topology-aware renderer.
-- `topology` chooses the chip layout. The supported values are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
-- `direct=True` draws straight control-to-target connections.
-- `direct=False` routes those connections along the chip topology.
-- `hover=True` hides gate and qubit labels only when the figure is interactive and you are not also saving with `output=...`. In saved or non-interactive renders, the library falls back to visible labels.
+- `topology="line"` works for any qubit count and is the safest first choice.
+- `topology="grid"` is useful when your qubit count forms a suitable rectangle.
+- `topology="star"` and `topology="star_tree"` highlight hub-like structures.
+- `topology="honeycomb"` currently targets a 53-qubit reference layout.
+- `direct=True` draws straight connections.
+- `direct=False` routes connections along topology paths.
+- `hover=True` hides labels only in interactive 3D figures; saved or non-interactive renders fall back to visible labels.
 
-### 3D topology notes
+If you provide your own axes with `ax=...`, it must be a 3D Matplotlib axes. See [Troubleshooting](troubleshooting.md#view3d-raises-an-axes-error).
 
-- `line` works for any number of qubits and is the default when `view="3d"`.
-- `grid` requires an exact rectangular factorization with at least `2 x 2`.
-- `star` requires at least 2 qubits.
-- `star_tree` currently accepts sizes of the form `3 * 2^d - 2`.
-- `honeycomb` currently targets one 53-qubit reference layout.
+## Composite operations
 
-### 3D axes behavior
+Some frameworks can provide subcircuits, composite instructions, or decomposable operations.
 
-- If `ax is None`, the library creates a managed 3D Matplotlib figure for you.
-- If you pass `ax=...`, it must already be a 3D Matplotlib axes.
-- `page_slider=True` cannot be combined with `view="3d"` in this first version.
-
-## Composite operations and `composite_mode`
-
-Some frameworks can hand the drawer a subcircuit, composite instruction, or operation with a decomposition.
-
-- `composite_mode="compact"` keeps that operation as one labeled box when the adapter can represent it that way.
-- `composite_mode="expand"` asks the adapter to use the available decomposition instead.
-
-Example:
+Use the default compact mode when you want a high-level diagram:
 
 ```python
-draw_quantum_circuit(
-    circuit,
-    composite_mode="expand",
-)
+draw_quantum_circuit(circuit, composite_mode="compact")
 ```
 
-This is especially useful for Qiskit instructions built from subcircuits, Cirq `CircuitOperation`, and PennyLane operations such as `QFT`.
+Use expanded mode when you want to inspect supported decompositions:
+
+```python
+draw_quantum_circuit(circuit, composite_mode="expand")
+```
+
+This is especially useful for Qiskit instructions built from subcircuits, Cirq `CircuitOperation`, PennyLane operations such as `QFT`, and MyQLM gates backed by `gateDic`.
 
 ## Classical conditions
 
-For supported frameworks, classical conditions are rendered as a classical double-line connection plus a short label such as `if c[0]=1` or `if c=3`.
+For supported frameworks, classical conditions are rendered as a classical double-line connection plus a short condition label.
 
-The current goal is to show when an operation is conditioned on classical data, not to render full control-flow branches.
+The goal is to show that an operation depends on classical data. The current renderer does not try to represent full branching control flow.
 
-## Choosing the framework explicitly
+## Framework selection
 
-Framework detection is convenient, but explicit selection can make scripts clearer:
+Autodetection is usually enough:
+
+```python
+draw_quantum_circuit(circuit)
+```
+
+Use `framework=...` when you want your code to fail clearly if the wrong object is passed:
 
 ```python
 draw_quantum_circuit(circuit, framework="cirq")
 ```
 
-Use this when:
+Supported user-facing framework names are covered in [Frameworks](frameworks.md).
 
-- you want to make your code more self-explanatory
-- you work with wrapper objects and want to be explicit about the intended adapter
+## Practical tips
 
-## Advanced use: custom layout engines
-
-Most users can ignore the `layout` parameter.
-
-It exists for advanced integrations where you want to provide your own layout engine object.
-
-The required protocol depends on the view:
-
-- For `view="2d"`, the object must provide `compute(circuit_ir, style)` and return a 2D `LayoutScene`.
-- For `view="3d"`, the object must provide `compute(circuit_ir, style, *, topology_name, direct, hover_enabled)` and return a 3D `LayoutScene3D`.
-
-If you are only drawing circuits, stay with the default layout engine.
-
-## Exceptions you are likely to see
-
-| Exception | Typical meaning |
-| --- | --- |
-| `UnsupportedFrameworkError` | The object could not be matched to a supported framework, or your explicit `framework` argument does not match the object |
-| `UnsupportedBackendError` | You asked for a backend other than the currently supported `matplotlib` backend |
-| `StyleValidationError` | One or more style values are invalid |
-| `RenderingError` | The figure could not be written to the requested output path |
-| `UnsupportedOperationError` | The adapter found an operation that cannot be represented meaningfully |
-| `LayoutError` | Layout computation failed |
-| `ValueError` | You combined incompatible runtime options such as `page_slider=True` with `ax=...`, or requested a 3D topology that does not fit the qubit count |
-
-## Practical guidance
-
-- Start with autodetection and only set `framework` when you need to be explicit.
-- Use `show=False` in scripts and tests.
-- Use `ax=...` when the circuit is part of a larger Matplotlib figure.
-- Use `page_slider=True` for interactive exploration of very wide circuits.
-- Use `theme="paper"` when you want a documentation or article-friendly look.
-
-## Next step
-
-- Read [Frameworks](frameworks.md) for source-specific notes.
-- Use [Recipes](recipes.md) for copy-paste examples.
+- Start with a small circuit and default settings before changing styles.
+- Use `show=False` in scripts, CI, and notebooks unless you explicitly want an interactive window.
+- Use `theme="paper"` for figures that will go into reports.
+- Use `page_slider=True` for exploration, then save a normal paged image with `output=...`.
+- Start 3D work with `topology="line"` before moving to stricter topology shapes.
+- Keep `framework=...` explicit in reusable code if different framework objects may flow through the same function.
+- Use [Recipes](recipes.md) when you need a quick pattern, and [Troubleshooting](troubleshooting.md) when an option combination fails.

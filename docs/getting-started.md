@@ -2,11 +2,9 @@
 
 This guide gets you from installation to a first rendered circuit as quickly as possible.
 
-If you have not installed the package yet, start with [Installation](installation.md).
+If you have not installed the package yet, start with [Installation](installation.md). For the example below, install the Qiskit extra.
 
 ## First example
-
-This example uses Qiskit because it shows the common workflow clearly: create a circuit, pass it to `draw_quantum_circuit(...)`, and receive a Matplotlib figure and axes.
 
 ```python
 from qiskit import QuantumCircuit
@@ -23,13 +21,11 @@ figure, axes = draw_quantum_circuit(circuit)
 
 By default:
 
-- the library tries to detect the framework automatically
+- the library detects the framework automatically
 - the `matplotlib` backend is used
 - a managed Matplotlib figure is created for you
-- the default built-in theme is `dark`
-- the window is shown when `show=True`
-
-If you prefer a script-friendly first run, use `show=False`.
+- the built-in `dark` theme is used
+- the figure is shown when the active Matplotlib backend is interactive
 
 ## Save an image without opening a window
 
@@ -50,11 +46,11 @@ figure, axes = draw_quantum_circuit(
 )
 ```
 
-Use this pattern in scripts, automated jobs, or notebooks where you want an image file but not an interactive window.
+Use this pattern in scripts, automated jobs, and notebooks where you want an image file without an external Matplotlib window.
 
 ## Draw on your own axes
 
-If you already manage the Matplotlib figure yourself, pass `ax=...`.
+Use `ax=...` when the circuit is one part of a larger Matplotlib figure.
 
 ```python
 import matplotlib.pyplot as plt
@@ -73,10 +69,10 @@ returned_axes = draw_quantum_circuit(circuit, ax=axes)
 
 In this mode, the function returns the same axes object instead of a `(figure, axes)` tuple.
 
-The same managed-versus-caller-owned rule also applies to `view="3d"`: managed rendering returns `(figure, axes)`, while caller-managed rendering returns the 3D axes you pass in.
-
 ## What to read next
 
-- Read the [User guide](user-guide.md) to understand the full API and style options.
-- Read [Frameworks](frameworks.md) if you use Cirq, PennyLane, CUDA-Q, or the internal IR.
-- Use [Recipes](recipes.md) when you want a quick solution for a specific task.
+- [API reference](api.md): exact parameters, return values, style fields, and exceptions.
+- [User guide](user-guide.md): practical workflows for scripts, notebooks, reports, wide circuits, and 3D views.
+- [Frameworks](frameworks.md): notes for Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR.
+- [Recipes](recipes.md): copy-paste examples for common tasks.
+- [Troubleshooting](troubleshooting.md): fixes for common install and rendering issues.

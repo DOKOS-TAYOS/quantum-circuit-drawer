@@ -2,22 +2,49 @@
 
 This guide explains how `quantum-circuit-drawer` works with each supported input path.
 
+In most cases, the rendering call stays the same:
+
+```python
+from quantum_circuit_drawer import draw_quantum_circuit
+
+draw_quantum_circuit(circuit)
+```
+
+Use `framework=...` when you want to be explicit or when a wrapper object makes autodetection unclear.
+
+## Contents
+
+- [Overview](#overview)
+- [Qiskit](#qiskit)
+- [Cirq](#cirq)
+- [PennyLane](#pennylane)
+- [MyQLM](#myqlm)
+- [CUDA-Q](#cuda-q)
+- [Internal IR](#internal-ir)
+- [Choosing the IR path](#choosing-the-ir-path)
+
 ## Overview
 
-The library currently supports these user-facing inputs:
+The current user-facing input paths are:
 
-- Qiskit circuits
-- Cirq circuits
-- PennyLane tape-like objects
-- MyQLM circuits
-- CUDA-Q closed kernels
-- The internal `CircuitIR` representation
+| Input path | Typical object | Extra |
+| --- | --- | --- |
+| Qiskit | `qiskit.QuantumCircuit` | `qiskit` |
+| Cirq | `cirq.Circuit` | `cirq` |
+| PennyLane | `QuantumTape`, `QuantumScript`, or tape-like objects | `pennylane` |
+| MyQLM | `qat.core.Circuit` | `myqlm` |
+| CUDA-Q | closed CUDA-Q kernels | `cudaq` |
+| Internal IR | `CircuitIR` | none |
 
-The most important practical idea is that you do not need to change your rendering workflow when the circuit source changes. In most cases, you still call `draw_quantum_circuit(...)` the same way.
+Install extras as shown in [Installation](installation.md#install-optional-framework-extras).
 
 ## Qiskit
 
-Install the `qiskit` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[qiskit]`.
+Install:
+
+```bash
+python -m pip install "quantum-circuit-drawer[qiskit]"
+```
 
 Typical input:
 
@@ -40,11 +67,21 @@ draw_quantum_circuit(circuit)
 
 Current support includes common gates, controlled gates, classical `if` conditions, composite instructions, swap, barriers, and measurements.
 
-If you pass `framework="qiskit"` explicitly and the object is not really a Qiskit circuit, the call raises `UnsupportedFrameworkError` instead of silently guessing.
+Use this when you want a clear framework check:
+
+```python
+draw_quantum_circuit(circuit, framework="qiskit")
+```
+
+If the object is not a Qiskit circuit, the call raises `UnsupportedFrameworkError`.
 
 ## Cirq
 
-Install the `cirq` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[cirq]`.
+Install:
+
+```bash
+python -m pip install "quantum-circuit-drawer[cirq]"
+```
 
 Typical input:
 
@@ -67,13 +104,17 @@ circuit = cirq.Circuit(
 draw_quantum_circuit(circuit, framework="cirq")
 ```
 
-Explicit `framework="cirq"` is optional, but many users like it because it makes the code more readable.
+Current support includes common gates, controlled gates, classically controlled operations, `CircuitOperation`, swap, and measurements.
 
-Current support also includes `ClassicallyControlledOperation` and compact or expanded `CircuitOperation` rendering through `composite_mode`.
+Use `composite_mode="expand"` when you want supported `CircuitOperation` contents to appear as separate operations.
 
 ## PennyLane
 
-Install the `pennylane` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[pennylane]`.
+Install:
+
+```bash
+python -m pip install "quantum-circuit-drawer[pennylane]"
+```
 
 Typical inputs:
 
@@ -96,11 +137,15 @@ with qml.tape.QuantumTape() as tape:
 draw_quantum_circuit(tape, framework="pennylane")
 ```
 
-PennyLane support includes mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
+Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
 
 ## MyQLM
 
-Install the `myqlm` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[myqlm]`.
+Install:
+
+```bash
+python -m pip install "quantum-circuit-drawer[myqlm]"
+```
 
 Typical input:
 
@@ -108,9 +153,9 @@ Typical input:
 
 Recommended workflow:
 
-- build your circuit with `Program()`
-- export it with `to_circ()`
-- pass the resulting circuit to `draw_quantum_circuit(...)`
+1. Build with `Program()`.
+2. Export with `to_circ()`.
+3. Draw the resulting circuit.
 
 Example:
 
@@ -131,16 +176,21 @@ draw_quantum_circuit(circuit, framework="myqlm")
 
 Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, simple single-bit classical control, and compact or expanded composite gates backed by `gateDic`.
 
-Important limits:
+Current limits:
 
-- this first version is intentionally focused on `qat.core.Circuit`, not on `Program` or `QRoutine` objects directly
-- advanced classical formulas, `BREAK`, `CLASSIC`, and `REMAP` operations are not rendered yet
-- MyQLM is installed from the upstream package under its own EULA terms
-- if you already have a MyQLM `Program`, convert it first with `to_circ()`
+- `Program` and `QRoutine` objects are not the main adapter input; convert with `to_circ()` first.
+- Advanced classical formulas, `BREAK`, `CLASSIC`, and `REMAP` operations are not rendered yet.
+- MyQLM is installed from the upstream package under its own EULA terms.
+
+See [Troubleshooting](troubleshooting.md#myqlm-program-objects-do-not-draw-directly) if a MyQLM object is not detected.
 
 ## CUDA-Q
 
-Install the `cudaq` extra as shown in [Installation](installation.md#install-optional-extras), using `quantum-circuit-drawer[cudaq]` on Linux or WSL2.
+Install on Linux or WSL2:
+
+```bash
+python -m pip install "quantum-circuit-drawer[cudaq]"
+```
 
 Typical input:
 
@@ -167,15 +217,17 @@ draw_quantum_circuit(bell_pair)
 
 Here, "closed" means the kernel can be inspected without additional runtime arguments.
 
-Important limits:
+Current limits:
 
-- this extra is Linux/WSL2-first and is not intended for native Windows installs
-- kernels that still require runtime arguments are not supported
-- advanced CUDA-Q control flow and other advanced constructs are outside the supported subset
+- CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
+- Kernels that still require runtime arguments are not supported.
+- Advanced CUDA-Q control flow and broader advanced constructs are outside the supported subset.
+
+See [Troubleshooting](troubleshooting.md#cuda-q-kernels-with-arguments-do-not-draw) for the most common CUDA-Q issue.
 
 ## Internal IR
 
-The internal IR path is especially useful when:
+The internal IR path is useful when:
 
 - your framework is not directly supported
 - you want full control over the circuit structure before rendering
@@ -249,19 +301,17 @@ ir = CircuitIR(
 draw_quantum_circuit(ir, show=False)
 ```
 
-Some useful IR rules to remember:
+Useful IR rules:
 
-- wire ids must be unique across quantum and classical wires
-- classical conditions reference classical wire ids through `ClassicalConditionIR`
-- measurements require a `classical_target`
-- non-barrier operations need at least one target wire
+- Wire ids must be unique across quantum and classical wires.
+- Classical conditions reference classical wire ids through `ClassicalConditionIR`.
+- Measurements require a `classical_target`.
+- Non-barrier operations need at least one target wire.
 
-If you already built a `CircuitIR`, autodetection is enough, but you can also pass `framework="ir"` when you want to be explicit.
+If you already built a `CircuitIR`, autodetection is enough. You can also pass `framework="ir"` when you want the intent to be explicit.
 
-## When to choose the IR path
+## Choosing the IR path
 
-Use the IR path when adapting your own circuit model is easier than waiting for native framework support. It is the most practical advanced-user extension point in the current library.
+Choose the IR path when adapting your own circuit model is easier than waiting for native framework support.
 
-## Next step
-
-Use [Recipes](recipes.md) for concrete rendering tasks.
+For common rendering tasks, continue with [Recipes](recipes.md). For exact API behavior, see [API reference](api.md).

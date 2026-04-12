@@ -1,58 +1,49 @@
 # quantum-circuit-drawer documentation
 
-This folder contains the user documentation for `quantum-circuit-drawer`.
+`quantum-circuit-drawer` draws supported quantum circuit objects with one consistent Matplotlib-based API.
 
-The library gives you one main entry point, `draw_quantum_circuit(...)`, to render supported quantum circuits with a consistent Matplotlib-based style. These docs are written for people who want to use the library in scripts, notebooks, reports, or small tools.
+Use this page as the map. The README stays short; the focused guides below hold the details.
 
 ## Start here
 
-- If you have not installed the package yet, read [Installation](installation.md).
-- If you want your first working example, go to [Getting started](getting-started.md).
-- If you want to understand the API and options in more depth, read the [User guide](user-guide.md).
-- If you need framework-specific notes, check [Frameworks](frameworks.md).
-- If you prefer copy-paste examples for common tasks, use [Recipes](recipes.md).
+- New install: [Installation](installation.md)
+- First successful render: [Getting started](getting-started.md)
+- Exact function behavior: [API reference](api.md)
+- Practical workflows: [User guide](user-guide.md)
+- Framework-specific use: [Frameworks](frameworks.md)
+- Copy-paste tasks: [Recipes](recipes.md)
+- Something went wrong: [Troubleshooting](troubleshooting.md)
+- Local development: [Development](development.md)
 
 ## Documentation map
 
-### [Installation](installation.md)
+| Page | Use it for |
+| --- | --- |
+| [Installation](installation.md) | Python version, `.venv` setup, package extras, Jupyter setup, CUDA-Q platform notes, editable installs |
+| [Getting started](getting-started.md) | A short Qiskit example, saving an image, drawing on your own axes |
+| [API reference](api.md) | Public signature, parameters, return values, style options, exceptions, advanced layout protocols |
+| [User guide](user-guide.md) | How to work with scripts, notebooks, reports, wide circuits, 3D views, styling, and composite operations |
+| [Frameworks](frameworks.md) | Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR support details |
+| [Recipes](recipes.md) | Small examples for common rendering tasks |
+| [Troubleshooting](troubleshooting.md) | Common install, Matplotlib, API-combination, topology, and adapter issues |
+| [Development](development.md) | Local checks, formatting, tests, build commands, and benchmarks |
 
-Python requirements, virtual environment setup, package extras, and platform notes.
+## Suggested reading paths
 
-### [Getting started](getting-started.md)
-
-The shortest path from installation to a rendered circuit.
-
-### [User guide](user-guide.md)
-
-How `draw_quantum_circuit(...)` behaves, what it returns, how styling works, and what the main options do, including wide-circuit sliders and the topology-aware 3D view.
-
-### [Frameworks](frameworks.md)
-
-How to use the library with Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, or the internal IR.
-
-### [Recipes](recipes.md)
-
-Task-oriented examples such as saving images, drawing on existing axes, changing themes, and handling wide circuits.
-
-## What this library is good at
-
-- Keeping one visual style across multiple quantum frameworks
-- Working naturally with Matplotlib figures and axes
-- Saving circuit diagrams for documentation, reports, or notebooks
-- Exploring wide or topology-aware views without changing the core drawing call
-- Offering a small typed public API instead of many framework-specific drawing calls
-
-## What this library does not try to do
-
-- Replace the full native visualization stack of every quantum framework
-- Support multiple rendering backends today
-- Cover every advanced classical-control or framework-specific visualization feature
-
-## Suggested reading path
-
-Most users will get the best experience with this order:
+For a first run:
 
 1. [Installation](installation.md)
 2. [Getting started](getting-started.md)
-3. [User guide](user-guide.md)
-4. [Frameworks](frameworks.md) or [Recipes](recipes.md), depending on what you need next
+3. [Recipes](recipes.md)
+
+For regular use:
+
+1. [API reference](api.md)
+2. [User guide](user-guide.md)
+3. [Frameworks](frameworks.md)
+
+For debugging:
+
+1. [Troubleshooting](troubleshooting.md)
+2. [Frameworks](frameworks.md)
+3. [API reference](api.md)
