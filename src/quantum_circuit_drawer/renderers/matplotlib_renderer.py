@@ -30,8 +30,6 @@ from .base import BaseRenderer
 from .matplotlib_primitives import (
     _build_gate_text_fitting_context,
     _fit_gate_text_font_size_with_context,
-    _gate_label_band_height,
-    _gate_subtitle_band_height,
     draw_barriers,
     draw_connections,
     draw_control,
@@ -119,7 +117,6 @@ class MatplotlibRenderer(BaseRenderer):
                 label_font_size = _fit_gate_text_font_size_with_context(
                     context=gate_text_context,
                     width=gate.width,
-                    height=_gate_label_band_height(gate),
                     text=gate.label,
                     default_font_size=scene.style.font_size,
                     cache=gate_text_cache,
@@ -128,7 +125,6 @@ class MatplotlibRenderer(BaseRenderer):
                     _fit_gate_text_font_size_with_context(
                         context=gate_text_context,
                         width=gate.width,
-                        height=_gate_subtitle_band_height(gate),
                         text=gate.subtitle,
                         default_font_size=scene.style.font_size * 0.78,
                         cache=gate_text_cache,

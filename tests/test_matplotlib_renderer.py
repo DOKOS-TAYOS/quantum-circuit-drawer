@@ -581,49 +581,6 @@ def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_narrow_wra
     assert text_x + text_width <= patch_x + patch_width
 
 
-def test_matplotlib_renderer_keeps_rotation_label_stack_inside_small_gate_box() -> None:
-    circuit = CircuitIR(
-        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
-        layers=[
-            LayerIR(
-                operations=[
-                    OperationIR(
-                        kind=OperationKind.GATE,
-                        name="RX",
-                        target_wires=("q0",),
-                        parameters=(1.2345,),
-                    )
-                ]
-            )
-        ],
-    )
-    scene = LayoutEngine().compute(circuit, DrawStyle(show_params=True))
-    figure, axes = plt.subplots(figsize=(1.35, 1.6))
-
-    MatplotlibRenderer().render(scene, ax=axes)
-    figure.canvas.draw()
-
-    gate = scene.gates[0]
-    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    label_text = next(text for text in axes.texts if text.get_text() == gate.label)
-    subtitle_text = next(text for text in axes.texts if text.get_text() == gate.subtitle)
-
-    patch_x, patch_y, patch_width, patch_height = _display_bounds(figure, gate_patch)
-    label_x, label_y, label_width, label_height = _display_bounds(figure, label_text)
-    subtitle_x, subtitle_y, subtitle_width, subtitle_height = _display_bounds(figure, subtitle_text)
-
-    text_left = min(label_x, subtitle_x)
-    text_top = min(label_y, subtitle_y)
-    text_right = max(label_x + label_width, subtitle_x + subtitle_width)
-    text_bottom = max(label_y + label_height, subtitle_y + subtitle_height)
-    tolerance_pixels = 1.0
-
-    assert text_left >= patch_x - tolerance_pixels
-    assert text_right <= patch_x + patch_width + tolerance_pixels
-    assert text_top >= patch_y - tolerance_pixels
-    assert text_bottom <= patch_y + patch_height + tolerance_pixels
-
-
 def test_gate_text_fitting_context_matches_existing_font_fit_for_wrapped_subtitles() -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=24),
@@ -679,24 +636,23 @@ def test_gate_text_fitting_context_caches_repeated_inputs(monkeypatch) -> None:
     )
     figure, axes = plt.subplots(figsize=(2.5, 4.0))
     gate = scene.gates[0]
-    text_size_calls = 0
+    text_width_calls = 0
 
     matplotlib_primitives.prepare_axes(axes, scene)
     context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
-    original_text_size = matplotlib_primitives._text_size_in_points
+    original_text_width = matplotlib_primitives._text_width_in_points
 
-    def count_text_size(text: str) -> tuple[float, float]:
-        nonlocal text_size_calls
-        text_size_calls += 1
-        return original_text_size(text)
+    def count_text_width(text: str) -> float:
+        nonlocal text_width_calls
+        text_width_calls += 1
+        return original_text_width(text)
 
-    monkeypatch.setattr(matplotlib_primitives, "_text_size_in_points", count_text_size)
+    monkeypatch.setattr(matplotlib_primitives, "_text_width_in_points", count_text_width)
 
-    cache: dict[tuple[str, float, float | None, float], float] = {}
+    cache: dict[tuple[str, float, float], float] = {}
     first_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
         context=context,
         width=gate.width,
-        height=gate.height * 0.555,
         text=gate.label,
         default_font_size=scene.style.font_size,
         cache=cache,
@@ -704,17 +660,14 @@ def test_gate_text_fitting_context_caches_repeated_inputs(monkeypatch) -> None:
     second_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
         context=context,
         width=gate.width,
-        height=gate.height * 0.555,
         text=gate.label,
         default_font_size=scene.style.font_size,
         cache=cache,
     )
 
     assert first_size == approx(second_size)
-    assert text_size_calls == 1
-    assert cache == {
-        (gate.label, gate.width, gate.height * 0.555, scene.style.font_size): first_size
-    }
+    assert text_width_calls == 1
+    assert cache == {(gate.label, gate.width, scene.style.font_size): first_size}
 
 
 def test_matplotlib_renderer_reuses_gate_text_context_per_wrapped_page(monkeypatch) -> None:
