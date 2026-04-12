@@ -42,6 +42,7 @@ _TOPOLOGY_EDGE_COLOR = "#facc15"
 _QUANTUM_WIRE_WIDTH_SCALE = 0.68
 _CONTROL_CONNECTION_WIDTH_SCALE = 1.55
 _TOPOLOGY_EDGE_WIDTH_SCALE = 0.6
+_GATE_EDGE_WIDTH_SCALE = 0.56
 _HOVER_ZORDER = 10_000.0
 
 
@@ -71,6 +72,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         self._prepare_axes(axes_3d, scene)
 
         hover_targets: list[tuple[Artist, str]] = []
+        self._draw_topology_planes(axes_3d, scene)
         hover_targets.extend(self._draw_wires(axes_3d, scene))
         hover_targets.extend(self._draw_connections(axes_3d, scene))
         hover_targets.extend(self._draw_gates(axes_3d, scene))
@@ -155,6 +157,8 @@ class MatplotlibRenderer3D(BaseRenderer):
                     len(connection.points),
                 )
                 continue
+            if connection.arrow_at_end:
+                segments.extend(self._arrowhead_segments(connection.points))
             connection_color = self._connection_color(connection, scene)
             connection_width = self._connection_line_width(connection, scene)
             if connection.is_classical and connection.double_line:
@@ -215,24 +219,33 @@ class MatplotlibRenderer3D(BaseRenderer):
                 edgecolors=scene.style.theme.measurement_color
                 if gate.render_style is GateRenderStyle3D.MEASUREMENT
                 else scene.style.theme.gate_edgecolor,
-                linewidths=scene.style.line_width,
+                linewidths=scene.style.line_width * _GATE_EDGE_WIDTH_SCALE,
                 alpha=0.96,
             )
             axes.add_collection3d(collection)
             if gate.hover_text:
                 hover_targets.append((collection, gate.hover_text))
             if gate.render_style is GateRenderStyle3D.MEASUREMENT and not scene.hover_enabled:
-                axes.text(
-                    gate.center.x,
-                    gate.center.y,
-                    gate.center.z,
-                    "M",
-                    color=scene.style.theme.text_color,
-                    fontsize=scene.style.font_size * 0.86,
-                    ha="center",
-                    va="center",
-                )
+                self._draw_measurement_symbol(axes, gate, scene)
         return hover_targets
+
+    def _draw_topology_planes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
+        for plane in scene.topology_planes:
+            collection = Poly3DCollection(
+                [
+                    [
+                        (plane.x_min, plane.y_min, plane.z),
+                        (plane.x_max, plane.y_min, plane.z),
+                        (plane.x_max, plane.y_max, plane.z),
+                        (plane.x_min, plane.y_max, plane.z),
+                    ]
+                ],
+                facecolors=plane.color,
+                edgecolors="none",
+                alpha=plane.alpha,
+            )
+            collection.set_zorder(0.2)
+            axes.add_collection3d(collection)
 
     def _draw_x_target(
         self,
@@ -312,6 +325,41 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection.set_zorder(3.1)
             axes.add_collection3d(collection)
         return hover_targets
+
+    def _draw_measurement_symbol(
+        self,
+        axes: Axes3D,
+        gate: SceneGate3D,
+        scene: LayoutScene3D,
+    ) -> None:
+        top_z = gate.center.z + (gate.size_z * 0.53)
+        theta = np.linspace(np.pi, 2.0 * np.pi, 32)
+        arc_x = gate.center.x + (gate.size_x * 0.26 * np.cos(theta))
+        arc_y = gate.center.y - (gate.size_y * 0.06) + (gate.size_y * 0.24 * np.sin(theta))
+        axes.plot(
+            arc_x,
+            arc_y,
+            np.full_like(theta, top_z),
+            color=scene.style.theme.measurement_color,
+            linewidth=scene.style.line_width,
+            solid_capstyle="round",
+            zorder=3.6,
+        )
+        axes.plot(
+            [
+                gate.center.x - (gate.size_x * 0.04),
+                gate.center.x + (gate.size_x * 0.16),
+            ],
+            [
+                gate.center.y - (gate.size_y * 0.12),
+                gate.center.y + (gate.size_y * 0.16),
+            ],
+            [top_z, top_z],
+            color=scene.style.theme.measurement_color,
+            linewidth=scene.style.line_width,
+            solid_capstyle="round",
+            zorder=3.6,
+        )
 
     def _draw_texts(self, axes: Axes3D, scene: LayoutScene3D) -> None:
         for text in scene.texts:
@@ -402,6 +450,44 @@ class MatplotlibRenderer3D(BaseRenderer):
                 (second.x, second.y, second.z),
             )
             for first, second in zip(points, points[1:])
+        ]
+
+    def _arrowhead_segments(
+        self,
+        points: tuple[Point3D, ...],
+    ) -> list[tuple[tuple[float, float, float], tuple[float, float, float]]]:
+        if len(points) < 2:
+            return []
+
+        start = points[-2]
+        end = points[-1]
+        direction = np.array(
+            [end.x - start.x, end.y - start.y, end.z - start.z],
+            dtype=float,
+        )
+        norm = float(np.linalg.norm(direction))
+        if norm <= 0.0:
+            return []
+
+        unit = direction / norm
+        head_length = 0.22
+        half_width = 0.1
+        base = np.array([end.x, end.y, end.z], dtype=float) - (unit * head_length)
+        perpendicular = np.array([-unit[1], unit[0], 0.0], dtype=float)
+        perpendicular_norm = float(np.linalg.norm(perpendicular))
+        if perpendicular_norm <= 0.0:
+            perpendicular = np.array([0.0, 1.0, 0.0], dtype=float)
+        else:
+            perpendicular = perpendicular / perpendicular_norm
+
+        left = base + (perpendicular * half_width)
+        right = base - (perpendicular * half_width)
+        left_point = (float(left[0]), float(left[1]), float(left[2]))
+        right_point = (float(right[0]), float(right[1]), float(right[2]))
+        tip = (end.x, end.y, end.z)
+        return [
+            (left_point, tip),
+            (right_point, tip),
         ]
 
     def _cuboid_faces(self, gate: SceneGate3D) -> list[list[tuple[float, float, float]]]:

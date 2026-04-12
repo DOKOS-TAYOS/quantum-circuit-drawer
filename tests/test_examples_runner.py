@@ -169,6 +169,32 @@ def test_demo_catalog_exposes_myqlm_demos() -> None:
     }.issubset(demo_ids)
 
 
+def test_demo_catalog_records_myqlm_optional_dependency() -> None:
+    catalog = catalog_by_id()
+
+    assert catalog["myqlm-balanced"].dependency_module == "qat"
+    assert catalog["myqlm-wide"].dependency_module == "qat"
+    assert catalog["myqlm-conditional-composite"].dependency_module == "qat"
+
+
+def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = catalog_by_id()["myqlm-balanced"]
+
+    monkeypatch.setattr(run_demo_module, "find_spec", lambda name: None)
+
+    with pytest.raises(SystemExit) as exc_info:
+        run_demo_module.load_demo_builder(spec)
+
+    message = str(exc_info.value)
+
+    assert "myqlm-balanced" in message
+    assert "qat" in message
+    assert 'python.exe -m pip install -e ".[myqlm]"' in message
+    assert "Traceback" not in message
+
+
 def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
     worktree_root = Path(__file__).resolve().parents[1]
     workspace_root = Path(__file__).resolve().parents[3]

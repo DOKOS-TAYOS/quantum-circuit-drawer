@@ -62,8 +62,20 @@ class SceneConnection3D:
     is_classical: bool = False
     double_line: bool = False
     render_style: ConnectionRenderStyle3D = ConnectionRenderStyle3D.STANDARD
+    arrow_at_end: bool = False
     label: str | None = None
     hover_text: str | None = None
+
+
+@dataclass(slots=True)
+class SceneTopologyPlane3D:
+    x_min: float
+    x_max: float
+    y_min: float
+    y_max: float
+    z: float
+    color: str
+    alpha: float
 
 
 @dataclass(slots=True)
@@ -109,6 +121,7 @@ class LayoutScene3D:
     gates: tuple[SceneGate3D, ...]
     markers: tuple[SceneMarker3D, ...]
     connections: tuple[SceneConnection3D, ...]
+    topology_planes: tuple[SceneTopologyPlane3D, ...]
     texts: tuple[SceneText3D, ...]
     hover_enabled: bool
     quantum_wire_positions: dict[str, Point3D]

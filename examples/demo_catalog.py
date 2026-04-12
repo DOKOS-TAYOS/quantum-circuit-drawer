@@ -20,6 +20,7 @@ class DemoSpec:
     style: dict[str, object]
     page_slider: bool
     composite_mode: str = "compact"
+    dependency_module: str | None = None
     render_options: dict[str, object] = field(default_factory=dict)
 
 
@@ -241,6 +242,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             framework="myqlm",
             style=demo_style(max_page_width=7.5),
             page_slider=False,
+            dependency_module="qat",
         ),
         DemoSpec(
             demo_id="myqlm-wide",
@@ -250,6 +252,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             framework="myqlm",
             style=demo_style(max_page_width=8.5),
             page_slider=True,
+            dependency_module="qat",
         ),
         DemoSpec(
             demo_id="myqlm-conditional-composite",
@@ -260,6 +263,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             style=demo_style(max_page_width=7.0),
             page_slider=False,
             composite_mode="expand",
+            dependency_module="qat",
         ),
         DemoSpec(
             demo_id="cudaq-balanced",

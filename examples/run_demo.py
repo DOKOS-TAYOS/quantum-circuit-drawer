@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import sys
 from argparse import ArgumentParser, Namespace
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -62,8 +63,23 @@ def parse_args() -> Namespace:
 def load_demo_builder(spec: DemoSpec) -> Any:
     """Load the configured builder callable for one demo spec."""
 
+    if spec.dependency_module is not None and find_spec(spec.dependency_module) is None:
+        raise SystemExit(_missing_dependency_message(spec))
+
     module = importlib.import_module(spec.module_name)
     return getattr(module, spec.builder_name)
+
+
+def _missing_dependency_message(spec: DemoSpec) -> str:
+    dependency = spec.dependency_module or "the optional framework dependency"
+    extra_name = spec.framework or dependency
+    return (
+        f"Demo '{spec.demo_id}' needs optional dependency '{dependency}'.\n"
+        "Install it inside your .venv and run the demo again:\n"
+        f'  .\\.venv\\Scripts\\python.exe -m pip install -e ".[{extra_name}]"\n'
+        "Linux or WSL:\n"
+        f'  .venv/bin/python -m pip install -e ".[{extra_name}]"'
+    )
 
 
 def list_demos() -> None:

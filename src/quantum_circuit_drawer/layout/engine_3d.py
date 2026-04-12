@@ -23,6 +23,7 @@ from .scene_3d import (
     SceneGate3D,
     SceneMarker3D,
     SceneText3D,
+    SceneTopologyPlane3D,
     SceneWire3D,
 )
 from .topology_3d import Topology3D, TopologyName, build_topology
@@ -36,6 +37,11 @@ _CLASSICAL_WIRE_SPACING = 1.05
 _GATE_SIZE = 0.72
 _GATE_DEPTH = 0.72
 _TOPOLOGY_NODE_SIZE = 1.65
+_TOPOLOGY_PLANE_COLOR = "#22c55e"
+_TOPOLOGY_PLANE_ALPHA = 0.055
+_TOPOLOGY_PLANE_PADDING = 0.55
+_CONTROL_MARKER_SCALE = 7.4
+_SWAP_MARKER_SCALE = 2.25
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +67,7 @@ class LayoutEngine3D:
         normalized_layers = normalize_draw_layers(circuit)
         topology = build_topology(topology_name, tuple(circuit.quantum_wires))
         metrics = self._build_operation_metrics(normalized_layers, draw_style)
-        gate_depth = max(_GATE_DEPTH, draw_style.gate_height)
+        gate_depth = self._gate_cube_size(draw_style)
         z_start = _WIRE_DEPTH_MARGIN
         z_end = z_start + max(gate_depth, len(normalized_layers) * _Z_STEP) + _WIRE_DEPTH_MARGIN
 
@@ -98,6 +104,7 @@ class LayoutEngine3D:
             topology=topology,
             quantum_wire_positions=quantum_wire_positions,
         )
+        topology_planes = self._build_topology_planes(quantum_wire_positions)
         texts = self._build_wire_texts(
             circuit=circuit,
             quantum_wire_positions=quantum_wire_positions,
@@ -143,6 +150,7 @@ class LayoutEngine3D:
             gates=tuple(gates),
             markers=tuple(markers),
             connections=tuple(connections),
+            topology_planes=topology_planes,
             texts=tuple(texts),
             hover_enabled=hover_enabled,
             quantum_wire_positions=quantum_wire_positions,
@@ -245,6 +253,25 @@ class LayoutEngine3D:
             )
             for first_wire_id, second_wire_id in topology.edges
         ]
+
+    def _build_topology_planes(
+        self,
+        quantum_wire_positions: dict[str, Point3D],
+    ) -> tuple[SceneTopologyPlane3D, ...]:
+        x_values = [point.x for point in quantum_wire_positions.values()]
+        y_values = [point.y for point in quantum_wire_positions.values()]
+        z_start = next(iter(quantum_wire_positions.values())).z
+        return (
+            SceneTopologyPlane3D(
+                x_min=min(x_values) - _TOPOLOGY_PLANE_PADDING,
+                x_max=max(x_values) + _TOPOLOGY_PLANE_PADDING,
+                y_min=min(y_values) - _TOPOLOGY_PLANE_PADDING,
+                y_max=max(y_values) + _TOPOLOGY_PLANE_PADDING,
+                z=z_start,
+                color=_TOPOLOGY_PLANE_COLOR,
+                alpha=_TOPOLOGY_PLANE_ALPHA,
+            ),
+        )
 
     def _build_wire_texts(
         self,
@@ -351,10 +378,16 @@ class LayoutEngine3D:
             column=column,
             target_points=target_points,
             hover_enabled=hover_enabled,
+            draw_style=draw_style,
         )
         if gate is not None:
             gates.append(gate)
             if not hover_enabled and gate.label:
+                label_font_size = self._fit_gate_text_size(
+                    text=gate.label,
+                    gate_size=gate.size_x,
+                    default_font_size=draw_style.font_size,
+                )
                 texts.append(
                     SceneText3D(
                         position=Point3D(
@@ -363,9 +396,15 @@ class LayoutEngine3D:
                             z=gate.center.z + (gate.size_z * 0.56),
                         ),
                         text=gate.label,
+                        font_size=label_font_size,
                     )
                 )
                 if gate.subtitle:
+                    subtitle_font_size = self._fit_gate_text_size(
+                        text=gate.subtitle,
+                        gate_size=gate.size_x,
+                        default_font_size=draw_style.font_size * 0.78,
+                    )
                     texts.append(
                         SceneText3D(
                             position=Point3D(
@@ -374,7 +413,7 @@ class LayoutEngine3D:
                                 z=gate.center.z + (gate.size_z * 0.4),
                             ),
                             text=gate.subtitle,
-                            font_size=draw_style.font_size * 0.78,
+                            font_size=subtitle_font_size,
                         )
                     )
 
@@ -391,7 +430,7 @@ class LayoutEngine3D:
                         column=column,
                         center=control_point,
                         style=MarkerStyle3D.CONTROL,
-                        size=draw_style.control_radius * 6.5,
+                        size=draw_style.control_radius * _CONTROL_MARKER_SCALE,
                     )
                 )
                 candidate_anchor_wire_ids = tuple(
@@ -435,7 +474,7 @@ class LayoutEngine3D:
                         column=column,
                         center=target_point,
                         style=MarkerStyle3D.CONTROL,
-                        size=draw_style.control_radius * 6.5,
+                        size=draw_style.control_radius * _CONTROL_MARKER_SCALE,
                     )
                 )
         self._append_classical_condition_connections(
@@ -464,13 +503,14 @@ class LayoutEngine3D:
         target_point = self._point_for_wire(
             operation.target_wires[0], quantum_wire_positions, gate_z
         )
+        gate_size = self._gate_cube_size(draw_style)
         gates.append(
             SceneGate3D(
                 column=column,
                 center=target_point,
-                size_x=_GATE_SIZE,
-                size_y=_GATE_SIZE,
-                size_z=_GATE_DEPTH,
+                size_x=gate_size,
+                size_y=gate_size,
+                size_z=gate_size,
                 label=metrics.display_label,
                 subtitle=metrics.subtitle,
                 kind=OperationKind.MEASUREMENT,
@@ -489,6 +529,7 @@ class LayoutEngine3D:
                         Point3D(x=classical_point.x, y=classical_point.y, z=target_point.z),
                     ),
                     is_classical=True,
+                    arrow_at_end=True,
                     label=operation.classical_target,
                 )
             )
@@ -514,7 +555,7 @@ class LayoutEngine3D:
                     column=column,
                     center=point,
                     style=MarkerStyle3D.SWAP,
-                    size=draw_style.swap_marker_size * 6.2,
+                    size=draw_style.swap_marker_size * _SWAP_MARKER_SCALE,
                 )
             )
         if len(target_points) == 2:
@@ -528,6 +569,7 @@ class LayoutEngine3D:
         column: int,
         target_points: tuple[Point3D, ...],
         hover_enabled: bool,
+        draw_style: DrawStyle,
     ) -> SceneGate3D | None:
         if operation.kind is OperationKind.CONTROLLED_GATE and self._uses_canonical_controlled_z(
             operation
@@ -555,12 +597,13 @@ class LayoutEngine3D:
         )
         label = "" if hover_enabled else metrics.display_label
         subtitle = None if hover_enabled else metrics.subtitle
+        gate_size = self._gate_cube_size(draw_style)
         return SceneGate3D(
             column=column,
             center=Point3D(x=center_x, y=center_y, z=center_z),
-            size_x=max(_GATE_SIZE, span_x + _GATE_SIZE),
-            size_y=max(_GATE_SIZE, span_y + _GATE_SIZE),
-            size_z=_GATE_DEPTH,
+            size_x=max(gate_size, span_x + gate_size),
+            size_y=max(gate_size, span_y + gate_size),
+            size_z=gate_size,
             label=label if render_style is not GateRenderStyle3D.X_TARGET else "",
             subtitle=subtitle if render_style is not GateRenderStyle3D.X_TARGET else None,
             kind=operation.kind,
@@ -661,3 +704,20 @@ class LayoutEngine3D:
         if metrics.subtitle:
             return f"{metrics.display_label}({metrics.subtitle})"
         return metrics.display_label
+
+    def _gate_cube_size(self, style: DrawStyle) -> float:
+        return max(_GATE_SIZE, _GATE_DEPTH, style.gate_width, style.gate_height)
+
+    def _fit_gate_text_size(
+        self,
+        *,
+        text: str,
+        gate_size: float,
+        default_font_size: float,
+    ) -> float:
+        if not text:
+            return default_font_size
+
+        available_character_units = gate_size * 4.2
+        scale = min(1.0, available_character_units / len(text))
+        return max(3.5, default_font_size * scale)

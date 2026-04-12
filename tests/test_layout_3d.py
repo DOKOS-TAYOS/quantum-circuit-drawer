@@ -7,15 +7,23 @@ import pytest
 from matplotlib.colors import to_hex
 from matplotlib.text import Annotation
 from mpl_toolkits.mplot3d import proj3d
-from mpl_toolkits.mplot3d.art3d import Line3DCollection  # type: ignore[import-untyped]
+from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
+    Line3DCollection,
+    Poly3DCollection,
+)
 
 from quantum_circuit_drawer import draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.classical_conditions import ClassicalConditionIR
+from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine_3d import LayoutEngine3D
-from quantum_circuit_drawer.layout.scene_3d import ConnectionRenderStyle3D, MarkerStyle3D
+from quantum_circuit_drawer.layout.scene_3d import (
+    ConnectionRenderStyle3D,
+    GateRenderStyle3D,
+    MarkerStyle3D,
+)
 from quantum_circuit_drawer.layout.topology_3d import build_topology
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_sample_ir
@@ -72,6 +80,36 @@ def _grid_controlled_z_ir() -> CircuitIR:
                         control_wires=("q0",),
                         canonical_family=CanonicalGateFamily.Z,
                     )
+                ]
+            )
+        ],
+    )
+
+
+def _marker_and_measurement_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    ),
+                    OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=("q0", "q1")),
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q1",),
+                        classical_target="c0",
+                    ),
                 ]
             )
         ],
@@ -231,6 +269,107 @@ def test_layout_engine_3d_adds_topology_graph_edges_and_start_nodes() -> None:
     assert {marker.center for marker in topology_nodes} == set(
         scene.quantum_wire_positions.values()
     )
+
+
+def test_layout_engine_3d_adds_translucent_topology_plane_at_circuit_start() -> None:
+    scene = LayoutEngine3D().compute(
+        _line_control_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=False,
+        hover_enabled=False,
+    )
+    topology_z = next(iter(scene.quantum_wire_positions.values())).z
+
+    assert len(scene.topology_planes) == 1
+    plane = scene.topology_planes[0]
+    assert plane.z == topology_z
+    assert plane.color == "#22c55e"
+    assert 0.0 < plane.alpha <= 0.08
+    assert plane.x_min < min(point.x for point in scene.quantum_wire_positions.values())
+    assert plane.x_max > max(point.x for point in scene.quantum_wire_positions.values())
+
+
+def test_layout_engine_3d_uses_smaller_swap_x_larger_controls_and_cubic_single_gates() -> None:
+    style = DrawStyle()
+    scene = LayoutEngine3D().compute(
+        _marker_and_measurement_ir(),
+        style,
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+
+    swap_markers = [marker for marker in scene.markers if marker.style is MarkerStyle3D.SWAP]
+    control_markers = [marker for marker in scene.markers if marker.style is MarkerStyle3D.CONTROL]
+    single_qubit_gate = next(gate for gate in scene.gates if gate.label == "H")
+    measurement_gate = next(
+        gate for gate in scene.gates if gate.render_style is GateRenderStyle3D.MEASUREMENT
+    )
+
+    assert swap_markers
+    assert control_markers
+    assert max(marker.size for marker in swap_markers) < single_qubit_gate.size_x * 0.45
+    assert min(marker.size for marker in control_markers) > style.control_radius * 6.5
+    assert single_qubit_gate.size_x == single_qubit_gate.size_y == single_qubit_gate.size_z
+    assert measurement_gate.size_x == measurement_gate.size_y == measurement_gate.size_z
+
+
+def test_layout_engine_3d_marks_measurement_connection_with_arrow_to_classical_register() -> None:
+    scene = LayoutEngine3D().compute(
+        _marker_and_measurement_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+
+    measurement_connection = next(
+        connection
+        for connection in scene.connections
+        if connection.is_classical and connection.label == "c0"
+    )
+    classical_point = scene.classical_wire_positions["c0"]
+
+    assert measurement_connection.arrow_at_end is True
+    assert measurement_connection.points[-1].x == classical_point.x
+    assert measurement_connection.points[-1].y == classical_point.y
+
+
+def test_layout_engine_3d_fits_text_to_gate_face_size() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="VERYLONGGATENAME",
+                        target_wires=("q1",),
+                    ),
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine3D().compute(
+        circuit,
+        DrawStyle(font_size=12.0),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    text_sizes = {
+        text.text: text.font_size for text in scene.texts if text.text in {"H", "VERYLONGGATENAME"}
+    }
+
+    assert text_sizes["VERYLONGGATENAME"] is not None
+    assert text_sizes["H"] is not None
+    assert text_sizes["VERYLONGGATENAME"] < text_sizes["H"]
 
 
 def test_draw_quantum_circuit_hides_gate_and_wire_labels_when_hover_is_interactive(
@@ -397,6 +536,57 @@ def test_draw_quantum_circuit_uses_distinct_quantum_control_and_topology_line_st
     assert topology_widths
     assert min(control_widths) > max(wire_widths)
     assert max(topology_widths) < min(control_widths)
+
+
+def test_draw_quantum_circuit_renders_topology_plane_gate_borders_measurement_symbol_and_arrow() -> (
+    None
+):
+    _, axes = draw_quantum_circuit(
+        _marker_and_measurement_ir(),
+        view="3d",
+        topology="line",
+        show=False,
+    )
+
+    gate_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, Poly3DCollection) and len(collection.get_facecolors()) > 0
+    ]
+    plane_collections = [
+        collection
+        for collection in gate_collections
+        if to_hex(collection.get_facecolors()[0], keep_alpha=False) == "#22c55e"
+    ]
+    measurement_symbol_lines = [
+        line
+        for line in axes.lines
+        if to_hex(line.get_color(), keep_alpha=False)
+        == to_hex(DrawStyle().theme.measurement_color, keep_alpha=False)
+    ]
+    classical_arrow_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, Line3DCollection)
+        and len(collection.get_colors()) > 0
+        and to_hex(collection.get_colors()[0], keep_alpha=False)
+        == to_hex(DrawStyle().theme.classical_wire_color, keep_alpha=False)
+    ]
+
+    assert plane_collections
+    assert any(
+        collection.get_alpha() is not None and collection.get_alpha() <= 0.08
+        for collection in plane_collections
+    )
+    assert any(
+        collection.get_linewidths()[0] < DrawStyle().line_width for collection in gate_collections
+    )
+    assert measurement_symbol_lines
+    assert not any(text.get_text() == "M" for text in axes.texts)
+    assert any(
+        len(getattr(collection, "_segments3d", collection.get_segments())) >= 2
+        for collection in classical_arrow_collections
+    )
 
 
 def test_draw_quantum_circuit_renders_topological_controlled_z_in_3d_grid(
