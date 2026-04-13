@@ -10,5 +10,15 @@ def vertical_span(
 ) -> tuple[float, float]:
     """Return the top and bottom y positions covered by the given wires."""
 
-    values = [wire_positions[wire_id] for wire_id in wire_ids]
-    return min(values), max(values)
+    iterator = iter(wire_ids)
+    first_wire_id = next(iterator)
+    first_value = wire_positions[first_wire_id]
+    minimum_value = first_value
+    maximum_value = first_value
+    for wire_id in iterator:
+        wire_value = wire_positions[wire_id]
+        if wire_value < minimum_value:
+            minimum_value = wire_value
+        if wire_value > maximum_value:
+            maximum_value = wire_value
+    return minimum_value, maximum_value

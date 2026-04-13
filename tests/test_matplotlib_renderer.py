@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
+from matplotlib.collections import EllipseCollection
 from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
 from matplotlib.text import Text
 from pytest import approx
@@ -66,6 +67,12 @@ def _background_line_zorders(axes: object) -> list[float]:
         and collection.get_zorder() <= 2
     )
     return zorders
+
+
+def _ellipse_collections(axes: object) -> list[EllipseCollection]:
+    return [
+        collection for collection in axes.collections if isinstance(collection, EllipseCollection)
+    ]
 
 
 def test_matplotlib_renderer_adds_artists() -> None:
@@ -277,33 +284,29 @@ def test_matplotlib_renderer_batches_dense_wire_segments_into_collections() -> N
     assert len(axes.lines) <= 2
 
 
-def test_matplotlib_renderer_reuses_page_transforms_per_artist(monkeypatch) -> None:
+def test_matplotlib_renderer_buckets_paged_artists_without_membership_rescans(
+    monkeypatch,
+) -> None:
     figure, axes = plt.subplots()
     renderer = MatplotlibRenderer()
-    gate_calls = 0
-    measurement_calls = 0
+    membership_checks = 0
+    original_is_in_page = renderer._is_in_page
 
-    original_gate_for_page = renderer._gate_for_page
-    original_measurement_for_page = renderer._measurement_for_page
+    def count_is_in_page(*args, **kwargs):
+        nonlocal membership_checks
+        membership_checks += 1
+        return original_is_in_page(*args, **kwargs)
 
-    def count_gate_for_page(*args, **kwargs):
-        nonlocal gate_calls
-        gate_calls += 1
-        return original_gate_for_page(*args, **kwargs)
+    monkeypatch.setattr(renderer, "_is_in_page", count_is_in_page)
 
-    def count_measurement_for_page(*args, **kwargs):
-        nonlocal measurement_calls
-        measurement_calls += 1
-        return original_measurement_for_page(*args, **kwargs)
-
-    monkeypatch.setattr(renderer, "_gate_for_page", count_gate_for_page)
-    monkeypatch.setattr(renderer, "_measurement_for_page", count_measurement_for_page)
-
-    scene = build_sample_scene()
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=24),
+        DrawStyle(max_page_width=4.0, show_params=True),
+    )
     renderer.render(scene, ax=axes)
 
-    assert gate_calls == len(scene.gates)
-    assert measurement_calls == len(scene.measurements)
+    assert len(scene.pages) > 1
+    assert membership_checks == 0
 
 
 def test_matplotlib_renderer_draws_canonical_cx_without_gate_box_text() -> None:
@@ -332,7 +335,8 @@ def test_matplotlib_renderer_draws_canonical_cx_without_gate_box_text() -> None:
     MatplotlibRenderer().render(scene, ax=axes)
 
     assert not any(isinstance(patch, FancyBboxPatch) for patch in axes.patches)
-    assert sum(isinstance(patch, Circle) for patch in axes.patches) >= 2
+    assert not any(isinstance(patch, Circle) for patch in axes.patches)
+    assert len(_ellipse_collections(axes)) >= 2
     assert not any(text.get_text() == "X" for text in axes.texts)
 
 
@@ -393,7 +397,7 @@ def test_matplotlib_renderer_keeps_compact_gate_boxes_square_on_wide_axes() -> N
     assert _display_patch_ratio(figure, gate_patch) == approx(1.0, rel=0.04)
 
 
-def test_matplotlib_renderer_keeps_cx_target_and_control_circular_on_wide_axes() -> None:
+def test_matplotlib_renderer_batches_cx_target_and_control_markers_into_collections() -> None:
     circuit = CircuitIR(
         quantum_wires=[
             WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
@@ -419,12 +423,19 @@ def test_matplotlib_renderer_keeps_cx_target_and_control_circular_on_wide_axes()
     MatplotlibRenderer().render(scene, ax=axes)
     figure.canvas.draw()
 
-    circles = [patch for patch in axes.patches if isinstance(patch, Circle)]
-    rendered_ratios = sorted(_display_patch_ratio(figure, patch) for patch in circles)
+    ellipse_collections = _ellipse_collections(axes)
 
-    assert len(rendered_ratios) >= 2
-    assert rendered_ratios[0] == approx(1.0, rel=0.04)
-    assert rendered_ratios[-1] == approx(1.0, rel=0.04)
+    assert len(ellipse_collections) >= 2
+    assert all(
+        widths == approx(heights)
+        for collection in ellipse_collections
+        for widths, heights in zip(
+            collection.get_widths(),
+            collection.get_heights(),
+            strict=True,
+        )
+    )
+    assert not any(isinstance(patch, Circle) for patch in axes.patches)
 
 
 def test_matplotlib_renderer_uses_distinct_measurement_fill_in_dark_theme() -> None:

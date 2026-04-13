@@ -8,9 +8,9 @@ from functools import lru_cache
 from typing import Any, cast
 
 from matplotlib.axes import Axes
-from matplotlib.collections import LineCollection
+from matplotlib.collections import EllipseCollection, LineCollection
 from matplotlib.font_manager import FontProperties
-from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Patch
+from matplotlib.patches import Arc, FancyArrowPatch, FancyBboxPatch, Patch
 from matplotlib.text import Text
 from matplotlib.textpath import TextPath
 
@@ -87,7 +87,12 @@ def _add_text_artist(
 ) -> Text:
     fontdict_dict = dict(fontdict) if fontdict is not None else None
     if not _supports_fast_text_artist_path(ax):
-        return ax.text(x, y, text, fontdict=fontdict_dict, **kwargs)
+        resolved_kwargs = dict(kwargs)
+        if "fontsize" in resolved_kwargs and "fontproperties" not in resolved_kwargs:
+            resolved_kwargs["fontproperties"] = _font_properties_for_size(
+                float(resolved_kwargs.pop("fontsize"))
+            )
+        return ax.text(x, y, text, fontdict=fontdict_dict, **resolved_kwargs)
 
     effective_kwargs: dict[str, Any] = {
         "verticalalignment": "baseline",
@@ -98,6 +103,10 @@ def _add_text_artist(
     if fontdict_dict is not None:
         effective_kwargs.update(fontdict_dict)
     effective_kwargs.update(kwargs)
+    if "fontsize" in effective_kwargs and "fontproperties" not in effective_kwargs:
+        effective_kwargs["fontproperties"] = _font_properties_for_size(
+            float(effective_kwargs.pop("fontsize"))
+        )
     text_artist = Text(x=x, y=y, text=text, **effective_kwargs)
     add_text = cast(Any, getattr(ax, "_add_text"))
     return cast(Text, add_text(text_artist))
@@ -129,28 +138,80 @@ def _add_line_collection(
     )
 
 
-def draw_wires(ax: Axes, wires: Sequence[SceneWire], scene: LayoutScene) -> None:
+def _add_ellipse_collection(
+    ax: Axes,
+    *,
+    widths: Sequence[float],
+    heights: Sequence[float],
+    offsets: Sequence[tuple[float, float]],
+    facecolor: str,
+    edgecolor: str,
+    linewidth: float,
+    zorder: int,
+) -> None:
+    if not offsets:
+        return
+
+    ax.add_collection(
+        EllipseCollection(
+            widths=widths,
+            heights=heights,
+            angles=[0.0] * len(offsets),
+            units="xy",
+            offsets=offsets,
+            transOffset=ax.transData,
+            facecolors=facecolor,
+            edgecolors=edgecolor,
+            linewidths=linewidth,
+            zorder=zorder,
+            clip_on=False,
+        )
+    )
+
+
+@lru_cache(maxsize=32)
+def _font_properties_for_size(font_size: float) -> FontProperties:
+    return FontProperties(size=font_size)
+
+
+@lru_cache(maxsize=1)
+def _default_font_properties() -> FontProperties:
+    return FontProperties()
+
+
+def draw_wires(
+    ax: Axes,
+    wires: Sequence[SceneWire],
+    scene: LayoutScene,
+    *,
+    y_offset: float = 0.0,
+    x_start: float | None = None,
+    x_end: float | None = None,
+) -> None:
     quantum_segments: list[LineSegment] = []
     classical_segments: list[LineSegment] = []
     classical_marker_segments: list[LineSegment] = []
 
     for wire in wires:
+        wire_y = wire.y + y_offset
+        wire_x_start = x_start if x_start is not None else wire.x_start
+        wire_x_end = x_end if x_end is not None else wire.x_end
         if wire.kind.value == "classical":
             offset = max(0.025, scene.style.line_width * 0.01)
             classical_segments.extend(
                 (
-                    ((wire.x_start, wire.y - offset), (wire.x_end, wire.y - offset)),
-                    ((wire.x_start, wire.y + offset), (wire.x_end, wire.y + offset)),
+                    ((wire_x_start, wire_y - offset), (wire_x_end, wire_y - offset)),
+                    ((wire_x_start, wire_y + offset), (wire_x_end, wire_y + offset)),
                 )
             )
-            marker_x = wire.x_start + 0.18
+            marker_x = wire_x_start + 0.18
             classical_marker_segments.append(
-                ((marker_x - 0.06, wire.y - 0.12), (marker_x + 0.06, wire.y + 0.12))
+                ((marker_x - 0.06, wire_y - 0.12), (marker_x + 0.06, wire_y + 0.12))
             )
             _add_text_artist(
                 ax,
                 marker_x,
-                wire.y - 0.22,
+                wire_y - 0.22,
                 str(wire.bundle_size),
                 ha="center",
                 va="center",
@@ -165,7 +226,7 @@ def draw_wires(ax: Axes, wires: Sequence[SceneWire], scene: LayoutScene) -> None
             )
             continue
 
-        quantum_segments.append(((wire.x_start, wire.y), (wire.x_end, wire.y)))
+        quantum_segments.append(((wire_x_start, wire_y), (wire_x_end, wire_y)))
 
     _add_line_collection(
         ax,
@@ -199,16 +260,26 @@ def draw_classical_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
     draw_wires(ax, (wire,), scene)
 
 
-def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: LayoutScene) -> None:
+def draw_connections(
+    ax: Axes,
+    connections: Sequence[SceneConnection],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     quantum_segments: list[LineSegment] = []
     classical_segments_by_style: dict[str | tuple[int, tuple[int, int]], list[LineSegment]] = {}
 
     for connection in connections:
-        line_end_y = connection.y_end
+        connection_x = connection.x + x_offset
+        connection_y_start = connection.y_start + y_offset
+        connection_y_end = connection.y_end + y_offset
+        line_end_y = connection_y_end
         if connection.arrow_at_end:
-            direction = 1.0 if connection.y_end >= connection.y_start else -1.0
+            direction = 1.0 if connection_y_end >= connection_y_start else -1.0
             arrow_length = max(0.12, scene.style.wire_spacing * 0.18)
-            line_end_y = connection.y_end - (direction * arrow_length)
+            line_end_y = connection_y_end - (direction * arrow_length)
 
         if connection.is_classical and connection.double_line:
             offset = max(0.02, scene.style.line_width * 0.008)
@@ -216,17 +287,17 @@ def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: La
             classical_segments.extend(
                 (
                     (
-                        (connection.x - offset, connection.y_start),
-                        (connection.x - offset, line_end_y),
+                        (connection_x - offset, connection_y_start),
+                        (connection_x - offset, line_end_y),
                     ),
                     (
-                        (connection.x + offset, connection.y_start),
-                        (connection.x + offset, line_end_y),
+                        (connection_x + offset, connection_y_start),
+                        (connection_x + offset, line_end_y),
                     ),
                 )
             )
         else:
-            segment = ((connection.x, connection.y_start), (connection.x, line_end_y))
+            segment = ((connection_x, connection_y_start), (connection_x, line_end_y))
             if connection.is_classical:
                 classical_segments = classical_segments_by_style.setdefault(
                     connection.linestyle, []
@@ -242,8 +313,8 @@ def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: La
                 else scene.style.theme.wire_color
             )
             arrow = FancyArrowPatch(
-                (connection.x, line_end_y),
-                (connection.x, connection.y_end),
+                (connection_x, line_end_y),
+                (connection_x, connection_y_end),
                 arrowstyle="-|>",
                 mutation_scale=10 + (scene.style.font_size * 0.45),
                 linewidth=scene.style.line_width * 0.9,
@@ -254,16 +325,16 @@ def draw_connections(ax: Axes, connections: Sequence[SceneConnection], scene: La
             _add_patch_artist(ax, arrow)
         if connection.label:
             label_y = (
-                connection.y_start - 0.12
+                connection_y_start - 0.12
                 if connection.is_classical and connection.double_line
                 else None
             )
             if label_y is None:
-                direction = 1.0 if connection.y_end >= connection.y_start else -1.0
-                label_y = connection.y_end - (direction * 0.12)
+                direction = 1.0 if connection_y_end >= connection_y_start else -1.0
+                label_y = connection_y_end - (direction * 0.12)
             _add_text_artist(
                 ax,
-                connection.x + 0.12,
+                connection_x + 0.12,
                 label_y,
                 connection.label,
                 ha="left",
@@ -304,13 +375,19 @@ def draw_connection(ax: Axes, connection: SceneConnection, scene: LayoutScene) -
     draw_connections(ax, (connection,), scene)
 
 
-def draw_gate_box(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
+def draw_gate_box(
+    ax: Axes,
+    gate: SceneGate,
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     if gate.render_style is GateRenderStyle.X_TARGET:
-        draw_x_target_circle(ax, gate, scene)
         return
 
     patch = FancyBboxPatch(
-        (gate.x - gate.width / 2, gate.y - gate.height / 2),
+        (gate.x + x_offset - gate.width / 2, gate.y + y_offset - gate.height / 2),
         gate.width,
         gate.height,
         boxstyle="round,pad=0.02,rounding_size=0.05",
@@ -323,18 +400,7 @@ def draw_gate_box(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
 
 
 def draw_x_target_circle(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
-    radius = min(gate.width, gate.height) * 0.36
-    _add_patch_artist(
-        ax,
-        Circle(
-            (gate.x, gate.y),
-            radius=radius,
-            facecolor=scene.style.theme.axes_facecolor,
-            edgecolor=scene.style.theme.wire_color,
-            linewidth=scene.style.line_width,
-            zorder=OCCLUSION_LAYER_ZORDER,
-        ),
-    )
+    draw_x_target_circles(ax, (gate,), scene)
 
 
 def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
@@ -342,7 +408,42 @@ def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
     draw_x_target_segments(ax, (gate,), scene)
 
 
-def draw_x_target_segments(ax: Axes, gates: Sequence[SceneGate], scene: LayoutScene) -> None:
+def draw_x_target_circles(
+    ax: Axes,
+    gates: Sequence[SceneGate],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
+    offsets: list[tuple[float, float]] = []
+    diameters: list[float] = []
+    for gate in gates:
+        if gate.render_style is not GateRenderStyle.X_TARGET:
+            continue
+        offsets.append((gate.x + x_offset, gate.y + y_offset))
+        diameters.append(min(gate.width, gate.height) * 0.72)
+
+    _add_ellipse_collection(
+        ax,
+        widths=diameters,
+        heights=diameters,
+        offsets=offsets,
+        facecolor=scene.style.theme.axes_facecolor,
+        edgecolor=scene.style.theme.wire_color,
+        linewidth=scene.style.line_width,
+        zorder=OCCLUSION_LAYER_ZORDER,
+    )
+
+
+def draw_x_target_segments(
+    ax: Axes,
+    gates: Sequence[SceneGate],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     segments: list[LineSegment] = []
     for gate in gates:
         if gate.render_style is not GateRenderStyle.X_TARGET:
@@ -350,8 +451,14 @@ def draw_x_target_segments(ax: Axes, gates: Sequence[SceneGate], scene: LayoutSc
         radius = min(gate.width, gate.height) * 0.36
         segments.extend(
             (
-                ((gate.x - radius, gate.y), (gate.x + radius, gate.y)),
-                ((gate.x, gate.y - radius), (gate.x, gate.y + radius)),
+                (
+                    (gate.x + x_offset - radius, gate.y + y_offset),
+                    (gate.x + x_offset + radius, gate.y + y_offset),
+                ),
+                (
+                    (gate.x + x_offset, gate.y + y_offset - radius),
+                    (gate.x + x_offset, gate.y + y_offset + radius),
+                ),
             )
         )
 
@@ -371,6 +478,8 @@ def draw_gate_label(
     *,
     label_font_size: float | None = None,
     subtitle_font_size: float | None = None,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
 ) -> None:
     if gate.render_style is GateRenderStyle.X_TARGET:
         return
@@ -384,8 +493,8 @@ def draw_gate_label(
     )
     _add_text_artist(
         ax,
-        gate.x,
-        gate.y - 0.08 if gate.subtitle else gate.y,
+        gate.x + x_offset,
+        gate.y + y_offset - 0.08 if gate.subtitle else gate.y + y_offset,
         gate.label,
         ha="center",
         va="center",
@@ -403,8 +512,8 @@ def draw_gate_label(
         )
         _add_text_artist(
             ax,
-            gate.x,
-            gate.y + 0.16,
+            gate.x + x_offset,
+            gate.y + y_offset + 0.16,
             gate.subtitle,
             ha="center",
             va="center",
@@ -415,16 +524,28 @@ def draw_gate_label(
 
 
 def draw_control(ax: Axes, control: SceneControl, scene: LayoutScene) -> None:
-    _add_patch_artist(
+    draw_controls(ax, (control,), scene)
+
+
+def draw_controls(
+    ax: Axes,
+    controls: Sequence[SceneControl],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
+    diameter = scene.style.control_radius * 2
+    offsets = [(control.x + x_offset, control.y + y_offset) for control in controls]
+    _add_ellipse_collection(
         ax,
-        Circle(
-            (control.x, control.y),
-            radius=scene.style.control_radius,
-            facecolor=scene.style.theme.wire_color,
-            edgecolor=scene.style.theme.wire_color,
-            linewidth=scene.style.line_width,
-            zorder=SYMBOL_LAYER_ZORDER,
-        ),
+        widths=[diameter] * len(offsets),
+        heights=[diameter] * len(offsets),
+        offsets=offsets,
+        facecolor=scene.style.theme.wire_color,
+        edgecolor=scene.style.theme.wire_color,
+        linewidth=scene.style.line_width,
+        zorder=SYMBOL_LAYER_ZORDER,
     )
 
 
@@ -432,15 +553,22 @@ def draw_swap(ax: Axes, swap: SceneSwap, scene: LayoutScene) -> None:
     draw_swaps(ax, (swap,), scene)
 
 
-def draw_swaps(ax: Axes, swaps: Sequence[SceneSwap], scene: LayoutScene) -> None:
+def draw_swaps(
+    ax: Axes,
+    swaps: Sequence[SceneSwap],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     segments: list[LineSegment] = []
     for swap in swaps:
         half = swap.marker_size
-        for y in (swap.y_top, swap.y_bottom):
+        for y in (swap.y_top + y_offset, swap.y_bottom + y_offset):
             segments.extend(
                 (
-                    ((swap.x - half, y - half), (swap.x + half, y + half)),
-                    ((swap.x - half, y + half), (swap.x + half, y - half)),
+                    ((swap.x + x_offset - half, y - half), (swap.x + x_offset + half, y + half)),
+                    ((swap.x + x_offset - half, y + half), (swap.x + x_offset + half, y - half)),
                 )
             )
 
@@ -457,10 +585,23 @@ def draw_barrier(ax: Axes, barrier: SceneBarrier, scene: LayoutScene) -> None:
     draw_barriers(ax, (barrier,), scene)
 
 
-def draw_barriers(ax: Axes, barriers: Sequence[SceneBarrier], scene: LayoutScene) -> None:
+def draw_barriers(
+    ax: Axes,
+    barriers: Sequence[SceneBarrier],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     _add_line_collection(
         ax,
-        [((barrier.x, barrier.y_top), (barrier.x, barrier.y_bottom)) for barrier in barriers],
+        [
+            (
+                (barrier.x + x_offset, barrier.y_top + y_offset),
+                (barrier.x + x_offset, barrier.y_bottom + y_offset),
+            )
+            for barrier in barriers
+        ],
         color=scene.style.theme.barrier_color,
         linewidth=scene.style.line_width,
         zorder=BASE_LAYER_ZORDER,
@@ -469,9 +610,19 @@ def draw_barriers(ax: Axes, barriers: Sequence[SceneBarrier], scene: LayoutScene
     )
 
 
-def draw_measurement_box(ax: Axes, measurement: SceneMeasurement, scene: LayoutScene) -> None:
+def draw_measurement_box(
+    ax: Axes,
+    measurement: SceneMeasurement,
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     patch = FancyBboxPatch(
-        (measurement.x - measurement.width / 2, measurement.quantum_y - measurement.height / 2),
+        (
+            measurement.x + x_offset - measurement.width / 2,
+            measurement.quantum_y + y_offset - measurement.height / 2,
+        ),
         measurement.width,
         measurement.height,
         boxstyle="round,pad=0.01,rounding_size=0.05",
@@ -483,10 +634,19 @@ def draw_measurement_box(ax: Axes, measurement: SceneMeasurement, scene: LayoutS
     _add_patch_artist(ax, patch)
 
 
-def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: LayoutScene) -> None:
-    arc_center_y = measurement.quantum_y - measurement.height * 0.02
+def draw_measurement_symbol(
+    ax: Axes,
+    measurement: SceneMeasurement,
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
+    measurement_x = measurement.x + x_offset
+    measurement_y = measurement.quantum_y + y_offset
+    arc_center_y = measurement_y - measurement.height * 0.02
     arc = Arc(
-        (measurement.x, arc_center_y),
+        (measurement_x, arc_center_y),
         width=measurement.width * 0.58,
         height=measurement.height * 0.62,
         theta1=180,
@@ -497,10 +657,10 @@ def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: Layo
     )
     _add_patch_artist(ax, arc)
     ax.plot(
-        [measurement.x - measurement.width * 0.05, measurement.x + measurement.width * 0.16],
+        [measurement_x - measurement.width * 0.05, measurement_x + measurement.width * 0.16],
         [
-            measurement.quantum_y - measurement.height * 0.16,
-            measurement.quantum_y + measurement.height * 0.14,
+            measurement_y - measurement.height * 0.16,
+            measurement_y + measurement.height * 0.14,
         ],
         color=scene.style.theme.measurement_color,
         linewidth=scene.style.line_width,
@@ -509,8 +669,8 @@ def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: Layo
     )
     _add_text_artist(
         ax,
-        measurement.x,
-        measurement.quantum_y + measurement.height * 0.34,
+        measurement_x,
+        measurement_y + measurement.height * 0.34,
         measurement.label,
         ha="center",
         va="center",
@@ -520,11 +680,18 @@ def draw_measurement_symbol(ax: Axes, measurement: SceneMeasurement, scene: Layo
     )
 
 
-def draw_text(ax: Axes, text: SceneText, scene: LayoutScene) -> None:
+def draw_text(
+    ax: Axes,
+    text: SceneText,
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     _add_text_artist(
         ax,
-        text.x,
-        text.y,
+        text.x + x_offset,
+        text.y + y_offset,
         text.text,
         ha=text.ha,
         va=text.va,
@@ -534,11 +701,18 @@ def draw_text(ax: Axes, text: SceneText, scene: LayoutScene) -> None:
     )
 
 
-def draw_gate_annotation(ax: Axes, annotation: SceneGateAnnotation, scene: LayoutScene) -> None:
+def draw_gate_annotation(
+    ax: Axes,
+    annotation: SceneGateAnnotation,
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> None:
     _add_text_artist(
         ax,
-        annotation.x,
-        annotation.y,
+        annotation.x + x_offset,
+        annotation.y + y_offset,
         annotation.text,
         ha="left",
         va="center",
@@ -641,7 +815,7 @@ def _page_wrapped_font_scale(scene: LayoutScene) -> float:
 
 @lru_cache(maxsize=128)
 def _text_width_in_points(text: str) -> float:
-    return TextPath((0.0, 0.0), text, size=1.0, prop=FontProperties()).get_extents().width
+    return TextPath((0.0, 0.0), text, size=1.0, prop=_default_font_properties()).get_extents().width
 
 
 def finalize_axes(ax: Axes, scene: LayoutScene) -> None:

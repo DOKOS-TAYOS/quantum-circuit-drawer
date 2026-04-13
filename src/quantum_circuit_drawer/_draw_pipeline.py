@@ -73,13 +73,22 @@ def prepare_draw_pipeline(
         direct = draw_options.direct
         hover_enabled = draw_options.hover
         layout_engine_3d = resolve_layout_engine_3d(layout)
-        paged_scene = layout_engine_3d.compute(
-            ir,
-            normalized_style,
-            topology_name=topology,
-            direct=direct,
-            hover_enabled=hover_enabled,
-        )
+        if hasattr(layout_engine_3d, "_compute_with_normalized_style"):
+            paged_scene = layout_engine_3d._compute_with_normalized_style(  # type: ignore[attr-defined]
+                ir,
+                normalized_style,
+                topology_name=topology,
+                direct=direct,
+                hover_enabled=hover_enabled,
+            )
+        else:
+            paged_scene = layout_engine_3d.compute(
+                ir,
+                normalized_style,
+                topology_name=topology,
+                direct=direct,
+                hover_enabled=hover_enabled,
+            )
         layout_engine = layout_engine_3d
         renderer = MatplotlibRenderer3D()
         logger.debug(
@@ -91,7 +100,13 @@ def prepare_draw_pipeline(
         )
     else:
         layout_engine_2d = resolve_layout_engine(layout)
-        scene_2d = layout_engine_2d.compute(ir, normalized_style)
+        if hasattr(layout_engine_2d, "_compute_with_normalized_style"):
+            scene_2d = layout_engine_2d._compute_with_normalized_style(  # type: ignore[attr-defined]
+                ir,
+                normalized_style,
+            )
+        else:
+            scene_2d = layout_engine_2d.compute(ir, normalized_style)
         paged_scene = scene_2d
         layout_engine = layout_engine_2d
         renderer = MatplotlibRenderer()

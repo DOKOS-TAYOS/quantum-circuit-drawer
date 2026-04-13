@@ -107,7 +107,13 @@ def build_continuous_slider_scene(
 ) -> LayoutScene:
     """Compute a continuous-width 2D scene for page-slider mode."""
 
-    return layout_engine.compute(circuit, replace(style, max_page_width=float("inf")))
+    slider_style = replace(style, max_page_width=float("inf"))
+    if hasattr(layout_engine, "_compute_with_normalized_style"):
+        return layout_engine._compute_with_normalized_style(  # type: ignore[attr-defined]
+            circuit,
+            slider_style,
+        )
+    return layout_engine.compute(circuit, slider_style)
 
 
 def configure_page_slider(

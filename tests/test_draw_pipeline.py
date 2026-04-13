@@ -80,6 +80,40 @@ def test_prepare_draw_pipeline_forwards_options_and_uses_custom_layout(
     assert layout.calls[0][1].font_size == 10.0
 
 
+def test_prepare_draw_pipeline_normalizes_style_once_for_default_layout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer._draw_pipeline as pipeline_module
+    import quantum_circuit_drawer.layout.engine as engine_module
+
+    normalize_style_calls = 0
+    original_pipeline_normalize_style = pipeline_module.normalize_style
+    original_engine_normalize_style = engine_module.normalize_style
+
+    def count_pipeline_normalize_style(style: DrawStyle | Mapping[str, object] | None) -> DrawStyle:
+        nonlocal normalize_style_calls
+        normalize_style_calls += 1
+        return original_pipeline_normalize_style(style)
+
+    def count_engine_normalize_style(style: DrawStyle) -> DrawStyle:
+        nonlocal normalize_style_calls
+        normalize_style_calls += 1
+        return original_engine_normalize_style(style)
+
+    monkeypatch.setattr(pipeline_module, "normalize_style", count_pipeline_normalize_style)
+    monkeypatch.setattr(engine_module, "normalize_style", count_engine_normalize_style)
+
+    prepare_draw_pipeline(
+        circuit=build_sample_ir(),
+        framework="ir",
+        style={"theme": "dark"},
+        layout=None,
+        options={},
+    )
+
+    assert normalize_style_calls == 1
+
+
 def test_draw_pipeline_options_keep_adapter_options_separate_from_view_controls() -> None:
     options = DrawPipelineOptions(
         composite_mode="expand",

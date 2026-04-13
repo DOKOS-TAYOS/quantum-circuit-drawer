@@ -270,6 +270,41 @@ def test_draw_quantum_circuit_page_slider_uses_more_horizontal_space_for_taller_
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_slider_normalizes_style_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer._draw_pipeline as pipeline_module
+    import quantum_circuit_drawer.layout.engine as engine_module
+
+    normalize_style_calls = 0
+    original_pipeline_normalize_style = pipeline_module.normalize_style
+    original_engine_normalize_style = engine_module.normalize_style
+
+    def count_pipeline_normalize_style(style: object) -> DrawStyle:
+        nonlocal normalize_style_calls
+        normalize_style_calls += 1
+        return original_pipeline_normalize_style(style)
+
+    def count_engine_normalize_style(style: DrawStyle) -> DrawStyle:
+        nonlocal normalize_style_calls
+        normalize_style_calls += 1
+        return original_engine_normalize_style(style)
+
+    monkeypatch.setattr(pipeline_module, "normalize_style", count_pipeline_normalize_style)
+    monkeypatch.setattr(engine_module, "normalize_style", count_engine_normalize_style)
+
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert normalize_style_calls == 1
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_reduces_gate_font_size_for_many_wrapped_pages() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24),

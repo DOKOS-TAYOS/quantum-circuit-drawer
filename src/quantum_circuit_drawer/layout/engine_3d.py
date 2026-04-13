@@ -63,7 +63,24 @@ class LayoutEngine3D:
         direct: bool,
         hover_enabled: bool,
     ) -> LayoutScene3D:
-        draw_style = normalize_style(style)
+        return self._compute_with_normalized_style(
+            circuit,
+            normalize_style(style),
+            topology_name=topology_name,
+            direct=direct,
+            hover_enabled=hover_enabled,
+        )
+
+    def _compute_with_normalized_style(
+        self,
+        circuit: CircuitIR,
+        style: DrawStyle,
+        *,
+        topology_name: TopologyName,
+        direct: bool,
+        hover_enabled: bool,
+    ) -> LayoutScene3D:
+        draw_style = style
         normalized_layers = normalize_draw_layers(circuit)
         topology = build_topology(topology_name, tuple(circuit.quantum_wires))
         metrics = self._build_operation_metrics(normalized_layers, draw_style)

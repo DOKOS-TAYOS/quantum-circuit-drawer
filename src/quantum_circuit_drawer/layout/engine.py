@@ -74,6 +74,9 @@ class LayoutEngine:
     """Compute a backend-neutral scene from CircuitIR."""
 
     def compute(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
+        return self._compute_with_normalized_style(circuit, normalize_style(style))
+
+    def _compute_with_normalized_style(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
         if not circuit.quantum_wires:
             raise LayoutError("circuit must contain at least one quantum wire")
 
@@ -108,13 +111,13 @@ class LayoutEngine:
         return scene
 
     def _build_layout_scaffold(self, circuit: CircuitIR, style: DrawStyle) -> _LayoutScaffold:
-        draw_style = self._resolve_scene_style(circuit, normalize_style(style))
+        draw_style = self._resolve_scene_style(circuit, style)
         normalized_layers = normalize_draw_layers(circuit)
-        operation_metrics = self._build_operation_metrics(normalized_layers, draw_style)
-        wire_positions = self._build_wire_positions(circuit, draw_style)
-        column_widths = tuple(
-            self._build_column_widths(normalized_layers, operation_metrics, draw_style)
+        operation_metrics, column_widths = self._build_operation_metrics_and_column_widths(
+            normalized_layers,
+            draw_style,
         )
+        wire_positions = self._build_wire_positions(circuit, draw_style)
         x_centers = tuple(self._build_column_centers(column_widths, draw_style))
         page_height = max(wire_positions.values()) + draw_style.margin_bottom
         pages = self._build_pages(column_widths, x_centers, page_height, draw_style)
@@ -218,13 +221,18 @@ class LayoutEngine:
             measurements=tuple(measurements),
         )
 
-    def _build_operation_metrics(
+    def _build_operation_metrics_and_column_widths(
         self, layers: Sequence[LayerIR], style: DrawStyle
-    ) -> dict[int, _OperationMetrics]:
+    ) -> tuple[dict[int, _OperationMetrics], tuple[float, ...]]:
         text_metrics = build_operation_text_metrics(layers, style)
         metrics: dict[int, _OperationMetrics] = {}
         cached_widths: dict[tuple[OperationKind, str, str | None], float] = {}
+        column_widths: list[float] = []
         for layer in layers:
+            if not layer.operations:
+                column_widths.append(style.gate_width)
+                continue
+            column_width = style.gate_width
             for operation in layer.operations:
                 operation_text = text_metrics[id(operation)]
                 width_key = (
@@ -247,7 +255,10 @@ class LayoutEngine:
                     display_label=operation_text.display_label,
                     subtitle=operation_text.subtitle,
                 )
-        return metrics
+                if width > column_width:
+                    column_width = width
+            column_widths.append(column_width)
+        return metrics, tuple(column_widths)
 
     def _build_wire_positions(self, circuit: CircuitIR, style: DrawStyle) -> dict[str, float]:
         positions: dict[str, float] = {}
@@ -265,22 +276,6 @@ class LayoutEngine:
     def _bundle_size(self, wire: WireIR) -> int:
         bundle_size = wire.metadata.get("bundle_size", 1)
         return int(bundle_size) if isinstance(bundle_size, int | float | str) else 1
-
-    def _build_column_widths(
-        self,
-        layers: Sequence[LayerIR],
-        operation_metrics: dict[int, _OperationMetrics],
-        style: DrawStyle,
-    ) -> list[float]:
-        widths: list[float] = []
-        for layer in layers:
-            if not layer.operations:
-                widths.append(style.gate_width)
-                continue
-            widths.append(
-                max(operation_metrics[id(operation)].width for operation in layer.operations)
-            )
-        return widths
 
     def _build_column_centers(self, widths: Sequence[float], style: DrawStyle) -> list[float]:
         centers: list[float] = []
