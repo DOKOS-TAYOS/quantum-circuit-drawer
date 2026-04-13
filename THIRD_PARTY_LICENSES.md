@@ -1,33 +1,46 @@
 # Third-party software (declared dependencies)
 
-Este documento reconoce el software de terceros **declarado explícitamente** en `pyproject.toml` como dependencia de construcción, de ejecución o extra opcional. **No** sustituye la lectura de las licencias publicadas por cada proyecto upstream ni cumple por sí solo todas las obligaciones legales que puedan aplicarte al redistribuir o combinar software; si necesitas cumplimiento formal (producto comercial, redistribución empaquetada, etc.), consulta con un abogado.
+This document lists third-party software declared directly in
+`pyproject.toml` as build, runtime, or optional extra dependencies.
 
-La licencia de **este** repositorio está en `LICENSE` (MIT).
+It is a practical inventory, not legal advice. If you need formal compliance
+for a commercial or redistributed product, review the upstream license texts
+and seek legal review if needed.
 
-## Dependencias de ejecución (`[project] dependencies`)
+The license for this repository is in `LICENSE` (MIT).
 
-| Paquete (PyPI) | Licencia (metadatos / uso habitual del proyecto) | Dónde ver el texto legal |
-|----------------|--------------------------------------------------|---------------------------|
-| `matplotlib` | Python Software Foundation License | [matplotlib/LICENSE](https://github.com/matplotlib/matplotlib/tree/main/LICENSE) |
-| `numpy` | BSD-3-Clause (el proyecto NumPy documenta también otras condiciones en su `LICENSE`; revísalo en la versión que instales) | [numpy/LICENSE.txt](https://github.com/numpy/numpy/blob/main/LICENSE.txt) |
+## Runtime dependencies (`[project] dependencies`)
 
-## Extras opcionales (`[project.optional-dependencies]`)
+| Package (PyPI) | License | Primary source |
+|----------------|---------|----------------|
+| `matplotlib` | Python Software Foundation License | [PyPI metadata](https://pypi.org/project/matplotlib/) and [upstream license](https://github.com/matplotlib/matplotlib/tree/main/LICENSE) |
+| `numpy` | PyPI currently publishes the license expression `BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0` | [PyPI metadata](https://pypi.org/project/numpy/) and [upstream license](https://github.com/numpy/numpy/blob/main/LICENSE.txt) |
 
-Solo aplican si instalas el paquete con el extra correspondiente (por ejemplo `pip install quantum-circuit-drawer[qiskit]`).
+## Optional extras (`[project.optional-dependencies]`)
 
-| Extra | Paquete (PyPI) | Licencia (metadatos / uso habitual) | Dónde ver el texto legal |
-|-------|----------------|--------------------------------------|---------------------------|
-| `qiskit` | `qiskit` | Apache-2.0 | [Qiskit LICENSE](https://github.com/Qiskit/qiskit/blob/main/LICENSE.txt) |
-| `cirq` | `cirq-core` | Apache-2.0 | [Cirq LICENSE](https://github.com/quantumlib/Cirq/blob/main/LICENSE) |
-| `pennylane` | `pennylane` | Apache-2.0 | [PennyLane LICENSE](https://github.com/PennyLaneAI/pennylane/blob/master/LICENSE) |
-| `cudaq` | `cudaq` | Apache-2.0 (según metadatos del paquete en PyPI; confirma en la versión instalada) | Documentación y fuentes del proyecto [NVIDIA/cuda-quantum](https://github.com/NVIDIA/cuda-quantum) |
+These only apply if you install the corresponding extra, for example
+`pip install "quantum-circuit-drawer[qiskit]"`.
 
-## Herramientas de desarrollo y publicación (`dev`)
+| Extra | Package (PyPI) | License | Primary source |
+|-------|----------------|---------|----------------|
+| `qiskit` | `qiskit` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/qiskit/) and [upstream license](https://github.com/Qiskit/qiskit/blob/main/LICENSE.txt) |
+| `cirq` | `cirq-core` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/cirq-core/) and [upstream license](https://github.com/quantumlib/Cirq/blob/main/LICENSE) |
+| `pennylane` | `pennylane` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/pennylane/) and [upstream license](https://github.com/PennyLaneAI/pennylane/blob/master/LICENSE) |
+| `cudaq` | `cudaq` | Apache-2.0. CUDA-Q also indicates that it uses the NVIDIA cuQuantum SDK under its own license. Review that separately if your release process redistributes or directly depends on that stack. | [PyPI metadata](https://pypi.org/project/cudaq/) and [upstream license](https://github.com/NVIDIA/cuda-quantum/blob/main/LICENSE) |
 
-Usadas al contribuir o al ejecutar CI; no son dependencias del wheel publicado para usuarios finales que solo hacen `pip install quantum-circuit-drawer`.
+## Review required before release
 
-| Paquete (PyPI) | Licencia (metadatos / uso habitual) |
-|----------------|-------------------------------------|
+| Extra | Package (PyPI) | Status | Primary source |
+|-------|----------------|--------|----------------|
+| `myqlm` | `myqlm` | Review required for the PyPI/GitHub release checklist. The official myQLM documentation describes a mixed model: proprietary runtime under an EULA and open-source components under Apache-2.0. Do not treat this extra as a standard permissive dependency until this is reviewed. | [myQLM license documentation](https://myqlm.github.io/01_getting_started/%3Amyqlm%3Alicense.html) |
+
+## Development and publishing tools (`dev`)
+
+These are used for local development, CI, and publishing. They are not runtime
+dependencies of the wheel published for end users.
+
+| Package (PyPI) | License |
+|----------------|---------|
 | `pytest` | MIT |
 | `pytest-cov` | MIT |
 | `ruff` | MIT |
@@ -35,15 +48,20 @@ Usadas al contribuir o al ejecutar CI; no son dependencias del wheel publicado p
 | `build` | MIT |
 | `twine` | Apache-2.0 |
 
-## Cadena de construcción (`[build-system] requires`)
+## Build toolchain (`[build-system] requires`)
 
-Necesaria para construir el paquete a partir del código fuente (sdist/wheel), no para usar la librería ya instalada.
+These are needed to build the project from source code, not to use the library
+once it is installed.
 
-| Paquete (PyPI) | Licencia (metadatos / uso habitual) |
-|----------------|-------------------------------------|
+| Package (PyPI) | License |
+|----------------|---------|
 | `setuptools` | MIT |
 | `wheel` | MIT |
 
 ---
 
-Al instalar con `pip`, se pueden resolver **dependencias transitivas** adicionales (paquetes que traen `matplotlib`, `qiskit`, etc.). Esas no están listadas aquí porque **no** están declaradas en nuestro `pyproject.toml`. Para un inventario completo del entorno, usa las herramientas que prefieras (`pip-licenses`, exportación de SBOM, etc.) sobre el entorno concreto que vayas a distribuir o auditar.
+Installing with `pip` may pull in additional transitive dependencies. They are
+not listed here because they are not declared directly in our
+`pyproject.toml`. For a complete inventory of the environment, use whichever
+tool you prefer (`pip-licenses`, SBOM export, etc.) against the exact
+environment you plan to distribute or audit.
