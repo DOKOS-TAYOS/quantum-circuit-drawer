@@ -55,6 +55,17 @@ def test_parse_args_reads_custom_values() -> None:
     assert args.emit_json is True
 
 
+def test_parse_args_reads_3d_render_options() -> None:
+    benchmark_module = _load_benchmark_module()
+
+    args = benchmark_module.parse_args(
+        ["--wires", "4", "--layers", "8", "--repeats", "2", "--view", "3d", "--topology", "grid"]
+    )
+
+    assert args.view == "3d"
+    assert args.topology == "grid"
+
+
 def test_parse_args_rejects_non_positive_values() -> None:
     benchmark_module = _load_benchmark_module()
 
@@ -71,10 +82,12 @@ def test_main_emits_human_readable_summary(
     monkeypatch.setattr(
         benchmark_module,
         "benchmark_render",
-        lambda wires, layers, repeats: {
+        lambda wires, layers, repeats, view="2d", topology="line": {
             "wires": wires,
             "layers": layers,
             "repeats": repeats,
+            "view": view,
+            "topology": topology,
             "prepare_seconds": 0.01,
             "layout_seconds": 0.02,
             "render_seconds": 0.03,
@@ -90,6 +103,38 @@ def test_main_emits_human_readable_summary(
     assert "wires=4" in captured.out
     assert "layers=8" in captured.out
     assert "full_draw=0.040000s" in captured.out
+
+
+def test_main_emits_3d_summary_with_topology(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    benchmark_module = _load_benchmark_module()
+
+    monkeypatch.setattr(
+        benchmark_module,
+        "benchmark_render",
+        lambda wires, layers, repeats, view="2d", topology="line": {
+            "wires": wires,
+            "layers": layers,
+            "repeats": repeats,
+            "view": view,
+            "topology": topology,
+            "prepare_seconds": 0.01,
+            "layout_seconds": 0.02,
+            "render_seconds": 0.03,
+            "full_draw_seconds": 0.04,
+        },
+    )
+
+    exit_code = benchmark_module.main(
+        ["--wires", "4", "--layers", "8", "--repeats", "1", "--view", "3d", "--topology", "grid"]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "view=3d" in captured.out
+    assert "topology=grid" in captured.out
 
 
 def test_benchmark_render_script_emits_json_summary() -> None:
@@ -113,6 +158,42 @@ def test_benchmark_render_script_emits_json_summary() -> None:
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
 
+    assert payload["wires"] == 4
+    assert payload["layers"] == 8
+    assert payload["repeats"] == 1
+    assert payload["prepare_seconds"] >= 0.0
+    assert payload["layout_seconds"] >= 0.0
+    assert payload["render_seconds"] >= 0.0
+    assert payload["full_draw_seconds"] >= 0.0
+
+
+def test_benchmark_render_script_emits_json_summary_for_3d() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_benchmark_script_path()),
+            "--wires",
+            "4",
+            "--layers",
+            "8",
+            "--repeats",
+            "1",
+            "--view",
+            "3d",
+            "--topology",
+            "grid",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+
+    assert payload["view"] == "3d"
+    assert payload["topology"] == "grid"
     assert payload["wires"] == 4
     assert payload["layers"] == 8
     assert payload["repeats"] == 1

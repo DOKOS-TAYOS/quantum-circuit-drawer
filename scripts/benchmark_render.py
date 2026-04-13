@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 from time import perf_counter
+from typing import Literal
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -16,9 +17,15 @@ from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind  # noqa: E402
-from quantum_circuit_drawer.layout import LayoutEngine  # noqa: E402
-from quantum_circuit_drawer.renderers import MatplotlibRenderer  # noqa: E402
+from quantum_circuit_drawer.layout import LayoutEngine, LayoutEngine3D  # noqa: E402
+from quantum_circuit_drawer.layout.topology_3d import TopologyName  # noqa: E402
+from quantum_circuit_drawer.renderers import (  # noqa: E402
+    MatplotlibRenderer,
+    MatplotlibRenderer3D,
+)
 from quantum_circuit_drawer.style import DrawStyle, normalize_style  # noqa: E402
+
+ViewMode = Literal["2d", "3d"]
 
 
 def build_synthetic_circuit(wires: int, layers: int) -> CircuitIR:
@@ -51,15 +58,25 @@ def build_synthetic_circuit(wires: int, layers: int) -> CircuitIR:
     return CircuitIR(quantum_wires=quantum_wires, layers=layer_items)
 
 
-def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float | int]:
+def benchmark_render(
+    wires: int,
+    layers: int,
+    repeats: int,
+    *,
+    view: ViewMode = "2d",
+    topology: TopologyName = "line",
+) -> dict[str, float | int | str]:
     circuit = build_synthetic_circuit(wires=wires, layers=layers)
     style = normalize_style(DrawStyle())
-    layout_engine = LayoutEngine()
-    renderer = MatplotlibRenderer()
     prepare_seconds = 0.0
     layout_seconds = 0.0
     render_seconds = 0.0
     full_draw_seconds = 0.0
+    pipeline_options = (
+        {"view": "3d", "topology": topology, "direct": True, "hover": False} if view == "3d" else {}
+    )
+    layout_engine = LayoutEngine3D() if view == "3d" else LayoutEngine()
+    renderer = MatplotlibRenderer3D() if view == "3d" else MatplotlibRenderer()
 
     for _ in range(repeats):
         prepare_start = perf_counter()
@@ -68,12 +85,21 @@ def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float |
             framework="ir",
             style=None,
             layout=None,
-            options={},
+            options=pipeline_options,
         )
         prepare_seconds += perf_counter() - prepare_start
 
         layout_start = perf_counter()
-        scene = layout_engine.compute(circuit, style)
+        if view == "3d":
+            scene = layout_engine.compute(
+                circuit,
+                style,
+                topology_name=topology,
+                direct=True,
+                hover_enabled=False,
+            )
+        else:
+            scene = layout_engine.compute(circuit, style)
         layout_seconds += perf_counter() - layout_start
 
         render_start = perf_counter()
@@ -82,11 +108,20 @@ def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float |
         figure.clear()
 
         full_draw_start = perf_counter()
-        full_figure, _ = draw_quantum_circuit(circuit, framework="ir", show=False)
+        if view == "3d":
+            full_figure, _ = draw_quantum_circuit(
+                circuit,
+                framework="ir",
+                view="3d",
+                topology=topology,
+                show=False,
+            )
+        else:
+            full_figure, _ = draw_quantum_circuit(circuit, framework="ir", show=False)
         full_draw_seconds += perf_counter() - full_draw_start
         full_figure.clear()
 
-    return {
+    results: dict[str, float | int | str] = {
         "wires": wires,
         "layers": layers,
         "repeats": repeats,
@@ -95,6 +130,10 @@ def benchmark_render(wires: int, layers: int, repeats: int) -> dict[str, float |
         "render_seconds": render_seconds / repeats,
         "full_draw_seconds": full_draw_seconds / repeats,
     }
+    if view == "3d":
+        results["view"] = view
+        results["topology"] = topology
+    return results
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -102,6 +141,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--wires", type=positive_int, default=16)
     parser.add_argument("--layers", type=positive_int, default=120)
     parser.add_argument("--repeats", type=positive_int, default=3)
+    parser.add_argument("--view", choices=("2d", "3d"), default="2d")
+    parser.add_argument(
+        "--topology",
+        choices=("line", "grid", "star", "star_tree", "honeycomb"),
+        default="line",
+    )
     parser.add_argument("--json", action="store_true", dest="emit_json")
     return parser.parse_args(argv)
 
@@ -117,21 +162,32 @@ def positive_int(raw_value: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    results = benchmark_render(wires=args.wires, layers=args.layers, repeats=args.repeats)
+    results = benchmark_render(
+        wires=args.wires,
+        layers=args.layers,
+        repeats=args.repeats,
+        view=args.view,
+        topology=args.topology,
+    )
     if args.emit_json:
         print(json.dumps(results))
         return 0
 
-    print(
+    summary = (
         "Synthetic benchmark:"
         f" wires={results['wires']}"
         f" layers={results['layers']}"
         f" repeats={results['repeats']}"
+    )
+    if args.view == "3d":
+        summary += f" view={args.view} topology={args.topology}"
+    summary += (
         f" prepare={results['prepare_seconds']:.6f}s"
         f" layout={results['layout_seconds']:.6f}s"
         f" render={results['render_seconds']:.6f}s"
         f" full_draw={results['full_draw_seconds']:.6f}s"
     )
+    print(summary)
     return 0
 
 

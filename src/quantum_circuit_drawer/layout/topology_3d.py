@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from ..ir.wires import WireIR
@@ -33,28 +33,58 @@ class Topology3D:
     name: TopologyName
     nodes: tuple[TopologyNode, ...]
     edges: tuple[tuple[str, str], ...]
+    _positions_cache: dict[str, tuple[float, float]] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _neighbor_map_cache: dict[str, tuple[str, ...]] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _shortest_path_cache: dict[tuple[str, str], tuple[str, ...]] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        positions = {node.wire_id: (node.x, node.y) for node in self.nodes}
+        neighbors: dict[str, list[str]] = {node.wire_id: [] for node in self.nodes}
+        for first, second in self.edges:
+            neighbors.setdefault(first, []).append(second)
+            neighbors.setdefault(second, []).append(first)
+        object.__setattr__(self, "_positions_cache", positions)
+        object.__setattr__(
+            self,
+            "_neighbor_map_cache",
+            {wire_id: tuple(values) for wire_id, values in neighbors.items()},
+        )
+        object.__setattr__(self, "_shortest_path_cache", {})
 
     @property
     def positions(self) -> dict[str, tuple[float, float]]:
         """Return node positions keyed by wire id."""
 
-        return {node.wire_id: (node.x, node.y) for node in self.nodes}
+        return self._positions_cache
 
     @property
     def neighbor_map(self) -> dict[str, tuple[str, ...]]:
         """Return the undirected adjacency map implied by ``edges``."""
 
-        neighbors: dict[str, list[str]] = {node.wire_id: [] for node in self.nodes}
-        for first, second in self.edges:
-            neighbors.setdefault(first, []).append(second)
-            neighbors.setdefault(second, []).append(first)
-        return {wire_id: tuple(values) for wire_id, values in neighbors.items()}
+        return self._neighbor_map_cache
 
     def shortest_path(self, start_wire_id: str, end_wire_id: str) -> tuple[str, ...]:
         """Return the shortest wire-id path between two connected topology nodes."""
 
         if start_wire_id == end_wire_id:
             return (start_wire_id,)
+
+        cache_key = (start_wire_id, end_wire_id)
+        cached_path = self._shortest_path_cache.get(cache_key)
+        if cached_path is not None:
+            return cached_path
 
         neighbors = self.neighbor_map
         queue: deque[tuple[str, tuple[str, ...]]] = deque([(start_wire_id, (start_wire_id,))])
@@ -66,6 +96,10 @@ class Topology3D:
                     continue
                 next_path = (*path, neighbor)
                 if neighbor == end_wire_id:
+                    self._shortest_path_cache[cache_key] = next_path
+                    self._shortest_path_cache[(end_wire_id, start_wire_id)] = tuple(
+                        reversed(next_path)
+                    )
                     return next_path
                 visited.add(neighbor)
                 queue.append((neighbor, next_path))

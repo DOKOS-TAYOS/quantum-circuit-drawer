@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -34,6 +34,7 @@ from .base import BaseRenderer
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure, SubFigure
+    from matplotlib.transforms import Transform
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,15 @@ _TOPOLOGY_EDGE_WIDTH_SCALE = 0.6
 _GATE_EDGE_WIDTH_SCALE = 0.56
 _HOVER_ZORDER = 10_000.0
 _CUBIC_GATE_SIZE_TOLERANCE = 1e-6
+_X_TARGET_RING_SEGMENTS = 40
+
+
+@dataclass(slots=True)
+class _RenderContext3D:
+    projection_matrix: np.ndarray
+    data_transform: Transform
+    projected_axis_scale_cache: dict[tuple[float, float, float], tuple[float, float, float]]
+    x_target_unit_circle: np.ndarray
 
 
 class MatplotlibRenderer3D(BaseRenderer):
@@ -73,12 +83,13 @@ class MatplotlibRenderer3D(BaseRenderer):
         figure = axes_3d.figure
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
         self._prepare_axes(axes_3d, scene)
+        render_context = self._create_render_context(axes_3d)
 
         hover_targets: list[tuple[Artist, str]] = []
         self._draw_topology_planes(axes_3d, scene)
         hover_targets.extend(self._draw_wires(axes_3d, scene))
         hover_targets.extend(self._draw_connections(axes_3d, scene))
-        hover_targets.extend(self._draw_gates(axes_3d, scene))
+        hover_targets.extend(self._draw_gates(axes_3d, scene, render_context))
         hover_targets.extend(self._draw_markers(axes_3d, scene))
         self._draw_texts(axes_3d, scene)
         if scene.hover_enabled:
@@ -114,6 +125,16 @@ class MatplotlibRenderer3D(BaseRenderer):
             axes.view_init(elev=18.0, azim=-55.0, vertical_axis="y")
         except TypeError:
             axes.view_init(elev=18.0, azim=-55.0)
+
+    def _create_render_context(self, axes: Axes3D) -> _RenderContext3D:
+        theta = np.linspace(0.0, 2.0 * np.pi, _X_TARGET_RING_SEGMENTS, endpoint=False)
+        unit_circle = np.column_stack((np.cos(theta), np.sin(theta)))
+        return _RenderContext3D(
+            projection_matrix=axes.get_proj(),
+            data_transform=axes.transData,
+            projected_axis_scale_cache={},
+            x_target_unit_circle=unit_circle,
+        )
 
     def _draw_wires(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
         hover_targets: list[tuple[Artist, str]] = []
@@ -208,13 +229,22 @@ class MatplotlibRenderer3D(BaseRenderer):
                 hover_targets.append((collection, connection.hover_text))
         return hover_targets
 
-    def _draw_gates(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
+    def _draw_gates(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        render_context: _RenderContext3D,
+    ) -> list[tuple[Artist, str]]:
         hover_targets: list[tuple[Artist, str]] = []
+        batched_x_targets: list[SceneGate3D] = []
         for gate in scene.gates:
             if gate.render_style is GateRenderStyle3D.X_TARGET:
-                hover_targets.extend(self._draw_x_target(axes, gate, scene))
+                if scene.hover_enabled:
+                    hover_targets.extend(self._draw_x_target(axes, gate, scene, render_context))
+                else:
+                    batched_x_targets.append(gate)
                 continue
-            display_gate = self._display_compensated_gate(axes, gate)
+            display_gate = self._display_compensated_gate(axes, gate, render_context=render_context)
             collection = Poly3DCollection(
                 self._cuboid_faces(display_gate),
                 facecolors=scene.style.theme.measurement_facecolor
@@ -231,6 +261,8 @@ class MatplotlibRenderer3D(BaseRenderer):
                 hover_targets.append((collection, gate.hover_text))
             if gate.render_style is GateRenderStyle3D.MEASUREMENT and not scene.hover_enabled:
                 self._draw_measurement_symbol(axes, display_gate, scene)
+        if batched_x_targets:
+            self._draw_x_targets_batched(axes, batched_x_targets, scene, render_context)
         return hover_targets
 
     def _draw_topology_planes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
@@ -256,13 +288,15 @@ class MatplotlibRenderer3D(BaseRenderer):
         axes: Axes3D,
         gate: SceneGate3D,
         scene: LayoutScene3D,
+        render_context: _RenderContext3D,
     ) -> list[tuple[Artist, str]]:
         radius = min(gate.size_x, gate.size_y) * 0.32
-        theta = np.linspace(0.0, 2.0 * np.pi, 40)
+        ring_points = self._x_target_ring_points(gate, radius, render_context)
+        closed_ring_points = np.vstack((ring_points, ring_points[0]))
         (circle_line,) = axes.plot(
-            gate.center.x + (radius * np.cos(theta)),
-            gate.center.y + (radius * np.sin(theta)),
-            np.full_like(theta, gate.center.z),
+            closed_ring_points[:, 0],
+            closed_ring_points[:, 1],
+            closed_ring_points[:, 2],
             color=scene.style.theme.wire_color,
             linewidth=scene.style.line_width,
         )
@@ -283,7 +317,59 @@ class MatplotlibRenderer3D(BaseRenderer):
         axes.add_collection3d(cross_collection)
         return [(circle_line, gate.hover_text)] if gate.hover_text else []
 
+    def _draw_x_targets_batched(
+        self,
+        axes: Axes3D,
+        gates: list[SceneGate3D],
+        scene: LayoutScene3D,
+        render_context: _RenderContext3D,
+    ) -> None:
+        ring_segments: list[tuple[tuple[float, float, float], tuple[float, float, float]]] = []
+        cross_segments: list[tuple[tuple[float, float, float], tuple[float, float, float]]] = []
+        for gate in gates:
+            radius = min(gate.size_x, gate.size_y) * 0.32
+            ring_segments.extend(
+                self._segments_for_ring_points(
+                    self._x_target_ring_points(gate, radius, render_context)
+                )
+            )
+            cross_segments.extend(
+                [
+                    (
+                        (gate.center.x - radius, gate.center.y, gate.center.z),
+                        (gate.center.x + radius, gate.center.y, gate.center.z),
+                    ),
+                    (
+                        (gate.center.x, gate.center.y - radius, gate.center.z),
+                        (gate.center.x, gate.center.y + radius, gate.center.z),
+                    ),
+                ]
+            )
+        ring_collection = Line3DCollection(
+            ring_segments,
+            colors=scene.style.theme.wire_color,
+            linewidths=scene.style.line_width,
+        )
+        ring_collection.set_zorder(3.3)
+        axes.add_collection3d(ring_collection)
+        cross_collection = Line3DCollection(
+            cross_segments,
+            colors=scene.style.theme.wire_color,
+            linewidths=scene.style.line_width,
+        )
+        cross_collection.set_zorder(3.4)
+        axes.add_collection3d(cross_collection)
+
     def _draw_markers(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
+        if scene.hover_enabled:
+            return self._draw_markers_with_hover(axes, scene)
+        return self._draw_markers_batched(axes, scene)
+
+    def _draw_markers_with_hover(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+    ) -> list[tuple[Artist, str]]:
         hover_targets: list[tuple[Artist, str]] = []
         for marker in scene.markers:
             if marker.style is MarkerStyle3D.TOPOLOGY_NODE:
@@ -329,6 +415,64 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection.set_zorder(3.1)
             axes.add_collection3d(collection)
         return hover_targets
+
+    def _draw_markers_batched(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
+        topology_nodes = [
+            marker for marker in scene.markers if marker.style is MarkerStyle3D.TOPOLOGY_NODE
+        ]
+        if topology_nodes:
+            axes.scatter(
+                [marker.center.x for marker in topology_nodes],
+                [marker.center.y for marker in topology_nodes],
+                [marker.center.z for marker in topology_nodes],
+                s=[marker.size * 320.0 for marker in topology_nodes],
+                facecolors=scene.style.theme.axes_facecolor,
+                edgecolors=_QUANTUM_WIRE_COLOR,
+                linewidths=max(1.0, scene.style.line_width * 0.82),
+                depthshade=False,
+                zorder=3.2,
+            )
+
+        control_markers = [
+            marker for marker in scene.markers if marker.style is MarkerStyle3D.CONTROL
+        ]
+        if control_markers:
+            axes.scatter(
+                [marker.center.x for marker in control_markers],
+                [marker.center.y for marker in control_markers],
+                [marker.center.z for marker in control_markers],
+                s=[marker.size * 18.0 for marker in control_markers],
+                c=_CONTROL_CONNECTION_COLOR,
+                depthshade=False,
+                zorder=3.4,
+            )
+
+        swap_segments: list[tuple[tuple[float, float, float], tuple[float, float, float]]] = []
+        for marker in scene.markers:
+            if marker.style is not MarkerStyle3D.SWAP:
+                continue
+            size = marker.size
+            swap_segments.extend(
+                [
+                    (
+                        (marker.center.x - size, marker.center.y - size, marker.center.z),
+                        (marker.center.x + size, marker.center.y + size, marker.center.z),
+                    ),
+                    (
+                        (marker.center.x - size, marker.center.y + size, marker.center.z),
+                        (marker.center.x + size, marker.center.y - size, marker.center.z),
+                    ),
+                ]
+            )
+        if swap_segments:
+            collection = Line3DCollection(
+                swap_segments,
+                colors=scene.style.theme.wire_color,
+                linewidths=scene.style.line_width,
+            )
+            collection.set_zorder(3.1)
+            axes.add_collection3d(collection)
+        return []
 
     def _draw_measurement_symbol(
         self,
@@ -456,6 +600,39 @@ class MatplotlibRenderer3D(BaseRenderer):
             for first, second in zip(points, points[1:])
         ]
 
+    def _segments_for_ring_points(
+        self,
+        points: np.ndarray,
+    ) -> list[tuple[tuple[float, float, float], tuple[float, float, float]]]:
+        point_count = points.shape[0]
+        return [
+            (
+                (float(points[index][0]), float(points[index][1]), float(points[index][2])),
+                (
+                    float(points[(index + 1) % point_count][0]),
+                    float(points[(index + 1) % point_count][1]),
+                    float(points[(index + 1) % point_count][2]),
+                ),
+            )
+            for index in range(point_count)
+        ]
+
+    def _x_target_ring_points(
+        self,
+        gate: SceneGate3D,
+        radius: float,
+        render_context: _RenderContext3D,
+    ) -> np.ndarray:
+        ring_points = render_context.x_target_unit_circle * radius
+        z_values = np.full((ring_points.shape[0], 1), gate.center.z)
+        return np.column_stack(
+            (
+                gate.center.x + ring_points[:, 0],
+                gate.center.y + ring_points[:, 1],
+                z_values[:, 0],
+            )
+        )
+
     def _arrowhead_segments(
         self,
         points: tuple[Point3D, ...],
@@ -510,11 +687,20 @@ class MatplotlibRenderer3D(BaseRenderer):
             [(x1, y0, z0), (x1, y1, z0), (x1, y1, z1), (x1, y0, z1)],
         ]
 
-    def _display_compensated_gate(self, axes: Axes3D, gate: SceneGate3D) -> SceneGate3D:
+    def _display_compensated_gate(
+        self,
+        axes: Axes3D,
+        gate: SceneGate3D,
+        render_context: _RenderContext3D | None = None,
+    ) -> SceneGate3D:
         if not self._should_compensate_gate(gate):
             return gate
 
-        scale_x, scale_y, scale_z = self._projected_axis_scales(axes, gate.center)
+        scale_x, scale_y, scale_z = self._projected_axis_scales(
+            axes,
+            gate.center,
+            render_context=render_context,
+        )
         if min(scale_x, scale_y, scale_z) <= 0.0:
             return gate
 
@@ -541,31 +727,57 @@ class MatplotlibRenderer3D(BaseRenderer):
             and abs(gate.size_y - gate.size_z) <= _CUBIC_GATE_SIZE_TOLERANCE
         )
 
-    def _projected_axis_scales(self, axes: Axes3D, center: Point3D) -> tuple[float, float, float]:
-        origin = self._projected_display_point(axes, center)
+    def _projected_axis_scales(
+        self,
+        axes: Axes3D,
+        center: Point3D,
+        *,
+        render_context: _RenderContext3D | None = None,
+    ) -> tuple[float, float, float]:
+        context = render_context or self._create_render_context(axes)
+        center_key = (center.x, center.y, center.z)
+        cached_scales = context.projected_axis_scale_cache.get(center_key)
+        if cached_scales is not None:
+            return cached_scales
+        origin = self._projected_display_point(axes, center, render_context=context)
         x_axis_point = self._projected_display_point(
-            axes, Point3D(x=center.x + 1.0, y=center.y, z=center.z)
+            axes,
+            Point3D(x=center.x + 1.0, y=center.y, z=center.z),
+            render_context=context,
         )
         y_axis_point = self._projected_display_point(
-            axes, Point3D(x=center.x, y=center.y + 1.0, z=center.z)
+            axes,
+            Point3D(x=center.x, y=center.y + 1.0, z=center.z),
+            render_context=context,
         )
         z_axis_point = self._projected_display_point(
-            axes, Point3D(x=center.x, y=center.y, z=center.z + 1.0)
+            axes,
+            Point3D(x=center.x, y=center.y, z=center.z + 1.0),
+            render_context=context,
         )
-        return (
+        scales = (
             float(np.linalg.norm(x_axis_point - origin)),
             float(np.linalg.norm(y_axis_point - origin)),
             float(np.linalg.norm(z_axis_point - origin)),
         )
+        context.projected_axis_scale_cache[center_key] = scales
+        return scales
 
-    def _projected_display_point(self, axes: Axes3D, point: Point3D) -> np.ndarray:
+    def _projected_display_point(
+        self,
+        axes: Axes3D,
+        point: Point3D,
+        *,
+        render_context: _RenderContext3D | None = None,
+    ) -> np.ndarray:
+        context = render_context or self._create_render_context(axes)
         projected_x, projected_y, _ = proj3d.proj_transform(
             point.x,
             point.y,
             point.z,
-            axes.get_proj(),
+            context.projection_matrix,
         )
-        display_x, display_y = axes.transData.transform((projected_x, projected_y))
+        display_x, display_y = context.data_transform.transform((projected_x, projected_y))
         return np.array([float(display_x), float(display_y)], dtype=float)
 
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:

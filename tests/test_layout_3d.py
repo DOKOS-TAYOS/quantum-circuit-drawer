@@ -51,6 +51,34 @@ def _line_control_ir() -> CircuitIR:
     )
 
 
+def _dense_marker_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(6)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q5",),
+                        control_wires=("q0",),
+                    ),
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q4",),
+                        control_wires=("q1",),
+                    ),
+                    OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=("q2", "q3")),
+                ]
+            )
+        ],
+    )
+
+
 def _five_wire_ir() -> CircuitIR:
     return CircuitIR(
         quantum_wires=[
@@ -128,6 +156,18 @@ def _single_gate_ir(*, name: str = "H") -> CircuitIR:
     )
 
 
+def _multi_single_gate_ir(*, layers: int = 4) -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            )
+            for _ in range(layers)
+        ],
+    )
+
+
 def test_build_topology_grid_prefers_more_columns_when_near_square() -> None:
     quantum_wires = tuple(
         WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
@@ -153,6 +193,23 @@ def test_build_topology_honeycomb_accepts_only_reference_53_qubits() -> None:
     assert len(topology.nodes) == 53
     with pytest.raises(ValueError, match="topology 'honeycomb' does not support 52 quantum wires"):
         build_topology("honeycomb", valid_wires[:-1])
+
+
+def test_topology_3d_caches_neighbor_map_and_shortest_paths() -> None:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(4)
+    )
+
+    topology = build_topology("line", quantum_wires)
+    first_neighbor_map = topology.neighbor_map
+    second_neighbor_map = topology.neighbor_map
+    first_path = topology.shortest_path("q0", "q3")
+    second_path = topology.shortest_path("q0", "q3")
+
+    assert first_neighbor_map is second_neighbor_map
+    assert first_path == ("q0", "q1", "q2", "q3")
+    assert first_path is second_path
 
 
 def test_layout_engine_3d_keeps_quantum_wires_fixed_in_xy_and_extends_in_z() -> None:
@@ -372,6 +429,90 @@ def test_matplotlib_renderer_3d_compensates_single_gate_projection_to_look_squar
     )
 
     assert max(display_sizes) / min(display_sizes) < 1.15
+
+
+def test_matplotlib_renderer_3d_batches_noninteractive_marker_scatters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine3D().compute(
+        _dense_marker_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+    renderer = MatplotlibRenderer3D()
+    scatter_calls = 0
+    original_scatter = axes.scatter
+
+    def counting_scatter(*args: object, **kwargs: object) -> object:
+        nonlocal scatter_calls
+        scatter_calls += 1
+        return original_scatter(*args, **kwargs)
+
+    monkeypatch.setattr(axes, "scatter", counting_scatter)
+
+    renderer.render(scene, ax=axes)
+
+    assert scatter_calls == 2
+
+
+def test_matplotlib_renderer_3d_batches_noninteractive_x_target_rings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine3D().compute(
+        _dense_marker_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+    renderer = MatplotlibRenderer3D()
+    plot_calls = 0
+    original_plot = axes.plot
+
+    def counting_plot(*args: object, **kwargs: object) -> list[object]:
+        nonlocal plot_calls
+        plot_calls += 1
+        return original_plot(*args, **kwargs)
+
+    monkeypatch.setattr(axes, "plot", counting_plot)
+
+    renderer.render(scene, ax=axes)
+
+    assert plot_calls <= len(scene.wires) + 1
+
+
+def test_matplotlib_renderer_3d_reuses_projection_matrix_for_gate_compensation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=4),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+    renderer = MatplotlibRenderer3D()
+    get_proj_calls = 0
+    original_get_proj = axes.get_proj
+
+    def counting_get_proj() -> object:
+        nonlocal get_proj_calls
+        get_proj_calls += 1
+        return original_get_proj()
+
+    monkeypatch.setattr(axes, "get_proj", counting_get_proj)
+
+    renderer.render(scene, ax=axes)
+
+    assert get_proj_calls <= 2
 
 
 def test_draw_quantum_circuit_hides_gate_and_wire_labels_when_hover_is_interactive(
