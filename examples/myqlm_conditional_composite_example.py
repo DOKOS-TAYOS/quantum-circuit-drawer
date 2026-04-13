@@ -21,7 +21,7 @@ def build_circuit() -> object:
     RY(0.52)(qbits[2])
     program.apply(QFT(2), qbits[2], qbits[3])
     program.measure([qbits[0]], [cbits[0]])
-    program.cc_apply(X, cbits[0], qbits[3])
+    program.cc_apply(cbits[0], X, qbits[3])
     program.measure([qbits[3]], [cbits[1]])
     return program.to_circ()
 

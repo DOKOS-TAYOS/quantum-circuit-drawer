@@ -169,7 +169,7 @@ class FakeMyQLMGateDefinition:
 class FakeMyQLMOp:
     gate: str | None = None
     qbits: tuple[int, ...] = ()
-    type: str = "GATETYPE"
+    type: str | int = "GATETYPE"
     cbits: tuple[int, ...] = ()
     formula: str | None = None
     remap: tuple[int, ...] | None = None

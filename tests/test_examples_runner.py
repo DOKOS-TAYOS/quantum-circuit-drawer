@@ -235,6 +235,7 @@ def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
         ("pennylane-balanced", "pennylane"),
         ("pennylane-conditional-composite", "pennylane"),
         ("myqlm-balanced", "qat"),
+        ("myqlm-conditional-composite", "qat"),
     ],
 )
 def test_examples_runner_can_render_selected_optional_demo(

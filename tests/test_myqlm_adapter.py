@@ -246,6 +246,29 @@ def test_myqlm_adapter_converts_reset_and_classicctrl(
     assert operations[3].target_wires == ("q1",)
 
 
+def test_myqlm_adapter_converts_numeric_classicctrl_operation_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter_type = load_myqlm_adapter_type()
+    gate_dic = {
+        "X": FakeMyQLMGateDefinition(name="X", arity=1, syntax=FakeMyQLMSyntax(name="X")),
+    }
+    circuit = FakeMyQLMCircuit(
+        ops=(FakeMyQLMOp(gate="X", qbits=(0,), cbits=(0,), type=4),),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=1,
+    )
+
+    ir = adapter_type().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert operations[0].name == "X"
+    assert operations[0].classical_conditions[0].wire_ids == ("c0",)
+    assert operations[0].classical_conditions[0].expression == "if c[0]=1"
+
+
 def test_myqlm_adapter_keeps_composite_operations_compact_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

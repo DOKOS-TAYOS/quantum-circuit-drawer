@@ -23,15 +23,32 @@ from ._helpers import (
 )
 from .base import BaseAdapter, OperationNode
 
-_OPERATION_TYPE_BY_INT: dict[int, str] = {
+_DEFAULT_OPERATION_TYPE_BY_INT: dict[int, str] = {
     0: "GATETYPE",
     1: "MEASURE",
     2: "RESET",
-    3: "BREAK",
-    4: "CLASSIC",
-    5: "CLASSICCTRL",
+    3: "CLASSIC",
+    4: "CLASSICCTRL",
+    5: "BREAK",
     6: "REMAP",
 }
+
+
+def _build_operation_type_map() -> dict[int, str]:
+    mapping = dict(_DEFAULT_OPERATION_TYPE_BY_INT)
+    try:
+        from qat.comm.datamodel.ttypes import OpType
+    except (ImportError, ModuleNotFoundError):
+        return mapping
+
+    for name in ("GATETYPE", "MEASURE", "RESET", "CLASSIC", "CLASSICCTRL", "BREAK", "REMAP"):
+        value = getattr(OpType, name, None)
+        if isinstance(value, int):
+            mapping[int(value)] = name
+    return mapping
+
+
+_OPERATION_TYPE_BY_INT = _build_operation_type_map()
 
 
 class _MyQLMSyntaxLike(Protocol):
