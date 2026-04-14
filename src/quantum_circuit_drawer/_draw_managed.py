@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING, TypeGuard, cast
@@ -14,6 +15,7 @@ from .typing import LayoutEngineLike, OutputPath
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.backend_bases import DrawEvent, ResizeEvent
     from matplotlib.figure import Figure
 
     from .ir.circuit import CircuitIR
@@ -21,6 +23,7 @@ if TYPE_CHECKING:
     from .layout.scene_3d import LayoutScene3D
 
 _PAGE_SLIDER_MAIN_AXES_BOTTOM = 0.18
+_VIEWPORT_SEARCH_STEPS = 10
 logger = logging.getLogger(__name__)
 
 
@@ -93,11 +96,63 @@ def render_managed_draw_pipeline(
         )
     else:
         figure, axes = create_managed_figure(pipeline.paged_scene, use_agg=not show)
-        pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
+        render_draw_pipeline_on_axes(
+            pipeline,
+            axes=axes,
+            output=output,
+            enable_auto_paging=True,
+        )
         logger.debug("Rendered managed figure without page slider")
 
     show_figure_if_supported(figure, show=show)
     return figure, axes
+
+
+def render_draw_pipeline_on_axes(
+    pipeline: PreparedDrawPipeline,
+    *,
+    axes: Axes,
+    output: OutputPath | None,
+    enable_auto_paging: bool,
+) -> Axes:
+    """Render a prepared pipeline on existing 2D axes, with optional auto paging."""
+
+    from .renderers._matplotlib_figure import (
+        AutoPagingState,
+        clear_auto_paging_state,
+        set_auto_paging_state,
+        set_viewport_width,
+    )
+
+    clear_auto_paging_state(axes)
+
+    if is_3d_scene(pipeline.paged_scene) or not enable_auto_paging:
+        axes.clear()
+        pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
+        return axes
+
+    scene_2d, effective_page_width = viewport_adaptive_paged_scene(
+        pipeline.ir,
+        cast(LayoutEngineLike, pipeline.layout_engine),
+        pipeline.normalized_style,
+        axes,
+    )
+    axes.clear()
+    pipeline.renderer.render(scene_2d, ax=axes, output=output)
+    set_viewport_width(axes.figure, viewport_width=scene_2d.width)
+
+    auto_paging_state = AutoPagingState(
+        ir=pipeline.ir,
+        layout_engine=cast(LayoutEngineLike, pipeline.layout_engine),
+        renderer=pipeline.renderer,
+        normalized_style=pipeline.normalized_style,
+        scene=scene_2d,
+        effective_page_width=effective_page_width,
+        last_viewport_signature=viewport_signature(axes),
+    )
+    set_auto_paging_state(axes, auto_paging_state)
+    configure_auto_paging(axes, auto_paging_state)
+    return axes
 
 
 def build_continuous_slider_scene(
@@ -114,6 +169,214 @@ def build_continuous_slider_scene(
             slider_style,
         )
     return layout_engine.compute(circuit, slider_style)
+
+
+def viewport_adaptive_paged_scene(
+    circuit: CircuitIR,
+    layout_engine: LayoutEngineLike,
+    style: DrawStyle,
+    axes: Axes,
+) -> tuple[LayoutScene, float]:
+    """Return the paged scene whose aspect best matches the current axes viewport."""
+
+    max_page_width = style.max_page_width
+    if not math.isfinite(max_page_width):
+        return compute_paged_scene(circuit, layout_engine, style), max_page_width
+
+    viewport_ratio = axes_viewport_ratio(axes)
+    if viewport_ratio <= 0.0:
+        return compute_paged_scene(circuit, layout_engine, style), max_page_width
+
+    lower_bound = min(style.gate_width, max_page_width)
+    scene_cache: dict[float, LayoutScene] = {}
+
+    def scene_for_width(page_width: float) -> LayoutScene:
+        cached_scene = scene_cache.get(page_width)
+        if cached_scene is not None:
+            return cached_scene
+        scene = compute_paged_scene(
+            circuit,
+            layout_engine,
+            replace(style, max_page_width=page_width),
+        )
+        scene_cache[page_width] = scene
+        return scene
+
+    best_page_width = max_page_width
+    best_scene = scene_for_width(best_page_width)
+    best_score = viewport_scene_score(best_scene, viewport_ratio)
+
+    low = lower_bound
+    high = max_page_width
+    for page_width in (low, high):
+        candidate_scene = scene_for_width(page_width)
+        candidate_score = viewport_scene_score(candidate_scene, viewport_ratio)
+        if candidate_score < best_score:
+            best_page_width = page_width
+            best_scene = candidate_scene
+            best_score = candidate_score
+
+    for _ in range(_VIEWPORT_SEARCH_STEPS):
+        mid = (low + high) / 2.0
+        candidate_scene = scene_for_width(mid)
+        candidate_ratio = scene_aspect_ratio(candidate_scene)
+        candidate_score = viewport_scene_score(candidate_scene, viewport_ratio)
+        if candidate_score < best_score:
+            best_page_width = mid
+            best_scene = candidate_scene
+            best_score = candidate_score
+        if candidate_ratio <= viewport_ratio:
+            low = mid
+            continue
+        high = mid
+
+    return best_scene, best_page_width
+
+
+def compute_paged_scene(
+    circuit: CircuitIR,
+    layout_engine: LayoutEngineLike,
+    style: DrawStyle,
+) -> LayoutScene:
+    """Compute a paged 2D scene using the provided normalized style."""
+
+    if hasattr(layout_engine, "_compute_with_normalized_style"):
+        return layout_engine._compute_with_normalized_style(  # type: ignore[attr-defined]
+            circuit,
+            style,
+        )
+    return layout_engine.compute(circuit, style)
+
+
+def configure_auto_paging(axes: Axes, state: object) -> None:
+    """Attach resize-aware paging callbacks to the provided axes."""
+
+    from .renderers._matplotlib_figure import (
+        AutoPagingState,
+        get_auto_paging_state,
+        set_viewport_width,
+    )
+
+    if not isinstance(state, AutoPagingState):
+        return
+
+    canvas = axes.figure.canvas
+    if canvas is None:
+        return
+
+    def request_redraw(_event: ResizeEvent) -> None:
+        if state.is_updating:
+            return
+        canvas.draw_idle()
+
+    def redraw_if_needed(_event: DrawEvent) -> None:
+        current_state = get_auto_paging_state(axes)
+        if current_state is None or current_state is not state or state.is_updating:
+            return
+
+        current_signature = viewport_signature(axes)
+        if current_signature is None or current_signature == state.last_viewport_signature:
+            return
+
+        candidate_scene, candidate_page_width = viewport_adaptive_paged_scene(
+            state.ir,
+            state.layout_engine,
+            state.normalized_style,
+            axes,
+        )
+        state.last_viewport_signature = current_signature
+        if auto_paging_matches(
+            current_state=state,
+            candidate_scene=candidate_scene,
+            candidate_page_width=candidate_page_width,
+        ):
+            return
+
+        state.is_updating = True
+        try:
+            axes.clear()
+            state.renderer.render(candidate_scene, ax=axes)
+            set_viewport_width(axes.figure, viewport_width=candidate_scene.width)
+            state.scene = candidate_scene
+            state.effective_page_width = candidate_page_width
+        finally:
+            state.is_updating = False
+        canvas.draw_idle()
+
+    state.resize_callback_id = canvas.mpl_connect("resize_event", request_redraw)
+    state.draw_callback_id = canvas.mpl_connect("draw_event", redraw_if_needed)
+
+
+def auto_paging_matches(
+    *,
+    current_state: object,
+    candidate_scene: LayoutScene,
+    candidate_page_width: float,
+) -> bool:
+    """Return whether a candidate scene would keep the current paging unchanged."""
+
+    from .renderers._matplotlib_figure import AutoPagingState
+
+    if not isinstance(current_state, AutoPagingState):
+        return False
+    if not math.isclose(
+        current_state.effective_page_width,
+        candidate_page_width,
+        rel_tol=1e-6,
+        abs_tol=1e-6,
+    ):
+        return False
+    return (
+        len(current_state.scene.pages) == len(candidate_scene.pages)
+        and math.isclose(current_state.scene.width, candidate_scene.width, rel_tol=1e-6)
+        and math.isclose(current_state.scene.height, candidate_scene.height, rel_tol=1e-6)
+    )
+
+
+def viewport_signature(axes: Axes) -> tuple[int, int] | None:
+    """Return an integer pixel signature for the current visible axes viewport."""
+
+    viewport_width, viewport_height = axes_viewport_pixels(axes)
+    if viewport_width <= 0.0 or viewport_height <= 0.0:
+        return None
+    return int(round(viewport_width)), int(round(viewport_height))
+
+
+def axes_viewport_ratio(axes: Axes) -> float:
+    """Return the current visible axes aspect ratio in pixels."""
+
+    viewport_width, viewport_height = axes_viewport_pixels(axes)
+    if viewport_width <= 0.0 or viewport_height <= 0.0:
+        return 0.0
+    return viewport_width / viewport_height
+
+
+def axes_viewport_pixels(axes: Axes) -> tuple[float, float]:
+    """Return the current axes viewport size in pixels."""
+
+    figure = axes.figure
+    figure_width, figure_height = figure.get_size_inches()
+    axes_position = axes.get_position(original=True)
+    viewport_width = figure_width * figure.dpi * axes_position.width
+    viewport_height = figure_height * figure.dpi * axes_position.height
+    return viewport_width, viewport_height
+
+
+def scene_aspect_ratio(scene: LayoutScene) -> float:
+    """Return the width-to-height ratio of a 2D scene."""
+
+    if scene.height <= 0.0:
+        return scene.width
+    return scene.width / scene.height
+
+
+def viewport_scene_score(scene: LayoutScene, viewport_ratio: float) -> float:
+    """Return how closely the scene aspect matches the viewport aspect."""
+
+    scene_ratio = max(scene_aspect_ratio(scene), 1e-6)
+    if viewport_ratio <= 0.0:
+        return math.inf
+    return abs(math.log(scene_ratio / viewport_ratio))
 
 
 def configure_page_slider(

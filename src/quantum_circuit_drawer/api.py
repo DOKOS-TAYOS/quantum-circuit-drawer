@@ -16,6 +16,7 @@ from ._draw_managed import (
     configure_page_slider,
     is_3d_axes,
     page_slider_figsize,
+    render_draw_pipeline_on_axes,
     render_managed_draw_pipeline,
     slider_viewport_width,
 )
@@ -120,4 +121,9 @@ def draw_quantum_circuit(
     if request.pipeline_options.view == "3d" and not is_3d_axes(request.ax):
         raise ValueError("view='3d' requires a 3D Matplotlib axes")
     logger.debug("Rendering scene on caller-managed Matplotlib axes")
-    return pipeline.renderer.render(pipeline.paged_scene, ax=request.ax, output=request.output)
+    return render_draw_pipeline_on_axes(
+        pipeline,
+        axes=request.ax,
+        output=request.output,
+        enable_auto_paging=request.pipeline_options.view == "2d",
+    )

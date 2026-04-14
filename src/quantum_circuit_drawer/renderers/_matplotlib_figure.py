@@ -10,20 +10,39 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure, SubFigure
 
 if TYPE_CHECKING:
+    from ..ir.circuit import CircuitIR
     from ..layout.scene import LayoutScene
     from ..layout.scene_3d import LayoutScene3D
+    from ..style import DrawStyle
+    from ..typing import LayoutEngineLike
+    from .base import BaseRenderer
 
 _MANAGED_SUBPLOT_LEFT = 0.02
 _MANAGED_SUBPLOT_RIGHT = 0.98
 _MANAGED_SUBPLOT_TOP = 0.98
 _MANAGED_SUBPLOT_BOTTOM = 0.02
 _METADATA_ATTR = "_quantum_circuit_drawer_metadata"
+_AUTO_PAGING_ATTR = "_quantum_circuit_drawer_auto_paging_state"
 
 
 @dataclass(slots=True)
 class _ManagedFigureMetadata:
     viewport_width: float | None = None
     page_slider: object | None = None
+
+
+@dataclass(slots=True)
+class AutoPagingState:
+    ir: CircuitIR
+    layout_engine: LayoutEngineLike
+    renderer: BaseRenderer
+    normalized_style: DrawStyle
+    scene: LayoutScene
+    effective_page_width: float
+    last_viewport_signature: tuple[int, int] | None = None
+    is_updating: bool = False
+    draw_callback_id: int | None = None
+    resize_callback_id: int | None = None
 
 
 def create_managed_figure(
@@ -84,6 +103,35 @@ def get_page_slider(figure: Figure | SubFigure) -> object | None:
     """Return the stored page slider if one has been attached."""
 
     return _metadata_for(figure).page_slider
+
+
+def set_auto_paging_state(axes: Axes, state: AutoPagingState) -> None:
+    """Store viewport-adaptive paging state on the provided axes."""
+
+    setattr(axes, _AUTO_PAGING_ATTR, state)
+
+
+def get_auto_paging_state(axes: Axes) -> AutoPagingState | None:
+    """Return viewport-adaptive paging state attached to the axes, if any."""
+
+    state = getattr(axes, _AUTO_PAGING_ATTR, None)
+    return state if isinstance(state, AutoPagingState) else None
+
+
+def clear_auto_paging_state(axes: Axes) -> None:
+    """Detach viewport-adaptive paging state and disconnect its callbacks."""
+
+    state = get_auto_paging_state(axes)
+    if state is None:
+        return
+
+    canvas = axes.figure.canvas
+    if canvas is not None:
+        if state.draw_callback_id is not None:
+            canvas.mpl_disconnect(state.draw_callback_id)
+        if state.resize_callback_id is not None:
+            canvas.mpl_disconnect(state.resize_callback_id)
+    delattr(axes, _AUTO_PAGING_ATTR)
 
 
 def _metadata_for(figure: Figure | SubFigure) -> _ManagedFigureMetadata:
