@@ -20,8 +20,12 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
+from examples._shared import (  # noqa: E402
+    add_render_arguments,
+    render_example,
+    request_from_namespace,
+)
 from examples.demo_catalog import DemoSpec, catalog_by_id, get_demo_catalog  # noqa: E402
-from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
 
 
 def parse_args() -> Namespace:
@@ -39,23 +43,11 @@ def parse_args() -> Namespace:
         action="store_true",
         help="Print the available demo ids and exit.",
     )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path where the rendered figure will also be saved.",
-    )
-    parser.add_argument(
-        "--show",
-        dest="show",
-        action="store_true",
-        default=True,
-        help="Open the Matplotlib window after rendering.",
-    )
-    parser.add_argument(
-        "--no-show",
-        dest="show",
-        action="store_false",
-        help="Render without opening the Matplotlib window.",
+    add_render_arguments(
+        parser,
+        default_qubits=None,
+        default_columns=None,
+        columns_help="Random circuit columns or QAOA layers to generate",
     )
     return parser.parse_args()
 
@@ -93,20 +85,43 @@ def run_demo(spec: DemoSpec, *, output: Path | None, show: bool) -> None:
     """Build and render one selected demo."""
 
     builder = load_demo_builder(spec)
-    circuit = builder()
-    draw_quantum_circuit(
-        circuit,
+    request = request_from_namespace(
+        Namespace(
+            qubits=None,
+            columns=None,
+            mode="pages",
+            view="2d",
+            topology="line",
+            seed=7,
+            output=output,
+            show=show,
+        ),
+        default_qubits=spec.default_qubits,
+        default_columns=spec.default_columns,
+    )
+    render_example(
+        builder(request),
+        request=request,
         framework=spec.framework,
-        style=spec.style,
-        output=output,
-        show=show,
-        page_slider=spec.page_slider,
-        composite_mode=spec.composite_mode,
-        **spec.render_options,
+        saved_label=spec.demo_id,
     )
 
-    if output is not None:
-        print(f"Saved {spec.demo_id} to {output}")
+
+def run_demo_with_args(spec: DemoSpec, args: Namespace) -> None:
+    """Build and render one selected demo using parsed CLI options."""
+
+    builder = load_demo_builder(spec)
+    request = request_from_namespace(
+        args,
+        default_qubits=spec.default_qubits,
+        default_columns=spec.default_columns,
+    )
+    render_example(
+        builder(request),
+        request=request,
+        framework=spec.framework,
+        saved_label=spec.demo_id,
+    )
 
 
 def main() -> None:
@@ -120,7 +135,7 @@ def main() -> None:
         raise SystemExit("Choose one demo with --demo or use --list to inspect the catalog.")
 
     spec = catalog_by_id()[args.demo]
-    run_demo(spec, output=args.output, show=args.show)
+    run_demo_with_args(spec, args)
 
 
 if __name__ == "__main__":

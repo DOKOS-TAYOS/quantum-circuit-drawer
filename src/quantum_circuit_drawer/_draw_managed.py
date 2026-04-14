@@ -120,11 +120,13 @@ def render_draw_pipeline_on_axes(
     from .renderers._matplotlib_figure import (
         AutoPagingState,
         clear_auto_paging_state,
+        clear_text_scaling_state,
         set_auto_paging_state,
         set_viewport_width,
     )
 
     clear_auto_paging_state(axes)
+    clear_text_scaling_state(axes)
 
     if is_3d_scene(pipeline.paged_scene) or not enable_auto_paging:
         axes.clear()
@@ -140,6 +142,7 @@ def render_draw_pipeline_on_axes(
     axes.clear()
     pipeline.renderer.render(scene_2d, ax=axes, output=output)
     set_viewport_width(axes.figure, viewport_width=scene_2d.width)
+    configure_zoom_text_scaling(axes)
 
     auto_paging_state = AutoPagingState(
         ir=pipeline.ir,
@@ -180,14 +183,21 @@ def viewport_adaptive_paged_scene(
     """Return the paged scene whose aspect best matches the current axes viewport."""
 
     max_page_width = style.max_page_width
-    if not math.isfinite(max_page_width):
-        return compute_paged_scene(circuit, layout_engine, style), max_page_width
-
     viewport_ratio = axes_viewport_ratio(axes)
     if viewport_ratio <= 0.0:
         return compute_paged_scene(circuit, layout_engine, style), max_page_width
 
+    continuous_scene = build_continuous_slider_scene(circuit, layout_engine, style)
+    continuous_page_width = (
+        continuous_scene.pages[0].content_width
+        if continuous_scene.pages
+        else continuous_scene.width
+    )
+    if not math.isfinite(max_page_width):
+        max_page_width = continuous_page_width
+
     lower_bound = min(style.gate_width, max_page_width)
+    upper_bound = max(max_page_width, continuous_page_width)
     scene_cache: dict[float, LayoutScene] = {}
 
     def scene_for_width(page_width: float) -> LayoutScene:
@@ -202,12 +212,12 @@ def viewport_adaptive_paged_scene(
         scene_cache[page_width] = scene
         return scene
 
-    best_page_width = max_page_width
+    best_page_width = upper_bound
     best_scene = scene_for_width(best_page_width)
     best_score = viewport_scene_score(best_scene, viewport_ratio)
 
     low = lower_bound
-    high = max_page_width
+    high = upper_bound
     for page_width in (low, high):
         candidate_scene = scene_for_width(page_width)
         candidate_score = viewport_scene_score(candidate_scene, viewport_ratio)
@@ -297,6 +307,7 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
             axes.clear()
             state.renderer.render(candidate_scene, ax=axes)
             set_viewport_width(axes.figure, viewport_width=candidate_scene.width)
+            configure_zoom_text_scaling(axes)
             state.scene = candidate_scene
             state.effective_page_width = candidate_page_width
         finally:
@@ -377,6 +388,89 @@ def viewport_scene_score(scene: LayoutScene, viewport_ratio: float) -> float:
     if viewport_ratio <= 0.0:
         return math.inf
     return abs(math.log(scene_ratio / viewport_ratio))
+
+
+def configure_zoom_text_scaling(axes: Axes) -> None:
+    """Attach zoom-responsive text scaling to the provided 2D axes."""
+
+    from .renderers._matplotlib_figure import (
+        TextScalingState,
+        get_base_font_size,
+        get_text_scaling_state,
+        set_base_font_size,
+        set_text_scaling_state,
+    )
+
+    base_view_width, base_view_height = current_view_size(axes)
+    if base_view_width <= 0.0 or base_view_height <= 0.0:
+        return
+
+    for text_artist in axes.texts:
+        set_base_font_size(text_artist, text_artist.get_fontsize())
+
+    state = get_text_scaling_state(axes)
+    if state is None:
+        state = TextScalingState(
+            base_view_width=base_view_width,
+            base_view_height=base_view_height,
+        )
+        set_text_scaling_state(axes, state)
+        canvas = axes.figure.canvas
+        if canvas is not None:
+
+            def redraw_text_scale(_event: DrawEvent) -> None:
+                current_state = get_text_scaling_state(axes)
+                if current_state is None or current_state is not state or state.is_updating:
+                    return
+
+                scale_factor = current_text_scale(axes, state)
+                if math.isclose(scale_factor, state.last_scale_factor, rel_tol=1e-6, abs_tol=1e-6):
+                    return
+
+                state.is_updating = True
+                try:
+                    for text_artist in axes.texts:
+                        base_font_size = get_base_font_size(
+                            text_artist,
+                            default=text_artist.get_fontsize(),
+                        )
+                        text_artist.set_fontsize(base_font_size * scale_factor)
+                    state.last_scale_factor = scale_factor
+                finally:
+                    state.is_updating = False
+                canvas.draw_idle()
+
+            state.draw_callback_id = canvas.mpl_connect("draw_event", redraw_text_scale)
+        return
+
+    state.base_view_width = base_view_width
+    state.base_view_height = base_view_height
+    state.last_scale_factor = 1.0
+
+
+def current_view_size(axes: Axes) -> tuple[float, float]:
+    """Return the current visible data window for the axes."""
+
+    x_limits = axes.get_xlim()
+    y_limits = axes.get_ylim()
+    return abs(x_limits[1] - x_limits[0]), abs(y_limits[1] - y_limits[0])
+
+
+def current_text_scale(axes: Axes, state: object) -> float:
+    """Return the current zoom scale factor for 2D text."""
+
+    from .renderers._matplotlib_figure import TextScalingState
+
+    if not isinstance(state, TextScalingState):
+        return 1.0
+
+    current_view_width, current_view_height = current_view_size(axes)
+    if current_view_width <= 0.0 or current_view_height <= 0.0:
+        return 1.0
+
+    scale_x = state.base_view_width / current_view_width
+    scale_y = state.base_view_height / current_view_height
+    return max(scale_x, scale_y)
 
 
 def configure_page_slider(

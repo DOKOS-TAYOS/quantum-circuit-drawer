@@ -6,123 +6,110 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
-
-def test_parse_output_args_reads_optional_output_path(
-    monkeypatch,
-) -> None:
-    from examples._shared import parse_output_args
-
-    monkeypatch.setattr(sys, "argv", ["example.py", "--output", "demo.png"])
-
-    args = parse_output_args(description="Render a demo.")
-
-    assert args.output == Path("demo.png")
+import pytest
 
 
-def test_demo_style_returns_expected_defaults() -> None:
+def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    from examples._shared import ExampleRequest, parse_example_args
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "example.py",
+            "--qubits",
+            "12",
+            "--columns",
+            "24",
+            "--mode",
+            "slider",
+            "--view",
+            "2d",
+            "--topology",
+            "grid",
+            "--seed",
+            "13",
+            "--output",
+            "demo.png",
+            "--no-show",
+        ],
+    )
+
+    request = parse_example_args(
+        description="Render a demo.",
+        default_qubits=8,
+        default_columns=6,
+        columns_help="Random circuit columns to generate",
+    )
+
+    assert request == ExampleRequest(
+        qubits=12,
+        columns=24,
+        mode="slider",
+        view="2d",
+        topology="grid",
+        seed=13,
+        output=Path("demo.png"),
+        show=False,
+    )
+
+
+def test_request_from_namespace_rejects_3d_slider() -> None:
+    from examples._shared import request_from_namespace
+
+    args = Namespace(
+        qubits=6,
+        columns=8,
+        mode="slider",
+        view="3d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=True,
+    )
+
+    with pytest.raises(SystemExit, match="Slider mode is only available in 2D"):
+        request_from_namespace(args, default_qubits=4, default_columns=5)
+
+
+def test_demo_style_scales_with_columns_and_clamps() -> None:
     from examples._shared import demo_style
 
-    assert demo_style(max_page_width=7.5) == {
+    assert demo_style(columns=2) == {
         "font_size": 12.0,
         "show_params": True,
-        "max_page_width": 7.5,
+        "max_page_width": 6.5,
     }
+    assert demo_style(columns=20)["max_page_width"] > 8.5
+    assert demo_style(columns=80)["max_page_width"] == 12.0
 
 
-def test_run_example_draws_and_reports_saved_output(
-    monkeypatch,
-    sandbox_tmp_path: Path,
-    capsys,
-) -> None:
-    from examples._shared import run_example
+def test_build_render_options_ignores_topology_in_2d() -> None:
+    from examples._shared import ExampleRequest, build_render_options
 
-    built_objects: list[object] = []
-    draw_calls: list[dict[str, object]] = []
-    output = sandbox_tmp_path / "demo.png"
-
-    def build_demo() -> object:
-        demo = {"kind": "demo"}
-        built_objects.append(demo)
-        return demo
-
-    def fake_parse_output_args(*, description: str) -> Namespace:
-        assert description == "Render a shared example."
-        return Namespace(output=output)
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        framework: str | None = None,
-        *,
-        style: dict[str, object],
-        output: Path | None = None,
-        page_slider: bool = False,
-        composite_mode: str = "compact",
-        view: str = "2d",
-        topology: str = "line",
-        direct: bool = True,
-        hover: bool = False,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "page_slider": page_slider,
-                "composite_mode": composite_mode,
-                "view": view,
-                "topology": topology,
-                "direct": direct,
-                "hover": hover,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.parse_output_args", fake_parse_output_args)
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    run_example(
-        build_demo,
-        description="Render a shared example.",
-        framework="ir",
-        style={"max_page_width": 7.5},
-        page_slider=True,
-        saved_label="demo",
+    request = ExampleRequest(
+        qubits=8,
+        columns=10,
+        mode="pages",
+        view="2d",
+        topology="grid",
+        seed=7,
+        output=None,
+        show=True,
     )
 
-    captured = capsys.readouterr()
-
-    assert len(built_objects) == 1
-    assert draw_calls == [
-        {
-            "circuit": built_objects[0],
-            "framework": "ir",
-            "style": {"max_page_width": 7.5},
-            "output": output,
-            "page_slider": True,
-            "composite_mode": "compact",
-            "view": "2d",
-            "topology": "line",
-            "direct": True,
-            "hover": False,
-        }
-    ]
-    assert f"Saved demo to {output}" in captured.out
+    assert build_render_options(request) == {}
 
 
-def test_run_prebuilt_example_draws_subject_and_reports_saved_output(
-    monkeypatch,
+def test_render_example_draws_and_reports_saved_output(
+    monkeypatch: pytest.MonkeyPatch,
     sandbox_tmp_path: Path,
     capsys,
 ) -> None:
-    from examples._shared import run_prebuilt_example
+    from examples._shared import ExampleRequest, render_example
 
+    output = sandbox_tmp_path / "render-demo.png"
     draw_calls: list[dict[str, object]] = []
-    output = sandbox_tmp_path / "prebuilt.png"
-    subject = {"kind": "prebuilt"}
-
-    def fake_parse_output_args(*, description: str) -> Namespace:
-        assert description == "Render a prebuilt example."
-        return Namespace(output=output)
 
     def fake_draw_quantum_circuit(
         circuit: object,
@@ -130,8 +117,8 @@ def test_run_prebuilt_example_draws_subject_and_reports_saved_output(
         *,
         style: dict[str, object],
         output: Path | None = None,
+        show: bool = True,
         page_slider: bool = False,
-        composite_mode: str = "compact",
         view: str = "2d",
         topology: str = "line",
         direct: bool = True,
@@ -143,8 +130,8 @@ def test_run_prebuilt_example_draws_subject_and_reports_saved_output(
                 "framework": framework,
                 "style": style,
                 "output": output,
+                "show": show,
                 "page_slider": page_slider,
-                "composite_mode": composite_mode,
                 "view": view,
                 "topology": topology,
                 "direct": direct,
@@ -152,189 +139,110 @@ def test_run_prebuilt_example_draws_subject_and_reports_saved_output(
             }
         )
 
-    monkeypatch.setattr("examples._shared.parse_output_args", fake_parse_output_args)
     monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
 
-    run_prebuilt_example(
-        subject,
-        description="Render a prebuilt example.",
-        framework="cudaq",
-        style={"theme": "paper"},
-        page_slider=False,
-        saved_label="prebuilt demo",
+    request = ExampleRequest(
+        qubits=9,
+        columns=20,
+        mode="pages",
+        view="3d",
+        topology="grid",
+        seed=7,
+        output=output,
+        show=False,
     )
-
-    captured = capsys.readouterr()
-
-    assert draw_calls == [
-        {
-            "circuit": subject,
-            "framework": "cudaq",
-            "style": {"theme": "paper"},
-            "output": output,
-            "page_slider": False,
-            "composite_mode": "compact",
-            "view": "2d",
-            "topology": "line",
-            "direct": True,
-            "hover": False,
-        }
-    ]
-    assert f"Saved prebuilt demo to {output}" in captured.out
-
-
-def test_run_example_forwards_requested_composite_mode(
-    monkeypatch,
-    sandbox_tmp_path: Path,
-    capsys,
-) -> None:
-    from examples._shared import run_example
-
-    output = sandbox_tmp_path / "conditional-demo.png"
-    draw_calls: list[dict[str, object]] = []
-
-    def build_demo() -> object:
-        return {"kind": "conditional-demo"}
-
-    def fake_parse_output_args(*, description: str) -> Namespace:
-        assert description == "Render a conditional example."
-        return Namespace(output=output)
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        framework: str | None = None,
-        *,
-        style: dict[str, object],
-        output: Path | None = None,
-        page_slider: bool = False,
-        composite_mode: str = "compact",
-        view: str = "2d",
-        topology: str = "line",
-        direct: bool = True,
-        hover: bool = False,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "page_slider": page_slider,
-                "composite_mode": composite_mode,
-                "view": view,
-                "topology": topology,
-                "direct": direct,
-                "hover": hover,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.parse_output_args", fake_parse_output_args)
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    run_example(
-        build_demo,
-        description="Render a conditional example.",
+    render_example(
+        {"kind": "demo"},
+        request=request,
         framework="qiskit",
-        style={"max_page_width": 6.5},
-        page_slider=False,
-        composite_mode="expand",
-        saved_label="conditional demo",
+        saved_label="qiskit-random",
     )
 
     captured = capsys.readouterr()
 
     assert draw_calls == [
         {
-            "circuit": {"kind": "conditional-demo"},
+            "circuit": {"kind": "demo"},
             "framework": "qiskit",
-            "style": {"max_page_width": 6.5},
+            "style": {
+                "font_size": 12.0,
+                "show_params": True,
+                "max_page_width": 8.9,
+            },
             "output": output,
+            "show": False,
             "page_slider": False,
-            "composite_mode": "expand",
-            "view": "2d",
-            "topology": "line",
-            "direct": True,
-            "hover": False,
-        }
-    ]
-    assert f"Saved conditional demo to {output}" in captured.out
-
-
-def test_run_example_forwards_requested_3d_render_options(
-    monkeypatch,
-    sandbox_tmp_path: Path,
-    capsys,
-) -> None:
-    from examples._shared import run_example
-
-    output = sandbox_tmp_path / "topology-demo.png"
-    draw_calls: list[dict[str, object]] = []
-
-    def build_demo() -> object:
-        return {"kind": "topology-demo"}
-
-    def fake_parse_output_args(*, description: str) -> Namespace:
-        assert description == "Render a topology example."
-        return Namespace(output=output)
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        framework: str | None = None,
-        *,
-        style: dict[str, object],
-        output: Path | None = None,
-        page_slider: bool = False,
-        composite_mode: str = "compact",
-        view: str = "2d",
-        topology: str = "line",
-        direct: bool = True,
-        hover: bool = False,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "page_slider": page_slider,
-                "composite_mode": composite_mode,
-                "view": view,
-                "topology": topology,
-                "direct": direct,
-                "hover": hover,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.parse_output_args", fake_parse_output_args)
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    run_example(
-        build_demo,
-        description="Render a topology example.",
-        framework=None,
-        style={"theme": "paper"},
-        page_slider=False,
-        saved_label="topology demo",
-        render_options={"view": "3d", "topology": "grid", "direct": False, "hover": True},
-    )
-
-    captured = capsys.readouterr()
-
-    assert draw_calls == [
-        {
-            "circuit": {"kind": "topology-demo"},
-            "framework": None,
-            "style": {"theme": "paper"},
-            "output": output,
-            "page_slider": False,
-            "composite_mode": "compact",
             "view": "3d",
             "topology": "grid",
             "direct": False,
             "hover": True,
         }
     ]
-    assert f"Saved topology demo to {output}" in captured.out
+    assert f"Saved qiskit-random to {output}" in captured.out
+
+
+def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    from examples._shared import ExampleRequest, run_example
+
+    request = ExampleRequest(
+        qubits=7,
+        columns=15,
+        mode="slider",
+        view="2d",
+        topology="star",
+        seed=11,
+        output=None,
+        show=False,
+    )
+    builder_calls: list[ExampleRequest] = []
+    render_calls: list[dict[str, object]] = []
+    built_subject = {"kind": "random-demo"}
+
+    def fake_parse_example_args(**_: object) -> ExampleRequest:
+        return request
+
+    def fake_render_example(
+        subject: object,
+        *,
+        request: ExampleRequest,
+        framework: str | None,
+        saved_label: str,
+    ) -> None:
+        render_calls.append(
+            {
+                "subject": subject,
+                "request": request,
+                "framework": framework,
+                "saved_label": saved_label,
+            }
+        )
+
+    def build_demo(parsed_request: ExampleRequest) -> object:
+        builder_calls.append(parsed_request)
+        return built_subject
+
+    monkeypatch.setattr("examples._shared.parse_example_args", fake_parse_example_args)
+    monkeypatch.setattr("examples._shared.render_example", fake_render_example)
+
+    run_example(
+        build_demo,
+        description="Render a shared example.",
+        framework="cirq",
+        saved_label="cirq-random",
+        default_qubits=10,
+        default_columns=18,
+        columns_help="Random circuit columns to generate",
+    )
+
+    assert builder_calls == [request]
+    assert render_calls == [
+        {
+            "subject": built_subject,
+            "request": request,
+            "framework": "cirq",
+            "saved_label": "cirq-random",
+        }
+    ]
 
 
 def test_shared_example_support_imports_drawer_from_local_worktree_src() -> None:

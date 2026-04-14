@@ -9,6 +9,7 @@ from pathlib import Path
 
 import examples.run_demo as run_demo_module
 import pytest
+from examples._shared import ExampleRequest
 from examples.demo_catalog import DemoSpec, catalog_by_id, examples_directory, get_demo_catalog
 
 
@@ -25,90 +26,151 @@ def test_demo_catalog_entries_are_unique_and_reference_existing_example_files() 
         assert catalog_by_id()[spec.demo_id] == spec
         assert example_path.exists()
         assert spec.builder_name in {"build_circuit", "build_tape", "build_kernel"}
-        assert spec.style["show_params"] is True
-        assert "max_page_width" in spec.style
-        assert isinstance(spec.page_slider, bool)
+        assert spec.default_qubits > 0
+        assert spec.default_columns > 0
+        assert spec.columns_help
 
 
-def test_run_demo_passes_spec_to_draw_quantum_circuit_and_reports_output(
-    monkeypatch: pytest.MonkeyPatch,
-    sandbox_tmp_path: Path,
-    capsys,
-) -> None:
-    output = sandbox_tmp_path / "runner-demo.png"
-    built_subject = {"kind": "demo"}
-    draw_calls: list[dict[str, object]] = []
-    builder_calls: list[str] = []
+def test_run_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    built_subject = {"kind": "default-demo"}
+    builder_calls: list[ExampleRequest] = []
+    render_calls: list[dict[str, object]] = []
     spec = DemoSpec(
         demo_id="custom-demo",
         description="Custom demo",
-        module_name="examples.qiskit_example",
+        module_name="examples.qiskit_random",
         builder_name="build_circuit",
         framework="qiskit",
-        style={"theme": "paper"},
-        page_slider=True,
-        composite_mode="expand",
-        render_options={"view": "3d", "topology": "grid", "direct": False, "hover": True},
+        default_qubits=9,
+        default_columns=14,
+        columns_help="Random circuit columns to generate",
+        dependency_module="qiskit",
     )
 
-    def fake_builder() -> object:
-        builder_calls.append("called")
+    def fake_builder(request: ExampleRequest) -> object:
+        builder_calls.append(request)
         return built_subject
 
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        framework: str | None = None,
+    def fake_render_example(
+        subject: object,
         *,
-        style: dict[str, object],
-        output: Path | None = None,
-        show: bool = True,
-        page_slider: bool = False,
-        composite_mode: str = "compact",
-        view: str = "2d",
-        topology: str = "line",
-        direct: bool = True,
-        hover: bool = False,
+        request: ExampleRequest,
+        framework: str | None,
+        saved_label: str,
     ) -> None:
-        draw_calls.append(
+        render_calls.append(
             {
-                "circuit": circuit,
+                "subject": subject,
+                "request": request,
                 "framework": framework,
-                "style": style,
-                "output": output,
-                "show": show,
-                "page_slider": page_slider,
-                "composite_mode": composite_mode,
-                "view": view,
-                "topology": topology,
-                "direct": direct,
-                "hover": hover,
+                "saved_label": saved_label,
             }
         )
 
     monkeypatch.setattr(run_demo_module, "load_demo_builder", lambda demo_spec: fake_builder)
-    monkeypatch.setattr(run_demo_module, "draw_quantum_circuit", fake_draw_quantum_circuit)
+    monkeypatch.setattr(run_demo_module, "render_example", fake_render_example)
 
-    run_demo_module.run_demo(spec, output=output, show=False)
+    run_demo_module.run_demo(spec, output=None, show=False)
 
-    captured = capsys.readouterr()
-
-    assert builder_calls == ["called"]
-    assert draw_calls == [
+    assert builder_calls == [
+        ExampleRequest(
+            qubits=9,
+            columns=14,
+            mode="pages",
+            view="2d",
+            topology="line",
+            seed=7,
+            output=None,
+            show=False,
+        )
+    ]
+    assert render_calls == [
         {
-            "circuit": built_subject,
+            "subject": built_subject,
+            "request": builder_calls[0],
             "framework": "qiskit",
-            "style": {"theme": "paper"},
-            "output": output,
-            "show": False,
-            "page_slider": True,
-            "composite_mode": "expand",
-            "view": "3d",
-            "topology": "grid",
-            "direct": False,
-            "hover": True,
+            "saved_label": "custom-demo",
         }
     ]
-    assert f"Saved {spec.demo_id} to {output}" in captured.out
+
+
+def test_run_demo_with_args_builds_subject_and_renders(
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_tmp_path: Path,
+) -> None:
+    output = sandbox_tmp_path / "runner-demo.png"
+    built_subject = {"kind": "demo"}
+    builder_calls: list[ExampleRequest] = []
+    render_calls: list[dict[str, object]] = []
+    spec = DemoSpec(
+        demo_id="custom-demo",
+        description="Custom demo",
+        module_name="examples.qiskit_random",
+        builder_name="build_circuit",
+        framework="qiskit",
+        default_qubits=8,
+        default_columns=6,
+        columns_help="Random circuit columns to generate",
+        dependency_module="qiskit",
+    )
+    args = Namespace(
+        list=False,
+        demo="custom-demo",
+        qubits=12,
+        columns=20,
+        mode="slider",
+        view="2d",
+        topology="grid",
+        seed=19,
+        output=output,
+        show=False,
+    )
+
+    def fake_builder(request: ExampleRequest) -> object:
+        builder_calls.append(request)
+        return built_subject
+
+    def fake_render_example(
+        subject: object,
+        *,
+        request: ExampleRequest,
+        framework: str | None,
+        saved_label: str,
+    ) -> None:
+        render_calls.append(
+            {
+                "subject": subject,
+                "request": request,
+                "framework": framework,
+                "saved_label": saved_label,
+            }
+        )
+
+    monkeypatch.setattr(run_demo_module, "load_demo_builder", lambda demo_spec: fake_builder)
+    monkeypatch.setattr(run_demo_module, "render_example", fake_render_example)
+
+    run_demo_module.run_demo_with_args(spec, args)
+
+    assert builder_calls == [
+        ExampleRequest(
+            qubits=12,
+            columns=20,
+            mode="slider",
+            view="2d",
+            topology="grid",
+            seed=19,
+            output=output,
+            show=False,
+        )
+    ]
+    assert render_calls == [
+        {
+            "subject": built_subject,
+            "request": builder_calls[0],
+            "framework": "qiskit",
+            "saved_label": "custom-demo",
+        }
+    ]
 
 
 def test_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -138,49 +200,25 @@ def test_examples_runner_lists_all_demo_ids() -> None:
         assert spec.demo_id in result.stdout
 
 
-def test_demo_catalog_exposes_new_classical_control_and_composite_demos() -> None:
+def test_demo_catalog_exposes_only_the_refreshed_demo_ids() -> None:
     demo_ids = {spec.demo_id for spec in get_demo_catalog()}
 
-    assert {
-        "qiskit-conditional-composite",
-        "cirq-conditional-composite",
-        "pennylane-conditional-composite",
-        "myqlm-conditional-composite",
-    }.issubset(demo_ids)
-
-
-def test_demo_catalog_exposes_qiskit_3d_demos() -> None:
-    demo_ids = {spec.demo_id for spec in get_demo_catalog()}
-
-    assert {
-        "qiskit-3d-line",
-        "qiskit-3d-grid",
-        "qiskit-3d-honeycomb",
-    }.issubset(demo_ids)
-
-
-def test_demo_catalog_exposes_myqlm_demos() -> None:
-    demo_ids = {spec.demo_id for spec in get_demo_catalog()}
-
-    assert {
-        "myqlm-balanced",
-        "myqlm-wide",
-        "myqlm-conditional-composite",
-    }.issubset(demo_ids)
-
-
-def test_demo_catalog_records_myqlm_optional_dependency() -> None:
-    catalog = catalog_by_id()
-
-    assert catalog["myqlm-balanced"].dependency_module == "qat"
-    assert catalog["myqlm-wide"].dependency_module == "qat"
-    assert catalog["myqlm-conditional-composite"].dependency_module == "qat"
+    assert demo_ids == {
+        "qiskit-random",
+        "qiskit-qaoa",
+        "cirq-random",
+        "cirq-qaoa",
+        "pennylane-random",
+        "pennylane-qaoa",
+        "myqlm-random",
+        "cudaq-random",
+    }
 
 
 def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    spec = catalog_by_id()["myqlm-balanced"]
+    spec = catalog_by_id()["myqlm-random"]
 
     monkeypatch.setattr(run_demo_module, "find_spec", lambda name: None)
 
@@ -189,7 +227,7 @@ def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
 
     message = str(exc_info.value)
 
-    assert "myqlm-balanced" in message
+    assert "myqlm-random" in message
     assert "qat" in message
     assert 'python.exe -m pip install -e ".[myqlm]"' in message
     assert "Traceback" not in message
@@ -228,14 +266,13 @@ def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
 @pytest.mark.parametrize(
     ("demo_id", "dependency"),
     [
-        ("qiskit-balanced", "qiskit"),
-        ("qiskit-conditional-composite", "qiskit"),
-        ("cirq-balanced", "cirq"),
-        ("cirq-conditional-composite", "cirq"),
-        ("pennylane-balanced", "pennylane"),
-        ("pennylane-conditional-composite", "pennylane"),
-        ("myqlm-balanced", "qat"),
-        ("myqlm-conditional-composite", "qat"),
+        ("qiskit-random", "qiskit"),
+        ("qiskit-qaoa", "qiskit"),
+        ("cirq-random", "cirq"),
+        ("cirq-qaoa", "cirq"),
+        ("pennylane-random", "pennylane"),
+        ("pennylane-qaoa", "pennylane"),
+        ("myqlm-random", "qat"),
     ],
 )
 def test_examples_runner_can_render_selected_optional_demo(
@@ -255,6 +292,10 @@ def test_examples_runner_can_render_selected_optional_demo(
             str(script_path),
             "--demo",
             demo_id,
+            "--qubits",
+            "4",
+            "--columns",
+            "3",
             "--no-show",
             "--output",
             str(output_path),
@@ -268,3 +309,95 @@ def test_examples_runner_can_render_selected_optional_demo(
     assert output_path.exists()
     assert output_path.stat().st_size > 0
     assert f"Saved {demo_id} to {output_path}" in result.stdout
+
+
+def test_examples_runner_can_render_slider_demo_for_random_qiskit(sandbox_tmp_path: Path) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the slider smoke test")
+
+    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    output_path = sandbox_tmp_path / "qiskit-slider.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--demo",
+            "qiskit-random",
+            "--qubits",
+            "8",
+            "--columns",
+            "18",
+            "--mode",
+            "slider",
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_examples_runner_can_render_3d_demo_for_random_qiskit(sandbox_tmp_path: Path) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the 3D smoke test")
+
+    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    output_path = sandbox_tmp_path / "qiskit-3d.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--demo",
+            "qiskit-random",
+            "--qubits",
+            "9",
+            "--columns",
+            "8",
+            "--view",
+            "3d",
+            "--topology",
+            "grid",
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_examples_runner_rejects_slider_mode_in_3d() -> None:
+    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--demo",
+            "qiskit-random",
+            "--view",
+            "3d",
+            "--mode",
+            "slider",
+            "--no-show",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Slider mode is only available in 2D" in (result.stderr or result.stdout)

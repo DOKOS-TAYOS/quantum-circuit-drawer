@@ -335,6 +335,29 @@ def test_draw_quantum_circuit_page_slider_keeps_gate_font_readable() -> None:
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_slider_keeps_text_size_stable_after_redraw() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+
+    figure.canvas.draw()
+    initial_font_size = max(text.get_fontsize() for text in axes.texts if text.get_text() == "RX")
+    page_slider.set_val(page_slider.valmax / 2.0)
+    figure.canvas.draw()
+    resized_font_size = max(text.get_fontsize() for text in axes.texts if text.get_text() == "RX")
+
+    assert initial_font_size < 20.0
+    assert resized_font_size < 20.0
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_uses_wider_pages_on_wide_axes_without_slider() -> None:
     narrow_figure, narrow_axes = plt.subplots(figsize=(3.2, 12.0))
     wide_figure, wide_axes = plt.subplots(figsize=(12.0, 3.2))
@@ -362,7 +385,7 @@ def test_draw_quantum_circuit_uses_wider_pages_on_wide_axes_without_slider() -> 
     plt.close(wide_figure)
 
 
-def test_draw_quantum_circuit_auto_paging_respects_user_page_width_cap() -> None:
+def test_draw_quantum_circuit_auto_paging_expands_past_initial_page_width_on_wide_axes() -> None:
     figure, axes = plt.subplots(figsize=(18.0, 3.0))
 
     draw_quantum_circuit(
@@ -374,7 +397,7 @@ def test_draw_quantum_circuit_auto_paging_respects_user_page_width_cap() -> None
     auto_paging_state = get_auto_paging_state(axes)
 
     assert auto_paging_state is not None
-    assert auto_paging_state.effective_page_width <= 4.0 + 1e-6
+    assert auto_paging_state.effective_page_width > 4.0
 
     plt.close(figure)
 
@@ -416,7 +439,6 @@ def test_draw_quantum_circuit_managed_figure_uses_viewport_adaptive_paging_witho
     auto_paging_state = get_auto_paging_state(axes)
 
     assert auto_paging_state is not None
-    assert auto_paging_state.effective_page_width <= 4.0 + 1e-6
 
     plt.close(figure)
 
@@ -433,24 +455,72 @@ def test_draw_quantum_circuit_page_slider_skips_auto_paging_state() -> None:
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_managed_figure_expands_beyond_initial_page_width_when_resized() -> (
+    None
+):
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24),
+        style={"max_page_width": 4.0},
+        show=False,
+    )
+
+    initial_state = get_auto_paging_state(axes)
+
+    assert initial_state is not None
+    initial_page_count = len(initial_state.scene.pages)
+    initial_page_width = initial_state.effective_page_width
+
+    figure.set_size_inches(12.0, 3.2, forward=True)
+    figure.canvas.draw()
+
+    resized_state = get_auto_paging_state(axes)
+
+    assert resized_state is not None
+    assert len(resized_state.scene.pages) < initial_page_count
+    assert resized_state.effective_page_width > initial_page_width
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_rescales_2d_text_when_zooming() -> None:
+    figure, axes = plt.subplots(figsize=(8.0, 3.0))
+
+    draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=12),
+        style={"max_page_width": 12.0},
+        ax=axes,
+    )
+    figure.canvas.draw()
+
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    initial_font_size = gate_label.get_fontsize()
+
+    axes.set_xlim(0.0, 2.5)
+    axes.set_ylim(3.5, 0.0)
+    figure.canvas.draw()
+
+    assert gate_label.get_fontsize() > initial_font_size
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_count() -> None:
     page_to_font_size: dict[int, float] = {}
 
     for layer_count in (5, 8, 29):
         circuit = build_dense_rotation_ir(layer_count=layer_count, wire_count=1)
-        scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
-        figure, axes = draw_quantum_circuit(
-            circuit,
-            style={"max_page_width": 4.0},
-            show=False,
-        )
-        page_to_font_size[len(scene.pages)] = next(
+        figure, axes = plt.subplots(figsize=(3.2, 12.0))
+        draw_quantum_circuit(circuit, style={"max_page_width": 4.0}, ax=axes)
+        auto_paging_state = get_auto_paging_state(axes)
+
+        assert auto_paging_state is not None
+        page_to_font_size[len(auto_paging_state.scene.pages)] = next(
             text.get_fontsize() for text in axes.texts if text.get_text() == "RX"
         )
         plt.close(figure)
 
-    assert page_to_font_size[2] > page_to_font_size[3] > page_to_font_size[10]
-    assert page_to_font_size[10] < page_to_font_size[2] * 0.75
+    assert page_to_font_size[3] > page_to_font_size[4] > page_to_font_size[8]
+    assert page_to_font_size[8] < page_to_font_size[3] * 0.85
 
 
 def test_slider_viewport_width_falls_back_to_scene_width_for_zero_sized_axes(

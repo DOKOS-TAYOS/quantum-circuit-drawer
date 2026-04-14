@@ -23,6 +23,8 @@ _MANAGED_SUBPLOT_TOP = 0.98
 _MANAGED_SUBPLOT_BOTTOM = 0.02
 _METADATA_ATTR = "_quantum_circuit_drawer_metadata"
 _AUTO_PAGING_ATTR = "_quantum_circuit_drawer_auto_paging_state"
+_TEXT_SCALING_ATTR = "_quantum_circuit_drawer_text_scaling_state"
+_BASE_FONT_SIZE_ATTR = "_quantum_circuit_drawer_base_font_size"
 
 
 @dataclass(slots=True)
@@ -43,6 +45,15 @@ class AutoPagingState:
     is_updating: bool = False
     draw_callback_id: int | None = None
     resize_callback_id: int | None = None
+
+
+@dataclass(slots=True)
+class TextScalingState:
+    base_view_width: float
+    base_view_height: float
+    last_scale_factor: float = 1.0
+    is_updating: bool = False
+    draw_callback_id: int | None = None
 
 
 def create_managed_figure(
@@ -132,6 +143,47 @@ def clear_auto_paging_state(axes: Axes) -> None:
         if state.resize_callback_id is not None:
             canvas.mpl_disconnect(state.resize_callback_id)
     delattr(axes, _AUTO_PAGING_ATTR)
+
+
+def set_text_scaling_state(axes: Axes, state: TextScalingState) -> None:
+    """Store zoom-responsive text scaling state on the provided axes."""
+
+    setattr(axes, _TEXT_SCALING_ATTR, state)
+
+
+def get_text_scaling_state(axes: Axes) -> TextScalingState | None:
+    """Return zoom-responsive text scaling state attached to the axes, if any."""
+
+    state = getattr(axes, _TEXT_SCALING_ATTR, None)
+    return state if isinstance(state, TextScalingState) else None
+
+
+def clear_text_scaling_state(axes: Axes) -> None:
+    """Detach zoom-responsive text scaling state and disconnect its callback."""
+
+    state = get_text_scaling_state(axes)
+    if state is None:
+        return
+
+    canvas = axes.figure.canvas
+    if canvas is not None and state.draw_callback_id is not None:
+        canvas.mpl_disconnect(state.draw_callback_id)
+    delattr(axes, _TEXT_SCALING_ATTR)
+
+
+def set_base_font_size(text_artist: object, font_size: float) -> None:
+    """Store the baseline font size used for future zoom scaling."""
+
+    setattr(text_artist, _BASE_FONT_SIZE_ATTR, font_size)
+
+
+def get_base_font_size(text_artist: object, *, default: float) -> float:
+    """Return the stored baseline font size or a provided default."""
+
+    base_font_size = getattr(text_artist, _BASE_FONT_SIZE_ATTR, None)
+    if isinstance(base_font_size, int | float):
+        return float(base_font_size)
+    return default
 
 
 def _metadata_for(figure: Figure | SubFigure) -> _ManagedFigureMetadata:
