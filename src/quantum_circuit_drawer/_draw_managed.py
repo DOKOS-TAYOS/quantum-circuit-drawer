@@ -363,7 +363,14 @@ def axes_viewport_ratio(axes: Axes) -> float:
 
 
 def axes_viewport_pixels(axes: Axes) -> tuple[float, float]:
-    """Return the current axes viewport size in pixels."""
+    """Return the current axes viewport size in pixels.
+
+    This uses ``axes.get_position(original=True)`` so viewport estimates are
+    based on the subplot slot after ``subplots_adjust``/resize updates, without
+    incorporating any draw-time active-position adjustments. Using the original
+    box keeps auto-paging and slider viewport math aligned to the same
+    normalized layout budget.
+    """
 
     figure = axes.figure
     figure_width, figure_height = figure.get_size_inches()
@@ -537,14 +544,7 @@ def page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[flo
 def slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
     """Estimate the visible scene width for the current axes aspect ratio."""
 
-    from matplotlib.figure import Figure
-
-    figure = axes.figure
-    assert isinstance(figure, Figure)
-    figure_width, figure_height = figure.get_size_inches()
-    axes_position = axes.get_position()
-    axes_width_pixels = figure_width * figure.dpi * axes_position.width
-    axes_height_pixels = figure_height * figure.dpi * axes_position.height
+    axes_width_pixels, axes_height_pixels = axes_viewport_pixels(axes)
     if axes_width_pixels <= 0.0 or axes_height_pixels <= 0.0:
         return scene.width
     viewport_width = scene.height * (axes_width_pixels / axes_height_pixels)

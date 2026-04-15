@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 qiskit = pytest.importorskip("qiskit")
 
 from quantum_circuit_drawer.adapters.qiskit_adapter import QiskitAdapter
+from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 
 
@@ -368,3 +371,120 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
         ("q1", "q2"),
         ("q0",),
     ) in signatures
+
+
+<<<<<<< ours
+<<<<<<< ours
+def test_qiskit_adapter_raises_for_measure_without_classical_target() -> None:
+    class _MeasureOperation:
+        name = "measure"
+        params: tuple[object, ...] = ()
+
+    qubit = object()
+    adapter = QiskitAdapter()
+
+    with pytest.raises(
+        UnsupportedOperationError,
+        match=r"instruction 'measure' has no classical target",
+    ):
+        adapter._convert_instruction(
+            (_MeasureOperation(), (qubit,), ()),
+            {qubit: "q0"},
+            {},
+            {},
+            composite_mode="compact",
+=======
+=======
+>>>>>>> theirs
+def test_qiskit_adapter_raises_for_misaligned_if_else_true_block_qubits() -> None:
+    outer_qubits = ("outer-q0",)
+    outer_clbits = ("outer-c0",)
+    operation = SimpleNamespace(
+        blocks=(
+            SimpleNamespace(qubits=("inner-q0", "inner-q1"), clbits=("inner-c0",), data=()),
+        ),
+        condition=("outer-c0", 1),
+    )
+
+    with pytest.raises(UnsupportedOperationError, match="if_else true_block qubit mapping mismatch"):
+        QiskitAdapter()._convert_if_else(
+            operation=operation,
+            qubits=outer_qubits,
+            clbits=outer_clbits,
+            qubit_ids={"outer-q0": "q0"},
+            classical_targets={"outer-c0": ("c0", "c[0]")},
+            register_targets={},
+            composite_mode="expand",
+        )
+
+
+def test_qiskit_adapter_raises_for_misaligned_if_else_true_block_clbits() -> None:
+    outer_qubits = ("outer-q0",)
+    outer_clbits = ("outer-c0",)
+    operation = SimpleNamespace(
+        blocks=(
+            SimpleNamespace(qubits=("inner-q0",), clbits=("inner-c0", "inner-c1"), data=()),
+        ),
+        condition=("outer-c0", 1),
+    )
+
+    with pytest.raises(UnsupportedOperationError, match="if_else true_block clbit mapping mismatch"):
+        QiskitAdapter()._convert_if_else(
+            operation=operation,
+            qubits=outer_qubits,
+            clbits=outer_clbits,
+            qubit_ids={"outer-q0": "q0"},
+            classical_targets={"outer-c0": ("c0", "c[0]")},
+            register_targets={},
+            composite_mode="expand",
+        )
+
+
+def test_qiskit_adapter_raises_for_misaligned_composite_definition_qubits() -> None:
+    operation = SimpleNamespace(
+        definition=SimpleNamespace(
+            qubits=("inner-q0", "inner-q1"),
+            clbits=(),
+            data=(),
+        )
+    )
+
+    with pytest.raises(
+        UnsupportedOperationError,
+        match="composite definition qubit mapping mismatch",
+    ):
+        QiskitAdapter()._expand_definition(
+            operation=operation,
+            qubits=("outer-q0",),
+            clbits=(),
+            qubit_ids={"outer-q0": "q0"},
+            classical_targets={},
+            composite_mode="expand",
+        )
+
+
+def test_qiskit_adapter_raises_for_misaligned_composite_definition_clbits() -> None:
+    operation = SimpleNamespace(
+        definition=SimpleNamespace(
+            qubits=("inner-q0",),
+            clbits=("inner-c0", "inner-c1"),
+            data=(),
+        )
+    )
+
+    with pytest.raises(
+        UnsupportedOperationError,
+        match="composite definition clbit mapping mismatch",
+    ):
+        QiskitAdapter()._expand_definition(
+            operation=operation,
+            qubits=("outer-q0",),
+            clbits=("outer-c0",),
+            qubit_ids={"outer-q0": "q0"},
+            classical_targets={"outer-c0": ("c0", "c[0]")},
+            composite_mode="expand",
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+        )

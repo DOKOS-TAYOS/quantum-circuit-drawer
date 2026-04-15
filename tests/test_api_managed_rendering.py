@@ -529,9 +529,48 @@ def test_slider_viewport_width_falls_back_to_scene_width_for_zero_sized_axes(
     scene = build_sample_scene()
     figure, axes = create_managed_figure(scene, use_agg=True)
 
-    monkeypatch.setattr(axes, "get_position", lambda: Bbox.from_bounds(0.0, 0.0, 0.0, 0.0))
+    monkeypatch.setattr(
+        axes,
+        "get_position",
+        lambda *args, **kwargs: Bbox.from_bounds(0.0, 0.0, 0.0, 0.0),
+    )
 
     assert _slider_viewport_width(axes, scene) == scene.width
+    plt.close(figure)
+
+
+def test_slider_viewport_width_tracks_subplots_adjusted_original_viewport() -> None:
+    scene = build_sample_scene()
+    figure, axes = create_managed_figure(scene, use_agg=True)
+    figure.subplots_adjust(left=0.08, right=0.92, bottom=0.22, top=0.95)
+
+    figure_width, figure_height = figure.get_size_inches()
+    axes_position = axes.get_position(original=True)
+    expected_ratio = (figure_width * figure.dpi * axes_position.width) / (
+        figure_height * figure.dpi * axes_position.height
+    )
+
+    assert _slider_viewport_width(axes, scene) == pytest.approx(
+        min(scene.width, scene.height * expected_ratio)
+    )
+    plt.close(figure)
+
+
+def test_slider_viewport_width_remains_consistent_after_resize() -> None:
+    scene = build_sample_scene()
+    figure, axes = create_managed_figure(scene, use_agg=True)
+    figure.subplots_adjust(left=0.06, right=0.94, bottom=0.2, top=0.96)
+    figure.set_size_inches(11.5, 2.8, forward=True)
+
+    figure_width, figure_height = figure.get_size_inches()
+    axes_position = axes.get_position(original=True)
+    expected_ratio = (figure_width * figure.dpi * axes_position.width) / (
+        figure_height * figure.dpi * axes_position.height
+    )
+
+    assert _slider_viewport_width(axes, scene) == pytest.approx(
+        min(scene.width, scene.height * expected_ratio)
+    )
     plt.close(figure)
 
 

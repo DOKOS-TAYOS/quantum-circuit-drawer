@@ -101,6 +101,8 @@ class QiskitAdapter(BaseAdapter):
         parameters = tuple(getattr(operation, "params", ()) or ())
 
         if name == "measure":
+            if not clbits:
+                raise UnsupportedOperationError("Qiskit instruction 'measure' has no classical target")
             classical_target, classical_bit_label = classical_targets[clbits[0]]
             return [
                 MeasurementIR(
@@ -217,13 +219,23 @@ class QiskitAdapter(BaseAdapter):
             register_targets,
         )
         true_block = blocks[0]
+        if len(true_block.qubits) != len(qubits):
+            raise UnsupportedOperationError(
+                "Qiskit if_else true_block qubit mapping mismatch: "
+                f"expected {len(true_block.qubits)} inner qubits, received {len(qubits)} outer qubits"
+            )
+        if len(true_block.clbits) != len(clbits):
+            raise UnsupportedOperationError(
+                "Qiskit if_else true_block clbit mapping mismatch: "
+                f"expected {len(true_block.clbits)} inner clbits, received {len(clbits)} outer clbits"
+            )
         nested_qubit_ids = {
             inner_qubit: qubit_ids[outer_qubit]
-            for inner_qubit, outer_qubit in zip(true_block.qubits, qubits, strict=False)
+            for inner_qubit, outer_qubit in zip(true_block.qubits, qubits, strict=True)
         }
         nested_classical_targets = {
             inner_clbit: classical_targets[outer_clbit]
-            for inner_clbit, outer_clbit in zip(true_block.clbits, clbits, strict=False)
+            for inner_clbit, outer_clbit in zip(true_block.clbits, clbits, strict=True)
             if outer_clbit in classical_targets
         }
 
@@ -274,13 +286,24 @@ class QiskitAdapter(BaseAdapter):
         if definition is None:
             return []
 
+        if len(definition.qubits) != len(qubits):
+            raise UnsupportedOperationError(
+                "Qiskit composite definition qubit mapping mismatch: "
+                f"expected {len(definition.qubits)} inner qubits, received {len(qubits)} outer qubits"
+            )
+        if len(definition.clbits) != len(clbits):
+            raise UnsupportedOperationError(
+                "Qiskit composite definition clbit mapping mismatch: "
+                f"expected {len(definition.clbits)} inner clbits, received {len(clbits)} outer clbits"
+            )
+
         nested_qubit_ids = {
             inner_qubit: qubit_ids[outer_qubit]
-            for inner_qubit, outer_qubit in zip(definition.qubits, qubits, strict=False)
+            for inner_qubit, outer_qubit in zip(definition.qubits, qubits, strict=True)
         }
         nested_classical_targets = {
             inner_clbit: classical_targets[outer_clbit]
-            for inner_clbit, outer_clbit in zip(definition.clbits, clbits, strict=False)
+            for inner_clbit, outer_clbit in zip(definition.clbits, clbits, strict=True)
             if outer_clbit in classical_targets
         }
 
