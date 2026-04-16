@@ -47,6 +47,17 @@ class _FallbackAdapter(BaseAdapter):
         return CircuitIR(quantum_wires=())
 
 
+class _RequestedFrameworkAdapter(BaseAdapter):
+    framework_name = "qiskit"
+
+    @classmethod
+    def can_handle(cls, circuit: object) -> bool:
+        return False
+
+    def to_ir(self, circuit: object, options: dict[str, object] | None = None) -> CircuitIR:
+        return CircuitIR(quantum_wires=())
+
+
 def test_adapter_registry_detects_using_registration_order() -> None:
     registry = AdapterRegistry()
     registry.register(_SecondAdapter)
@@ -94,7 +105,14 @@ def test_get_adapter_lists_available_frameworks_for_unknown_names() -> None:
         get_adapter(object(), framework="bogus")
 
 
-def test_get_adapter_reports_requested_framework_when_object_is_not_supported() -> None:
+def test_get_adapter_reports_requested_framework_when_object_is_not_supported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry_module = importlib.import_module("quantum_circuit_drawer.adapters.registry")
+    registry = AdapterRegistry()
+    registry.register(_RequestedFrameworkAdapter)
+    monkeypatch.setattr(registry_module, "registry", registry)
+
     with pytest.raises(
         UnsupportedFrameworkError,
         match=r"requested framework 'qiskit' does not match object of type",

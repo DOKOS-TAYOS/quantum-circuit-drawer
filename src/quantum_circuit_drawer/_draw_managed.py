@@ -3,11 +3,57 @@
 from __future__ import annotations
 
 import logging
-import math
 from collections.abc import Callable
-from dataclasses import replace
 from typing import TYPE_CHECKING, TypeGuard, cast
 
+from ._draw_managed_slider import (
+    configure_page_slider as _configure_page_slider_impl,
+)
+from ._draw_managed_slider import (
+    page_slider_figsize as _page_slider_figsize_impl,
+)
+from ._draw_managed_slider import (
+    set_slider_view as _set_slider_view_impl,
+)
+from ._draw_managed_slider import (
+    slider_viewport_width as _slider_viewport_width_impl,
+)
+from ._draw_managed_viewport import (
+    auto_paging_matches as _auto_paging_matches_impl,
+)
+from ._draw_managed_viewport import (
+    axes_viewport_pixels as _axes_viewport_pixels_impl,
+)
+from ._draw_managed_viewport import (
+    axes_viewport_ratio as _axes_viewport_ratio_impl,
+)
+from ._draw_managed_viewport import (
+    build_continuous_slider_scene as _build_continuous_slider_scene_impl,
+)
+from ._draw_managed_viewport import (
+    compute_paged_scene as _compute_paged_scene_impl,
+)
+from ._draw_managed_viewport import (
+    scene_aspect_ratio as _scene_aspect_ratio_impl,
+)
+from ._draw_managed_viewport import (
+    viewport_adaptive_paged_scene as _viewport_adaptive_paged_scene_impl,
+)
+from ._draw_managed_viewport import (
+    viewport_scene_score as _viewport_scene_score_impl,
+)
+from ._draw_managed_viewport import (
+    viewport_signature as _viewport_signature_impl,
+)
+from ._draw_managed_zoom import (
+    configure_zoom_text_scaling as _configure_zoom_text_scaling_impl,
+)
+from ._draw_managed_zoom import (
+    current_text_scale as _current_text_scale_impl,
+)
+from ._draw_managed_zoom import (
+    current_view_size as _current_view_size_impl,
+)
 from ._draw_pipeline import PreparedDrawPipeline
 from .renderers._render_support import show_figure_if_supported
 from .style import DrawStyle
@@ -15,7 +61,6 @@ from .typing import LayoutEngineLike, OutputPath
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
-    from matplotlib.backend_bases import DrawEvent, ResizeEvent
     from matplotlib.figure import Figure
 
     from .ir.circuit import CircuitIR
@@ -23,7 +68,6 @@ if TYPE_CHECKING:
     from .layout.scene_3d import LayoutScene3D
 
 _PAGE_SLIDER_MAIN_AXES_BOTTOM = 0.18
-_VIEWPORT_SEARCH_STEPS = 10
 logger = logging.getLogger(__name__)
 
 
@@ -194,13 +238,7 @@ def build_continuous_slider_scene(
 ) -> LayoutScene:
     """Compute a continuous-width 2D scene for page-slider mode."""
 
-    slider_style = replace(style, max_page_width=float("inf"))
-    if hasattr(layout_engine, "_compute_with_normalized_style"):
-        return layout_engine._compute_with_normalized_style(  # type: ignore[attr-defined]
-            circuit,
-            slider_style,
-        )
-    return layout_engine.compute(circuit, slider_style)
+    return _build_continuous_slider_scene_impl(circuit, layout_engine, style)
 
 
 def viewport_adaptive_paged_scene(
@@ -211,65 +249,7 @@ def viewport_adaptive_paged_scene(
 ) -> tuple[LayoutScene, float]:
     """Return the paged scene whose aspect best matches the current axes viewport."""
 
-    max_page_width = style.max_page_width
-    viewport_ratio = axes_viewport_ratio(axes)
-    if viewport_ratio <= 0.0:
-        return compute_paged_scene(circuit, layout_engine, style), max_page_width
-
-    continuous_scene = build_continuous_slider_scene(circuit, layout_engine, style)
-    continuous_page_width = (
-        continuous_scene.pages[0].content_width
-        if continuous_scene.pages
-        else continuous_scene.width
-    )
-    if not math.isfinite(max_page_width):
-        max_page_width = continuous_page_width
-
-    lower_bound = min(style.gate_width, max_page_width)
-    upper_bound = max(max_page_width, continuous_page_width)
-    scene_cache: dict[float, LayoutScene] = {}
-
-    def scene_for_width(page_width: float) -> LayoutScene:
-        cached_scene = scene_cache.get(page_width)
-        if cached_scene is not None:
-            return cached_scene
-        scene = compute_paged_scene(
-            circuit,
-            layout_engine,
-            replace(style, max_page_width=page_width),
-        )
-        scene_cache[page_width] = scene
-        return scene
-
-    best_page_width = upper_bound
-    best_scene = scene_for_width(best_page_width)
-    best_score = viewport_scene_score(best_scene, viewport_ratio)
-
-    low = lower_bound
-    high = upper_bound
-    for page_width in (low, high):
-        candidate_scene = scene_for_width(page_width)
-        candidate_score = viewport_scene_score(candidate_scene, viewport_ratio)
-        if candidate_score < best_score:
-            best_page_width = page_width
-            best_scene = candidate_scene
-            best_score = candidate_score
-
-    for _ in range(_VIEWPORT_SEARCH_STEPS):
-        mid = (low + high) / 2.0
-        candidate_scene = scene_for_width(mid)
-        candidate_ratio = scene_aspect_ratio(candidate_scene)
-        candidate_score = viewport_scene_score(candidate_scene, viewport_ratio)
-        if candidate_score < best_score:
-            best_page_width = mid
-            best_scene = candidate_scene
-            best_score = candidate_score
-        if candidate_ratio <= viewport_ratio:
-            low = mid
-            continue
-        high = mid
-
-    return best_scene, best_page_width
+    return _viewport_adaptive_paged_scene_impl(circuit, layout_engine, style, axes)
 
 
 def compute_paged_scene(
@@ -279,16 +259,13 @@ def compute_paged_scene(
 ) -> LayoutScene:
     """Compute a paged 2D scene using the provided normalized style."""
 
-    if hasattr(layout_engine, "_compute_with_normalized_style"):
-        return layout_engine._compute_with_normalized_style(  # type: ignore[attr-defined]
-            circuit,
-            style,
-        )
-    return layout_engine.compute(circuit, style)
+    return _compute_paged_scene_impl(circuit, layout_engine, style)
 
 
 def configure_auto_paging(axes: Axes, state: object) -> None:
     """Attach resize-aware paging callbacks to the provided axes."""
+
+    from matplotlib.backend_bases import Event
 
     from .renderers._matplotlib_figure import (
         AutoPagingState,
@@ -303,12 +280,12 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
     if canvas is None:
         return
 
-    def request_redraw(_event: ResizeEvent) -> None:
+    def request_redraw(_event: Event) -> None:
         if state.is_updating:
             return
         canvas.draw_idle()
 
-    def redraw_if_needed(_event: DrawEvent) -> None:
+    def redraw_if_needed(_event: Event) -> None:
         current_state = get_auto_paging_state(axes)
         if current_state is None or current_state is not state or state.is_updating:
             return
@@ -362,224 +339,59 @@ def auto_paging_matches(
 ) -> bool:
     """Return whether a candidate scene would keep the current paging unchanged."""
 
-    from .renderers._matplotlib_figure import AutoPagingState
-
-    if not isinstance(current_state, AutoPagingState):
-        return False
-    if not math.isclose(
-        current_state.effective_page_width,
-        candidate_page_width,
-        rel_tol=1e-6,
-        abs_tol=1e-6,
-    ):
-        return False
-    return (
-        len(current_state.scene.pages) == len(candidate_scene.pages)
-        and math.isclose(current_state.scene.width, candidate_scene.width, rel_tol=1e-6)
-        and math.isclose(current_state.scene.height, candidate_scene.height, rel_tol=1e-6)
+    return _auto_paging_matches_impl(
+        current_state=current_state,
+        candidate_scene=candidate_scene,
+        candidate_page_width=candidate_page_width,
     )
 
 
 def viewport_signature(axes: Axes) -> tuple[int, int] | None:
     """Return an integer pixel signature for the current visible axes viewport."""
 
-    viewport_width, viewport_height = axes_viewport_pixels(axes)
-    if viewport_width <= 0.0 or viewport_height <= 0.0:
-        return None
-    return int(round(viewport_width)), int(round(viewport_height))
+    return _viewport_signature_impl(axes)
 
 
 def axes_viewport_ratio(axes: Axes) -> float:
     """Return the current visible axes aspect ratio in pixels."""
 
-    viewport_width, viewport_height = axes_viewport_pixels(axes)
-    if viewport_width <= 0.0 or viewport_height <= 0.0:
-        return 0.0
-    return viewport_width / viewport_height
+    return _axes_viewport_ratio_impl(axes)
 
 
 def axes_viewport_pixels(axes: Axes) -> tuple[float, float]:
-    """Return the current axes viewport size in pixels.
+    """Return the current axes viewport size in pixels."""
 
-    This uses ``axes.get_position(original=True)`` so viewport estimates are
-    based on the subplot slot after ``subplots_adjust``/resize updates, without
-    incorporating any draw-time active-position adjustments. Using the original
-    box keeps auto-paging and slider viewport math aligned to the same
-    normalized layout budget.
-    """
-
-    figure = axes.figure
-    figure_width, figure_height = figure.get_size_inches()
-    axes_position = axes.get_position(original=True)
-    viewport_width = figure_width * figure.dpi * axes_position.width
-    viewport_height = figure_height * figure.dpi * axes_position.height
-    return viewport_width, viewport_height
+    return _axes_viewport_pixels_impl(axes)
 
 
 def scene_aspect_ratio(scene: LayoutScene) -> float:
     """Return the width-to-height ratio of a 2D scene."""
 
-    if scene.height <= 0.0:
-        return scene.width
-    return scene.width / scene.height
+    return _scene_aspect_ratio_impl(scene)
 
 
 def viewport_scene_score(scene: LayoutScene, viewport_ratio: float) -> float:
     """Return how closely the scene aspect matches the viewport aspect."""
 
-    scene_ratio = max(scene_aspect_ratio(scene), 1e-6)
-    if viewport_ratio <= 0.0:
-        return math.inf
-    return abs(math.log(scene_ratio / viewport_ratio))
+    return _viewport_scene_score_impl(scene, viewport_ratio)
 
 
 def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
     """Attach zoom-responsive text scaling to the provided 2D axes."""
 
-    from .renderers._matplotlib_figure import (
-        TextScalingState,
-        get_base_font_size,
-        get_gate_text_metadata,
-        get_text_scaling_state,
-        set_base_font_size,
-        set_text_scaling_state,
-    )
-    from .renderers.matplotlib_primitives import (
-        _build_gate_text_fitting_context,
-        _fit_gate_text_font_size_with_context,
-        _GateTextFittingContext,
-    )
-
-    base_view_width, base_view_height = current_view_size(axes)
-    if base_view_width <= 0.0 or base_view_height <= 0.0:
-        return
-    base_gate_text_context = _build_gate_text_fitting_context(axes, scene)
-
-    for text_artist in axes.texts:
-        set_base_font_size(text_artist, text_artist.get_fontsize())
-
-    state = get_text_scaling_state(axes)
-    if state is None:
-        state = TextScalingState(
-            base_view_width=base_view_width,
-            base_view_height=base_view_height,
-            scene=scene,
-            base_points_per_layout_unit=base_gate_text_context.points_per_layout_unit,
-            last_points_per_layout_unit=base_gate_text_context.points_per_layout_unit,
-        )
-        set_text_scaling_state(axes, state)
-        canvas = axes.figure.canvas
-
-        def apply_text_scale(*, request_redraw: bool) -> None:
-            current_state = get_text_scaling_state(axes)
-            if current_state is None or current_state is not state or state.is_updating:
-                return
-
-            scale_factor = current_text_scale(axes, state)
-            if request_redraw:
-                gate_text_context = _build_gate_text_fitting_context(axes, current_state.scene)
-                points_per_layout_unit = gate_text_context.points_per_layout_unit
-            else:
-                points_per_layout_unit = state.base_points_per_layout_unit * scale_factor
-                gate_text_context = _GateTextFittingContext(
-                    default_scale=1.0,
-                    points_per_layout_unit=points_per_layout_unit,
-                )
-
-            if math.isclose(
-                scale_factor,
-                state.last_scale_factor,
-                rel_tol=1e-6,
-                abs_tol=1e-6,
-            ) and math.isclose(
-                points_per_layout_unit,
-                state.last_points_per_layout_unit,
-                rel_tol=1e-6,
-                abs_tol=1e-6,
-            ):
-                return
-
-            state.is_updating = True
-            try:
-                for text_artist in axes.texts:
-                    gate_text_metadata = get_gate_text_metadata(text_artist)
-                    if gate_text_metadata is None:
-                        continue
-                    base_font_size = get_base_font_size(
-                        text_artist,
-                        default=text_artist.get_fontsize(),
-                    )
-                    text_artist.set_fontsize(
-                        _fit_gate_text_font_size_with_context(
-                            context=gate_text_context,
-                            width=gate_text_metadata.gate_width,
-                            height=gate_text_metadata.gate_height,
-                            text=text_artist.get_text(),
-                            default_font_size=base_font_size,
-                            height_fraction=gate_text_metadata.height_fraction,
-                            max_font_size=base_font_size * scale_factor,
-                            cache={},
-                        )
-                    )
-                state.last_scale_factor = scale_factor
-                state.last_points_per_layout_unit = points_per_layout_unit
-            finally:
-                state.is_updating = False
-
-            if request_redraw and canvas is not None:
-                canvas.draw_idle()
-
-        def update_text_scale_on_limits_change(_axes: Axes) -> None:
-            apply_text_scale(request_redraw=False)
-
-        if canvas is not None:
-
-            def redraw_text_scale(_event: DrawEvent) -> None:
-                apply_text_scale(request_redraw=True)
-
-            state.draw_callback_id = canvas.mpl_connect("draw_event", redraw_text_scale)
-
-        state.xlim_callback_id = axes.callbacks.connect(
-            "xlim_changed",
-            update_text_scale_on_limits_change,
-        )
-        state.ylim_callback_id = axes.callbacks.connect(
-            "ylim_changed",
-            update_text_scale_on_limits_change,
-        )
-        return
-
-    state.base_view_width = base_view_width
-    state.base_view_height = base_view_height
-    state.scene = scene
-    state.base_points_per_layout_unit = base_gate_text_context.points_per_layout_unit
-    state.last_scale_factor = 1.0
-    state.last_points_per_layout_unit = base_gate_text_context.points_per_layout_unit
+    _configure_zoom_text_scaling_impl(axes, scene=scene)
 
 
 def current_view_size(axes: Axes) -> tuple[float, float]:
     """Return the current visible data window for the axes."""
 
-    x_limits = axes.get_xlim()
-    y_limits = axes.get_ylim()
-    return abs(x_limits[1] - x_limits[0]), abs(y_limits[1] - y_limits[0])
+    return _current_view_size_impl(axes)
 
 
 def current_text_scale(axes: Axes, state: object) -> float:
     """Return the current zoom scale factor for 2D text."""
 
-    from .renderers._matplotlib_figure import TextScalingState
-
-    if not isinstance(state, TextScalingState):
-        return 1.0
-
-    current_view_width, current_view_height = current_view_size(axes)
-    if current_view_width <= 0.0 or current_view_height <= 0.0:
-        return 1.0
-
-    scale_x = state.base_view_width / current_view_width
-    scale_y = state.base_view_height / current_view_height
-    return max(scale_x, scale_y)
+    return _current_text_scale_impl(axes, state)
 
 
 def configure_page_slider(
@@ -592,65 +404,25 @@ def configure_page_slider(
 ) -> None:
     """Attach and wire a slider that scrolls the rendered circuit horizontally."""
 
-    max_scroll = max(0.0, scene.width - viewport_width)
-    if max_scroll <= 0.0:
-        return
-
-    from matplotlib.widgets import Slider
-
-    slider_axes = figure.add_axes(
-        (0.12, 0.045, 0.76, 0.055),
-        facecolor=scene.style.theme.axes_facecolor,
+    _configure_page_slider_impl(
+        figure=figure,
+        axes=axes,
+        scene=scene,
+        viewport_width=viewport_width,
+        set_page_slider=set_page_slider,
     )
-    slider = Slider(
-        ax=slider_axes,
-        label="Scroll",
-        valmin=0.0,
-        valmax=max_scroll,
-        valinit=0.0,
-        color=scene.style.theme.gate_edgecolor,
-        track_color=scene.style.theme.classical_wire_color,
-        handle_style={
-            "facecolor": scene.style.theme.accent_color,
-            "edgecolor": scene.style.theme.text_color,
-            "size": 16,
-        },
-    )
-    slider.label.set_color(scene.style.theme.text_color)
-    slider.valtext.set_visible(False)
-    slider.track.set_y(0.12)
-    slider.track.set_height(0.76)
-    slider.track.set_alpha(0.45)
-    slider.poly.set_alpha(0.75)
-    slider.vline.set_linewidth(3.0)
-
-    set_slider_view(axes, scene, x_offset=0.0, viewport_width=viewport_width)
-
-    def update_scroll(x_offset: float) -> None:
-        set_slider_view(axes, scene, x_offset=x_offset, viewport_width=viewport_width)
-        if figure.canvas is not None:
-            figure.canvas.draw_idle()
-
-    slider.on_changed(update_scroll)
-    set_page_slider(figure, slider)
 
 
 def page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
     """Return a readable managed figure size for page-slider mode."""
 
-    width = max(4.8, viewport_width * 0.98)
-    height = max(2.0, scene_height * 0.68) + 1.0
-    return width, height
+    return _page_slider_figsize_impl(viewport_width, scene_height)
 
 
 def slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
     """Estimate the visible scene width for the current axes aspect ratio."""
 
-    axes_width_pixels, axes_height_pixels = axes_viewport_pixels(axes)
-    if axes_width_pixels <= 0.0 or axes_height_pixels <= 0.0:
-        return scene.width
-    viewport_width = scene.height * (axes_width_pixels / axes_height_pixels)
-    return min(scene.width, viewport_width)
+    return _slider_viewport_width_impl(axes, scene)
 
 
 def set_slider_view(
@@ -662,8 +434,7 @@ def set_slider_view(
 ) -> None:
     """Set the 2D axes limits used for the slider viewport."""
 
-    axes.set_xlim(x_offset, x_offset + viewport_width)
-    axes.set_ylim(scene.height, 0.0)
+    _set_slider_view_impl(axes, scene, x_offset=x_offset, viewport_width=viewport_width)
 
 
 def is_3d_axes(ax: Axes) -> bool:

@@ -9,6 +9,11 @@ from quantum_circuit_drawer.adapters.pennylane_adapter import PennyLaneAdapter
 from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 
+skip_real_pennylane_on_windows = pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="PennyLane collection is not reliable on native Windows",
+)
+
 
 class FakeQuantumTape:
     def __init__(
@@ -125,6 +130,7 @@ def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPa
         PennyLaneAdapter().to_ir(object())
 
 
+@skip_real_pennylane_on_windows
 def test_pennylane_adapter_converts_mid_measure_and_conditional_operations() -> None:
     qml = pytest.importorskip("pennylane")
 
@@ -141,6 +147,7 @@ def test_pennylane_adapter_converts_mid_measure_and_conditional_operations() -> 
     assert operations[1].classical_conditions[0].expression == "if c[0]=1"
 
 
+@skip_real_pennylane_on_windows
 def test_pennylane_adapter_keeps_composite_operations_compact_by_default() -> None:
     qml = pytest.importorskip("pennylane")
 
@@ -154,6 +161,7 @@ def test_pennylane_adapter_keeps_composite_operations_compact_by_default() -> No
     assert operations[0].name == "QFT"
 
 
+@skip_real_pennylane_on_windows
 def test_pennylane_adapter_expands_composite_operations_when_requested() -> None:
     qml = pytest.importorskip("pennylane")
 
@@ -167,6 +175,7 @@ def test_pennylane_adapter_expands_composite_operations_when_requested() -> None
     assert operations[0].name == "H"
 
 
+@skip_real_pennylane_on_windows
 def test_pennylane_adapter_converts_multi_wire_terminal_measurements() -> None:
     qml = pytest.importorskip("pennylane")
 

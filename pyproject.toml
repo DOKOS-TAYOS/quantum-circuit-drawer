@@ -106,6 +106,8 @@ module = [
   "cirq",
   "cudaq",
   "pennylane",
+  "qat",
+  "qat.*",
   "qiskit",
   "qiskit.*",
 ]

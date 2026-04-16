@@ -42,6 +42,8 @@ Linux or WSL:
 .venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
 ```
 
+On native Windows, Cirq imports can fail inside SciPy/HiGHS. For Cirq adapter work, prefer Linux or WSL if you need to run that part of the suite.
+
 For CUDA-Q development, use Linux or WSL2:
 
 ```bash

@@ -30,6 +30,13 @@ class LayoutEngineLike(Protocol):
         """Compute a 2D drawable scene from circuit IR and validated style."""
 
 
+class _NormalizedLayoutEngineLike(Protocol):
+    """Private protocol for built-in layout engines with normalized-style fast paths."""
+
+    def _compute_with_normalized_style(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
+        """Compute a 2D drawable scene from already-normalized style."""
+
+
 class LayoutEngine3DLike(Protocol):
     """Protocol for custom 3D layout engines accepted by the public API."""
 
@@ -43,3 +50,18 @@ class LayoutEngine3DLike(Protocol):
         hover_enabled: bool,
     ) -> LayoutScene3D:
         """Compute a 3D drawable scene from circuit IR and validated style."""
+
+
+class _NormalizedLayoutEngine3DLike(Protocol):
+    """Private protocol for built-in 3D layout engines with normalized-style fast paths."""
+
+    def _compute_with_normalized_style(
+        self,
+        circuit: CircuitIR,
+        style: DrawStyle,
+        *,
+        topology_name: TopologyName,
+        direct: bool,
+        hover_enabled: bool,
+    ) -> LayoutScene3D:
+        """Compute a 3D drawable scene from already-normalized style."""

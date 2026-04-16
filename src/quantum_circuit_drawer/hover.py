@@ -65,7 +65,14 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
         value = hover[field_name]
         if not isinstance(value, bool):
             raise ValueError(f"hover.{field_name} must be a boolean")
-        resolved = replace(resolved, **{field_name: value})
+        if field_name == "enabled":
+            resolved = replace(resolved, enabled=value)
+        elif field_name == "show_name":
+            resolved = replace(resolved, show_name=value)
+        elif field_name == "show_size":
+            resolved = replace(resolved, show_size=value)
+        else:
+            resolved = replace(resolved, show_qubits=value)
 
     if "show_matrix" in hover:
         value = hover["show_matrix"]
