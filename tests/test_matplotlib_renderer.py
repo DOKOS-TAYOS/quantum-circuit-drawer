@@ -856,6 +856,31 @@ def test_draw_quantum_circuit_keeps_gate_label_inside_box_after_zoom() -> None:
     assert text_x + text_width <= patch_x + patch_width
 
 
+def test_matplotlib_renderer_rescales_gate_text_when_zooming() -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=6),
+        DrawStyle(),
+    )
+    figure, axes = plt.subplots(figsize=(8.0, 3.0))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    wire_label = next(text for text in axes.texts if text.get_text() == "0")
+    initial_gate_font_size = gate_label.get_fontsize()
+    initial_wire_font_size = wire_label.get_fontsize()
+    left, right = axes.get_xlim()
+    bottom, top = axes.get_ylim()
+
+    axes.set_xlim(left, left + ((right - left) / 3.0))
+    axes.set_ylim(bottom, bottom + ((top - bottom) / 3.0))
+    figure.canvas.draw()
+
+    assert gate_label.get_fontsize() > initial_gate_font_size
+    assert wire_label.get_fontsize() == approx(initial_wire_font_size)
+
+
 def test_add_text_artist_skips_clip_path_when_fast_path_available(
     monkeypatch: object,
 ) -> None:
