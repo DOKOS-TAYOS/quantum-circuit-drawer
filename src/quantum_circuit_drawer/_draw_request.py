@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from .exceptions import UnsupportedBackendError
+from .hover import HoverOptions, disable_hover, normalize_hover
 from .renderers._render_support import (
     NON_INTERACTIVE_BACKENDS,
     figure_backend_name,
@@ -38,7 +39,7 @@ class DrawPipelineOptions:
     view: ViewMode = "2d"
     topology: TopologyMode = "line"
     direct: bool = True
-    hover: bool = False
+    hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
     extra: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -103,7 +104,7 @@ def build_draw_request(
     view: ViewMode = "2d",
     topology: TopologyMode = "line",
     direct: bool = True,
-    hover: bool = False,
+    hover: bool | HoverOptions | Mapping[str, object] = False,
     **options: object,
 ) -> DrawRequest:
     """Build the internal draw request without changing the public signature.
@@ -112,19 +113,18 @@ def build_draw_request(
     options into typed structures used by later orchestration stages.
     """
 
+    normalized_hover = normalize_hover(hover)
     validate_public_options(
         view=view,
         topology=topology,
         composite_mode=composite_mode,
         direct=direct,
-        hover=hover,
         show=show,
         page_slider=page_slider,
         figsize=figsize,
     )
     effective_hover = resolve_effective_hover(
-        hover=hover,
-        view=view,
+        hover=normalized_hover,
         ax=ax,
         output=output,
         show=show,
@@ -157,7 +157,6 @@ def validate_public_options(
     topology: object,
     composite_mode: object,
     direct: object,
-    hover: object,
     show: object,
     page_slider: object,
     figsize: object,
@@ -168,7 +167,6 @@ def validate_public_options(
     _validate_choice("topology", topology, _VALID_TOPOLOGIES)
     _validate_choice("composite_mode", composite_mode, _VALID_COMPOSITE_MODES)
     _validate_bool("direct", direct)
-    _validate_bool("hover", hover)
     _validate_bool("show", show)
     _validate_bool("page_slider", page_slider)
     _validate_figsize(figsize)
@@ -218,26 +216,28 @@ def validate_draw_request(request: DrawRequest) -> None:
 
 def resolve_effective_hover(
     *,
-    hover: bool,
-    view: ViewMode,
+    hover: HoverOptions,
     ax: Axes | None,
     output: OutputPath | None,
     show: bool,
-) -> bool:
+) -> HoverOptions:
     """Resolve whether hover annotations can actually stay interactive.
 
-    Hover labels are intentionally disabled for 2D renders, saved output,
-    caller-supplied axes on non-interactive backends, and managed figures
-    created with ``show=False``.
+    Hover labels are disabled for saved output, caller-supplied axes on
+    non-interactive backends, and managed figures created with ``show=False``.
     """
 
-    if not hover or view != "3d" or output is not None:
-        return False
+    if not hover.enabled or output is not None:
+        return disable_hover(hover)
     if ax is not None:
-        return figure_backend_name(ax.figure) not in NON_INTERACTIVE_BACKENDS
+        if figure_backend_name(ax.figure) in NON_INTERACTIVE_BACKENDS:
+            return disable_hover(hover)
+        return hover
     if not show:
-        return False
+        return disable_hover(hover)
 
     from matplotlib import pyplot as plt
 
-    return normalize_backend_name(str(plt.get_backend())) not in NON_INTERACTIVE_BACKENDS
+    if normalize_backend_name(str(plt.get_backend())) in NON_INTERACTIVE_BACKENDS:
+        return disable_hover(hover)
+    return hover

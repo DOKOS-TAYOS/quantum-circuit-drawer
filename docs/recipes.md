@@ -10,6 +10,7 @@ For deeper explanation, read the [User guide](user-guide.md). For exact paramete
 - [Save a PNG file](#save-a-png-file)
 - [Draw inside an existing Matplotlib figure](#draw-inside-an-existing-matplotlib-figure)
 - [Display cleanly in a notebook](#display-cleanly-in-a-notebook)
+- [Use configurable 2D hover](#use-configurable-2d-hover)
 - [Use the `paper` theme for reports](#use-the-paper-theme-for-reports)
 - [Hide gate parameters](#hide-gate-parameters)
 - [Draw a topology-aware 3D circuit](#draw-a-topology-aware-3d-circuit)
@@ -66,6 +67,27 @@ figure
 
 Install notebook tools in the same `.venv`; see [Installation](installation.md#use-the-library-in-jupyter).
 
+If you use `%matplotlib widget`, managed figures avoid the extra built-in `show()` call, so you do not get a duplicate static output next to the interactive one.
+
+## Use configurable 2D hover
+
+```python
+from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
+
+draw_quantum_circuit(
+    circuit,
+    hover=HoverOptions(
+        show_name=True,
+        show_size=True,
+        show_qubits=True,
+        show_matrix="auto",
+        matrix_max_qubits=2,
+    ),
+)
+```
+
+`hover=True` uses the default settings. Tooltips are interactive only; saved files still contain the clean static circuit figure.
+
 ## Use the `paper` theme for reports
 
 ```python
@@ -104,7 +126,7 @@ draw_quantum_circuit(
 
 Supported 3D topologies are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
 
-If `hover=True`, labels are hidden only in interactive 3D figures. Saved renders or non-interactive backends fall back to visible labels.
+In 3D, `hover=True` keeps the compact tooltip behavior for interactive figures. Saved renders or non-interactive backends fall back to visible labels.
 
 ## Draw a wide circuit with a slider
 

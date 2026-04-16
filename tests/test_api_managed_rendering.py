@@ -594,6 +594,53 @@ def test_draw_quantum_circuit_rescales_2d_text_when_zooming() -> None:
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_only_rescales_gate_text_when_zooming() -> None:
+    figure, axes = plt.subplots(figsize=(8.0, 3.0))
+
+    draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=12),
+        style={"max_page_width": 12.0},
+        ax=axes,
+    )
+    figure.canvas.draw()
+
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    wire_label = next(text for text in axes.texts if text.get_text() == "0")
+    initial_gate_font_size = gate_label.get_fontsize()
+    initial_wire_font_size = wire_label.get_fontsize()
+
+    axes.set_xlim(0.0, 2.5)
+    axes.set_ylim(3.5, 0.0)
+    figure.canvas.draw()
+
+    assert gate_label.get_fontsize() > initial_gate_font_size
+    assert wire_label.get_fontsize() == pytest.approx(initial_wire_font_size)
+
+    plt.close(figure)
+
+
+def test_show_managed_figure_skips_builtin_show_for_notebook_backends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer.renderers._render_support as render_support
+
+    figure, _ = draw_quantum_circuit(build_sample_ir(), show=False)
+    show_calls: list[bool] = []
+
+    def fake_builtin_show(*args: object, **kwargs: object) -> None:
+        show_calls.append(True)
+
+    fake_builtin_show.__module__ = "matplotlib.pyplot"
+
+    monkeypatch.setattr(plt, "show", fake_builtin_show)
+    monkeypatch.setattr(render_support, "figure_backend_name", lambda _figure: "nbagg")
+
+    _show_managed_figure_if_supported(figure, show=True)
+
+    assert show_calls == []
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_count() -> None:
     page_to_font_size: dict[int, float] = {}
 

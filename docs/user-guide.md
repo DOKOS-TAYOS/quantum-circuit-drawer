@@ -13,6 +13,7 @@ For the exact public signature, style table, and exception list, use the [API re
 - [Reports and custom Matplotlib figures](#reports-and-custom-matplotlib-figures)
 - [Styling in practice](#styling-in-practice)
 - [Wide circuits](#wide-circuits)
+- [Interactive hover](#interactive-hover)
 - [Topology-aware 3D view](#topology-aware-3d-view)
 - [Composite operations](#composite-operations)
 - [Classical conditions](#classical-conditions)
@@ -88,6 +89,8 @@ In notebooks, it is often clearest to request a figure without opening an extern
 figure, axes = draw_quantum_circuit(circuit, show=False)
 figure
 ```
+
+If you use `%matplotlib widget` or another notebook-interactive backend, managed figures no longer call the built-in `pyplot.show()` automatically. This avoids getting both an interactive widget and an extra static output for the same circuit.
 
 If you save files from a notebook, keep paths simple at first:
 
@@ -166,6 +169,39 @@ Important rules:
 - `page_slider=True` is currently 2D-only.
 - If you also pass `output=...`, the saved file uses the clean paged layout without the slider UI.
 
+Gate labels and subtitles in 2D also adapt to zoom. When you zoom into dense pages, gate text grows only as far as the visible gate body allows, so labels stay inside the box instead of becoming oversized.
+
+## Interactive hover
+
+In interactive 2D figures, you can show gate details on hover without changing the saved output:
+
+```python
+from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
+
+figure, axes = draw_quantum_circuit(
+    circuit,
+    hover=HoverOptions(show_matrix="auto", matrix_max_qubits=2),
+)
+```
+
+What hover can show in 2D:
+
+- the gate name
+- the visible gate size on screen
+- the affected wires
+- a matrix, when `OperationIR.metadata["matrix"]` exists and the hover rules allow it
+
+`hover=True` uses the defaults. If you want to hide one part, pass `HoverOptions(...)` or a mapping:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    hover={"show_matrix": "never", "show_size": True},
+)
+```
+
+In 2D, the hover area covers the full logical gate drawing, including controlled-gate controls, the `X` target, and the vertical connection between them.
+
 ## Topology-aware 3D view
 
 Use `view="3d"` when you want the qubits placed on a chip-like topology while the circuit evolves along a depth axis.
@@ -188,7 +224,7 @@ draw_quantum_circuit(
 - `topology="honeycomb"` currently targets a 53-qubit reference layout.
 - `direct=True` draws straight connections.
 - `direct=False` routes connections along topology paths.
-- `hover=True` hides labels only in interactive 3D figures; saved or non-interactive renders fall back to visible labels.
+- `hover=True` keeps the current compact 3D tooltip behavior; saved or non-interactive renders fall back to visible labels.
 
 If you provide your own axes with `ax=...`, it must be a 3D Matplotlib axes. See [Troubleshooting](troubleshooting.md#view3d-raises-an-axes-error).
 

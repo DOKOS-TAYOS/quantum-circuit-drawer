@@ -18,6 +18,7 @@ from quantum_circuit_drawer.exceptions import (
     UnsupportedBackendError,
     UnsupportedFrameworkError,
 )
+from quantum_circuit_drawer.hover import HoverOptions
 from tests.support import (
     build_sample_ir,
     build_sample_myqlm_circuit,
@@ -77,7 +78,7 @@ def test_draw_quantum_circuit_rejects_invalid_backend() -> None:
         ("show", "yes", "show must be a boolean"),
         ("page_slider", 1, "page_slider must be a boolean"),
         ("direct", "yes", "direct must be a boolean"),
-        ("hover", 1, "hover must be a boolean"),
+        ("hover", 1, "hover must be a boolean, HoverOptions, or a mapping"),
     ],
 )
 def test_draw_quantum_circuit_rejects_invalid_public_options(
@@ -92,6 +93,27 @@ def test_draw_quantum_circuit_rejects_invalid_public_options(
 def test_draw_quantum_circuit_validates_style_input() -> None:
     with pytest.raises(StyleValidationError, match="font_size must be a positive number"):
         draw_quantum_circuit(build_sample_ir(), style={"font_size": -1})
+
+
+def test_draw_quantum_circuit_exports_hover_options() -> None:
+    assert quantum_circuit_drawer.HoverOptions is HoverOptions
+    assert HoverOptions().show_matrix == "auto"
+
+
+def test_draw_quantum_circuit_accepts_hover_options_mapping() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_sample_ir(),
+        hover={"show_matrix": "always", "matrix_max_qubits": 1},
+        show=False,
+    )
+
+    assert axes.figure is figure
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_validates_hover_options_mapping() -> None:
+    with pytest.raises(ValueError, match="hover.show_matrix must be one of: always, auto, never"):
+        draw_quantum_circuit(build_sample_ir(), hover={"show_matrix": "sometimes"})
 
 
 def test_draw_quantum_circuit_rejects_invalid_figsize() -> None:

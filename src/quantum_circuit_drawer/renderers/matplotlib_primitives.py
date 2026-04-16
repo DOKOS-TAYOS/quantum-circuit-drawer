@@ -27,7 +27,7 @@ from ..layout.scene import (
     SceneText,
     SceneWire,
 )
-from ._matplotlib_figure import get_viewport_width
+from ._matplotlib_figure import get_viewport_width, set_gate_text_metadata
 
 BASE_LAYER_ZORDER = 1
 CONNECTION_LAYER_ZORDER = 2
@@ -36,6 +36,11 @@ SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
 LineSegment = tuple[tuple[float, float], tuple[float, float]]
 _GateTextCacheKey = tuple[str, float, float]
+_SINGLE_LINE_HEIGHT_FRACTION = 0.62
+_STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
+_STACKED_LABEL_SHARE = 0.6
+_STACKED_SUBTITLE_SHARE = 0.4
+_STACKED_GAP_FRACTION = 0.08
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,21 +126,21 @@ def _add_line_collection(
     zorder: int,
     linestyle: str | tuple[int, tuple[int, int]] = "solid",
     capstyle: str = "round",
-) -> None:
+) -> LineCollection | None:
     if not segments:
-        return
+        return None
 
-    ax.add_collection(
-        LineCollection(
-            segments,
-            colors=color,
-            linewidths=linewidth,
-            linestyles=linestyle,
-            capstyle=capstyle,
-            zorder=zorder,
-            clip_on=False,
-        )
+    collection = LineCollection(
+        segments,
+        colors=color,
+        linewidths=linewidth,
+        linestyles=linestyle,
+        capstyle=capstyle,
+        zorder=zorder,
+        clip_on=False,
     )
+    ax.add_collection(collection)
+    return collection
 
 
 def _add_ellipse_collection(
@@ -148,25 +153,25 @@ def _add_ellipse_collection(
     edgecolor: str,
     linewidth: float,
     zorder: int,
-) -> None:
+) -> EllipseCollection | None:
     if not offsets:
-        return
+        return None
 
-    ax.add_collection(
-        EllipseCollection(
-            widths=widths,
-            heights=heights,
-            angles=[0.0] * len(offsets),
-            units="xy",
-            offsets=offsets,
-            transOffset=ax.transData,
-            facecolors=facecolor,
-            edgecolors=edgecolor,
-            linewidths=linewidth,
-            zorder=zorder,
-            clip_on=False,
-        )
+    collection = EllipseCollection(
+        widths=widths,
+        heights=heights,
+        angles=[0.0] * len(offsets),
+        units="xy",
+        offsets=offsets,
+        transOffset=ax.transData,
+        facecolors=facecolor,
+        edgecolors=edgecolor,
+        linewidths=linewidth,
+        zorder=zorder,
+        clip_on=False,
     )
+    ax.add_collection(collection)
+    return collection
 
 
 @lru_cache(maxsize=32)
@@ -267,9 +272,10 @@ def draw_connections(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> list[object]:
     quantum_segments: list[LineSegment] = []
     classical_segments_by_style: dict[str | tuple[int, tuple[int, int]], list[LineSegment]] = {}
+    artists: list[object] = []
 
     for connection in connections:
         connection_x = connection.x + x_offset
@@ -322,7 +328,7 @@ def draw_connections(
                 linestyle="solid",
                 zorder=SYMBOL_LAYER_ZORDER,
             )
-            _add_patch_artist(ax, arrow)
+            artists.append(_add_patch_artist(ax, arrow))
         if connection.label:
             label_y = (
                 connection_y_start - 0.12
@@ -351,7 +357,7 @@ def draw_connections(
                 },
             )
 
-    _add_line_collection(
+    quantum_collection = _add_line_collection(
         ax,
         quantum_segments,
         color=scene.style.theme.wire_color,
@@ -359,8 +365,10 @@ def draw_connections(
         zorder=CONNECTION_LAYER_ZORDER,
         capstyle="butt",
     )
+    if quantum_collection is not None:
+        artists.append(quantum_collection)
     for linestyle, classical_segments in classical_segments_by_style.items():
-        _add_line_collection(
+        classical_collection = _add_line_collection(
             ax,
             classical_segments,
             color=scene.style.theme.classical_wire_color,
@@ -369,6 +377,9 @@ def draw_connections(
             linestyle=linestyle,
             capstyle="butt",
         )
+        if classical_collection is not None:
+            artists.append(classical_collection)
+    return artists
 
 
 def draw_connection(ax: Axes, connection: SceneConnection, scene: LayoutScene) -> None:
@@ -382,9 +393,9 @@ def draw_gate_box(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> Patch | None:
     if gate.render_style is GateRenderStyle.X_TARGET:
-        return
+        return None
 
     patch = FancyBboxPatch(
         (gate.x + x_offset - gate.width / 2, gate.y + y_offset - gate.height / 2),
@@ -396,7 +407,7 @@ def draw_gate_box(
         linewidth=scene.style.line_width,
         zorder=OCCLUSION_LAYER_ZORDER,
     )
-    _add_patch_artist(ax, patch)
+    return _add_patch_artist(ax, patch)
 
 
 def draw_x_target_circle(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
@@ -415,7 +426,7 @@ def draw_x_target_circles(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> EllipseCollection | None:
     offsets: list[tuple[float, float]] = []
     diameters: list[float] = []
     for gate in gates:
@@ -424,7 +435,7 @@ def draw_x_target_circles(
         offsets.append((gate.x + x_offset, gate.y + y_offset))
         diameters.append(min(gate.width, gate.height) * 0.72)
 
-    _add_ellipse_collection(
+    return _add_ellipse_collection(
         ax,
         widths=diameters,
         heights=diameters,
@@ -443,7 +454,7 @@ def draw_x_target_segments(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> LineCollection | None:
     segments: list[LineSegment] = []
     for gate in gates:
         if gate.render_style is not GateRenderStyle.X_TARGET:
@@ -462,7 +473,7 @@ def draw_x_target_segments(
             )
         )
 
-    _add_line_collection(
+    return _add_line_collection(
         ax,
         segments,
         color=scene.style.theme.wire_color,
@@ -480,21 +491,25 @@ def draw_gate_label(
     subtitle_font_size: float | None = None,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> tuple[Text, Text | None] | None:
     if gate.render_style is GateRenderStyle.X_TARGET:
-        return
+        return None
+
+    label_y, subtitle_y, label_height_fraction, subtitle_height_fraction = _gate_text_layout(gate)
 
     resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
         ax=ax,
         scene=scene,
         width=gate.width,
+        height=gate.height,
         text=gate.label,
         default_font_size=scene.style.font_size,
+        height_fraction=label_height_fraction,
     )
-    _add_text_artist(
+    label_artist = _add_text_artist(
         ax,
         gate.x + x_offset,
-        gate.y + y_offset - 0.08 if gate.subtitle else gate.y + y_offset,
+        label_y + y_offset,
         gate.label,
         ha="center",
         va="center",
@@ -502,18 +517,28 @@ def draw_gate_label(
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
     )
+    set_gate_text_metadata(
+        label_artist,
+        role="gate_label",
+        gate_width=gate.width,
+        gate_height=gate.height,
+        height_fraction=label_height_fraction,
+    )
+    subtitle_artist: Text | None = None
     if gate.subtitle:
         resolved_subtitle_font_size = subtitle_font_size or _fit_gate_text_font_size(
             ax=ax,
             scene=scene,
             width=gate.width,
+            height=gate.height,
             text=gate.subtitle,
             default_font_size=scene.style.font_size * 0.78,
+            height_fraction=subtitle_height_fraction,
         )
-        _add_text_artist(
+        subtitle_artist = _add_text_artist(
             ax,
             gate.x + x_offset,
-            gate.y + y_offset + 0.16,
+            subtitle_y + y_offset,
             gate.subtitle,
             ha="center",
             va="center",
@@ -521,6 +546,14 @@ def draw_gate_label(
             color=scene.style.theme.text_color,
             zorder=TEXT_LAYER_ZORDER,
         )
+        set_gate_text_metadata(
+            subtitle_artist,
+            role="gate_subtitle",
+            gate_width=gate.width,
+            gate_height=gate.height,
+            height_fraction=subtitle_height_fraction,
+        )
+    return label_artist, subtitle_artist
 
 
 def draw_control(ax: Axes, control: SceneControl, scene: LayoutScene) -> None:
@@ -534,10 +567,10 @@ def draw_controls(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> EllipseCollection | None:
     diameter = scene.style.control_radius * 2
     offsets = [(control.x + x_offset, control.y + y_offset) for control in controls]
-    _add_ellipse_collection(
+    return _add_ellipse_collection(
         ax,
         widths=[diameter] * len(offsets),
         heights=[diameter] * len(offsets),
@@ -560,7 +593,7 @@ def draw_swaps(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> LineCollection | None:
     segments: list[LineSegment] = []
     for swap in swaps:
         half = swap.marker_size
@@ -572,7 +605,7 @@ def draw_swaps(
                 )
             )
 
-    _add_line_collection(
+    return _add_line_collection(
         ax,
         segments,
         color=scene.style.theme.wire_color,
@@ -617,7 +650,7 @@ def draw_measurement_box(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> None:
+) -> Patch:
     patch = FancyBboxPatch(
         (
             measurement.x + x_offset - measurement.width / 2,
@@ -631,7 +664,7 @@ def draw_measurement_box(
         linewidth=scene.style.line_width,
         zorder=OCCLUSION_LAYER_ZORDER,
     )
-    _add_patch_artist(ax, patch)
+    return _add_patch_artist(ax, patch)
 
 
 def draw_measurement_symbol(
@@ -722,13 +755,31 @@ def draw_gate_annotation(
     )
 
 
+def _gate_text_layout(gate: SceneGate) -> tuple[float, float | None, float, float]:
+    if not gate.subtitle:
+        return gate.y, None, _SINGLE_LINE_HEIGHT_FRACTION, 0.0
+
+    usable_height = gate.height * _STACKED_TEXT_USABLE_HEIGHT_FRACTION
+    gap = min(gate.height * _STACKED_GAP_FRACTION, usable_height * 0.18)
+    stack_height = max(0.0, usable_height - gap)
+    label_height = stack_height * _STACKED_LABEL_SHARE
+    subtitle_height = stack_height * _STACKED_SUBTITLE_SHARE
+    center_offset = (usable_height / 2.0) - ((label_height + subtitle_height) / 4.0)
+    label_y = gate.y - center_offset
+    subtitle_y = gate.y + center_offset
+    return label_y, subtitle_y, label_height / gate.height, subtitle_height / gate.height
+
+
 def _fit_gate_text_font_size(
     *,
     ax: Axes,
     scene: LayoutScene,
     width: float,
+    height: float | None = None,
     text: str,
     default_font_size: float,
+    height_fraction: float = _SINGLE_LINE_HEIGHT_FRACTION,
+    max_font_size: float | None = None,
 ) -> float:
     """Shrink gate text when the rendered box is too narrow for the label."""
 
@@ -736,8 +787,11 @@ def _fit_gate_text_font_size(
     return _fit_gate_text_font_size_with_context(
         context=context,
         width=width,
+        height=height,
         text=text,
         default_font_size=default_font_size,
+        height_fraction=height_fraction,
+        max_font_size=max_font_size,
         cache={},
     )
 
@@ -776,8 +830,11 @@ def _fit_gate_text_font_size_with_context(
     *,
     context: _GateTextFittingContext,
     width: float,
+    height: float | None = None,
     text: str,
     default_font_size: float,
+    height_fraction: float = _SINGLE_LINE_HEIGHT_FRACTION,
+    max_font_size: float | None = None,
     cache: dict[_GateTextCacheKey, float],
 ) -> float:
     """Shrink gate text using a per-page context and cache."""
@@ -785,11 +842,20 @@ def _fit_gate_text_font_size_with_context(
     if not text:
         return default_font_size
 
-    effective_default_font_size = default_font_size * context.default_scale
+    effective_default_font_size = (
+        max_font_size if max_font_size is not None else default_font_size * context.default_scale
+    )
     if context.points_per_layout_unit <= 0.0:
         return effective_default_font_size
 
-    cache_key = (text, width, default_font_size)
+    cache_text = text
+    if (
+        height is not None
+        or max_font_size is not None
+        or abs(height_fraction - _SINGLE_LINE_HEIGHT_FRACTION) > 1e-9
+    ):
+        cache_text = f"{text}|{height}|{height_fraction}|{max_font_size}"
+    cache_key = (cache_text, width, default_font_size)
     cached_font_size = cache.get(cache_key)
     if cached_font_size is not None:
         return cached_font_size
@@ -801,7 +867,16 @@ def _fit_gate_text_font_size_with_context(
         return effective_default_font_size
 
     fitted_font_size = available_width_points / text_width_at_one_point
-    resolved_font_size = max(3.5, min(effective_default_font_size, fitted_font_size))
+    fitted_height_font_size = float("inf")
+    if height is not None:
+        available_height_points = context.points_per_layout_unit * height * height_fraction
+        text_height_at_one_point = _text_height_in_points(text)
+        if text_height_at_one_point > 0.0:
+            fitted_height_font_size = available_height_points / text_height_at_one_point
+    resolved_font_size = max(
+        3.5,
+        min(effective_default_font_size, fitted_font_size, fitted_height_font_size),
+    )
     cache[cache_key] = resolved_font_size
     return resolved_font_size
 
@@ -816,6 +891,13 @@ def _page_wrapped_font_scale(scene: LayoutScene) -> float:
 @lru_cache(maxsize=128)
 def _text_width_in_points(text: str) -> float:
     return TextPath((0.0, 0.0), text, size=1.0, prop=_default_font_properties()).get_extents().width
+
+
+@lru_cache(maxsize=128)
+def _text_height_in_points(text: str) -> float:
+    return (
+        TextPath((0.0, 0.0), text, size=1.0, prop=_default_font_properties()).get_extents().height
+    )
 
 
 def finalize_axes(ax: Axes, scene: LayoutScene) -> None:

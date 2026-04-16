@@ -25,6 +25,8 @@ _METADATA_ATTR = "_quantum_circuit_drawer_metadata"
 _AUTO_PAGING_ATTR = "_quantum_circuit_drawer_auto_paging_state"
 _TEXT_SCALING_ATTR = "_quantum_circuit_drawer_text_scaling_state"
 _BASE_FONT_SIZE_ATTR = "_quantum_circuit_drawer_base_font_size"
+_GATE_TEXT_METADATA_ATTR = "_quantum_circuit_drawer_gate_text_metadata"
+_HOVER_STATE_ATTR = "_quantum_circuit_drawer_hover_state"
 
 
 @dataclass(slots=True)
@@ -52,9 +54,24 @@ class AutoPagingState:
 class TextScalingState:
     base_view_width: float
     base_view_height: float
+    scene: LayoutScene
     last_scale_factor: float = 1.0
     is_updating: bool = False
     draw_callback_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class GateTextMetadata:
+    role: str
+    gate_width: float
+    gate_height: float
+    height_fraction: float
+
+
+@dataclass(slots=True)
+class HoverState:
+    annotation: object
+    callback_id: int | None = None
 
 
 def create_managed_figure(
@@ -172,6 +189,35 @@ def clear_text_scaling_state(axes: Axes) -> None:
     delattr(axes, _TEXT_SCALING_ATTR)
 
 
+def set_gate_text_metadata(
+    text_artist: object,
+    *,
+    role: str,
+    gate_width: float,
+    gate_height: float,
+    height_fraction: float,
+) -> None:
+    """Store gate-specific text layout metadata on a Matplotlib text artist."""
+
+    setattr(
+        text_artist,
+        _GATE_TEXT_METADATA_ATTR,
+        GateTextMetadata(
+            role=role,
+            gate_width=gate_width,
+            gate_height=gate_height,
+            height_fraction=height_fraction,
+        ),
+    )
+
+
+def get_gate_text_metadata(text_artist: object) -> GateTextMetadata | None:
+    """Return gate-specific text layout metadata if attached to the artist."""
+
+    metadata = getattr(text_artist, _GATE_TEXT_METADATA_ATTR, None)
+    return metadata if isinstance(metadata, GateTextMetadata) else None
+
+
 def set_base_font_size(text_artist: object, font_size: float) -> None:
     """Store the baseline font size used for future zoom scaling."""
 
@@ -185,6 +231,35 @@ def get_base_font_size(text_artist: object, *, default: float) -> float:
     if isinstance(base_font_size, int | float):
         return float(base_font_size)
     return default
+
+
+def set_hover_state(axes: Axes, state: HoverState) -> None:
+    """Store hover callback state on the provided axes."""
+
+    setattr(axes, _HOVER_STATE_ATTR, state)
+
+
+def get_hover_state(axes: Axes) -> HoverState | None:
+    """Return hover callback state attached to the axes, if any."""
+
+    state = getattr(axes, _HOVER_STATE_ATTR, None)
+    return state if isinstance(state, HoverState) else None
+
+
+def clear_hover_state(axes: Axes) -> None:
+    """Detach hover callback state and disconnect its callback."""
+
+    state = get_hover_state(axes)
+    if state is None:
+        return
+
+    canvas = axes.figure.canvas
+    if canvas is not None and state.callback_id is not None:
+        canvas.mpl_disconnect(state.callback_id)
+    annotation = state.annotation
+    if hasattr(annotation, "remove"):
+        annotation.remove()
+    delattr(axes, _HOVER_STATE_ATTR)
 
 
 def _metadata_for(figure: Figure | SubFigure) -> _ManagedFigureMetadata:

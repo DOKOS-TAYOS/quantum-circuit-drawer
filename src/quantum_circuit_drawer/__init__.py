@@ -20,6 +20,7 @@ from .exceptions import (
     UnsupportedFrameworkError,
     UnsupportedOperationError,
 )
+from .hover import HoverOptions
 from .style import DrawStyle, DrawTheme
 
 if TYPE_CHECKING:
@@ -44,7 +45,7 @@ def draw_quantum_circuit(
     view: Literal["2d", "3d"] = "2d",
     topology: Literal["line", "grid", "star", "star_tree", "honeycomb"] = "line",
     direct: bool = True,
-    hover: bool = False,
+    hover: bool | HoverOptions | Mapping[str, object] = False,
     **options: object,
 ) -> RenderResult:
     """Draw a supported circuit through the package-level convenience API.
@@ -86,6 +87,7 @@ def draw_quantum_circuit(
 __all__ = [
     "DrawStyle",
     "DrawTheme",
+    "HoverOptions",
     "LayoutError",
     "QuantumCircuitDrawerError",
     "RenderingError",

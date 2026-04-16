@@ -7,6 +7,7 @@ import pytest
 from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline, resolve_layout_engine
 from quantum_circuit_drawer._draw_request import DrawPipelineOptions, build_draw_request
 from quantum_circuit_drawer.exceptions import LayoutError
+from quantum_circuit_drawer.hover import HoverOptions
 from quantum_circuit_drawer.ir.circuit import CircuitIR
 from quantum_circuit_drawer.layout import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
@@ -120,19 +121,11 @@ def test_draw_pipeline_options_keep_adapter_options_separate_from_view_controls(
         view="3d",
         topology="grid",
         direct=False,
-        hover=True,
+        hover=HoverOptions(show_matrix="always"),
         extra={"precision": 3, "page_slider": True},
     )
 
-    assert options.to_mapping() == {
-        "composite_mode": "expand",
-        "view": "3d",
-        "topology": "grid",
-        "direct": False,
-        "hover": True,
-        "precision": 3,
-        "page_slider": True,
-    }
+    assert options.to_mapping()["hover"] == HoverOptions(show_matrix="always")
     assert options.adapter_options() == {
         "composite_mode": "expand",
         "precision": 3,
@@ -143,12 +136,12 @@ def test_draw_pipeline_options_keep_adapter_options_separate_from_view_controls(
 def test_build_draw_request_disables_hover_when_not_interactive() -> None:
     request = build_draw_request(
         circuit=build_sample_ir(),
-        hover=True,
+        hover=HoverOptions(),
         view="3d",
         show=False,
     )
 
-    assert request.pipeline_options.hover is False
+    assert request.pipeline_options.hover.enabled is False
     assert request.pipeline_options.view == "3d"
 
 
@@ -157,6 +150,20 @@ def test_build_draw_request_keeps_figsize_out_of_pipeline_adapter_options() -> N
 
     assert request.figsize == (8.0, 3.0)
     assert "figsize" not in request.pipeline_options.adapter_options()
+
+
+def test_build_draw_request_normalizes_hover_mapping_for_2d_view() -> None:
+    request = build_draw_request(
+        circuit=build_sample_ir(),
+        hover={"show_matrix": "always", "matrix_max_qubits": 1},
+        show=False,
+    )
+
+    assert request.pipeline_options.hover == HoverOptions(
+        enabled=False,
+        show_matrix="always",
+        matrix_max_qubits=1,
+    )
 
 
 def test_resolve_layout_engine_returns_default_layout_engine_for_none() -> None:

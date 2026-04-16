@@ -69,6 +69,7 @@ def render_managed_draw_pipeline(
             layout_engine,
             pipeline.normalized_style,
         )
+        slider_scene.hover = scene_2d.hover
         initial_viewport_width = min(scene_2d.width, slider_scene.width)
         figure_width, figure_height = page_slider_figsize(
             initial_viewport_width,
@@ -165,10 +166,11 @@ def render_draw_pipeline_on_axes(
         pipeline.normalized_style,
         axes,
     )
+    scene_2d.hover = cast("LayoutScene", pipeline.paged_scene).hover
     axes.clear()
     pipeline.renderer.render(scene_2d, ax=axes, output=output)
     set_viewport_width(axes.figure, viewport_width=scene_2d.width)
-    configure_zoom_text_scaling(axes)
+    configure_zoom_text_scaling(axes, scene=scene_2d)
 
     auto_paging_state = AutoPagingState(
         ir=pipeline.ir,
@@ -326,6 +328,7 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
             state.normalized_style,
             axes,
         )
+        candidate_scene.hover = state.scene.hover
         state.last_viewport_signature = current_signature
         state.needs_initial_draw_reconcile = False
         if auto_paging_matches(
@@ -340,7 +343,7 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
             axes.clear()
             state.renderer.render(candidate_scene, ax=axes)
             set_viewport_width(axes.figure, viewport_width=candidate_scene.width)
-            configure_zoom_text_scaling(axes)
+            configure_zoom_text_scaling(axes, scene=candidate_scene)
             state.scene = candidate_scene
             state.effective_page_width = candidate_page_width
         finally:
@@ -430,15 +433,20 @@ def viewport_scene_score(scene: LayoutScene, viewport_ratio: float) -> float:
     return abs(math.log(scene_ratio / viewport_ratio))
 
 
-def configure_zoom_text_scaling(axes: Axes) -> None:
+def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
     """Attach zoom-responsive text scaling to the provided 2D axes."""
 
     from .renderers._matplotlib_figure import (
         TextScalingState,
         get_base_font_size,
+        get_gate_text_metadata,
         get_text_scaling_state,
         set_base_font_size,
         set_text_scaling_state,
+    )
+    from .renderers.matplotlib_primitives import (
+        _build_gate_text_fitting_context,
+        _fit_gate_text_font_size_with_context,
     )
 
     base_view_width, base_view_height = current_view_size(axes)
@@ -453,6 +461,7 @@ def configure_zoom_text_scaling(axes: Axes) -> None:
         state = TextScalingState(
             base_view_width=base_view_width,
             base_view_height=base_view_height,
+            scene=scene,
         )
         set_text_scaling_state(axes, state)
         canvas = axes.figure.canvas
@@ -469,12 +478,27 @@ def configure_zoom_text_scaling(axes: Axes) -> None:
 
                 state.is_updating = True
                 try:
+                    gate_text_context = _build_gate_text_fitting_context(axes, current_state.scene)
                     for text_artist in axes.texts:
+                        gate_text_metadata = get_gate_text_metadata(text_artist)
+                        if gate_text_metadata is None:
+                            continue
                         base_font_size = get_base_font_size(
                             text_artist,
                             default=text_artist.get_fontsize(),
                         )
-                        text_artist.set_fontsize(base_font_size * scale_factor)
+                        text_artist.set_fontsize(
+                            _fit_gate_text_font_size_with_context(
+                                context=gate_text_context,
+                                width=gate_text_metadata.gate_width,
+                                height=gate_text_metadata.gate_height,
+                                text=text_artist.get_text(),
+                                default_font_size=base_font_size,
+                                height_fraction=gate_text_metadata.height_fraction,
+                                max_font_size=base_font_size * scale_factor,
+                                cache={},
+                            )
+                        )
                     state.last_scale_factor = scale_factor
                 finally:
                     state.is_updating = False
@@ -485,6 +509,7 @@ def configure_zoom_text_scaling(axes: Axes) -> None:
 
     state.base_view_width = base_view_width
     state.base_view_height = base_view_height
+    state.scene = scene
     state.last_scale_factor = 1.0
 
 

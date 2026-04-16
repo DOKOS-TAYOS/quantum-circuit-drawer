@@ -8,6 +8,7 @@ Most code only needs `draw_quantum_circuit(...)`. Advanced users may also use `D
 
 - [Main entry point](#main-entry-point)
 - [Parameters](#parameters)
+- [Hover options](#hover-options)
 - [Return values](#return-values)
 - [Common combinations](#common-combinations)
 - [Styles and themes](#styles-and-themes)
@@ -41,7 +42,7 @@ draw_quantum_circuit(
 Import it from the package root:
 
 ```python
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 ```
 
 ## Parameters
@@ -61,8 +62,56 @@ from quantum_circuit_drawer import draw_quantum_circuit
 | `view` | `"2d"` | Use `"2d"` or `"3d"` |
 | `topology` | `"line"` | 3D topology: `"line"`, `"grid"`, `"star"`, `"star_tree"`, or `"honeycomb"` |
 | `direct` | `True` | In 3D, draw direct control connections when `True`; route through topology paths when `False` |
-| `hover` | `False` | In interactive 3D renders, hide labels and show hover annotations |
+| `hover` | `False` | `False`, `True`, a `HoverOptions` object, or a mapping with hover fields; enables interactive gate hover where supported |
 | `**options` | none | Reserved for forward-compatible options used by the draw pipeline |
+
+## Hover options
+
+`hover=True` is a shorthand for the default `HoverOptions()`:
+
+```python
+from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
+
+draw_quantum_circuit(
+    circuit,
+    hover=HoverOptions(
+        show_name=True,
+        show_size=True,
+        show_qubits=True,
+        show_matrix="auto",
+        matrix_max_qubits=2,
+    ),
+)
+```
+
+You can also pass a plain mapping with the same keys:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    hover={"show_matrix": "always", "matrix_max_qubits": 1},
+)
+```
+
+Hover behavior in this release:
+
+- In interactive 2D figures, hover can show the gate name, visible size, affected wires, and an optional matrix from `OperationIR.metadata["matrix"]`.
+- In interactive 3D figures, `hover` still enables the existing compact tooltip behavior.
+- Saved figures and non-interactive backends keep static labels and do not create tooltips.
+- Gate text in 2D rescales on zoom, but wire labels and other annotations keep their base size.
+
+`HoverOptions` fields:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `True` | Turn hover on or off after the object is created |
+| `show_name` | `True` | Show the gate name |
+| `show_size` | `True` | Show the visible gate body size in screen pixels |
+| `show_qubits` | `True` | Show the affected wires in stable order |
+| `show_matrix` | `"auto"` | Use `"never"`, `"auto"`, or `"always"` |
+| `matrix_max_qubits` | `2` | Do not show matrices larger than this many qubits |
+
+When `show_matrix="auto"`, the matrix is shown only when the visible gate body is small on screen. This is useful for dense circuits where the label would otherwise be hard to read.
 
 ## Return values
 
@@ -115,6 +164,15 @@ draw_quantum_circuit(
     circuit,
     style={"max_page_width": 4.0},
     page_slider=True,
+)
+```
+
+Use richer hover details in 2D:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    hover={"show_matrix": "auto", "matrix_max_qubits": 2},
 )
 ```
 
@@ -224,6 +282,7 @@ If you only want to draw circuits, use the default layout engine.
 The package root intentionally stays small:
 
 - `draw_quantum_circuit`
+- `HoverOptions`
 - `DrawStyle`
 - `DrawTheme`
 - `__version__`

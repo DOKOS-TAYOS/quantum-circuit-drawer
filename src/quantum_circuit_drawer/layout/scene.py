@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from ..hover import HoverOptions
 from ..ir.operations import OperationKind
 from ..ir.wires import WireKind
 from ..style import DrawStyle
@@ -15,6 +16,20 @@ class GateRenderStyle(StrEnum):
 
     BOX = "box"
     X_TARGET = "x_target"
+
+
+@dataclass(frozen=True, slots=True)
+class SceneHoverData:
+    """Interactive hover payload shared across the artists of one operation."""
+
+    key: str
+    name: str
+    wire_labels: tuple[str, ...]
+    matrix: object | None
+    gate_x: float
+    gate_y: float
+    gate_width: float
+    gate_height: float
 
 
 @dataclass(slots=True)
@@ -39,6 +54,7 @@ class SceneGate:
     subtitle: str | None
     kind: OperationKind
     render_style: GateRenderStyle = GateRenderStyle.BOX
+    hover_data: SceneHoverData | None = None
 
 
 @dataclass(slots=True)
@@ -55,6 +71,7 @@ class SceneControl:
     column: int
     x: float
     y: float
+    hover_data: SceneHoverData | None = None
 
 
 @dataclass(slots=True)
@@ -68,6 +85,7 @@ class SceneConnection:
     linestyle: str = "solid"
     arrow_at_end: bool = False
     label: str | None = None
+    hover_data: SceneHoverData | None = None
 
 
 @dataclass(slots=True)
@@ -77,6 +95,7 @@ class SceneSwap:
     y_top: float
     y_bottom: float
     marker_size: float
+    hover_data: SceneHoverData | None = None
 
 
 @dataclass(slots=True)
@@ -98,6 +117,7 @@ class SceneMeasurement:
     label: str
     connector_x: float
     connector_y: float
+    hover_data: SceneHoverData | None = None
 
 
 @dataclass(slots=True)
@@ -137,4 +157,5 @@ class LayoutScene:
     measurements: tuple[SceneMeasurement, ...]
     texts: tuple[SceneText, ...]
     pages: tuple[ScenePage, ...]
+    hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
     wire_y_positions: dict[str, float] = field(default_factory=dict)

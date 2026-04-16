@@ -24,6 +24,7 @@ from .scene import (
     SceneControl,
     SceneGate,
     SceneGateAnnotation,
+    SceneHoverData,
     SceneMeasurement,
     ScenePage,
     SceneSwap,
@@ -389,6 +390,37 @@ class LayoutEngine:
         ]
         return tuple(labels)
 
+    def _hover_data(
+        self,
+        *,
+        operation: OperationIR,
+        column: int,
+        wire_map: dict[str, WireIR],
+        name: str,
+        gate_x: float,
+        gate_y: float,
+        gate_width: float,
+        gate_height: float,
+    ) -> SceneHoverData:
+        wire_ids = list((*operation.control_wires, *operation.target_wires))
+        if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
+            wire_ids.append(operation.classical_target)
+        unique_wire_ids = tuple(dict.fromkeys(wire_ids))
+        wire_labels = tuple(
+            (wire_map[wire_id].label or wire_map[wire_id].id) if wire_id in wire_map else wire_id
+            for wire_id in unique_wire_ids
+        )
+        return SceneHoverData(
+            key=f"op-{column}-{id(operation)}",
+            name=name,
+            wire_labels=wire_labels,
+            matrix=operation.metadata.get("matrix"),
+            gate_x=gate_x,
+            gate_y=gate_y,
+            gate_width=gate_width,
+            gate_height=gate_height,
+        )
+
     def _layout_operation(
         self,
         *,
@@ -437,6 +469,7 @@ class LayoutEngine:
                 column=column,
                 x=x,
                 style=style,
+                wire_map=wire_map,
                 wire_positions=wire_positions,
                 connections=connections,
                 swaps=swaps,
@@ -450,6 +483,7 @@ class LayoutEngine:
                 column=column,
                 x=x,
                 style=style,
+                wire_map=wire_map,
                 wire_positions=wire_positions,
                 gates=gates,
                 gate_annotations=gate_annotations,
@@ -464,6 +498,7 @@ class LayoutEngine:
             column=column,
             x=x,
             style=style,
+            wire_map=wire_map,
             wire_positions=wire_positions,
             gates=gates,
             gate_annotations=gate_annotations,
@@ -528,6 +563,16 @@ class LayoutEngine:
             )
         connector_x = x + metrics.width * 0.24
         connector_y = quantum_y + style.gate_height * 0.18
+        hover_data = self._hover_data(
+            operation=operation,
+            column=column,
+            wire_map=wire_map,
+            name=metrics.display_label,
+            gate_x=x,
+            gate_y=quantum_y,
+            gate_width=metrics.width,
+            gate_height=style.gate_height,
+        )
         measurements.append(
             SceneMeasurement(
                 column=column,
@@ -539,6 +584,7 @@ class LayoutEngine:
                 label=operation.label or "M",
                 connector_x=connector_x,
                 connector_y=connector_y,
+                hover_data=hover_data,
             )
         )
         if classical_y is not None:
@@ -576,12 +622,31 @@ class LayoutEngine:
         column: int,
         x: float,
         style: DrawStyle,
+        wire_map: dict[str, WireIR],
         wire_positions: dict[str, float],
         connections: list[SceneConnection],
         swaps: list[SceneSwap],
     ) -> None:
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
-        connections.append(SceneConnection(column=column, x=x, y_start=y_top, y_end=y_bottom))
+        hover_data = self._hover_data(
+            operation=operation,
+            column=column,
+            wire_map=wire_map,
+            name=operation.label or operation.name,
+            gate_x=x,
+            gate_y=(y_top + y_bottom) / 2,
+            gate_width=style.swap_marker_size * 2.0,
+            gate_height=style.swap_marker_size * 2.0,
+        )
+        connections.append(
+            SceneConnection(
+                column=column,
+                x=x,
+                y_start=y_top,
+                y_end=y_bottom,
+                hover_data=hover_data,
+            )
+        )
         swaps.append(
             SceneSwap(
                 column=column,
@@ -589,6 +654,7 @@ class LayoutEngine:
                 y_top=y_top,
                 y_bottom=y_bottom,
                 marker_size=style.swap_marker_size,
+                hover_data=hover_data,
             )
         )
         self._append_classical_condition_connections(
@@ -609,6 +675,7 @@ class LayoutEngine:
         column: int,
         x: float,
         style: DrawStyle,
+        wire_map: dict[str, WireIR],
         wire_positions: dict[str, float],
         gates: list[SceneGate],
         gate_annotations: list[SceneGateAnnotation],
@@ -621,6 +688,7 @@ class LayoutEngine:
                 column=column,
                 x=x,
                 style=style,
+                wire_map=wire_map,
                 wire_positions=wire_positions,
                 controls=controls,
                 connections=connections,
@@ -633,6 +701,7 @@ class LayoutEngine:
                 column=column,
                 x=x,
                 style=style,
+                wire_map=wire_map,
                 wire_positions=wire_positions,
                 gates=gates,
                 controls=controls,
@@ -642,17 +711,29 @@ class LayoutEngine:
 
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
         gate_y = (y_top + y_bottom) / 2
+        gate_height = max(style.gate_height, (y_bottom - y_top) + style.gate_height)
+        hover_data = self._hover_data(
+            operation=operation,
+            column=column,
+            wire_map=wire_map,
+            name=metrics.display_label,
+            gate_x=x,
+            gate_y=gate_y,
+            gate_width=metrics.width,
+            gate_height=gate_height,
+        )
         gates.append(
             SceneGate(
                 column=column,
                 x=x,
                 y=gate_y,
                 width=metrics.width,
-                height=max(style.gate_height, (y_bottom - y_top) + style.gate_height),
+                height=gate_height,
                 label=metrics.display_label,
                 subtitle=metrics.subtitle,
                 kind=operation.kind,
                 render_style=GateRenderStyle.BOX,
+                hover_data=hover_data,
             )
         )
         self._append_gate_annotations(
@@ -666,17 +747,32 @@ class LayoutEngine:
         )
         control_ids = operation.control_wires
         for control_id in control_ids:
-            controls.append(SceneControl(column=column, x=x, y=wire_positions[control_id]))
+            controls.append(
+                SceneControl(
+                    column=column,
+                    x=x,
+                    y=wire_positions[control_id],
+                    hover_data=hover_data,
+                )
+            )
         span_top, span_bottom = vertical_span(
             wire_positions, (*control_ids, *operation.target_wires)
         )
-        connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
+        connections.append(
+            SceneConnection(
+                column=column,
+                x=x,
+                y_start=span_top,
+                y_end=span_bottom,
+                hover_data=hover_data,
+            )
+        )
         self._append_classical_condition_connections(
             operation=operation,
             column=column,
             x=x,
             anchor_center_y=gate_y,
-            anchor_half_extent=max(style.gate_height, (y_bottom - y_top) + style.gate_height) / 2,
+            anchor_half_extent=gate_height / 2,
             wire_positions=wire_positions,
             connections=connections,
         )
@@ -688,15 +784,41 @@ class LayoutEngine:
         column: int,
         x: float,
         style: DrawStyle,
+        wire_map: dict[str, WireIR],
         wire_positions: dict[str, float],
         controls: list[SceneControl],
         connections: list[SceneConnection],
     ) -> None:
         control_ids = (*operation.control_wires, *operation.target_wires)
+        hover_data = self._hover_data(
+            operation=operation,
+            column=column,
+            wire_map=wire_map,
+            name=operation.label or operation.name,
+            gate_x=x,
+            gate_y=wire_positions[operation.target_wires[0]],
+            gate_width=style.control_radius * 2.0,
+            gate_height=style.control_radius * 2.0,
+        )
         for control_id in control_ids:
-            controls.append(SceneControl(column=column, x=x, y=wire_positions[control_id]))
+            controls.append(
+                SceneControl(
+                    column=column,
+                    x=x,
+                    y=wire_positions[control_id],
+                    hover_data=hover_data,
+                )
+            )
         span_top, span_bottom = vertical_span(wire_positions, control_ids)
-        connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
+        connections.append(
+            SceneConnection(
+                column=column,
+                x=x,
+                y_start=span_top,
+                y_end=span_bottom,
+                hover_data=hover_data,
+            )
+        )
         self._append_classical_condition_connections(
             operation=operation,
             column=column,
@@ -714,6 +836,7 @@ class LayoutEngine:
         column: int,
         x: float,
         style: DrawStyle,
+        wire_map: dict[str, WireIR],
         wire_positions: dict[str, float],
         gates: list[SceneGate],
         controls: list[SceneControl],
@@ -721,6 +844,16 @@ class LayoutEngine:
     ) -> None:
         target_wire = operation.target_wires[0]
         target_y = wire_positions[target_wire]
+        hover_data = self._hover_data(
+            operation=operation,
+            column=column,
+            wire_map=wire_map,
+            name=operation.label or operation.name,
+            gate_x=x,
+            gate_y=target_y,
+            gate_width=style.gate_height,
+            gate_height=style.gate_height,
+        )
         gates.append(
             SceneGate(
                 column=column,
@@ -732,14 +865,30 @@ class LayoutEngine:
                 subtitle=None,
                 kind=operation.kind,
                 render_style=GateRenderStyle.X_TARGET,
+                hover_data=hover_data,
             )
         )
         for control_id in operation.control_wires:
-            controls.append(SceneControl(column=column, x=x, y=wire_positions[control_id]))
+            controls.append(
+                SceneControl(
+                    column=column,
+                    x=x,
+                    y=wire_positions[control_id],
+                    hover_data=hover_data,
+                )
+            )
         span_top, span_bottom = vertical_span(
             wire_positions, (*operation.control_wires, target_wire)
         )
-        connections.append(SceneConnection(column=column, x=x, y_start=span_top, y_end=span_bottom))
+        connections.append(
+            SceneConnection(
+                column=column,
+                x=x,
+                y_start=span_top,
+                y_end=span_bottom,
+                hover_data=hover_data,
+            )
+        )
         self._append_classical_condition_connections(
             operation=operation,
             column=column,
@@ -758,23 +907,37 @@ class LayoutEngine:
         column: int,
         x: float,
         style: DrawStyle,
+        wire_map: dict[str, WireIR],
         wire_positions: dict[str, float],
         gates: list[SceneGate],
         gate_annotations: list[SceneGateAnnotation],
         connections: list[SceneConnection],
     ) -> None:
         y_top, y_bottom = vertical_span(wire_positions, operation.target_wires)
+        gate_y = (y_top + y_bottom) / 2
+        gate_height = max(style.gate_height, (y_bottom - y_top) + style.gate_height)
+        hover_data = self._hover_data(
+            operation=operation,
+            column=column,
+            wire_map=wire_map,
+            name=metrics.display_label,
+            gate_x=x,
+            gate_y=gate_y,
+            gate_width=metrics.width,
+            gate_height=gate_height,
+        )
         gates.append(
             SceneGate(
                 column=column,
                 x=x,
-                y=(y_top + y_bottom) / 2,
+                y=gate_y,
                 width=metrics.width,
-                height=max(style.gate_height, (y_bottom - y_top) + style.gate_height),
+                height=gate_height,
                 label=metrics.display_label,
                 subtitle=metrics.subtitle,
                 kind=operation.kind,
                 render_style=GateRenderStyle.BOX,
+                hover_data=hover_data,
             )
         )
         self._append_gate_annotations(
@@ -790,8 +953,8 @@ class LayoutEngine:
             operation=operation,
             column=column,
             x=x,
-            anchor_center_y=(y_top + y_bottom) / 2,
-            anchor_half_extent=max(style.gate_height, (y_bottom - y_top) + style.gate_height) / 2,
+            anchor_center_y=gate_y,
+            anchor_half_extent=gate_height / 2,
             wire_positions=wire_positions,
             connections=connections,
         )

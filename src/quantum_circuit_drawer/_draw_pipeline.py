@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 from ._draw_request import DrawPipelineOptions, TopologyMode, ViewMode
 from .exceptions import LayoutError
+from .hover import normalize_hover
 from .style import DrawStyle, normalize_style
 from .typing import LayoutEngine3DLike, LayoutEngineLike
 
@@ -71,7 +72,7 @@ def prepare_draw_pipeline(
     if draw_options.view == "3d":
         topology: TopologyName = draw_options.topology
         direct = draw_options.direct
-        hover_enabled = draw_options.hover
+        hover_enabled = draw_options.hover.enabled
         layout_engine_3d = resolve_layout_engine_3d(layout)
         if hasattr(layout_engine_3d, "_compute_with_normalized_style"):
             paged_scene = layout_engine_3d._compute_with_normalized_style(  # type: ignore[attr-defined]
@@ -107,6 +108,7 @@ def prepare_draw_pipeline(
             )
         else:
             scene_2d = layout_engine_2d.compute(ir, normalized_style)
+        scene_2d.hover = draw_options.hover
         paged_scene = scene_2d
         layout_engine = layout_engine_2d
         renderer = MatplotlibRenderer()
@@ -138,7 +140,7 @@ def coerce_pipeline_options(
         view=cast(ViewMode, str(options.get("view", "2d"))),
         topology=cast(TopologyMode, str(options.get("topology", "line"))),
         direct=bool(options.get("direct", True)),
-        hover=bool(options.get("hover", False)),
+        hover=normalize_hover(options.get("hover", False)),
         extra={
             key: value
             for key, value in options.items()

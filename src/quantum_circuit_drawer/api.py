@@ -22,6 +22,7 @@ from ._draw_managed import (
 )
 from ._draw_pipeline import prepare_draw_pipeline
 from ._draw_request import build_draw_request, validate_draw_request
+from .hover import HoverOptions
 from .renderers._render_support import (
     figure_backend_name,
     normalize_backend_name,
@@ -60,7 +61,7 @@ def draw_quantum_circuit(
     view: Literal["2d", "3d"] = "2d",
     topology: Literal["line", "grid", "star", "star_tree", "honeycomb"] = "line",
     direct: bool = True,
-    hover: bool = False,
+    hover: bool | HoverOptions | Mapping[str, object] = False,
     **options: object,
 ) -> RenderResult:
     """Draw a supported circuit with the current public API contract.

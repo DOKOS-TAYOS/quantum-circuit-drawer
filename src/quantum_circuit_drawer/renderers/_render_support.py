@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure, SubFigure
 
 NON_INTERACTIVE_BACKENDS = frozenset({"agg", "cairo", "pdf", "pgf", "ps", "svg", "template"})
+NOTEBOOK_INTERACTIVE_BACKENDS = frozenset({"nbagg", "ipympl", "widget"})
 
 
 def save_rendered_figure(
@@ -45,6 +46,8 @@ def show_figure_if_supported(figure: Figure | SubFigure, *, show: bool) -> None:
     show_function = plt.show
     backend_name = figure_backend_name(figure)
     if backend_name in NON_INTERACTIVE_BACKENDS and is_builtin_pyplot_show(show_function):
+        return
+    if backend_name in NOTEBOOK_INTERACTIVE_BACKENDS and is_builtin_pyplot_show(show_function):
         return
 
     show_function()

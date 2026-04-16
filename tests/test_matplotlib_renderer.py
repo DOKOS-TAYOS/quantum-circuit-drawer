@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+import pytest
 from matplotlib.artist import Artist
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.collections import EllipseCollection
 from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
-from matplotlib.text import Text
+from matplotlib.text import Annotation, Text
 from pytest import approx
 
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
+from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -16,7 +19,7 @@ from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from quantum_circuit_drawer.style import DrawStyle
-from tests.support import build_dense_rotation_ir, build_sample_scene
+from tests.support import build_dense_rotation_ir, build_sample_ir, build_sample_scene
 
 
 def _display_patch_ratio(figure: object, patch: object) -> float:
@@ -73,6 +76,37 @@ def _ellipse_collections(axes: object) -> list[EllipseCollection]:
     return [
         collection for collection in axes.collections if isinstance(collection, EllipseCollection)
     ]
+
+
+def _dispatch_motion_event(figure: object, axes: object, artist: object) -> None:
+    renderer = figure.canvas.get_renderer()
+    x, y, width, height = artist.get_window_extent(renderer=renderer).bounds
+    event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        x + (width / 2.0),
+        y + (height / 2.0),
+    )
+    event.inaxes = axes
+    figure.canvas.callbacks.process("motion_notify_event", event)
+
+
+def _single_gate_with_matrix_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        metadata={"matrix": ((0, 1), (1, 0))},
+                    )
+                ]
+            )
+        ],
+    )
 
 
 def test_matplotlib_renderer_adds_artists() -> None:
@@ -701,6 +735,125 @@ def test_matplotlib_renderer_reuses_gate_text_context_per_wrapped_page(monkeypat
 
     assert len(scene.pages) > 1
     assert 0 < viewport_calls <= len(scene.pages)
+
+
+def test_draw_gate_label_centers_label_and_subtitle_block() -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=1, wire_count=1),
+        DrawStyle(show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(4.0, 2.0))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    gate = scene.gates[0]
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    gate_subtitle = next(text for text in axes.texts if text.get_text() == "0.5")
+
+    assert ((gate_label.get_position()[1] + gate_subtitle.get_position()[1]) / 2.0) == approx(
+        gate.y,
+        abs=0.02,
+    )
+
+
+def test_draw_quantum_circuit_2d_interactive_hover_adds_rich_annotation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _single_gate_with_matrix_ir(),
+        hover=HoverOptions(show_matrix="always"),
+    )
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    _dispatch_motion_event(figure, axes, gate_patch)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is True
+    assert "X" in annotation.get_text()
+    assert "q0" in annotation.get_text()
+    assert "size:" in annotation.get_text().lower()
+    assert "[[" in annotation.get_text()
+
+
+def test_draw_quantum_circuit_2d_hover_covers_control_and_target_artists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(build_sample_ir(), hover=True)
+    figure.canvas.draw()
+
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+    ellipse_collections = _ellipse_collections(axes)
+    control_collection = min(
+        ellipse_collections, key=lambda collection: min(collection.get_widths())
+    )
+    x_target_collection = max(
+        ellipse_collections, key=lambda collection: max(collection.get_widths())
+    )
+
+    _dispatch_motion_event(figure, axes, control_collection)
+    control_text = annotation.get_text()
+    _dispatch_motion_event(figure, axes, x_target_collection)
+
+    assert annotation.get_visible() is True
+    assert control_text == annotation.get_text()
+
+
+def test_draw_quantum_circuit_2d_hover_falls_back_to_static_labels_when_noninteractive() -> None:
+    _, axes = draw_quantum_circuit(build_sample_ir(), hover=True, show=False)
+
+    assert not any(isinstance(text, Annotation) for text in axes.texts)
+
+
+def test_draw_quantum_circuit_2d_hover_respects_never_matrix_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _single_gate_with_matrix_ir(),
+        hover=HoverOptions(show_matrix="never"),
+    )
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    _dispatch_motion_event(figure, axes, gate_patch)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+    assert "[[" not in annotation.get_text()
+
+
+def test_draw_quantum_circuit_keeps_gate_label_inside_box_after_zoom() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="SWAP", target_wires=("q0",))]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots(figsize=(2.5, 2.0))
+
+    draw_quantum_circuit(circuit, ax=axes)
+    axes.set_xlim(scene.gates[0].x - 0.32, scene.gates[0].x + 0.32)
+    axes.set_ylim(scene.gates[0].y + 0.4, scene.gates[0].y - 0.4)
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+    text_x, _, text_width, _ = _display_bounds(figure, gate_text)
+
+    assert text_x >= patch_x
+    assert text_x + text_width <= patch_x + patch_width
 
 
 def test_add_text_artist_skips_clip_path_when_fast_path_available(
