@@ -430,15 +430,17 @@ def test_draw_quantum_circuit_repages_when_axes_resize_without_slider() -> None:
 
 
 def test_draw_quantum_circuit_managed_figure_uses_viewport_adaptive_paging_without_slider() -> None:
-    figure, axes = draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=24),
-        style={"max_page_width": 4.0},
-        show=False,
-    )
+    circuit = build_dense_rotation_ir(layer_count=24)
+    strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+    figure, axes = draw_quantum_circuit(circuit, style={"max_page_width": 4.0}, show=False)
 
     auto_paging_state = get_auto_paging_state(axes)
+    _, figure_height = figure.get_size_inches()
 
     assert auto_paging_state is not None
+    assert figure_height == pytest.approx(max(2.1, strict_scene.page_height * 0.72))
+    assert len(auto_paging_state.scene.pages) <= len(strict_scene.pages) // 2
+    assert auto_paging_state.effective_page_width > strict_scene.pages[0].content_width * 2.0
 
     plt.close(figure)
 
@@ -478,6 +480,52 @@ def test_draw_quantum_circuit_managed_figure_expands_beyond_initial_page_width_w
     assert resized_state is not None
     assert len(resized_state.scene.pages) < initial_page_count
     assert resized_state.effective_page_width > initial_page_width
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_managed_figure_reconciles_auto_paging_on_first_draw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer._draw_managed as draw_managed
+
+    circuit = build_dense_rotation_ir(layer_count=24)
+    initial_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+    reconciled_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=12.0))
+    viewport_calls = 0
+
+    def fake_viewport_adaptive_paged_scene(
+        _circuit: object,
+        _layout_engine: object,
+        _style: object,
+        _axes: object,
+    ) -> tuple[object, float]:
+        nonlocal viewport_calls
+        viewport_calls += 1
+        if viewport_calls == 1:
+            return initial_scene, 4.0
+        return reconciled_scene, 12.0
+
+    monkeypatch.setattr(
+        draw_managed,
+        "viewport_adaptive_paged_scene",
+        fake_viewport_adaptive_paged_scene,
+    )
+
+    figure, axes = draw_quantum_circuit(circuit, style={"max_page_width": 4.0}, show=False)
+    initial_state = get_auto_paging_state(axes)
+
+    assert initial_state is not None
+    assert len(initial_state.scene.pages) == len(initial_scene.pages)
+
+    figure.canvas.draw()
+
+    reconciled_state = get_auto_paging_state(axes)
+
+    assert reconciled_state is not None
+    assert viewport_calls >= 2
+    assert len(reconciled_state.scene.pages) == len(reconciled_scene.pages)
+    assert reconciled_state.effective_page_width == pytest.approx(12.0)
 
     plt.close(figure)
 

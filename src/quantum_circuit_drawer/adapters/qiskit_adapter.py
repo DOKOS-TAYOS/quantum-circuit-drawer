@@ -102,7 +102,9 @@ class QiskitAdapter(BaseAdapter):
 
         if name == "measure":
             if not clbits:
-                raise UnsupportedOperationError("Qiskit instruction 'measure' has no classical target")
+                raise UnsupportedOperationError(
+                    "Qiskit instruction 'measure' has no classical target"
+                )
             classical_target, classical_bit_label = classical_targets[clbits[0]]
             return [
                 MeasurementIR(

@@ -42,6 +42,7 @@ class AutoPagingState:
     scene: LayoutScene
     effective_page_width: float
     last_viewport_signature: tuple[int, int] | None = None
+    needs_initial_draw_reconcile: bool = False
     is_updating: bool = False
     draw_callback_id: int | None = None
     resize_callback_id: int | None = None

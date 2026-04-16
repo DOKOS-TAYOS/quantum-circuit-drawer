@@ -95,12 +95,21 @@ def render_managed_draw_pipeline(
             len(scene_2d.pages),
         )
     else:
-        figure, axes = create_managed_figure(pipeline.paged_scene, use_agg=not show)
+        scene_2d = cast("LayoutScene", pipeline.paged_scene)
+        figure_width = max(4.6, scene_2d.width * 0.95)
+        figure_height = max(2.1, scene_2d.page_height * 0.72)
+        figure, axes = create_managed_figure(
+            scene_2d,
+            figure_width=figure_width,
+            figure_height=figure_height,
+            use_agg=not show,
+        )
         render_draw_pipeline_on_axes(
             pipeline,
             axes=axes,
             output=output,
             enable_auto_paging=True,
+            reconcile_on_first_draw=True,
         )
         logger.debug("Rendered managed figure without page slider")
 
@@ -114,6 +123,7 @@ def render_draw_pipeline_on_axes(
     axes: Axes,
     output: OutputPath | None,
     enable_auto_paging: bool,
+    reconcile_on_first_draw: bool = False,
 ) -> Axes:
     """Render a prepared pipeline on existing 2D axes, with optional auto paging."""
 
@@ -152,6 +162,7 @@ def render_draw_pipeline_on_axes(
         scene=scene_2d,
         effective_page_width=effective_page_width,
         last_viewport_signature=viewport_signature(axes),
+        needs_initial_draw_reconcile=reconcile_on_first_draw,
     )
     set_auto_paging_state(axes, auto_paging_state)
     configure_auto_paging(axes, auto_paging_state)
@@ -285,7 +296,12 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
             return
 
         current_signature = viewport_signature(axes)
-        if current_signature is None or current_signature == state.last_viewport_signature:
+        if current_signature is None:
+            return
+        if (
+            not state.needs_initial_draw_reconcile
+            and current_signature == state.last_viewport_signature
+        ):
             return
 
         candidate_scene, candidate_page_width = viewport_adaptive_paged_scene(
@@ -295,6 +311,7 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
             axes,
         )
         state.last_viewport_signature = current_signature
+        state.needs_initial_draw_reconcile = False
         if auto_paging_matches(
             current_state=state,
             candidate_scene=candidate_scene,

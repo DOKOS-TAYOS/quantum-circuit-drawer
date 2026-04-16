@@ -373,8 +373,6 @@ def test_qiskit_adapter_supports_additional_common_operations() -> None:
     ) in signatures
 
 
-<<<<<<< ours
-<<<<<<< ours
 def test_qiskit_adapter_raises_for_measure_without_classical_target() -> None:
     class _MeasureOperation:
         name = "measure"
@@ -393,20 +391,20 @@ def test_qiskit_adapter_raises_for_measure_without_classical_target() -> None:
             {},
             {},
             composite_mode="compact",
-=======
-=======
->>>>>>> theirs
+        )
+
+
 def test_qiskit_adapter_raises_for_misaligned_if_else_true_block_qubits() -> None:
     outer_qubits = ("outer-q0",)
     outer_clbits = ("outer-c0",)
     operation = SimpleNamespace(
-        blocks=(
-            SimpleNamespace(qubits=("inner-q0", "inner-q1"), clbits=("inner-c0",), data=()),
-        ),
+        blocks=(SimpleNamespace(qubits=("inner-q0", "inner-q1"), clbits=("inner-c0",), data=()),),
         condition=("outer-c0", 1),
     )
 
-    with pytest.raises(UnsupportedOperationError, match="if_else true_block qubit mapping mismatch"):
+    with pytest.raises(
+        UnsupportedOperationError, match="if_else true_block qubit mapping mismatch"
+    ):
         QiskitAdapter()._convert_if_else(
             operation=operation,
             qubits=outer_qubits,
@@ -422,13 +420,13 @@ def test_qiskit_adapter_raises_for_misaligned_if_else_true_block_clbits() -> Non
     outer_qubits = ("outer-q0",)
     outer_clbits = ("outer-c0",)
     operation = SimpleNamespace(
-        blocks=(
-            SimpleNamespace(qubits=("inner-q0",), clbits=("inner-c0", "inner-c1"), data=()),
-        ),
+        blocks=(SimpleNamespace(qubits=("inner-q0",), clbits=("inner-c0", "inner-c1"), data=()),),
         condition=("outer-c0", 1),
     )
 
-    with pytest.raises(UnsupportedOperationError, match="if_else true_block clbit mapping mismatch"):
+    with pytest.raises(
+        UnsupportedOperationError, match="if_else true_block clbit mapping mismatch"
+    ):
         QiskitAdapter()._convert_if_else(
             operation=operation,
             qubits=outer_qubits,
@@ -483,8 +481,4 @@ def test_qiskit_adapter_raises_for_misaligned_composite_definition_clbits() -> N
             qubit_ids={"outer-q0": "q0"},
             classical_targets={"outer-c0": ("c0", "c[0]")},
             composite_mode="expand",
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
         )
