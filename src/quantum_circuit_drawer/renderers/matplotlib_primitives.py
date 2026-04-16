@@ -41,6 +41,7 @@ _STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
 _STACKED_LABEL_SHARE = 0.6
 _STACKED_SUBTITLE_SHARE = 0.4
 _STACKED_GAP_FRACTION = 0.08
+_MIN_GATE_TEXT_FONT_SIZE = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -874,7 +875,7 @@ def _fit_gate_text_font_size_with_context(
         if text_height_at_one_point > 0.0:
             fitted_height_font_size = available_height_points / text_height_at_one_point
     resolved_font_size = max(
-        3.5,
+        _MIN_GATE_TEXT_FONT_SIZE,
         min(effective_default_font_size, fitted_font_size, fitted_height_font_size),
     )
     cache[cache_key] = resolved_font_size

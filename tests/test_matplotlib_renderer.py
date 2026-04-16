@@ -626,6 +626,57 @@ def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_narrow_wra
     assert text_x + text_width <= patch_x + patch_width
 
 
+def test_matplotlib_renderer_keeps_tiny_dense_labels_inside_boxes() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="SWAP", target_wires=("q0",))]
+            )
+            for _ in range(40)
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=200.0))
+    figure, axes = plt.subplots(figsize=(4.0, 1.2))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+    text_x, _, text_width, _ = _display_bounds(figure, gate_text)
+
+    assert text_width <= patch_width
+    assert text_x >= patch_x
+    assert text_x + text_width <= patch_x + patch_width
+
+
+def test_matplotlib_renderer_keeps_tiny_dense_label_and_subtitle_inside_box() -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=80, wire_count=4),
+        DrawStyle(max_page_width=200.0, show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(5.0, 1.8))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    gate_subtitle = next(text for text in axes.texts if text.get_text() == "0.5")
+    patch_x, patch_y, patch_width, patch_height = _display_bounds(figure, gate_patch)
+
+    for text_artist in (gate_label, gate_subtitle):
+        text_x, text_y, text_width, text_height = _display_bounds(figure, text_artist)
+        assert text_width <= patch_width
+        assert text_height <= patch_height
+        assert text_x >= patch_x
+        assert text_x + text_width <= patch_x + patch_width
+        assert text_y >= patch_y
+        assert text_y + text_height <= patch_y + patch_height
+
+
 def test_gate_text_fitting_context_matches_existing_font_fit_for_wrapped_subtitles() -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=24),
