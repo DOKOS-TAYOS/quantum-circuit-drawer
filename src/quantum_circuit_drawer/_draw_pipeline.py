@@ -9,9 +9,14 @@ from typing import TYPE_CHECKING, cast
 
 from ._draw_request import DrawPipelineOptions, TopologyMode, ViewMode
 from .exceptions import LayoutError
-from .hover import normalize_hover
+from .hover import HoverOptions, normalize_hover
 from .style import DrawStyle, normalize_style
-from .typing import LayoutEngine3DLike, LayoutEngineLike
+from .typing import (
+    LayoutEngine3DLike,
+    LayoutEngineLike,
+    _NormalizedLayoutEngine3DLike,
+    _NormalizedLayoutEngineLike,
+)
 
 if TYPE_CHECKING:
     from .ir.circuit import CircuitIR
@@ -74,22 +79,14 @@ def prepare_draw_pipeline(
         direct = draw_options.direct
         hover_enabled = draw_options.hover.enabled
         layout_engine_3d = resolve_layout_engine_3d(layout)
-        if hasattr(layout_engine_3d, "_compute_with_normalized_style"):
-            paged_scene = layout_engine_3d._compute_with_normalized_style(  # type: ignore[attr-defined]
-                ir,
-                normalized_style,
-                topology_name=topology,
-                direct=direct,
-                hover_enabled=hover_enabled,
-            )
-        else:
-            paged_scene = layout_engine_3d.compute(
-                ir,
-                normalized_style,
-                topology_name=topology,
-                direct=direct,
-                hover_enabled=hover_enabled,
-            )
+        paged_scene = _compute_3d_scene(
+            layout_engine_3d,
+            ir,
+            normalized_style,
+            topology_name=topology,
+            direct=direct,
+            hover_enabled=hover_enabled,
+        )
         layout_engine = layout_engine_3d
         renderer = MatplotlibRenderer3D()
         logger.debug(
@@ -101,13 +98,7 @@ def prepare_draw_pipeline(
         )
     else:
         layout_engine_2d = resolve_layout_engine(layout)
-        if hasattr(layout_engine_2d, "_compute_with_normalized_style"):
-            scene_2d = layout_engine_2d._compute_with_normalized_style(  # type: ignore[attr-defined]
-                ir,
-                normalized_style,
-            )
-        else:
-            scene_2d = layout_engine_2d.compute(ir, normalized_style)
+        scene_2d = _compute_2d_scene(layout_engine_2d, ir, normalized_style)
         scene_2d.hover = draw_options.hover
         paged_scene = scene_2d
         layout_engine = layout_engine_2d
@@ -140,7 +131,7 @@ def coerce_pipeline_options(
         view=cast(ViewMode, str(options.get("view", "2d"))),
         topology=cast(TopologyMode, str(options.get("topology", "line"))),
         direct=bool(options.get("direct", True)),
-        hover=normalize_hover(options.get("hover", False)),
+        hover=_normalize_hover_option(options.get("hover", False)),
         extra={
             key: value
             for key, value in options.items()
@@ -177,3 +168,46 @@ def resolve_layout_engine_3d(
     if hasattr(layout, "compute"):
         return cast(LayoutEngine3DLike, layout)
     raise LayoutError("layout must be None or expose a compute(circuit_ir, style) method")
+
+
+def _compute_2d_scene(
+    layout_engine: LayoutEngineLike,
+    circuit: CircuitIR,
+    style: DrawStyle,
+) -> LayoutScene:
+    if hasattr(layout_engine, "_compute_with_normalized_style"):
+        return cast(_NormalizedLayoutEngineLike, layout_engine)._compute_with_normalized_style(
+            circuit,
+            style,
+        )
+    return layout_engine.compute(circuit, style)
+
+
+def _compute_3d_scene(
+    layout_engine: LayoutEngine3DLike,
+    circuit: CircuitIR,
+    style: DrawStyle,
+    *,
+    topology_name: TopologyName,
+    direct: bool,
+    hover_enabled: bool,
+) -> LayoutScene3D:
+    if hasattr(layout_engine, "_compute_with_normalized_style"):
+        return cast(_NormalizedLayoutEngine3DLike, layout_engine)._compute_with_normalized_style(
+            circuit,
+            style,
+            topology_name=topology_name,
+            direct=direct,
+            hover_enabled=hover_enabled,
+        )
+    return layout_engine.compute(
+        circuit,
+        style,
+        topology_name=topology_name,
+        direct=direct,
+        hover_enabled=hover_enabled,
+    )
+
+
+def _normalize_hover_option(value: object) -> HoverOptions:
+    return normalize_hover(cast("bool | HoverOptions | Mapping[str, object]", value))

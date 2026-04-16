@@ -526,7 +526,7 @@ def draw_gate_label(
         height_fraction=label_height_fraction,
     )
     subtitle_artist: Text | None = None
-    if gate.subtitle:
+    if gate.subtitle and subtitle_y is not None:
         resolved_subtitle_font_size = subtitle_font_size or _fit_gate_text_font_size(
             ax=ax,
             scene=scene,

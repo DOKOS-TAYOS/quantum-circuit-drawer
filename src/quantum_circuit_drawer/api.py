@@ -9,40 +9,23 @@ rendering.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Literal
 
-from ._draw_managed import (
-    configure_page_slider,
-    is_3d_axes,
-    page_slider_figsize,
-    render_draw_pipeline_on_axes,
-    render_managed_draw_pipeline,
-    slider_viewport_width,
-)
 from ._draw_pipeline import prepare_draw_pipeline
 from ._draw_request import build_draw_request, validate_draw_request
 from .hover import HoverOptions
-from .renderers._render_support import (
-    figure_backend_name,
-    normalize_backend_name,
-    show_figure_if_supported,
-)
 from .style import DrawStyle
 from .typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath, RenderResult
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.figure import Figure, SubFigure
+
+    from ._draw_pipeline import PreparedDrawPipeline
+    from .layout.scene import LayoutScene
 
 logger = logging.getLogger(__name__)
-
-# Compatibility re-exports for internal tests and helpers.
-_configure_page_slider = configure_page_slider
-_page_slider_figsize = page_slider_figsize
-_slider_viewport_width = slider_viewport_width
-_figure_backend_name = figure_backend_name
-_normalize_backend_name = normalize_backend_name
-_show_managed_figure_if_supported = show_figure_if_supported
 
 
 def draw_quantum_circuit(
@@ -114,7 +97,7 @@ def draw_quantum_circuit(
     )
 
     if request.ax is None:
-        return render_managed_draw_pipeline(
+        return _render_managed_draw_pipeline(
             pipeline,
             output=request.output,
             show=request.show,
@@ -122,12 +105,103 @@ def draw_quantum_circuit(
             page_slider=request.page_slider,
         )
 
-    if request.pipeline_options.view == "3d" and not is_3d_axes(request.ax):
+    if request.pipeline_options.view == "3d" and not _is_3d_axes(request.ax):
         raise ValueError("view='3d' requires a 3D Matplotlib axes")
     logger.debug("Rendering scene on caller-managed Matplotlib axes")
-    return render_draw_pipeline_on_axes(
+    return _render_draw_pipeline_on_axes(
         pipeline,
         axes=request.ax,
         output=request.output,
         enable_auto_paging=request.pipeline_options.view == "2d",
     )
+
+
+def _configure_page_slider(
+    *,
+    figure: Figure,
+    axes: Axes,
+    scene: LayoutScene,
+    viewport_width: float,
+    set_page_slider: Callable[[Figure, object], None],
+) -> None:
+    from ._draw_managed import configure_page_slider
+
+    configure_page_slider(
+        figure=figure,
+        axes=axes,
+        scene=scene,
+        viewport_width=viewport_width,
+        set_page_slider=set_page_slider,
+    )
+
+
+def _page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
+    from ._draw_managed import page_slider_figsize
+
+    return page_slider_figsize(viewport_width, scene_height)
+
+
+def _slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
+    from ._draw_managed import slider_viewport_width
+
+    return slider_viewport_width(axes, scene)
+
+
+def _figure_backend_name(figure: Figure | SubFigure) -> str:
+    from .renderers._render_support import figure_backend_name
+
+    return figure_backend_name(figure)
+
+
+def _normalize_backend_name(backend_name: str) -> str:
+    from .renderers._render_support import normalize_backend_name
+
+    return normalize_backend_name(backend_name)
+
+
+def _show_managed_figure_if_supported(figure: Figure | SubFigure, *, show: bool) -> None:
+    from .renderers._render_support import show_figure_if_supported
+
+    show_figure_if_supported(figure, show=show)
+
+
+def _render_managed_draw_pipeline(
+    pipeline: PreparedDrawPipeline,
+    *,
+    output: OutputPath | None,
+    show: bool,
+    figsize: tuple[float, float] | None,
+    page_slider: bool,
+) -> tuple[Figure, Axes]:
+    from ._draw_managed import render_managed_draw_pipeline
+
+    return render_managed_draw_pipeline(
+        pipeline,
+        output=output,
+        show=show,
+        figsize=figsize,
+        page_slider=page_slider,
+    )
+
+
+def _render_draw_pipeline_on_axes(
+    pipeline: PreparedDrawPipeline,
+    *,
+    axes: Axes,
+    output: OutputPath | None,
+    enable_auto_paging: bool,
+) -> Axes:
+    from ._draw_managed import render_draw_pipeline_on_axes
+
+    return render_draw_pipeline_on_axes(
+        pipeline,
+        axes=axes,
+        output=output,
+        enable_auto_paging=enable_auto_paging,
+    )
+
+
+def _is_3d_axes(ax: Axes) -> bool:
+    from ._draw_managed import is_3d_axes
+
+    return is_3d_axes(ax)

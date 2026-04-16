@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import sys
+
 import pytest
+
+if sys.platform.startswith("win"):
+    pytest.skip("Cirq collection is not reliable on native Windows", allow_module_level=True)
 
 cirq = pytest.importorskip("cirq")
 

@@ -283,6 +283,9 @@ def test_examples_runner_can_render_selected_optional_demo(
     dependency: str,
     sandbox_tmp_path: Path,
 ) -> None:
+    if sys.platform.startswith("win") and dependency in {"cirq", "pennylane"}:
+        pytest.skip(f"{dependency} example smoke tests are not reliable on native Windows")
+
     if find_spec(dependency) is None:
         pytest.skip(f"{dependency} is required for optional example smoke tests")
 
