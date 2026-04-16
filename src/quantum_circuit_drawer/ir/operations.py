@@ -82,6 +82,17 @@ _CANONICAL_FAMILY_BY_NAME: dict[str, CanonicalGateFamily] = {
 }
 
 
+def _canonical_name_token(name: str) -> str:
+    """Normalize gate names so aliases map to the same canonical family.
+
+    Framework adapters may emit names with spaces, hyphens, or underscores
+    (for example ``"i_swap"``). Rendering should still classify those as
+    canonical families so styles and symbols stay consistent.
+    """
+
+    return "".join(character for character in name.strip().upper() if character.isalnum())
+
+
 def _normalize_wire_ids(values: Sequence[str]) -> tuple[str, ...]:
     return tuple(str(value) for value in values)
 
@@ -99,7 +110,7 @@ def _normalize_classical_conditions(
 def infer_canonical_gate_family(name: str) -> CanonicalGateFamily:
     """Infer the canonical gate family from a display name."""
 
-    return _CANONICAL_FAMILY_BY_NAME.get(name.strip().upper(), CanonicalGateFamily.CUSTOM)
+    return _CANONICAL_FAMILY_BY_NAME.get(_canonical_name_token(name), CanonicalGateFamily.CUSTOM)
 
 
 @dataclass(slots=True)
@@ -121,11 +132,13 @@ class OperationIR:
     metadata: Metadata = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        normalized_name = self.name.strip()
+        self.name = normalized_name
         self.target_wires = _normalize_wire_ids(self.target_wires)
         self.control_wires = _normalize_wire_ids(self.control_wires)
         self.classical_conditions = _normalize_classical_conditions(self.classical_conditions)
         self.parameters = _normalize_parameters(self.parameters)
-        if not self.name:
+        if not normalized_name:
             raise ValueError("operation name cannot be empty")
         if not self.target_wires and self.kind is not OperationKind.BARRIER:
             raise ValueError("operation must reference at least one target wire")

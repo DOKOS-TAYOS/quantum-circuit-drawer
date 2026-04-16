@@ -5,7 +5,12 @@ import pytest
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
-from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
+from quantum_circuit_drawer.ir.operations import (
+    CanonicalGateFamily,
+    OperationIR,
+    OperationKind,
+    infer_canonical_gate_family,
+)
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 
 
@@ -87,6 +92,9 @@ def test_operation_ir_rejects_empty_name_and_missing_targets_for_non_barriers() 
     with pytest.raises(ValueError, match="operation name cannot be empty"):
         OperationIR(kind=OperationKind.GATE, name="", target_wires=("q0",))
 
+    with pytest.raises(ValueError, match="operation name cannot be empty"):
+        OperationIR(kind=OperationKind.GATE, name="   ", target_wires=("q0",))
+
     with pytest.raises(ValueError, match="operation must reference at least one target wire"):
         OperationIR(kind=OperationKind.GATE, name="H", target_wires=())
 
@@ -134,3 +142,19 @@ def test_wire_ir_defaults_label_and_rejects_empty_ids() -> None:
 
     with pytest.raises(ValueError, match="wire id cannot be empty"):
         WireIR(id="", index=0, kind=WireKind.QUANTUM)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_family"),
+    [
+        ("iswap", CanonicalGateFamily.ISWAP),
+        ("i_swap", CanonicalGateFamily.ISWAP),
+        ("R-zz", CanonicalGateFamily.RZZ),
+        ("  tdg  ", CanonicalGateFamily.TDG),
+        ("custom gate", CanonicalGateFamily.CUSTOM),
+    ],
+)
+def test_infer_canonical_gate_family_handles_common_name_variants(
+    name: str, expected_family: CanonicalGateFamily
+) -> None:
+    assert infer_canonical_gate_family(name) is expected_family
