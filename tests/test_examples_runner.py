@@ -176,6 +176,45 @@ def test_run_demo_with_args_builds_subject_and_renders(
     ]
 
 
+def test_run_demo_with_args_rejects_3d_slider_before_loading_demo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = DemoSpec(
+        demo_id="custom-demo",
+        description="Custom demo",
+        module_name="examples.qiskit_random",
+        builder_name="build_circuit",
+        framework="qiskit",
+        default_qubits=8,
+        default_columns=6,
+        columns_help="Random circuit columns to generate",
+        dependency_module="qiskit",
+    )
+    args = Namespace(
+        list=False,
+        demo="custom-demo",
+        qubits=12,
+        columns=20,
+        mode="slider",
+        view="3d",
+        topology="grid",
+        seed=19,
+        output=None,
+        show=False,
+        figsize=(9.0, 4.0),
+    )
+
+    def fail_if_called(spec: DemoSpec) -> object:
+        raise AssertionError(
+            f"load_demo_builder should not be called for invalid args: {spec.demo_id}"
+        )
+
+    monkeypatch.setattr(run_demo_module, "load_demo_builder", fail_if_called)
+
+    with pytest.raises(SystemExit, match="Slider mode is only available in 2D"):
+        run_demo_module.run_demo_with_args(spec, args)
+
+
 def test_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         run_demo_module,

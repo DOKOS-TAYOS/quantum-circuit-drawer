@@ -112,12 +112,12 @@ def run_demo(spec: DemoSpec, *, output: Path | None, show: bool) -> None:
 def run_demo_with_args(spec: DemoSpec, args: Namespace) -> None:
     """Build and render one selected demo using parsed CLI options."""
 
-    builder = load_demo_builder(spec)
     request = request_from_namespace(
         args,
         default_qubits=spec.default_qubits,
         default_columns=spec.default_columns,
     )
+    builder = load_demo_builder(spec)
     render_example(
         builder(request),
         request=request,
