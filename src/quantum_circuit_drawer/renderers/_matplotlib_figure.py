@@ -55,9 +55,13 @@ class TextScalingState:
     base_view_width: float
     base_view_height: float
     scene: LayoutScene
+    base_points_per_layout_unit: float = 0.0
     last_scale_factor: float = 1.0
+    last_points_per_layout_unit: float = 0.0
     is_updating: bool = False
     draw_callback_id: int | None = None
+    xlim_callback_id: int | None = None
+    ylim_callback_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +190,10 @@ def clear_text_scaling_state(axes: Axes) -> None:
     canvas = axes.figure.canvas
     if canvas is not None and state.draw_callback_id is not None:
         canvas.mpl_disconnect(state.draw_callback_id)
+    if state.xlim_callback_id is not None:
+        axes.callbacks.disconnect(state.xlim_callback_id)
+    if state.ylim_callback_id is not None:
+        axes.callbacks.disconnect(state.ylim_callback_id)
     delattr(axes, _TEXT_SCALING_ATTR)
 
 

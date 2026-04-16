@@ -619,6 +619,30 @@ def test_draw_quantum_circuit_only_rescales_gate_text_when_zooming() -> None:
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_updates_gate_text_immediately_when_zoom_changes() -> None:
+    figure, axes = plt.subplots(figsize=(8.0, 3.0))
+
+    draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=12),
+        style={"max_page_width": 12.0},
+        ax=axes,
+    )
+    figure.canvas.draw()
+
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    wire_label = next(text for text in axes.texts if text.get_text() == "0")
+    initial_gate_font_size = gate_label.get_fontsize()
+    initial_wire_font_size = wire_label.get_fontsize()
+
+    axes.set_xlim(0.0, 2.5)
+    axes.set_ylim(3.5, 0.0)
+
+    assert gate_label.get_fontsize() > initial_gate_font_size
+    assert wire_label.get_fontsize() == pytest.approx(initial_wire_font_size)
+
+    plt.close(figure)
+
+
 def test_show_managed_figure_skips_builtin_show_for_notebook_backends(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
