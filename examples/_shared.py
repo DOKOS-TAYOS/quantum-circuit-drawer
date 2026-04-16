@@ -28,6 +28,7 @@ SUPPORTED_TOPOLOGIES: tuple[TopologyMode, ...] = (
     "star_tree",
     "honeycomb",
 )
+DEFAULT_DEMO_FIGSIZE = (14.0, 8.0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +43,7 @@ class ExampleRequest:
     seed: int
     output: Path | None
     show: bool
+    figsize: tuple[float, float]
 
 
 ExampleBuilder = Callable[[ExampleRequest], object]
@@ -57,6 +59,7 @@ def add_render_arguments(
 ) -> None:
     """Attach the shared render arguments to one example parser."""
 
+    default_figure_width, default_figure_height = DEFAULT_DEMO_FIGSIZE
     qubits_help = "Quantum wires to generate."
     if default_qubits is not None:
         qubits_help = f"{qubits_help} Default: {default_qubits}."
@@ -102,6 +105,17 @@ def add_render_arguments(
         "--output",
         type=Path,
         help="Optional path where the rendered figure will also be saved.",
+    )
+    parser.add_argument(
+        "--figsize",
+        nargs=2,
+        metavar=("WIDTH", "HEIGHT"),
+        type=float,
+        default=DEFAULT_DEMO_FIGSIZE,
+        help=(
+            "Managed figure size in inches. "
+            f"Default: {default_figure_width:g} {default_figure_height:g}."
+        ),
     )
     parser.add_argument(
         "--show",
@@ -163,6 +177,7 @@ def request_from_namespace(
         raise SystemExit("--columns must be at least 1.")
     if view == "3d" and mode == "slider":
         raise SystemExit("Slider mode is only available in 2D. Use --mode pages with --view 3d.")
+    figure_width, figure_height = _normalize_figsize(args.figsize)
 
     return ExampleRequest(
         qubits=qubits,
@@ -173,7 +188,19 @@ def request_from_namespace(
         seed=int(args.seed),
         output=args.output,
         show=bool(args.show),
+        figsize=(figure_width, figure_height),
     )
+
+
+def _normalize_figsize(value: object) -> tuple[float, float]:
+    if not isinstance(value, tuple | list) or len(value) != 2:
+        raise SystemExit("--figsize must contain width and height.")
+
+    figure_width = float(value[0])
+    figure_height = float(value[1])
+    if figure_width <= 0.0 or figure_height <= 0.0:
+        raise SystemExit("--figsize values must be positive.")
+    return figure_width, figure_height
 
 
 def demo_style(*, columns: int) -> dict[str, object]:
@@ -220,6 +247,7 @@ def render_example(
         style=demo_style(columns=request.columns),
         output=request.output,
         show=request.show,
+        figsize=request.figsize,
         page_slider=request.mode == "slider",
         **build_render_options(request),
     )

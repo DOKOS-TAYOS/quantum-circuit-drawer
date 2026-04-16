@@ -82,6 +82,7 @@ class DrawRequest:
     ax: Axes | None
     output: OutputPath | None
     show: bool
+    figsize: tuple[float, float] | None
     page_slider: bool
     pipeline_options: DrawPipelineOptions
 
@@ -96,6 +97,7 @@ def build_draw_request(
     ax: Axes | None = None,
     output: OutputPath | None = None,
     show: bool = True,
+    figsize: tuple[float, float] | None = None,
     page_slider: bool = False,
     composite_mode: str = "compact",
     view: ViewMode = "2d",
@@ -118,6 +120,7 @@ def build_draw_request(
         hover=hover,
         show=show,
         page_slider=page_slider,
+        figsize=figsize,
     )
     effective_hover = resolve_effective_hover(
         hover=hover,
@@ -135,6 +138,7 @@ def build_draw_request(
         ax=ax,
         output=output,
         show=show,
+        figsize=figsize,
         page_slider=page_slider,
         pipeline_options=DrawPipelineOptions(
             composite_mode=composite_mode,
@@ -156,6 +160,7 @@ def validate_public_options(
     hover: object,
     show: object,
     page_slider: object,
+    figsize: object,
 ) -> None:
     """Validate public draw options that are not enforced by Python typing."""
 
@@ -166,6 +171,7 @@ def validate_public_options(
     _validate_bool("hover", hover)
     _validate_bool("show", show)
     _validate_bool("page_slider", page_slider)
+    _validate_figsize(figsize)
 
 
 def _validate_choice(name: str, value: object, allowed_values: frozenset[str]) -> None:
@@ -181,6 +187,18 @@ def _validate_bool(name: str, value: object) -> None:
     raise ValueError(f"{name} must be a boolean")
 
 
+def _validate_figsize(value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, tuple | list) or len(value) != 2:
+        raise ValueError("figsize must be a 2-item tuple of positive numbers")
+    width, height = value
+    if not isinstance(width, int | float) or not isinstance(height, int | float):
+        raise ValueError("figsize must be a 2-item tuple of positive numbers")
+    if float(width) <= 0.0 or float(height) <= 0.0:
+        raise ValueError("figsize must be a 2-item tuple of positive numbers")
+
+
 def validate_draw_request(request: DrawRequest) -> None:
     """Validate public runtime combinations before preparing the pipeline."""
 
@@ -189,6 +207,10 @@ def validate_draw_request(request: DrawRequest) -> None:
     if request.ax is not None and request.page_slider:
         raise ValueError(
             "page_slider=True requires a Matplotlib-managed figure and cannot be used with ax"
+        )
+    if request.ax is not None and request.figsize is not None:
+        raise ValueError(
+            "figsize cannot be used with ax because the caller already owns the figure"
         )
     if request.pipeline_options.view == "3d" and request.page_slider:
         raise ValueError("page_slider=True is only supported for view='2d'")

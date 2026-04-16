@@ -73,6 +73,7 @@ def test_cudaq_example_smoke_render_on_linux(sandbox_tmp_path: Path) -> None:
         seed=7,
         output=None,
         show=False,
+        figsize=(8.0, 3.0),
     )
 
     figure, axes = draw_quantum_circuit(

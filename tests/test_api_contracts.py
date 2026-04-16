@@ -94,6 +94,20 @@ def test_draw_quantum_circuit_validates_style_input() -> None:
         draw_quantum_circuit(build_sample_ir(), style={"font_size": -1})
 
 
+def test_draw_quantum_circuit_rejects_invalid_figsize() -> None:
+    with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
+        draw_quantum_circuit(build_sample_ir(), figsize=(8.0, 0.0))
+
+
+def test_draw_quantum_circuit_rejects_figsize_with_existing_axes() -> None:
+    figure, axes = plt.subplots()
+
+    with pytest.raises(ValueError, match="figsize cannot be used with ax"):
+        draw_quantum_circuit(build_sample_ir(), ax=axes, figsize=(8.0, 3.0))
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_applies_requested_theme() -> None:
     figure, axes = draw_quantum_circuit(build_sample_ir(), style={"theme": "paper"}, show=False)
 
@@ -175,6 +189,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
         ax: object = None,
         output: object = None,
         show: bool = True,
+        figsize: tuple[float, float] | None = None,
         page_slider: bool = False,
         composite_mode: str = "compact",
         **options: object,
@@ -189,6 +204,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
                 "ax": ax,
                 "output": output,
                 "show": show,
+                "figsize": figsize,
                 "page_slider": page_slider,
                 "composite_mode": composite_mode,
                 "options": options,
@@ -203,11 +219,13 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
     result = quantum_circuit_drawer.draw_quantum_circuit(
         build_sample_ir(),
         show=False,
+        figsize=(8.0, 3.0),
         composite_mode="expand",
     )
 
     assert result is expected_result
     assert captured["show"] is False
+    assert captured["figsize"] == (8.0, 3.0)
     assert captured["backend"] == "matplotlib"
     assert captured["composite_mode"] == "expand"
     assert captured["framework"] is None

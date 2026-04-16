@@ -21,6 +21,7 @@ except ImportError:
 ensure_local_project_on_path(__file__)
 
 from examples._shared import (  # noqa: E402
+    DEFAULT_DEMO_FIGSIZE,
     add_render_arguments,
     render_example,
     request_from_namespace,
@@ -95,6 +96,7 @@ def run_demo(spec: DemoSpec, *, output: Path | None, show: bool) -> None:
             seed=7,
             output=output,
             show=show,
+            figsize=DEFAULT_DEMO_FIGSIZE,
         ),
         default_qubits=spec.default_qubits,
         default_columns=spec.default_columns,

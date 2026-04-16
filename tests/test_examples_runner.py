@@ -82,6 +82,7 @@ def test_run_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
             seed=7,
             output=None,
             show=False,
+            figsize=(14.0, 8.0),
         )
     ]
     assert render_calls == [
@@ -124,6 +125,7 @@ def test_run_demo_with_args_builds_subject_and_renders(
         seed=19,
         output=output,
         show=False,
+        figsize=(9.0, 4.0),
     )
 
     def fake_builder(request: ExampleRequest) -> object:
@@ -161,6 +163,7 @@ def test_run_demo_with_args_builds_subject_and_renders(
             seed=19,
             output=output,
             show=False,
+            figsize=(9.0, 4.0),
         )
     ]
     assert render_calls == [
@@ -177,7 +180,7 @@ def test_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         run_demo_module,
         "parse_args",
-        lambda: Namespace(list=False, demo=None, output=None, show=True),
+        lambda: Namespace(list=False, demo=None, output=None, show=True, figsize=(14.0, 8.0)),
     )
 
     with pytest.raises(SystemExit, match="Choose one demo with --demo or use --list"):

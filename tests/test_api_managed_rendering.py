@@ -445,6 +445,48 @@ def test_draw_quantum_circuit_managed_figure_uses_viewport_adaptive_paging_witho
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_managed_figure_adapts_paging_to_explicit_figsize() -> None:
+    circuit = build_dense_rotation_ir(layer_count=24)
+    narrow_figure, narrow_axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 12.0},
+        show=False,
+        figsize=(3.2, 12.0),
+    )
+    wide_figure, wide_axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 12.0},
+        show=False,
+        figsize=(12.0, 3.2),
+    )
+
+    narrow_state = get_auto_paging_state(narrow_axes)
+    wide_state = get_auto_paging_state(wide_axes)
+
+    assert narrow_state is not None
+    assert wide_state is not None
+    assert len(wide_state.scene.pages) < len(narrow_state.scene.pages)
+    assert wide_state.effective_page_width > narrow_state.effective_page_width
+
+    plt.close(narrow_figure)
+    plt.close(wide_figure)
+
+
+def test_draw_quantum_circuit_uses_explicit_figsize_for_managed_figures() -> None:
+    circuit = build_dense_rotation_ir(layer_count=18, wire_count=10)
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 8.0},
+        show=False,
+        figsize=(7.5, 2.75),
+    )
+
+    assert figure.get_size_inches() == pytest.approx((7.5, 2.75))
+    assert get_auto_paging_state(axes) is not None
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_slider_skips_auto_paging_state() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24),

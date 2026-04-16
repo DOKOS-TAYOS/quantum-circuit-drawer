@@ -54,6 +54,7 @@ def draw_quantum_circuit(
     ax: Axes | None = None,
     output: OutputPath | None = None,
     show: bool = True,
+    figsize: tuple[float, float] | None = None,
     page_slider: bool = False,
     composite_mode: str = "compact",
     view: Literal["2d", "3d"] = "2d",
@@ -93,6 +94,7 @@ def draw_quantum_circuit(
         ax=ax,
         output=output,
         show=show,
+        figsize=figsize,
         page_slider=page_slider,
         composite_mode=composite_mode,
         view=view,
@@ -115,6 +117,7 @@ def draw_quantum_circuit(
             pipeline,
             output=request.output,
             show=request.show,
+            figsize=request.figsize,
             page_slider=request.page_slider,
         )
 

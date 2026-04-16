@@ -31,6 +31,9 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
             "13",
             "--output",
             "demo.png",
+            "--figsize",
+            "9",
+            "4",
             "--no-show",
         ],
     )
@@ -51,6 +54,7 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
         seed=13,
         output=Path("demo.png"),
         show=False,
+        figsize=(9.0, 4.0),
     )
 
 
@@ -66,6 +70,7 @@ def test_request_from_namespace_rejects_3d_slider() -> None:
         seed=7,
         output=None,
         show=True,
+        figsize=(14.0, 8.0),
     )
 
     with pytest.raises(SystemExit, match="Slider mode is only available in 2D"):
@@ -73,7 +78,7 @@ def test_request_from_namespace_rejects_3d_slider() -> None:
 
 
 def test_demo_style_scales_with_columns_and_clamps() -> None:
-    from examples._shared import demo_style
+    from examples._shared import DEFAULT_DEMO_FIGSIZE, demo_style
 
     assert demo_style(columns=2) == {
         "font_size": 12.0,
@@ -82,6 +87,7 @@ def test_demo_style_scales_with_columns_and_clamps() -> None:
     }
     assert demo_style(columns=20)["max_page_width"] > 8.5
     assert demo_style(columns=80)["max_page_width"] == 12.0
+    assert DEFAULT_DEMO_FIGSIZE == (14.0, 8.0)
 
 
 def test_build_render_options_ignores_topology_in_2d() -> None:
@@ -96,6 +102,7 @@ def test_build_render_options_ignores_topology_in_2d() -> None:
         seed=7,
         output=None,
         show=True,
+        figsize=(14.0, 8.0),
     )
 
     assert build_render_options(request) == {}
@@ -123,6 +130,7 @@ def test_render_example_draws_and_reports_saved_output(
         topology: str = "line",
         direct: bool = True,
         hover: bool = False,
+        figsize: tuple[float, float] | None = None,
     ) -> None:
         draw_calls.append(
             {
@@ -136,6 +144,7 @@ def test_render_example_draws_and_reports_saved_output(
                 "topology": topology,
                 "direct": direct,
                 "hover": hover,
+                "figsize": figsize,
             }
         )
 
@@ -150,6 +159,7 @@ def test_render_example_draws_and_reports_saved_output(
         seed=7,
         output=output,
         show=False,
+        figsize=(9.0, 3.5),
     )
     render_example(
         {"kind": "demo"},
@@ -176,6 +186,7 @@ def test_render_example_draws_and_reports_saved_output(
             "topology": "grid",
             "direct": False,
             "hover": True,
+            "figsize": (9.0, 3.5),
         }
     ]
     assert f"Saved qiskit-random to {output}" in captured.out
@@ -193,6 +204,7 @@ def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.Monk
         seed=11,
         output=None,
         show=False,
+        figsize=(14.0, 8.0),
     )
     builder_calls: list[ExampleRequest] = []
     render_calls: list[dict[str, object]] = []

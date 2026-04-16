@@ -152,6 +152,13 @@ def test_build_draw_request_disables_hover_when_not_interactive() -> None:
     assert request.pipeline_options.view == "3d"
 
 
+def test_build_draw_request_keeps_figsize_out_of_pipeline_adapter_options() -> None:
+    request = build_draw_request(circuit=build_sample_ir(), figsize=(8.0, 3.0))
+
+    assert request.figsize == (8.0, 3.0)
+    assert "figsize" not in request.pipeline_options.adapter_options()
+
+
 def test_resolve_layout_engine_returns_default_layout_engine_for_none() -> None:
     assert isinstance(resolve_layout_engine(None), LayoutEngine)
 

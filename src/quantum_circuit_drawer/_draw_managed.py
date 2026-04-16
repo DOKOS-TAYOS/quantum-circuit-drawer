@@ -32,6 +32,7 @@ def render_managed_draw_pipeline(
     *,
     output: OutputPath | None,
     show: bool,
+    figsize: tuple[float, float] | None,
     page_slider: bool,
 ) -> tuple[Figure, Axes]:
     """Render a prepared pipeline on a managed figure."""
@@ -43,12 +44,19 @@ def render_managed_draw_pipeline(
     )
 
     if is_3d_scene(pipeline.paged_scene):
+        scene_3d = pipeline.paged_scene
+        figure_width, figure_height = figsize or (
+            max(4.6, scene_3d.width * 0.95),
+            max(2.1, scene_3d.height * 0.72),
+        )
         figure, axes = create_managed_figure(
-            pipeline.paged_scene,
+            scene_3d,
+            figure_width=figure_width,
+            figure_height=figure_height,
             use_agg=not show,
             projection="3d",
         )
-        pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
+        pipeline.renderer.render(scene_3d, ax=axes, output=output)
         logger.debug("Rendered managed 3D figure without page slider")
         show_figure_if_supported(figure, show=show)
         return figure, axes
@@ -66,6 +74,8 @@ def render_managed_draw_pipeline(
             initial_viewport_width,
             slider_scene.height,
         )
+        if figsize is not None:
+            figure_width, figure_height = figsize
         if output is None:
             figure, axes = create_managed_figure(
                 slider_scene,
@@ -74,10 +84,14 @@ def render_managed_draw_pipeline(
                 use_agg=not show,
             )
         else:
-            figure, axes = create_managed_figure(scene_2d, use_agg=not show)
+            figure, axes = create_managed_figure(
+                scene_2d,
+                figure_width=figure_width,
+                figure_height=figure_height,
+                use_agg=not show,
+            )
             pipeline.renderer.render(scene_2d, ax=axes, output=output)
             axes.clear()
-            figure.set_size_inches(figure_width, figure_height, forward=True)
         figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
         viewport_width = slider_viewport_width(axes, slider_scene)
         set_viewport_width(figure, viewport_width=viewport_width)
@@ -96,8 +110,10 @@ def render_managed_draw_pipeline(
         )
     else:
         scene_2d = cast("LayoutScene", pipeline.paged_scene)
-        figure_width = max(4.6, scene_2d.width * 0.95)
-        figure_height = max(2.1, scene_2d.page_height * 0.72)
+        figure_width, figure_height = figsize or (
+            max(4.6, scene_2d.width * 0.95),
+            max(2.1, scene_2d.page_height * 0.72),
+        )
         figure, axes = create_managed_figure(
             scene_2d,
             figure_width=figure_width,
