@@ -5,7 +5,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -201,3 +201,83 @@ def test_benchmark_render_script_emits_json_summary_for_3d() -> None:
     assert payload["layout_seconds"] >= 0.0
     assert payload["render_seconds"] >= 0.0
     assert payload["full_draw_seconds"] >= 0.0
+
+
+def test_benchmark_demo_returns_phase_breakdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    benchmark_module = _load_benchmark_module()
+    fake_spec = SimpleNamespace(
+        demo_id="demo-a",
+        module_name="examples.demo_a",
+        builder_name="build_circuit",
+        framework="fake",
+        default_qubits=4,
+        default_columns=3,
+    )
+    fake_subject = object()
+    fake_ir = SimpleNamespace(
+        layers=(SimpleNamespace(operations=(1, 2, 3)),),
+        quantum_wire_count=4,
+        classical_wire_count=2,
+    )
+
+    monkeypatch.setattr(benchmark_module, "catalog_by_id", lambda: {"demo-a": fake_spec})
+    monkeypatch.setattr(
+        benchmark_module.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(build_circuit=lambda request: fake_subject),
+    )
+    monkeypatch.setattr(
+        benchmark_module,
+        "get_adapter",
+        lambda circuit, framework: SimpleNamespace(to_ir=lambda circuit, options=None: fake_ir),
+    )
+    monkeypatch.setattr(
+        benchmark_module,
+        "draw_quantum_circuit",
+        lambda *args, **kwargs: (SimpleNamespace(clear=lambda: None), object()),
+    )
+
+    time_points = iter((0.0, 0.2, 0.5, 0.9, 1.4))
+    monkeypatch.setattr(benchmark_module, "perf_counter", lambda: next(time_points))
+
+    results = benchmark_module.benchmark_demo(
+        demo_id="demo-a",
+        qubits=4,
+        columns=3,
+        mode="pages",
+        repeats=1,
+    )
+
+    assert results == {
+        "demo_id": "demo-a",
+        "framework": "fake",
+        "qubits": 4,
+        "columns": 3,
+        "mode": "pages",
+        "repeats": 1,
+        "import_seconds": pytest.approx(0.2),
+        "build_seconds": pytest.approx(0.3),
+        "adapt_seconds": pytest.approx(0.4),
+        "draw_seconds": pytest.approx(0.5),
+        "total_seconds": pytest.approx(1.4),
+        "operation_count": 3,
+        "quantum_wires": 4,
+        "classical_wires": 2,
+    }
+
+
+def test_benchmark_demo_scenarios_cover_expected_multi_framework_cases() -> None:
+    benchmark_module = _load_benchmark_module()
+
+    scenarios = benchmark_module.demo_benchmark_scenarios()
+
+    assert scenarios == (
+        ("qiskit-random", 24, 32, "pages"),
+        ("cirq-random", 24, 32, "pages"),
+        ("cirq-qaoa", 18, 12, "slider"),
+        ("pennylane-random", 24, 32, "pages"),
+        ("pennylane-qaoa", 18, 12, "slider"),
+        ("myqlm-random", 24, 32, "pages"),
+    )

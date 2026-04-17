@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from math import pi
 
-import cirq
+from cirq.circuits import Circuit, Moment
+from cirq.devices import LineQubit
+from cirq.ops import H, ZZPowGate, measure, rx
 
 try:
     from examples._families import QaoaLayerSpec, build_cycle_edges, build_qaoa_layers
@@ -14,42 +16,40 @@ except ImportError:
     from _shared import ExampleRequest, run_example
 
 
-def build_circuit(request: ExampleRequest) -> cirq.Circuit:
+def build_circuit(request: ExampleRequest) -> Circuit:
     """Build a ring-QAOA Cirq circuit."""
 
-    qubits = cirq.LineQubit.range(request.qubits)
-    moments: list[cirq.Moment] = [cirq.Moment(cirq.H(qubit) for qubit in qubits)]
+    qubits = LineQubit.range(request.qubits)
+    moments: list[Moment] = [Moment(H(qubit) for qubit in qubits)]
     edges = build_cycle_edges(request.qubits)
 
     for layer in build_qaoa_layers(layers=request.columns):
         moments.extend(_cost_moments(qubits, edges, layer))
-        moments.append(cirq.Moment(cirq.rx(2.0 * layer.beta)(qubit) for qubit in qubits))
+        moments.append(Moment(rx(2.0 * layer.beta)(qubit) for qubit in qubits))
 
-    moments.append(
-        cirq.Moment(cirq.measure(qubit, key=f"c{index}") for index, qubit in enumerate(qubits))
-    )
-    return cirq.Circuit(*moments)
+    moments.append(Moment(measure(qubit, key=f"c{index}") for index, qubit in enumerate(qubits)))
+    return Circuit(*moments)
 
 
 def _cost_moments(
-    qubits: list[cirq.LineQubit],
+    qubits: list[LineQubit],
     edges: tuple[tuple[int, int], ...],
     layer: QaoaLayerSpec,
-) -> list[cirq.Moment]:
+) -> list[Moment]:
     even_edges = edges[::2]
     odd_edges = edges[1::2]
-    moments: list[cirq.Moment] = []
+    moments: list[Moment] = []
     if even_edges:
         moments.append(
-            cirq.Moment(
-                cirq.ZZPowGate(exponent=layer.gamma / pi)(qubits[left], qubits[right])
+            Moment(
+                ZZPowGate(exponent=layer.gamma / pi)(qubits[left], qubits[right])
                 for left, right in even_edges
             )
         )
     if odd_edges:
         moments.append(
-            cirq.Moment(
-                cirq.ZZPowGate(exponent=layer.gamma / pi)(qubits[left], qubits[right])
+            Moment(
+                ZZPowGate(exponent=layer.gamma / pi)(qubits[left], qubits[right])
                 for left, right in odd_edges
             )
         )

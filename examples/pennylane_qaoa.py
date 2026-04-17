@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-import pennylane as qml
+from pennylane.measurements import probs
+from pennylane.ops import RX, Hadamard, IsingZZ
+from pennylane.tape import QuantumTape
 
 try:
     from examples._families import build_cycle_edges, build_qaoa_layers
@@ -12,23 +14,23 @@ except ImportError:
     from _shared import ExampleRequest, run_example
 
 
-def build_tape(request: ExampleRequest) -> qml.tape.QuantumTape:
+def build_tape(request: ExampleRequest) -> QuantumTape:
     """Build a ring-QAOA PennyLane tape."""
 
     edges = build_cycle_edges(request.qubits)
 
-    with qml.tape.QuantumTape() as tape:
+    with QuantumTape() as tape:
         for wire in range(request.qubits):
-            qml.Hadamard(wires=wire)
+            Hadamard(wires=wire)
 
         for layer in build_qaoa_layers(layers=request.columns):
             for left, right in edges:
-                qml.IsingZZ(layer.gamma, wires=[left, right])
+                IsingZZ(layer.gamma, wires=[left, right])
             for wire in range(request.qubits):
-                qml.RX(2.0 * layer.beta, wires=wire)
+                RX(2.0 * layer.beta, wires=wire)
 
         for wire in range(request.qubits):
-            qml.probs(wires=[wire])
+            probs(wires=[wire])
     return tape
 
 

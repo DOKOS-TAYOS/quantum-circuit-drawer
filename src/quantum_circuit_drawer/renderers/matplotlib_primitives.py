@@ -39,6 +39,7 @@ SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
 LineSegment = tuple[tuple[float, float], tuple[float, float]]
 _GateTextCacheKey = tuple[object, float, float]
+_GateTextCache = dict[_GateTextCacheKey, float]
 _SINGLE_LINE_HEIGHT_FRACTION = 0.62
 _STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
 _STACKED_LABEL_SHARE = 0.6
@@ -255,17 +256,19 @@ def _fit_static_text_font_size(
     default_font_size: float,
     available_width: float,
     available_height: float,
+    context: _GateTextFittingContext | None = None,
+    cache: _GateTextCache | None = None,
 ) -> float:
-    context = _build_gate_text_fitting_context(ax, scene)
+    resolved_context = context or _build_gate_text_fitting_context(ax, scene)
     return _fit_gate_text_font_size_with_context(
-        context=context,
+        context=resolved_context,
         width=available_width,
         height=available_height,
         text=text,
         default_font_size=default_font_size,
         height_fraction=1.0,
         max_font_size=default_font_size,
-        cache={},
+        cache={} if cache is None else cache,
     )
 
 
@@ -281,6 +284,9 @@ def _connection_label_style(
     connection: SceneConnection,
     scene: LayoutScene,
     label: str,
+    *,
+    text_fit_context: _GateTextFittingContext | None = None,
+    text_fit_cache: _GateTextCache | None = None,
 ) -> _ConnectionLabelStyle:
     default_bbox: Mapping[str, object] = {
         "boxstyle": "round,pad=0.12,rounding_size=0.08",
@@ -303,6 +309,8 @@ def _connection_label_style(
         default_font_size=default_font_size,
         available_width=available_width,
         available_height=available_height,
+        context=text_fit_context,
+        cache=text_fit_cache,
     )
     compact_label = _compact_measurement_classical_label(label)
     if compact_label is None or fitted_full_font_size >= default_font_size:
@@ -323,6 +331,8 @@ def _connection_label_style(
         default_font_size=default_font_size,
         available_width=available_width,
         available_height=available_height,
+        context=text_fit_context,
+        cache=text_fit_cache,
     )
     return _ConnectionLabelStyle(
         text=compact_label,
@@ -343,6 +353,8 @@ def draw_wires(
     y_offset: float = 0.0,
     x_start: float | None = None,
     x_end: float | None = None,
+    text_fit_context: _GateTextFittingContext | None = None,
+    text_fit_cache: _GateTextCache | None = None,
 ) -> None:
     quantum_segments: list[LineSegment] = []
     classical_segments: list[LineSegment] = []
@@ -379,6 +391,8 @@ def draw_wires(
                     text=str(wire.bundle_size),
                     default_font_size=scene.style.font_size * 0.66,
                     height_fraction=1.0,
+                    context=text_fit_context,
+                    cache=text_fit_cache,
                 ),
                 color=scene.style.theme.classical_wire_color,
                 zorder=TEXT_LAYER_ZORDER,
@@ -430,6 +444,8 @@ def draw_connections(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
+    text_fit_context: _GateTextFittingContext | None = None,
+    text_fit_cache: _GateTextCache | None = None,
 ) -> list[object]:
     quantum_segments: list[LineSegment] = []
     classical_segments_by_style: dict[str | tuple[int, tuple[int, int]], list[LineSegment]] = {}
@@ -497,7 +513,14 @@ def draw_connections(
                 direction = 1.0 if connection_y_end >= connection_y_start else -1.0
                 label_y = connection_y_end - (direction * 0.12)
             label = connection.label
-            label_style = _connection_label_style(ax, connection, scene, label)
+            label_style = _connection_label_style(
+                ax,
+                connection,
+                scene,
+                label,
+                text_fit_context=text_fit_context,
+                text_fit_cache=text_fit_cache,
+            )
             label_artist = _add_text_artist(
                 ax,
                 connection_x + 0.12,
@@ -643,6 +666,8 @@ def draw_gate_label(
     subtitle_font_size: float | None = None,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
+    text_fit_context: _GateTextFittingContext | None = None,
+    text_fit_cache: _GateTextCache | None = None,
 ) -> tuple[Text, Text | None] | None:
     if gate.render_style is GateRenderStyle.X_TARGET:
         return None
@@ -657,6 +682,8 @@ def draw_gate_label(
         text=gate.label,
         default_font_size=scene.style.font_size,
         height_fraction=label_height_fraction,
+        context=text_fit_context,
+        cache=text_fit_cache,
     )
     label_artist = _add_text_artist(
         ax,
@@ -686,6 +713,8 @@ def draw_gate_label(
             text=gate.subtitle,
             default_font_size=scene.style.font_size * 0.78,
             height_fraction=subtitle_height_fraction,
+            context=text_fit_context,
+            cache=text_fit_cache,
         )
         subtitle_artist = _add_text_artist(
             ax,
@@ -814,6 +843,8 @@ def draw_measurement_symbol(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
+    text_fit_context: _GateTextFittingContext | None = None,
+    text_fit_cache: _GateTextCache | None = None,
 ) -> None:
     measurement_x = measurement.x + x_offset
     measurement_y = measurement.quantum_y + y_offset
@@ -854,6 +885,8 @@ def draw_measurement_symbol(
             default_font_size=scene.style.font_size * _MEASUREMENT_LABEL_FONT_SCALE,
             available_width=measurement.width * 0.5,
             available_height=measurement.height * 0.5,
+            context=text_fit_context,
+            cache=text_fit_cache,
         ),
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
@@ -874,6 +907,8 @@ def draw_text(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
+    text_fit_context: _GateTextFittingContext | None = None,
+    text_fit_cache: _GateTextCache | None = None,
 ) -> None:
     text_artist = _add_text_artist(
         ax,
@@ -890,6 +925,8 @@ def draw_text(
             text=text.text,
             default_font_size=text.font_size or scene.style.font_size,
             height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+            context=text_fit_context,
+            cache=text_fit_cache,
         ),
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
@@ -910,6 +947,8 @@ def draw_gate_annotation(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
+    text_fit_context: _GateTextFittingContext | None = None,
+    text_fit_cache: _GateTextCache | None = None,
 ) -> None:
     annotation_artist = _add_text_artist(
         ax,
@@ -926,6 +965,8 @@ def draw_gate_annotation(
             text=annotation.text,
             default_font_size=annotation.font_size,
             height_fraction=1.0,
+            context=text_fit_context,
+            cache=text_fit_cache,
         ),
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
@@ -964,19 +1005,21 @@ def _fit_gate_text_font_size(
     default_font_size: float,
     height_fraction: float = _SINGLE_LINE_HEIGHT_FRACTION,
     max_font_size: float | None = None,
+    context: _GateTextFittingContext | None = None,
+    cache: _GateTextCache | None = None,
 ) -> float:
     """Shrink gate text when the rendered box is too narrow for the label."""
 
-    context = _build_gate_text_fitting_context(ax, scene)
+    resolved_context = context or _build_gate_text_fitting_context(ax, scene)
     return _fit_gate_text_font_size_with_context(
-        context=context,
+        context=resolved_context,
         width=width,
         height=height,
         text=text,
         default_font_size=default_font_size,
         height_fraction=height_fraction,
         max_font_size=max_font_size,
-        cache={},
+        cache={} if cache is None else cache,
     )
 
 
@@ -1041,7 +1084,7 @@ def _fit_gate_text_font_size_with_context(
     default_font_size: float,
     height_fraction: float = _SINGLE_LINE_HEIGHT_FRACTION,
     max_font_size: float | None = None,
-    cache: dict[_GateTextCacheKey, float],
+    cache: _GateTextCache,
 ) -> float:
     """Shrink gate text using a per-page context and cache."""
 

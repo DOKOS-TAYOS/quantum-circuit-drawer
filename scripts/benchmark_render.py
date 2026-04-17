@@ -1,18 +1,31 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
+from argparse import Namespace
 from pathlib import Path
 from time import perf_counter
 from typing import Literal
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from examples._shared import (  # noqa: E402
+    DEFAULT_DEMO_FIGSIZE,
+    build_render_options,
+    demo_style,
+    request_from_namespace,
+)
+from examples.demo_catalog import DemoSpec, catalog_by_id  # noqa: E402
+
 from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline  # noqa: E402
+from quantum_circuit_drawer.adapters.registry import get_adapter  # noqa: E402
 from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
@@ -26,6 +39,7 @@ from quantum_circuit_drawer.renderers import (  # noqa: E402
 from quantum_circuit_drawer.style import DrawStyle, normalize_style  # noqa: E402
 
 ViewMode = Literal["2d", "3d"]
+DemoBenchmarkScenario = tuple[str, int, int, str]
 
 
 def build_synthetic_circuit(wires: int, layers: int) -> CircuitIR:
@@ -134,6 +148,136 @@ def benchmark_render(
         results["view"] = view
         results["topology"] = topology
     return results
+
+
+def demo_benchmark_scenarios() -> tuple[DemoBenchmarkScenario, ...]:
+    """Return the multi-framework demo scenarios used for cold-start profiling."""
+
+    return (
+        ("qiskit-random", 24, 32, "pages"),
+        ("cirq-random", 24, 32, "pages"),
+        ("cirq-qaoa", 18, 12, "slider"),
+        ("pennylane-random", 24, 32, "pages"),
+        ("pennylane-qaoa", 18, 12, "slider"),
+        ("myqlm-random", 24, 32, "pages"),
+    )
+
+
+def benchmark_demo(
+    demo_id: str,
+    qubits: int,
+    columns: int,
+    mode: str,
+    repeats: int = 3,
+) -> dict[str, float | int | str]:
+    """Benchmark one real framework demo split into import, build, adapt, and draw phases."""
+
+    spec = catalog_by_id()[demo_id]
+    import_seconds = 0.0
+    build_seconds = 0.0
+    adapt_seconds = 0.0
+    draw_seconds = 0.0
+    total_seconds = 0.0
+    operation_count = 0
+    quantum_wires = 0
+    classical_wires = 0
+
+    for _ in range(repeats):
+        started_at = perf_counter()
+        builder = _load_demo_builder(spec)
+        imported_at = perf_counter()
+        request = _build_example_request(spec, qubits=qubits, columns=columns, mode=mode)
+        subject = builder(request)
+        built_at = perf_counter()
+        ir = _build_ir(subject, framework=spec.framework)
+        adapted_at = perf_counter()
+        figure, _ = draw_quantum_circuit(
+            ir,
+            framework="ir",
+            style=demo_style(columns=request.columns),
+            show=False,
+            figsize=request.figsize,
+            page_slider=request.mode == "slider",
+            **build_render_options(request),
+        )
+        draw_completed_at = perf_counter()
+        figure.clear()
+
+        import_seconds += imported_at - started_at
+        build_seconds += built_at - imported_at
+        adapt_seconds += adapted_at - built_at
+        draw_seconds += draw_completed_at - adapted_at
+        total_seconds += draw_completed_at - started_at
+        operation_count = _operation_count(ir)
+        quantum_wires = _quantum_wire_count(ir)
+        classical_wires = _classical_wire_count(ir)
+
+    return {
+        "demo_id": demo_id,
+        "framework": "ir" if spec.framework is None else spec.framework,
+        "qubits": qubits,
+        "columns": columns,
+        "mode": mode,
+        "repeats": repeats,
+        "import_seconds": import_seconds / repeats,
+        "build_seconds": build_seconds / repeats,
+        "adapt_seconds": adapt_seconds / repeats,
+        "draw_seconds": draw_seconds / repeats,
+        "total_seconds": total_seconds / repeats,
+        "operation_count": operation_count,
+        "quantum_wires": quantum_wires,
+        "classical_wires": classical_wires,
+    }
+
+
+def _build_example_request(
+    spec: DemoSpec,
+    *,
+    qubits: int,
+    columns: int,
+    mode: str,
+) -> object:
+    return request_from_namespace(
+        Namespace(
+            qubits=qubits,
+            columns=columns,
+            mode=mode,
+            view="2d",
+            topology="line",
+            seed=7,
+            output=None,
+            show=False,
+            figsize=DEFAULT_DEMO_FIGSIZE,
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        ),
+        default_qubits=spec.default_qubits,
+        default_columns=spec.default_columns,
+    )
+
+
+def _load_demo_builder(spec: DemoSpec) -> object:
+    module = importlib.import_module(spec.module_name)
+    return getattr(module, spec.builder_name)
+
+
+def _build_ir(subject: object, *, framework: str | None) -> CircuitIR:
+    adapter = get_adapter(subject, framework)
+    return adapter.to_ir(subject, options={"composite_mode": "compact"})
+
+
+def _operation_count(circuit: CircuitIR) -> int:
+    return sum(len(layer.operations) for layer in circuit.layers)
+
+
+def _quantum_wire_count(circuit: CircuitIR) -> int:
+    return circuit.quantum_wire_count
+
+
+def _classical_wire_count(circuit: CircuitIR) -> int:
+    return circuit.classical_wire_count
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

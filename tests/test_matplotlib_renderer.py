@@ -1497,6 +1497,29 @@ def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classica
     assert _overlap_count(figure, classical_bit_labels) == 0
 
 
+def test_matplotlib_renderer_reuses_shared_text_cache_for_non_gate_texts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine().compute(_measurement_register_ir(measurement_count=18), DrawStyle())
+    figure, axes = plt.subplots(figsize=(3.5, 8.0))
+    observed_cache_ids: set[int] = set()
+    original_fit = matplotlib_primitives._fit_gate_text_font_size_with_context
+
+    def track_cache_ids(**kwargs: object) -> float:
+        observed_cache_ids.add(id(kwargs["cache"]))
+        return original_fit(**kwargs)
+
+    monkeypatch.setattr(
+        matplotlib_primitives,
+        "_fit_gate_text_font_size_with_context",
+        track_cache_ids,
+    )
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert len(observed_cache_ids) == 1
+
+
 def test_matplotlib_renderer_keeps_full_measurement_classical_label_when_space_allows() -> None:
     circuit = _single_measurement_ir(classical_label="alpha", bit_label="alpha[1]")
     figure, axes = plt.subplots(figsize=(20.0, 10.0))

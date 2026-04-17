@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 import subprocess
 import sys
@@ -462,3 +463,84 @@ def test_examples_runner_rejects_slider_mode_in_3d() -> None:
 
     assert result.returncode != 0
     assert "Slider mode is only available in 2D" in (result.stderr or result.stdout)
+
+
+@pytest.mark.parametrize(
+    "module_path",
+    [
+        "cirq_random.py",
+        "cirq_qaoa.py",
+    ],
+)
+def test_cirq_examples_use_narrow_imports(
+    module_path: str,
+) -> None:
+    source = (examples_directory() / module_path).read_text(encoding="utf-8")
+
+    assert "import cirq" not in source
+    assert "from cirq.circuits import Circuit, Moment" in source
+    assert "from cirq.devices import LineQubit" in source
+    assert "from cirq.ops import" in source
+    assert "measure" in source
+
+
+@pytest.mark.parametrize(
+    "module_path",
+    [
+        "pennylane_random.py",
+        "pennylane_qaoa.py",
+    ],
+)
+def test_pennylane_examples_use_narrow_imports(
+    module_path: str,
+) -> None:
+    source = (examples_directory() / module_path).read_text(encoding="utf-8")
+
+    assert "import pennylane as qml" not in source
+    assert "from pennylane.tape import QuantumTape" in source
+    assert "from pennylane.ops import" in source
+    assert "from pennylane.measurements import probs" in source
+
+
+@pytest.mark.parametrize(
+    ("demo_id", "dependency", "expected_module_prefix"),
+    [
+        ("cirq-random", "cirq", "cirq"),
+        ("cirq-qaoa", "cirq", "cirq"),
+        ("pennylane-random", "pennylane", "pennylane"),
+        ("pennylane-qaoa", "pennylane", "pennylane"),
+    ],
+)
+def test_optional_demo_builders_return_real_framework_objects(
+    demo_id: str,
+    dependency: str,
+    expected_module_prefix: str,
+) -> None:
+    if sys.platform.startswith("win") and dependency in {"cirq", "pennylane"}:
+        pytest.skip(f"{dependency} builder smoke tests are not reliable on native Windows")
+
+    if find_spec(dependency) is None:
+        pytest.skip(f"{dependency} is required for optional demo builder smoke tests")
+
+    spec = catalog_by_id()[demo_id]
+    module = importlib.import_module(spec.module_name)
+    builder = getattr(module, spec.builder_name)
+    request = ExampleRequest(
+        qubits=4,
+        columns=3,
+        mode="pages",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    built_subject = builder(request)
+
+    assert type(built_subject).__module__.startswith(expected_module_prefix)

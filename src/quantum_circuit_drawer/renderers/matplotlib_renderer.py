@@ -96,7 +96,7 @@ class MatplotlibRenderer(BaseRenderer):
         prepare_axes(axes, scene)
         projected_pages = self._project_pages(scene)
         gate_text_context = _build_gate_text_fitting_context(axes, scene)
-        gate_text_cache: dict[tuple[str, float, float], float] = {}
+        gate_text_cache: dict[tuple[object, float, float], float] = {}
         hover_targets: list[_HoverTarget2D] = []
         clear_hover_state(axes)
 
@@ -133,7 +133,7 @@ class MatplotlibRenderer(BaseRenderer):
         projected_page: _ProjectedPage,
         *,
         gate_text_context: Any,
-        gate_text_cache: dict[tuple[str, float, float], float],
+        gate_text_cache: dict[tuple[object, float, float], float],
         hover_targets: list[_HoverTarget2D],
     ) -> None:
         x_offset = self._page_x_offset(page, scene)
@@ -147,6 +147,8 @@ class MatplotlibRenderer(BaseRenderer):
             y_offset=y_offset,
             x_start=scene.style.margin_left,
             x_end=scene.style.margin_left + page.content_width,
+            text_fit_context=gate_text_context,
+            text_fit_cache=gate_text_cache,
         )
         draw_barriers(axes, projected_page.barriers, scene, x_offset=x_offset, y_offset=y_offset)
         draw_connections(
@@ -155,6 +157,8 @@ class MatplotlibRenderer(BaseRenderer):
             scene,
             x_offset=x_offset,
             y_offset=y_offset,
+            text_fit_context=gate_text_context,
+            text_fit_cache=gate_text_cache,
         )
 
         for gate in projected_page.gates:
@@ -237,9 +241,19 @@ class MatplotlibRenderer(BaseRenderer):
                     subtitle_font_size=subtitle_font_size,
                     x_offset=x_offset,
                     y_offset=y_offset,
+                    text_fit_context=gate_text_context,
+                    text_fit_cache=gate_text_cache,
                 )
                 continue
-            draw_gate_label(axes, gate, scene, x_offset=x_offset, y_offset=y_offset)
+            draw_gate_label(
+                axes,
+                gate,
+                scene,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                text_fit_context=gate_text_context,
+                text_fit_cache=gate_text_cache,
+            )
         for annotation in projected_page.gate_annotations:
             draw_gate_annotation(
                 axes,
@@ -247,6 +261,8 @@ class MatplotlibRenderer(BaseRenderer):
                 scene,
                 x_offset=x_offset,
                 y_offset=y_offset,
+                text_fit_context=gate_text_context,
+                text_fit_cache=gate_text_cache,
             )
         draw_controls(
             axes,
@@ -302,9 +318,18 @@ class MatplotlibRenderer(BaseRenderer):
                 scene,
                 x_offset=x_offset,
                 y_offset=y_offset,
+                text_fit_context=gate_text_context,
+                text_fit_cache=gate_text_cache,
             )
         for text in scene.texts:
-            draw_text(axes, text, scene, y_offset=y_offset)
+            draw_text(
+                axes,
+                text,
+                scene,
+                y_offset=y_offset,
+                text_fit_context=gate_text_context,
+                text_fit_cache=gate_text_cache,
+            )
 
     def _project_pages(self, scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
         return project_pages(scene)

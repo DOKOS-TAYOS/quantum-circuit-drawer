@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-import pennylane as qml
+from pennylane.measurements import probs
+from pennylane.ops import CNOT, CZ, RX, RY, RZ, SWAP, Hadamard, PauliX
+from pennylane.tape import QuantumTape
 
 try:
     from examples._families import OperationSpec, build_random_columns
@@ -12,10 +14,10 @@ except ImportError:
     from _shared import ExampleRequest, run_example
 
 
-def build_tape(request: ExampleRequest) -> qml.tape.QuantumTape:
+def build_tape(request: ExampleRequest) -> QuantumTape:
     """Build a deterministic random-looking PennyLane tape."""
 
-    with qml.tape.QuantumTape() as tape:
+    with QuantumTape() as tape:
         for column in build_random_columns(
             qubits=request.qubits,
             columns=request.columns,
@@ -25,28 +27,28 @@ def build_tape(request: ExampleRequest) -> qml.tape.QuantumTape:
                 _apply_operation(operation)
 
         for wire in range(request.qubits):
-            qml.probs(wires=[wire])
+            probs(wires=[wire])
     return tape
 
 
 def _apply_operation(operation: OperationSpec) -> None:
     wire = operation.wires[0]
     if operation.name == "h":
-        qml.Hadamard(wires=wire)
+        Hadamard(wires=wire)
     elif operation.name == "x":
-        qml.PauliX(wires=wire)
+        PauliX(wires=wire)
     elif operation.name == "rx":
-        qml.RX(_angle(operation), wires=wire)
+        RX(_angle(operation), wires=wire)
     elif operation.name == "ry":
-        qml.RY(_angle(operation), wires=wire)
+        RY(_angle(operation), wires=wire)
     elif operation.name == "rz":
-        qml.RZ(_angle(operation), wires=wire)
+        RZ(_angle(operation), wires=wire)
     elif operation.name == "cx":
-        qml.CNOT(wires=list(operation.wires))
+        CNOT(wires=list(operation.wires))
     elif operation.name == "cz":
-        qml.CZ(wires=list(operation.wires))
+        CZ(wires=list(operation.wires))
     elif operation.name == "swap":
-        qml.SWAP(wires=list(operation.wires))
+        SWAP(wires=list(operation.wires))
 
 
 def _angle(operation: OperationSpec) -> float:

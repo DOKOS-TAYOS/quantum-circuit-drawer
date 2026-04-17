@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import cirq
+from cirq.circuits import Circuit, Moment
+from cirq.devices import LineQubit
+from cirq.ops import CNOT, CZ, SWAP, H, X, measure, rx, ry, rz
+from cirq.ops.raw_types import Operation
 
 try:
     from examples._families import OperationSpec, build_random_columns
@@ -12,11 +15,11 @@ except ImportError:
     from _shared import ExampleRequest, run_example
 
 
-def build_circuit(request: ExampleRequest) -> cirq.Circuit:
+def build_circuit(request: ExampleRequest) -> Circuit:
     """Build a deterministic random-looking Cirq circuit."""
 
-    qubits = cirq.LineQubit.range(request.qubits)
-    moments: list[cirq.Moment] = []
+    qubits = LineQubit.range(request.qubits)
+    moments: list[Moment] = []
 
     for column in build_random_columns(
         qubits=request.qubits,
@@ -24,32 +27,30 @@ def build_circuit(request: ExampleRequest) -> cirq.Circuit:
         seed=request.seed,
     ):
         moments.append(
-            cirq.Moment(_build_operation(operation, qubits) for operation in column.operations)
+            Moment(_build_operation(operation, qubits) for operation in column.operations)
         )
 
-    moments.append(
-        cirq.Moment(cirq.measure(qubit, key=f"c{index}") for index, qubit in enumerate(qubits))
-    )
-    return cirq.Circuit(*moments)
+    moments.append(Moment(measure(qubit, key=f"c{index}") for index, qubit in enumerate(qubits)))
+    return Circuit(*moments)
 
 
-def _build_operation(operation: OperationSpec, qubits: list[cirq.LineQubit]) -> cirq.Operation:
+def _build_operation(operation: OperationSpec, qubits: list[LineQubit]) -> Operation:
     wire = operation.wires[0]
     if operation.name == "h":
-        return cirq.H(qubits[wire])
+        return H(qubits[wire])
     if operation.name == "x":
-        return cirq.X(qubits[wire])
+        return X(qubits[wire])
     if operation.name == "rx":
-        return cirq.rx(_angle(operation))(qubits[wire])
+        return rx(_angle(operation))(qubits[wire])
     if operation.name == "ry":
-        return cirq.ry(_angle(operation))(qubits[wire])
+        return ry(_angle(operation))(qubits[wire])
     if operation.name == "rz":
-        return cirq.rz(_angle(operation))(qubits[wire])
+        return rz(_angle(operation))(qubits[wire])
     if operation.name == "cx":
-        return cirq.CNOT(qubits[operation.wires[0]], qubits[operation.wires[1]])
+        return CNOT(qubits[operation.wires[0]], qubits[operation.wires[1]])
     if operation.name == "cz":
-        return cirq.CZ(qubits[operation.wires[0]], qubits[operation.wires[1]])
-    return cirq.SWAP(qubits[operation.wires[0]], qubits[operation.wires[1]])
+        return CZ(qubits[operation.wires[0]], qubits[operation.wires[1]])
+    return SWAP(qubits[operation.wires[0]], qubits[operation.wires[1]])
 
 
 def _angle(operation: OperationSpec) -> float:
