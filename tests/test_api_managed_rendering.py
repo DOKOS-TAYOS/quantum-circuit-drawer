@@ -17,6 +17,10 @@ from quantum_circuit_drawer.api import (
     _slider_viewport_width,
     draw_quantum_circuit,
 )
+from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
+from quantum_circuit_drawer.ir.measurements import MeasurementIR
+from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
+from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
@@ -30,6 +34,45 @@ from tests.support import (
     build_sample_scene,
     build_wrapped_ir,
 )
+
+
+def _zoom_text_scaling_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZZ",
+                        target_wires=("q0", "q1"),
+                        parameters=(0.7,),
+                    )
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                        metadata={"classical_bit_label": "dest"},
+                    )
+                ]
+            ),
+        ],
+    )
+
+
+def _font_size_by_text(axes: object, text: str) -> float:
+    return next(
+        text_artist.get_fontsize() for text_artist in axes.texts if text_artist.get_text() == text
+    )
 
 
 def test_draw_quantum_circuit_shows_managed_figures_by_default(
@@ -609,27 +652,25 @@ def test_draw_quantum_circuit_rescales_2d_text_when_zooming() -> None:
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_only_rescales_gate_text_when_zooming() -> None:
+def test_draw_quantum_circuit_rescales_all_2d_text_when_zooming() -> None:
     figure, axes = plt.subplots(figsize=(8.0, 3.0))
 
     draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=12),
+        _zoom_text_scaling_ir(),
         style={"max_page_width": 12.0},
         ax=axes,
     )
     figure.canvas.draw()
 
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
-    wire_label = next(text for text in axes.texts if text.get_text() == "0")
-    initial_gate_font_size = gate_label.get_fontsize()
-    initial_wire_font_size = wire_label.get_fontsize()
+    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest")
+    initial_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
 
     axes.set_xlim(0.0, 2.5)
     axes.set_ylim(3.5, 0.0)
     figure.canvas.draw()
 
-    assert gate_label.get_fontsize() > initial_gate_font_size
-    assert wire_label.get_fontsize() == pytest.approx(initial_wire_font_size)
+    for label in tracked_labels:
+        assert _font_size_by_text(axes, label) > initial_font_sizes[label]
 
     plt.close(figure)
 
@@ -638,26 +679,28 @@ def test_draw_quantum_circuit_updates_gate_text_immediately_when_zoom_changes() 
     figure, axes = plt.subplots(figsize=(8.0, 3.0))
 
     draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=12),
+        _zoom_text_scaling_ir(),
         style={"max_page_width": 12.0},
         ax=axes,
     )
     figure.canvas.draw()
 
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
-    wire_label = next(text for text in axes.texts if text.get_text() == "0")
-    initial_gate_font_size = gate_label.get_fontsize()
-    initial_wire_font_size = wire_label.get_fontsize()
+    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest")
+    initial_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
 
     axes.set_xlim(0.0, 2.5)
     axes.set_ylim(3.5, 0.0)
-    immediate_gate_font_size = gate_label.get_fontsize()
+    immediate_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
     figure.canvas.draw()
-    drawn_gate_font_size = gate_label.get_fontsize()
+    drawn_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
 
-    assert immediate_gate_font_size > initial_gate_font_size
-    assert immediate_gate_font_size == pytest.approx(drawn_gate_font_size, rel=1e-3, abs=1e-3)
-    assert wire_label.get_fontsize() == pytest.approx(initial_wire_font_size)
+    for label in tracked_labels:
+        assert immediate_font_sizes[label] > initial_font_sizes[label]
+        assert immediate_font_sizes[label] == pytest.approx(
+            drawn_font_sizes[label],
+            rel=1e-3,
+            abs=1e-3,
+        )
 
     plt.close(figure)
 

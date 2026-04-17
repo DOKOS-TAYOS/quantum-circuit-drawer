@@ -802,16 +802,30 @@ def draw_measurement_symbol(
         solid_capstyle="round",
         zorder=SYMBOL_LAYER_ZORDER,
     )
-    _add_text_artist(
+    measurement_label_artist = _add_text_artist(
         ax,
         measurement_x,
         measurement_y + measurement.height * 0.34,
         measurement.label,
         ha="center",
         va="center",
-        fontsize=scene.style.font_size * _MEASUREMENT_LABEL_FONT_SCALE,
+        fontsize=_fit_static_text_font_size(
+            ax,
+            scene,
+            text=measurement.label,
+            default_font_size=scene.style.font_size * _MEASUREMENT_LABEL_FONT_SCALE,
+            available_width=measurement.width * 0.5,
+            available_height=measurement.height * 0.5,
+        ),
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
+    )
+    set_gate_text_metadata(
+        measurement_label_artist,
+        role="measurement_label",
+        gate_width=measurement.width * 0.5,
+        gate_height=measurement.height * 0.5,
+        height_fraction=1.0,
     )
 
 

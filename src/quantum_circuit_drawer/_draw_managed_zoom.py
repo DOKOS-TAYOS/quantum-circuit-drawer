@@ -6,6 +6,7 @@ import math
 
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
+from matplotlib.text import Annotation
 
 from .layout.scene import LayoutScene
 
@@ -76,6 +77,16 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
                 for text_artist in axes.texts:
                     gate_text_metadata = get_gate_text_metadata(text_artist)
                     if gate_text_metadata is None:
+                        if isinstance(text_artist, Annotation):
+                            continue
+                        base_font_size = get_base_font_size(
+                            text_artist,
+                            default=_coerce_font_size(
+                                text_artist.get_fontsize(),
+                                default=scene.style.font_size,
+                            ),
+                        )
+                        text_artist.set_fontsize(base_font_size * scale_factor)
                         continue
                     base_font_size = get_base_font_size(
                         text_artist,
