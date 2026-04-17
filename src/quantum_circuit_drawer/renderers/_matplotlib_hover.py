@@ -121,6 +121,8 @@ def build_hover_text(
         lines.append(f"matrix: {hover_data.matrix_dimension} x {hover_data.matrix_dimension}")
     if hover_options.show_qubits and hover_data.qubit_labels:
         lines.append(f"qubits: {', '.join(hover_data.qubit_labels)}")
+    if hover_options.show_qubits and hover_data.other_wire_labels:
+        lines.append(f"bits: {', '.join(hover_data.other_wire_labels)}")
     if hover_options.show_size:
         lines.append(f"size: {visible_width:.0f} x {visible_height:.0f} px")
     if should_show_matrix(hover_data, hover_options, visible_width, visible_height):

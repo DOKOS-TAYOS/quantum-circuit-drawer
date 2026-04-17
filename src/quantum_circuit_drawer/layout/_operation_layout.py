@@ -10,6 +10,7 @@ from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from ..ir.wires import WireIR
+from ..utils.formatting import format_gate_name
 from ._classical_conditions import iter_classical_condition_anchors
 from ._layout_scaffold import _LayoutScaffold, _OperationMetrics, bundle_size
 from .routing import vertical_span
@@ -142,8 +143,19 @@ class _OperationSceneBuilder:
             else wire_id
             for wire_id in quantum_wire_ids
         )
+        measurement_bit_label = (
+            str(operation.metadata.get("classical_bit_label"))
+            if isinstance(operation, MeasurementIR)
+            and operation.classical_target is not None
+            and operation.metadata.get("classical_bit_label") is not None
+            else None
+        )
         other_wire_labels = tuple(
-            (self.wire_map[wire_id].label or self.wire_map[wire_id].id)
+            measurement_bit_label
+            if measurement_bit_label is not None
+            and isinstance(operation, MeasurementIR)
+            and operation.classical_target == wire_id
+            else (self.wire_map[wire_id].label or self.wire_map[wire_id].id)
             if wire_id in self.wire_map
             else wire_id
             for wire_id in unique_other_wire_ids
@@ -183,6 +195,23 @@ class _OperationSceneBuilder:
             gate_width=gate_width,
             gate_height=gate_height,
         )
+
+    def _hover_name(self, operation: OperationIR | MeasurementIR, display_name: str) -> str:
+        if operation.kind is not OperationKind.CONTROLLED_GATE:
+            return display_name
+        if operation.label is not None and operation.label != operation.name:
+            return format_gate_name(operation.label)
+
+        control_count = len(operation.control_wires)
+        if control_count == 1:
+            if operation.canonical_family is CanonicalGateFamily.X:
+                return "CNOT"
+            if operation.canonical_family is CanonicalGateFamily.Z:
+                return "CZ"
+            return f"C{display_name}"
+        if control_count == 2 and operation.canonical_family is CanonicalGateFamily.X:
+            return "TOFFOLI"
+        return f"{'C' * control_count}{display_name}"
 
     def _layout_operation(
         self,
@@ -269,7 +298,7 @@ class _OperationSceneBuilder:
         hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
-            name=metrics.display_label,
+            name=self._hover_name(operation, metrics.display_label),
             gate_x=x,
             gate_y=quantum_y,
             gate_width=metrics.width,
@@ -315,7 +344,7 @@ class _OperationSceneBuilder:
         hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
-            name=operation.label or operation.name,
+            name=self._hover_name(operation, format_gate_name(operation.label or operation.name)),
             gate_x=x,
             gate_y=(y_top + y_bottom) / 2,
             gate_width=style.swap_marker_size * 2.0,
@@ -371,7 +400,7 @@ class _OperationSceneBuilder:
         hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
-            name=metrics.display_label,
+            name=self._hover_name(operation, metrics.display_label),
             gate_x=x,
             gate_y=gate_y,
             gate_width=metrics.width,
@@ -433,7 +462,7 @@ class _OperationSceneBuilder:
         hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
-            name=operation.label or operation.name,
+            name=self._hover_name(operation, format_gate_name(operation.label or operation.name)),
             gate_x=x,
             gate_y=self.scaffold.wire_positions[operation.target_wires[0]],
             gate_width=style.control_radius * 2.0,
@@ -473,7 +502,7 @@ class _OperationSceneBuilder:
         hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
-            name=operation.label or operation.name,
+            name=self._hover_name(operation, format_gate_name(operation.label or operation.name)),
             gate_x=x,
             gate_y=target_y,
             gate_width=style.gate_height,
@@ -538,7 +567,7 @@ class _OperationSceneBuilder:
         hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
-            name=metrics.display_label,
+            name=self._hover_name(operation, metrics.display_label),
             gate_x=x,
             gate_y=gate_y,
             gate_width=metrics.width,

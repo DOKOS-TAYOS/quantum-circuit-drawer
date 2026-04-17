@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import quantum_circuit_drawer.layout._operation_text as operation_text_module
 import quantum_circuit_drawer.layout.spacing as spacing_module
 from quantum_circuit_drawer.ir import ClassicalConditionIR
@@ -579,6 +581,76 @@ def test_layout_engine_draws_canonical_controlled_rz_with_compact_box() -> None:
     assert scene.gates[0].render_style.value == "box"
     assert scene.gates[0].label == "RZ"
     assert scene.gates[0].subtitle == "0.5"
+
+
+@pytest.mark.parametrize(
+    ("operation", "expected_hover_name"),
+    [
+        (
+            OperationIR(
+                kind=OperationKind.CONTROLLED_GATE,
+                name="X",
+                canonical_family=CanonicalGateFamily.X,
+                target_wires=("q1",),
+                control_wires=("q0",),
+            ),
+            "CNOT",
+        ),
+        (
+            OperationIR(
+                kind=OperationKind.CONTROLLED_GATE,
+                name="Z",
+                canonical_family=CanonicalGateFamily.Z,
+                target_wires=("q1",),
+                control_wires=("q0",),
+            ),
+            "CZ",
+        ),
+        (
+            OperationIR(
+                kind=OperationKind.CONTROLLED_GATE,
+                name="RZ",
+                canonical_family=CanonicalGateFamily.RZ,
+                target_wires=("q1",),
+                control_wires=("q0",),
+                parameters=(0.5,),
+            ),
+            "CRZ",
+        ),
+        (
+            OperationIR(
+                kind=OperationKind.CONTROLLED_GATE,
+                name="X",
+                canonical_family=CanonicalGateFamily.X,
+                target_wires=("q2",),
+                control_wires=("q0", "q1"),
+            ),
+            "TOFFOLI",
+        ),
+    ],
+)
+def test_layout_engine_uses_controlled_gate_hover_names(
+    operation: OperationIR,
+    expected_hover_name: str,
+) -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+        ],
+        layers=[LayerIR(operations=[operation])],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    hover_names = {
+        item.hover_data.name
+        for item in (*scene.gates, *scene.controls, *scene.connections)
+        if item.hover_data is not None
+    }
+
+    assert hover_names == {expected_hover_name}
 
 
 def test_layout_engine_adds_target_wire_order_annotations_for_multi_wire_boxes() -> None:

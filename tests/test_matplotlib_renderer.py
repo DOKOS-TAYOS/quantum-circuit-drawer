@@ -964,6 +964,26 @@ def test_draw_quantum_circuit_2d_interactive_hover_adds_rich_annotation(
     assert "[[" in annotation.get_text()
 
 
+def test_draw_quantum_circuit_2d_measurement_hover_reports_destination_bit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _single_measurement_ir(classical_label="alpha", bit_label="alpha[1]"),
+        hover=HoverOptions(show_matrix="never"),
+    )
+    figure.canvas.draw()
+
+    measurement_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    _dispatch_motion_event(figure, axes, measurement_patch)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+    assert "qubits: q0" in annotation.get_text().lower()
+    assert "bits: alpha[1]" in annotation.get_text().lower()
+
+
 def test_draw_quantum_circuit_2d_hover_covers_control_and_target_artists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
