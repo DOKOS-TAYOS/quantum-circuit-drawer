@@ -53,6 +53,36 @@ def show_figure_if_supported(figure: Figure | SubFigure, *, show: bool) -> None:
     show_function()
 
 
+def pyplot_backend_name() -> str:
+    """Return the normalized name of the current pyplot backend."""
+
+    from matplotlib import pyplot as plt
+
+    return normalize_backend_name(str(plt.get_backend()))
+
+
+def backend_supports_interaction(backend_name: str) -> bool:
+    """Return whether the normalized backend can keep Matplotlib interactivity alive."""
+
+    return backend_name not in NON_INTERACTIVE_BACKENDS
+
+
+def pyplot_backend_supports_interaction() -> bool:
+    """Return whether the current pyplot backend is interactive."""
+
+    return backend_supports_interaction(pyplot_backend_name())
+
+
+def should_use_managed_agg_canvas(*, show: bool, output: OutputPath | None) -> bool:
+    """Return whether managed rendering should force an Agg canvas."""
+
+    if output is not None:
+        return True
+    if show:
+        return False
+    return not pyplot_backend_supports_interaction()
+
+
 def is_builtin_pyplot_show(show_function: object) -> bool:
     """Return whether the current show function is Matplotlib's builtin pyplot.show."""
 

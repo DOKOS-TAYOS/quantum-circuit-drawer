@@ -24,8 +24,10 @@ class SceneHoverData:
 
     key: str
     name: str
-    wire_labels: tuple[str, ...]
+    qubit_labels: tuple[str, ...]
+    other_wire_labels: tuple[str, ...]
     matrix: object | None
+    matrix_dimension: int | None
     gate_x: float
     gate_y: float
     gate_width: float

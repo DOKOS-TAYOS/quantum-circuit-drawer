@@ -28,6 +28,7 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_auto_paging_state,
     get_base_font_size,
+    get_hover_state,
     get_page_slider,
     get_text_scaling_state,
 )
@@ -166,6 +167,28 @@ def test_draw_quantum_circuit_uses_agg_canvas_for_managed_show_false(
 
     assert isinstance(figure.canvas, FigureCanvasAgg)
     assert axes.figure is figure
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_keeps_managed_figure_interactive_for_notebook_show_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer.renderers._matplotlib_figure as figure_support
+
+    captured_use_agg: list[bool] = []
+    original_create_managed_figure = figure_support.create_managed_figure
+
+    def capture_create_managed_figure(*args: object, **kwargs: object) -> tuple[Figure, object]:
+        captured_use_agg.append(bool(kwargs.get("use_agg", False)))
+        return original_create_managed_figure(*args, **kwargs)
+
+    monkeypatch.setattr(plt, "get_backend", lambda: "nbagg")
+    monkeypatch.setattr(figure_support, "create_managed_figure", capture_create_managed_figure)
+
+    figure, axes = draw_quantum_circuit(build_sample_ir(), hover=True, show=False)
+
+    assert captured_use_agg == [False]
+    assert get_hover_state(axes) is not None
     plt.close(figure)
 
 

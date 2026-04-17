@@ -145,6 +145,20 @@ def test_build_draw_request_disables_hover_when_not_interactive() -> None:
     assert request.pipeline_options.view == "3d"
 
 
+def test_build_draw_request_keeps_hover_enabled_for_notebook_backend_show_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("matplotlib.pyplot.get_backend", lambda: "nbagg")
+
+    request = build_draw_request(
+        circuit=build_sample_ir(),
+        hover=HoverOptions(),
+        show=False,
+    )
+
+    assert request.pipeline_options.hover.enabled is True
+
+
 def test_build_draw_request_keeps_figsize_out_of_pipeline_adapter_options() -> None:
     request = build_draw_request(circuit=build_sample_ir(), figsize=(8.0, 3.0))
 

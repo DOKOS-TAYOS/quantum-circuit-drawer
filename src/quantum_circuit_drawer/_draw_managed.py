@@ -55,7 +55,7 @@ from ._draw_managed_zoom import (
     current_view_size as _current_view_size_impl,
 )
 from ._draw_pipeline import PreparedDrawPipeline
-from .renderers._render_support import show_figure_if_supported
+from .renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
 from .style import DrawStyle
 from .typing import LayoutEngineLike, OutputPath
 
@@ -87,6 +87,8 @@ def render_managed_draw_pipeline(
         set_viewport_width,
     )
 
+    use_agg_canvas = should_use_managed_agg_canvas(show=show, output=output)
+
     if is_3d_scene(pipeline.paged_scene):
         scene_3d = pipeline.paged_scene
         figure_width, figure_height = figsize or (
@@ -97,7 +99,7 @@ def render_managed_draw_pipeline(
             scene_3d,
             figure_width=figure_width,
             figure_height=figure_height,
-            use_agg=not show,
+            use_agg=use_agg_canvas,
             projection="3d",
         )
         pipeline.renderer.render(scene_3d, ax=axes, output=output)
@@ -126,14 +128,14 @@ def render_managed_draw_pipeline(
                 slider_scene,
                 figure_width=figure_width,
                 figure_height=figure_height,
-                use_agg=not show,
+                use_agg=use_agg_canvas,
             )
         else:
             figure, axes = create_managed_figure(
                 scene_2d,
                 figure_width=figure_width,
                 figure_height=figure_height,
-                use_agg=not show,
+                use_agg=use_agg_canvas,
             )
             pipeline.renderer.render(scene_2d, ax=axes, output=output)
             axes.clear()
@@ -163,7 +165,7 @@ def render_managed_draw_pipeline(
             scene_2d,
             figure_width=figure_width,
             figure_height=figure_height,
-            use_agg=not show,
+            use_agg=use_agg_canvas,
         )
         render_draw_pipeline_on_axes(
             pipeline,

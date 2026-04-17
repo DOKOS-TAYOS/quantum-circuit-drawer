@@ -98,6 +98,8 @@ def test_draw_quantum_circuit_validates_style_input() -> None:
 def test_draw_quantum_circuit_exports_hover_options() -> None:
     assert quantum_circuit_drawer.HoverOptions is HoverOptions
     assert HoverOptions().show_matrix == "auto"
+    assert HoverOptions().show_matrix_dimensions is True
+    assert HoverOptions().show_size is False
 
 
 def test_draw_quantum_circuit_accepts_hover_options_mapping() -> None:

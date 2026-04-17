@@ -55,9 +55,15 @@ class FakeTapeWrapper:
         self.qtape = tape
 
 
-def install_fake_pennylane(monkeypatch: pytest.MonkeyPatch) -> None:
+def install_fake_pennylane(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    matrix_function: object | None = None,
+) -> None:
     fake_module = ModuleType("pennylane")
     fake_module.tape = SimpleNamespace(QuantumTape=FakeQuantumTape, QuantumScript=FakeQuantumTape)
+    if matrix_function is not None:
+        fake_module.matrix = matrix_function
     monkeypatch.setitem(sys.modules, "pennylane", fake_module)
 
 
@@ -121,6 +127,22 @@ def test_pennylane_adapter_maps_additional_canonical_gate_names(
     assert (OperationKind.GATE, CanonicalGateFamily.SX, "SX", ()) in signatures
     assert (OperationKind.GATE, CanonicalGateFamily.U, "U", (0.1, 0.2, 0.3)) in signatures
     assert (OperationKind.GATE, CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
+
+
+def test_pennylane_adapter_attaches_framework_matrix_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_matrix(operation: object) -> tuple[tuple[int, int], tuple[int, int]]:
+        if getattr(operation, "name", "") == "Hadamard":
+            return ((1, 1), (1, -1))
+        raise TypeError("matrix not available")
+
+    install_fake_pennylane(monkeypatch, matrix_function=fake_matrix)
+
+    ir = PennyLaneAdapter().to_ir(FakeTapeWrapper(build_fake_tape()))
+    first_operation = next(operation for layer in ir.layers for operation in layer.operations)
+
+    assert first_operation.metadata["matrix"] == ((1, 1), (1, -1))
 
 
 def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPatch) -> None:

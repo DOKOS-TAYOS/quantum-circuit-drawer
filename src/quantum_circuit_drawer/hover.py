@@ -11,11 +11,18 @@ _HOVER_ALLOWED_KEYS = {
     "enabled",
     "show_name",
     "show_size",
+    "show_matrix_dimensions",
     "show_qubits",
     "show_matrix",
     "matrix_max_qubits",
 }
-_BOOLEAN_HOVER_FIELDS = {"enabled", "show_name", "show_size", "show_qubits"}
+_BOOLEAN_HOVER_FIELDS = {
+    "enabled",
+    "show_name",
+    "show_size",
+    "show_matrix_dimensions",
+    "show_qubits",
+}
 _VALID_SHOW_MATRIX_VALUES = frozenset({"never", "auto", "always"})
 
 
@@ -25,7 +32,8 @@ class HoverOptions:
 
     enabled: bool = True
     show_name: bool = True
-    show_size: bool = True
+    show_size: bool = False
+    show_matrix_dimensions: bool = True
     show_qubits: bool = True
     show_matrix: HoverMatrixMode = "auto"
     matrix_max_qubits: int = 2
@@ -37,6 +45,7 @@ class HoverOptions:
             "enabled": self.enabled,
             "show_name": self.show_name,
             "show_size": self.show_size,
+            "show_matrix_dimensions": self.show_matrix_dimensions,
             "show_qubits": self.show_qubits,
             "show_matrix": self.show_matrix,
             "matrix_max_qubits": self.matrix_max_qubits,
@@ -71,6 +80,8 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
             resolved = replace(resolved, show_name=value)
         elif field_name == "show_size":
             resolved = replace(resolved, show_size=value)
+        elif field_name == "show_matrix_dimensions":
+            resolved = replace(resolved, show_matrix_dimensions=value)
         else:
             resolved = replace(resolved, show_qubits=value)
 

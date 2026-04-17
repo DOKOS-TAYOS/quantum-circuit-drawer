@@ -67,7 +67,7 @@ figure
 
 Install notebook tools in the same `.venv`; see [Installation](installation.md#use-the-library-in-jupyter).
 
-If you use `%matplotlib widget`, managed figures avoid the extra built-in `show()` call, so you do not get a duplicate static output next to the interactive one.
+If you use `%matplotlib widget`, managed figures avoid the extra built-in `show()` call, so you do not get a duplicate static output next to the interactive one, and hover stays available on the returned figure.
 
 ## Use configurable 2D hover
 
@@ -78,7 +78,7 @@ draw_quantum_circuit(
     circuit,
     hover=HoverOptions(
         show_name=True,
-        show_size=True,
+        show_matrix_dimensions=True,
         show_qubits=True,
         show_matrix="auto",
         matrix_max_qubits=2,
@@ -86,7 +86,7 @@ draw_quantum_circuit(
 )
 ```
 
-`hover=True` uses the default settings. Tooltips are interactive only; saved files still contain the clean static circuit figure.
+`hover=True` uses the default settings. Tooltips are interactive only; saved files still contain the clean static circuit figure. The default hover shows gate name, matrix dimensions, qubits, and the matrix itself when it is small enough and available.
 
 ## Use the `paper` theme for reports
 

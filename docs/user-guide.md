@@ -90,7 +90,7 @@ figure, axes = draw_quantum_circuit(circuit, show=False)
 figure
 ```
 
-If you use `%matplotlib widget` or another notebook-interactive backend, managed figures no longer call the built-in `pyplot.show()` automatically. This avoids getting both an interactive widget and an extra static output for the same circuit.
+If you use `%matplotlib widget` or another notebook-interactive backend, managed figures no longer call the built-in `pyplot.show()` automatically. This avoids getting both an interactive widget and an extra static output for the same circuit, while keeping hover available on the returned figure.
 
 If you save files from a notebook, keep paths simple at first:
 
@@ -187,9 +187,9 @@ figure, axes = draw_quantum_circuit(
 What hover can show in 2D:
 
 - the gate name
-- the visible gate size on screen
-- the affected wires
-- a matrix, when `OperationIR.metadata["matrix"]` exists and the hover rules allow it
+- the matrix dimensions
+- the affected qubits
+- a matrix, when the framework exposes it or the gate matches a supported canonical fallback and the hover rules allow it
 
 `hover=True` uses the defaults. If you want to hide one part, pass `HoverOptions(...)` or a mapping:
 

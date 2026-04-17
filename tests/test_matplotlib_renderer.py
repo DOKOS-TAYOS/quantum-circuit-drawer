@@ -153,6 +153,17 @@ def _single_gate_with_matrix_ir() -> CircuitIR:
     )
 
 
+def _single_gate_without_matrix_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q0",))]
+            )
+        ],
+    )
+
+
 def test_matplotlib_renderer_adds_artists() -> None:
     figure, axes = plt.subplots()
 
@@ -869,8 +880,8 @@ def test_draw_quantum_circuit_2d_interactive_hover_adds_rich_annotation(
 
     assert annotation.get_visible() is True
     assert "X" in annotation.get_text()
-    assert "q0" in annotation.get_text()
-    assert "size:" in annotation.get_text().lower()
+    assert "qubits: q0" in annotation.get_text().lower()
+    assert "matrix: 2 x 2" in annotation.get_text().lower()
     assert "[[" in annotation.get_text()
 
 
@@ -923,6 +934,63 @@ def test_draw_quantum_circuit_2d_hover_respects_never_matrix_option(
     annotation = next(text for text in axes.texts if isinstance(text, Annotation))
 
     assert "[[" not in annotation.get_text()
+
+
+def test_draw_quantum_circuit_2d_hover_hides_visual_size_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(_single_gate_with_matrix_ir(), hover=True)
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    _dispatch_motion_event(figure, axes, gate_patch)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+    assert "size:" not in annotation.get_text().lower()
+
+
+def test_draw_quantum_circuit_2d_hover_uses_canonical_matrix_fallback_when_missing_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _single_gate_without_matrix_ir(),
+        hover=HoverOptions(show_matrix="always"),
+    )
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    _dispatch_motion_event(figure, axes, gate_patch)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+    assert "matrix: 2 x 2" in annotation.get_text().lower()
+    assert "[[" in annotation.get_text()
+
+
+def test_draw_quantum_circuit_2d_hover_reports_controlled_gate_matrix_dimensions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(build_sample_ir(), hover=HoverOptions(show_matrix="never"))
+    figure.canvas.draw()
+
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+    ellipse_collections = _ellipse_collections(axes)
+    control_collection = min(
+        ellipse_collections, key=lambda collection: min(collection.get_widths())
+    )
+
+    _dispatch_motion_event(figure, axes, control_collection)
+
+    assert "matrix: 4 x 4" in annotation.get_text().lower()
+    assert "qubits: q0, q1" in annotation.get_text().lower()
 
 
 def test_draw_quantum_circuit_keeps_gate_label_inside_box_after_zoom() -> None:

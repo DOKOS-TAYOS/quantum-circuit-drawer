@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Protocol, cast
 
+from .._matrix_support import square_matrix
 from ..exceptions import UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
@@ -99,6 +100,7 @@ class QiskitAdapter(BaseAdapter):
         name = raw_name.lower()
         target_wires = tuple(qubit_ids[qubit] for qubit in qubits)
         parameters = tuple(getattr(operation, "params", ()) or ())
+        matrix_metadata = self._matrix_metadata(operation)
 
         if name == "measure":
             if not clbits:
@@ -134,7 +136,14 @@ class QiskitAdapter(BaseAdapter):
                 )
             ]
         if name == "swap":
-            return [OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=target_wires)]
+            return [
+                OperationIR(
+                    kind=OperationKind.SWAP,
+                    name="SWAP",
+                    target_wires=target_wires,
+                    metadata=matrix_metadata,
+                )
+            ]
 
         control_count = int(getattr(operation, "num_ctrl_qubits", 0) or 0)
         if control_count > 0 and len(target_wires) > control_count:
@@ -149,6 +158,7 @@ class QiskitAdapter(BaseAdapter):
                     target_wires=target_wires[control_count:],
                     control_wires=target_wires[:control_count],
                     parameters=parameters,
+                    metadata=matrix_metadata,
                 )
             ]
 
@@ -173,6 +183,7 @@ class QiskitAdapter(BaseAdapter):
                     label=raw_name,
                     target_wires=target_wires,
                     parameters=parameters,
+                    metadata=matrix_metadata,
                 )
             ]
 
@@ -186,8 +197,23 @@ class QiskitAdapter(BaseAdapter):
                 canonical_family=canonical_gate.family,
                 target_wires=target_wires,
                 parameters=parameters,
+                metadata=matrix_metadata,
             )
         ]
+
+    def _matrix_metadata(self, operation: object) -> dict[str, object]:
+        matrix_getter = getattr(operation, "to_matrix", None)
+        if not callable(matrix_getter):
+            return {}
+
+        try:
+            matrix = matrix_getter()
+        except Exception:
+            return {}
+
+        if square_matrix(matrix) is None:
+            return {}
+        return {"matrix": matrix}
 
     def _convert_if_else(
         self,

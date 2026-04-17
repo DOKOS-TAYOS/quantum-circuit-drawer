@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 qiskit = pytest.importorskip("qiskit")
@@ -144,6 +145,23 @@ def test_qiskit_adapter_maps_additional_canonical_gate_families() -> None:
     assert (OperationKind.GATE, CanonicalGateFamily.P, "P", (0.25,)) in signatures
     assert (OperationKind.GATE, CanonicalGateFamily.U, "U", (0.1, 0.2, 0.3)) in signatures
     assert (OperationKind.GATE, CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
+
+
+def test_qiskit_adapter_attaches_framework_matrices_when_available() -> None:
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.h(0)
+    circuit.cx(0, 1)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    h_matrix = np.asarray(operations[0].metadata["matrix"])
+    cx_matrix = np.asarray(operations[1].metadata["matrix"])
+
+    assert h_matrix.shape == (2, 2)
+    assert cx_matrix.shape == (4, 4)
+    assert np.allclose(h_matrix, np.asarray(circuit.data[0].operation.to_matrix()))
+    assert np.allclose(cx_matrix, np.asarray(circuit.data[1].operation.to_matrix()))
 
 
 def test_qiskit_adapter_converts_bit_if_test_into_classically_conditioned_operation() -> None:

@@ -76,7 +76,7 @@ draw_quantum_circuit(
     circuit,
     hover=HoverOptions(
         show_name=True,
-        show_size=True,
+        show_matrix_dimensions=True,
         show_qubits=True,
         show_matrix="auto",
         matrix_max_qubits=2,
@@ -95,9 +95,11 @@ draw_quantum_circuit(
 
 Hover behavior in this release:
 
-- In interactive 2D figures, hover can show the gate name, visible size, affected wires, and an optional matrix from `OperationIR.metadata["matrix"]`.
+- In interactive 2D figures, hover can show the gate name, matrix dimensions, affected qubits, and an optional matrix.
+- When a framework provides an exact matrix, hover uses it. Otherwise, supported canonical 1- and 2-qubit gates fall back to an internal matrix resolver.
 - In interactive 3D figures, `hover` still enables the existing compact tooltip behavior.
 - Saved figures and non-interactive backends keep static labels and do not create tooltips.
+- Managed figures created with `show=False` keep hover active on interactive backends, including notebook backends such as `nbagg`, `ipympl`, and `widget`.
 - Gate text in 2D rescales on zoom, but wire labels and other annotations keep their base size.
 
 `HoverOptions` fields:
@@ -106,8 +108,9 @@ Hover behavior in this release:
 | --- | --- | --- |
 | `enabled` | `True` | Turn hover on or off after the object is created |
 | `show_name` | `True` | Show the gate name |
-| `show_size` | `True` | Show the visible gate body size in screen pixels |
-| `show_qubits` | `True` | Show the affected wires in stable order |
+| `show_size` | `False` | Show the visible gate body size in screen pixels |
+| `show_matrix_dimensions` | `True` | Show the matrix dimensions such as `2 x 2` or `4 x 4` |
+| `show_qubits` | `True` | Show the affected quantum wires in stable order |
 | `show_matrix` | `"auto"` | Use `"never"`, `"auto"`, or `"always"` |
 | `matrix_max_qubits` | `2` | Do not show matrices larger than this many qubits |
 
@@ -133,6 +136,8 @@ returned_axes = draw_quantum_circuit(circuit, ax=axes)
 ```
 
 The same rule applies in 3D. Managed 3D rendering returns `(figure, axes)`, while caller-managed 3D rendering returns the 3D axes you passed in.
+
+When the active backend is interactive, `show=False` only skips the automatic `pyplot.show()` call. The returned managed figure still keeps interactive hover available.
 
 ## Common combinations
 

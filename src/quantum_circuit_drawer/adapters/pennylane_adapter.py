@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
+from .._matrix_support import square_matrix
 from ..exceptions import UnsupportedFrameworkError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
@@ -220,6 +221,7 @@ class PennyLaneAdapter(BaseAdapter):
                     target_wires=target_wires,
                     control_wires=control_wires,
                     parameters=parameters,
+                    metadata=self._matrix_metadata(operation),
                 )
             ]
         return [
@@ -229,6 +231,7 @@ class PennyLaneAdapter(BaseAdapter):
                 canonical_family=canonical_gate.family,
                 target_wires=target_wires,
                 parameters=parameters,
+                metadata=self._matrix_metadata(operation),
             )
         ]
 
@@ -280,3 +283,32 @@ class PennyLaneAdapter(BaseAdapter):
         if callable(decomposition):
             return tuple(decomposition())
         return ()
+
+    def _matrix_metadata(self, operation: object) -> dict[str, object]:
+        direct_matrix = getattr(operation, "matrix", None)
+        if direct_matrix is not None:
+            if callable(direct_matrix):
+                try:
+                    direct_matrix = direct_matrix()
+                except Exception:
+                    direct_matrix = None
+            if direct_matrix is not None and square_matrix(direct_matrix) is not None:
+                return {"matrix": direct_matrix}
+
+        try:
+            import pennylane as qml
+        except ImportError:
+            return {}
+
+        matrix_function = getattr(qml, "matrix", None)
+        if not callable(matrix_function):
+            return {}
+
+        try:
+            matrix = matrix_function(operation)
+        except Exception:
+            return {}
+
+        if square_matrix(matrix) is None:
+            return {}
+        return {"matrix": matrix}

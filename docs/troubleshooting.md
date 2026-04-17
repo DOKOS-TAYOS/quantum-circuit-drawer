@@ -69,6 +69,21 @@ figure, axes = draw_quantum_circuit(circuit, show=False)
 figure
 ```
 
+If the backend is interactive, `show=False` only skips the automatic `pyplot.show()` call. The returned figure can still keep hover and other Matplotlib interactivity.
+
+## Hover does not appear
+
+Hover only works on interactive Matplotlib backends. In a notebook, the safest setup is:
+
+```python
+%matplotlib widget
+
+figure, axes = draw_quantum_circuit(circuit, hover=True, show=False)
+figure
+```
+
+If you are saving to `output=...` or running on a non-interactive backend such as `Agg`, the figure stays static and tooltips are intentionally disabled.
+
 ## Saving output fails
 
 Symptom:

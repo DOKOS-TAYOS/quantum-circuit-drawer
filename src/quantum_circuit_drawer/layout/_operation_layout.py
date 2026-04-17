@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from .._matrix_support import operation_matrix_dimension, resolved_operation_matrix
 from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
@@ -124,21 +125,35 @@ class _OperationSceneBuilder:
         gate_width: float,
         gate_height: float,
     ) -> SceneHoverData:
-        wire_ids = list((*operation.control_wires, *operation.target_wires))
+        quantum_wire_ids = tuple(dict.fromkeys((*operation.control_wires, *operation.target_wires)))
+        other_wire_ids = [
+            wire_id
+            for condition in operation.classical_conditions
+            for wire_id in condition.wire_ids
+            if wire_id not in quantum_wire_ids
+        ]
         if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
-            wire_ids.append(operation.classical_target)
-        unique_wire_ids = tuple(dict.fromkeys(wire_ids))
-        wire_labels = tuple(
+            other_wire_ids.append(operation.classical_target)
+        unique_other_wire_ids = tuple(dict.fromkeys(other_wire_ids))
+        qubit_labels = tuple(
             (self.wire_map[wire_id].label or self.wire_map[wire_id].id)
             if wire_id in self.wire_map
             else wire_id
-            for wire_id in unique_wire_ids
+            for wire_id in quantum_wire_ids
+        )
+        other_wire_labels = tuple(
+            (self.wire_map[wire_id].label or self.wire_map[wire_id].id)
+            if wire_id in self.wire_map
+            else wire_id
+            for wire_id in unique_other_wire_ids
         )
         return SceneHoverData(
             key=f"op-{column}-{id(operation)}",
             name=name,
-            wire_labels=wire_labels,
-            matrix=operation.metadata.get("matrix"),
+            qubit_labels=qubit_labels,
+            other_wire_labels=other_wire_labels,
+            matrix=resolved_operation_matrix(operation),
+            matrix_dimension=operation_matrix_dimension(operation),
             gate_x=gate_x,
             gate_y=gate_y,
             gate_width=gate_width,

@@ -11,7 +11,7 @@ from .hover import HoverOptions, disable_hover, normalize_hover
 from .renderers._render_support import (
     NON_INTERACTIVE_BACKENDS,
     figure_backend_name,
-    normalize_backend_name,
+    pyplot_backend_supports_interaction,
 )
 from .style import DrawStyle
 from .typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath
@@ -223,8 +223,10 @@ def resolve_effective_hover(
 ) -> HoverOptions:
     """Resolve whether hover annotations can actually stay interactive.
 
-    Hover labels are disabled for saved output, caller-supplied axes on
-    non-interactive backends, and managed figures created with ``show=False``.
+    Hover labels are disabled for saved output and non-interactive backends.
+    Managed figures created with ``show=False`` can still keep hover alive when
+    the active pyplot backend is interactive, which is important for notebooks
+    and callers that want to display the returned figure later.
     """
 
     if not hover.enabled or output is not None:
@@ -233,11 +235,6 @@ def resolve_effective_hover(
         if figure_backend_name(ax.figure) in NON_INTERACTIVE_BACKENDS:
             return disable_hover(hover)
         return hover
-    if not show:
-        return disable_hover(hover)
-
-    from matplotlib import pyplot as plt
-
-    if normalize_backend_name(str(plt.get_backend())) in NON_INTERACTIVE_BACKENDS:
+    if not pyplot_backend_supports_interaction():
         return disable_hover(hover)
     return hover

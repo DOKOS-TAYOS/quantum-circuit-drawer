@@ -6,6 +6,10 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from quantum_circuit_drawer._matrix_support import (
+    operation_matrix_dimension,
+    resolved_operation_matrix,
+)
 from quantum_circuit_drawer.adapters._helpers import (
     append_classical_conditions,
     build_classical_register,
@@ -205,3 +209,33 @@ def test_canonical_gate_spec_compacts_unknown_gate_names() -> None:
 
     assert canonical_gate.label == "MYSUPE"
     assert canonical_gate.family is CanonicalGateFamily.CUSTOM
+
+
+def test_resolved_operation_matrix_infers_single_qubit_canonical_gate() -> None:
+    operation = OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q0",))
+
+    matrix = resolved_operation_matrix(operation)
+
+    assert matrix is not None
+    assert matrix.tolist() == [[0j, (1 + 0j)], [(1 + 0j), 0j]]
+    assert operation_matrix_dimension(operation) == 2
+
+
+def test_resolved_operation_matrix_infers_controlled_gate_matrix() -> None:
+    operation = OperationIR(
+        kind=OperationKind.CONTROLLED_GATE,
+        name="X",
+        target_wires=("q1",),
+        control_wires=("q0",),
+    )
+
+    matrix = resolved_operation_matrix(operation)
+
+    assert matrix is not None
+    assert matrix.tolist() == [
+        [(1 + 0j), 0j, 0j, 0j],
+        [0j, (1 + 0j), 0j, 0j],
+        [0j, 0j, 0j, (1 + 0j)],
+        [0j, 0j, (1 + 0j), 0j],
+    ]
+    assert operation_matrix_dimension(operation) == 4

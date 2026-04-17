@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 
+import numpy as np
 import pytest
 
 if sys.platform.startswith("win"):
@@ -102,6 +103,20 @@ def test_cirq_adapter_maps_additional_canonical_gate_families() -> None:
     assert (CanonicalGateFamily.SX, "SX", ()) in signatures
     assert (CanonicalGateFamily.SXDG, "SXdg", ()) in signatures
     assert (CanonicalGateFamily.ISWAP, "iSWAP", ()) in signatures
+
+
+def test_cirq_adapter_attaches_framework_matrices_when_available() -> None:
+    q0, q1 = cirq.LineQubit.range(2)
+    circuit = cirq.Circuit(cirq.H(q0), cirq.CNOT(q0, q1))
+
+    ir = CirqAdapter().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    h_matrix = np.asarray(operations[0].metadata["matrix"])
+    cx_matrix = np.asarray(operations[1].metadata["matrix"])
+
+    assert h_matrix.shape == (2, 2)
+    assert cx_matrix.shape == (4, 4)
 
 
 def test_cirq_adapter_converts_classically_controlled_operations() -> None:

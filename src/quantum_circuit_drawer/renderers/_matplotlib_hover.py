@@ -11,6 +11,7 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event, MouseEvent
 from matplotlib.transforms import Bbox
 
+from .._matrix_support import matrix_qubit_count, square_matrix
 from ..hover import HoverOptions
 from ..layout.scene import SceneHoverData
 from ._matplotlib_figure import HoverState, set_hover_state
@@ -116,10 +117,12 @@ def build_hover_text(
     lines: list[str] = []
     if hover_options.show_name and hover_data.name:
         lines.append(hover_data.name)
+    if hover_options.show_matrix_dimensions and hover_data.matrix_dimension is not None:
+        lines.append(f"matrix: {hover_data.matrix_dimension} x {hover_data.matrix_dimension}")
+    if hover_options.show_qubits and hover_data.qubit_labels:
+        lines.append(f"qubits: {', '.join(hover_data.qubit_labels)}")
     if hover_options.show_size:
         lines.append(f"size: {visible_width:.0f} x {visible_height:.0f} px")
-    if hover_options.show_qubits and hover_data.wire_labels:
-        lines.append(f"wires: {', '.join(hover_data.wire_labels)}")
     if should_show_matrix(hover_data, hover_options, visible_width, visible_height):
         lines.append(format_matrix(hover_data.matrix))
     return "\n".join(line for line in lines if line)
@@ -136,7 +139,7 @@ def should_show_matrix(
     if hover_options.show_matrix == "never" or hover_data.matrix is None:
         return False
 
-    matrix = matrix_array(hover_data.matrix)
+    matrix = square_matrix(hover_data.matrix)
     if matrix is None:
         return False
 
@@ -171,7 +174,7 @@ def visible_gate_size_pixels(axes: Axes, hover_data: SceneHoverData) -> tuple[fl
 def format_matrix(matrix: object) -> str:
     """Format a square matrix for display inside hover annotations."""
 
-    matrix_value = matrix_array(matrix)
+    matrix_value = square_matrix(matrix)
     if matrix_value is None:
         return ""
     return np.array2string(
@@ -179,27 +182,6 @@ def format_matrix(matrix: object) -> str:
         separator=", ",
         formatter={"complex_kind": format_complex, "float_kind": format_complex},
     )
-
-
-def matrix_array(matrix: object) -> np.ndarray | None:
-    """Return a complex square matrix when the input can be represented as one."""
-
-    try:
-        matrix_value = np.asarray(matrix, dtype=np.complex128)
-    except (TypeError, ValueError):
-        return None
-    if matrix_value.ndim != 2 or matrix_value.shape[0] != matrix_value.shape[1]:
-        return None
-    return matrix_value
-
-
-def matrix_qubit_count(matrix: np.ndarray) -> int | None:
-    """Return the number of qubits represented by a square unitary matrix."""
-
-    dimension = int(matrix.shape[0])
-    if dimension <= 0 or dimension & (dimension - 1):
-        return None
-    return int(np.log2(dimension))
 
 
 def format_complex(value: object) -> str:
