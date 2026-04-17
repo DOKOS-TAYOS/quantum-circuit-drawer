@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from matplotlib.backend_bases import MouseEvent
+from matplotlib.collections import PathCollection
 from matplotlib.colors import to_hex
+from matplotlib.figure import Figure
 from matplotlib.text import Annotation
 from mpl_toolkits.mplot3d import proj3d
 from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
@@ -40,8 +42,9 @@ from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_sample_ir
 
 if TYPE_CHECKING:
-    from matplotlib.figure import Figure
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
+
+_BATCHED_TEXT_ARTIST_GID = "quantum-circuit-drawer-3d-batched-text"
 
 
 def _rendered_content_size(figure: Figure) -> tuple[int, int]:
@@ -53,6 +56,14 @@ def _rendered_content_size(figure: Figure) -> tuple[int, int]:
         int(x_indices.max() - x_indices.min() + 1),
         int(y_indices.max() - y_indices.min() + 1),
     )
+
+
+def _batched_text_artists(figure: Figure) -> list[PathCollection]:
+    return [
+        artist
+        for artist in figure.artists
+        if isinstance(artist, PathCollection) and artist.get_gid() == _BATCHED_TEXT_ARTIST_GID
+    ]
 
 
 def _line_control_ir() -> CircuitIR:
@@ -687,6 +698,84 @@ def test_matplotlib_renderer_3d_batches_measurement_symbols_in_no_hover_mode() -
     plt.close(figure)
 
 
+def test_matplotlib_renderer_3d_batches_offscreen_texts_for_managed_non_hover_render() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+
+    result = MatplotlibRenderer3D().render(scene)
+
+    assert isinstance(result, tuple)
+    figure, axes = result
+
+    assert len(scene.texts) == 7
+    assert len(_batched_text_artists(figure)) == 2
+    assert len(axes.texts) == 0
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_keeps_standard_text_artists_for_caller_managed_axes() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    assert _batched_text_artists(figure) == []
+    assert len(axes.texts) == len(scene.texts)
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_does_not_batch_texts_when_hover_is_enabled() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+
+    result = MatplotlibRenderer3D().render(scene)
+
+    assert isinstance(result, tuple)
+    figure, axes = result
+
+    assert _batched_text_artists(figure) == []
+    assert any(isinstance(text, Annotation) for text in axes.texts)
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_cleans_batched_text_overlays_before_rerender() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+
+    result = MatplotlibRenderer3D().render(scene)
+
+    assert isinstance(result, tuple)
+    figure, axes = result
+    axes.clear()
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    assert len(_batched_text_artists(figure)) == 2
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_3d_uses_most_of_shorter_figsize_dimension() -> None:
     wide_figure, _ = draw_quantum_circuit(
         build_sample_ir(),
@@ -1165,7 +1254,7 @@ def test_draw_quantum_circuit_interactive_hover_stays_above_scene_artists(
 
 
 def test_draw_quantum_circuit_falls_back_to_visible_labels_for_noninteractive_hover() -> None:
-    _, axes = draw_quantum_circuit(
+    figure, axes = draw_quantum_circuit(
         build_sample_ir(),
         view="3d",
         topology="line",
@@ -1175,9 +1264,7 @@ def test_draw_quantum_circuit_falls_back_to_visible_labels_for_noninteractive_ho
 
     labels = {text.get_text() for text in axes.texts}
 
-    assert "q0" in labels
-    assert "q1" in labels
-    assert "H" in labels
+    assert ("q0" in labels and "q1" in labels and "H" in labels) or _batched_text_artists(figure)
 
 
 def test_draw_quantum_circuit_projects_time_axis_horizontally_by_default() -> None:

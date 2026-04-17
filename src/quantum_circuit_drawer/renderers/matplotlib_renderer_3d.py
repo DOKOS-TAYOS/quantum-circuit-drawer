@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from types import MethodType
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from matplotlib.artist import Artist
 from matplotlib.backend_bases import MouseEvent
+from matplotlib.collections import PathCollection
+from matplotlib.path import Path
+from matplotlib.textpath import TextPath
+from matplotlib.transforms import Affine2D, Bbox, IdentityTransform
 from mpl_toolkits.mplot3d import proj3d  # type: ignore[import-untyped]
 from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
     Line3DCollection,
@@ -29,8 +34,9 @@ from ..layout.scene_3d import (
 )
 from ..typing import OutputPath, RenderResult
 from ._matplotlib_figure import create_managed_figure
-from ._render_support import save_rendered_figure
+from ._render_support import backend_supports_interaction, figure_backend_name, save_rendered_figure
 from .base import BaseRenderer
+from .matplotlib_primitives import _default_font_properties
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -53,7 +59,11 @@ _X_TARGET_RING_SEGMENTS = 40
 _SCENE_FIT_FILL_FRACTION = 0.92
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR = "_quantum_circuit_drawer_managed_3d_full_viewport_aspect"
+_BATCHED_3D_TEXT_ARTISTS_ATTR = "_quantum_circuit_drawer_batched_3d_text_artists"
+_BATCHED_3D_TEXT_ARTIST_GID = "quantum-circuit-drawer-3d-batched-text"
+_TEXT_LAYER_ZORDER = 6.0
 Segment3D = tuple[tuple[float, float, float], tuple[float, float, float]]
+_TextPathCacheKey = tuple[str, float, str, str]
 
 
 @dataclass(slots=True)
@@ -62,6 +72,36 @@ class _RenderContext3D:
     data_transform: Transform
     projected_axis_scale_cache: dict[tuple[float, float, float], tuple[float, float, float]]
     x_target_unit_circle: np.ndarray
+
+
+@lru_cache(maxsize=256)
+def _aligned_text_path(key: _TextPathCacheKey) -> Path:
+    text, font_size, ha, va = key
+    text_path = TextPath((0.0, 0.0), text, size=font_size, prop=_default_font_properties())
+    extents = text_path.get_extents()
+    x_anchor = _text_horizontal_anchor(extents, ha)
+    y_anchor = _text_vertical_anchor(extents, va)
+    return Affine2D().translate(-x_anchor, -y_anchor).transform_path(text_path)
+
+
+def _text_horizontal_anchor(extents: Bbox, ha: str) -> float:
+    resolved_ha = ha.lower()
+    if resolved_ha == "left":
+        return float(extents.x0)
+    if resolved_ha == "right":
+        return float(extents.x1)
+    return float(extents.x0 + (extents.width / 2.0))
+
+
+def _text_vertical_anchor(extents: Bbox, va: str) -> float:
+    resolved_va = va.lower()
+    if resolved_va == "bottom":
+        return float(extents.y0)
+    if resolved_va == "top":
+        return float(extents.y1)
+    if resolved_va in {"baseline", "center_baseline"}:
+        return 0.0
+    return float(extents.y0 + (extents.height / 2.0))
 
 
 class MatplotlibRenderer3D(BaseRenderer):
@@ -89,7 +129,9 @@ class MatplotlibRenderer3D(BaseRenderer):
         viewport_bounds = self._managed_viewport_bounds(axes_3d)
         if viewport_bounds is None and managed_figure is not None:
             viewport_bounds = (0.0, 0.0, 1.0, 1.0)
+            setattr(axes_3d, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, viewport_bounds)
         figure = axes_3d.figure
+        self._clear_batched_text_artists(axes_3d)
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
         self._prepare_axes(axes_3d, scene)
         if viewport_bounds is not None:
@@ -108,7 +150,12 @@ class MatplotlibRenderer3D(BaseRenderer):
         hover_targets.extend(self._draw_connections(axes_3d, scene))
         hover_targets.extend(self._draw_gates(axes_3d, scene, render_context))
         hover_targets.extend(self._draw_markers(axes_3d, scene))
-        self._draw_texts(axes_3d, scene)
+        self._draw_texts(
+            axes_3d,
+            scene,
+            render_context=render_context,
+            managed_render=managed_figure is not None,
+        )
         if scene.hover_enabled:
             self._attach_hover(axes_3d, hover_targets)
 
@@ -887,7 +934,28 @@ class MatplotlibRenderer3D(BaseRenderer):
             pointer_collection.set_zorder(3.6)
             axes.add_collection3d(pointer_collection)
 
-    def _draw_texts(self, axes: Axes3D, scene: LayoutScene3D) -> None:
+    def _draw_texts(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        render_context: _RenderContext3D,
+        managed_render: bool,
+    ) -> None:
+        if self._should_batch_offscreen_texts(
+            axes,
+            scene,
+            managed_render=managed_render,
+        ):
+            self._draw_texts_batched_offscreen(
+                axes,
+                scene,
+                render_context=render_context,
+            )
+            return
+        self._draw_texts_standard(axes, scene)
+
+    def _draw_texts_standard(self, axes: Axes3D, scene: LayoutScene3D) -> None:
         for text in scene.texts:
             axes.text(
                 text.position.x,
@@ -899,6 +967,88 @@ class MatplotlibRenderer3D(BaseRenderer):
                 fontsize=text.font_size or scene.style.font_size,
                 color=scene.style.theme.text_color,
             )
+
+    def _draw_texts_batched_offscreen(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        render_context: _RenderContext3D,
+    ) -> None:
+        if not scene.texts:
+            setattr(axes, _BATCHED_3D_TEXT_ARTISTS_ATTR, ())
+            return
+
+        projected_positions = self._projected_display_points(
+            axes,
+            np.array(
+                [(text.position.x, text.position.y, text.position.z) for text in scene.texts],
+                dtype=float,
+            ),
+            render_context=render_context,
+        )
+        grouped_offsets: dict[_TextPathCacheKey, list[tuple[float, float]]] = {}
+        for text, projected_position in zip(scene.texts, projected_positions):
+            text_key = (
+                text.text,
+                float(text.font_size or scene.style.font_size),
+                text.ha,
+                text.va,
+            )
+            grouped_offsets.setdefault(text_key, []).append(
+                (
+                    float(projected_position[0]),
+                    float(projected_position[1]),
+                )
+            )
+
+        display_scale = axes.figure.dpi / 72.0
+        text_artists: list[Artist] = []
+        for text_key, offsets in grouped_offsets.items():
+            collection = PathCollection(
+                [_aligned_text_path(text_key)],
+                offsets=np.asarray(offsets, dtype=float),
+                transOffset=IdentityTransform(),
+                facecolors=scene.style.theme.text_color,
+                edgecolors="none",
+            )
+            collection.set_transform(Affine2D().scale(display_scale))
+            collection.set_clip_box(axes.bbox)
+            collection.set_clip_on(True)
+            collection.set_gid(_BATCHED_3D_TEXT_ARTIST_GID)
+            collection.set_zorder(_TEXT_LAYER_ZORDER)
+            axes.figure.add_artist(collection)
+            text_artists.append(collection)
+
+        setattr(axes, _BATCHED_3D_TEXT_ARTISTS_ATTR, tuple(text_artists))
+
+    def _should_batch_offscreen_texts(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        managed_render: bool,
+    ) -> bool:
+        if scene.hover_enabled or not scene.texts:
+            return False
+        if not managed_render and self._managed_viewport_bounds(axes) is None:
+            return False
+        return not backend_supports_interaction(figure_backend_name(axes.figure))
+
+    def _clear_batched_text_artists(self, axes: Axes3D) -> None:
+        existing_artists = getattr(axes, _BATCHED_3D_TEXT_ARTISTS_ATTR, ())
+        if not isinstance(existing_artists, tuple):
+            setattr(axes, _BATCHED_3D_TEXT_ARTISTS_ATTR, ())
+            return
+
+        for artist in existing_artists:
+            if not isinstance(artist, Artist):
+                continue
+            try:
+                artist.remove()
+            except (NotImplementedError, ValueError):
+                continue
+        setattr(axes, _BATCHED_3D_TEXT_ARTISTS_ATTR, ())
 
     def _attach_hover(self, axes: Axes3D, hover_targets: list[tuple[Artist, str]]) -> None:
         figure = axes.figure
