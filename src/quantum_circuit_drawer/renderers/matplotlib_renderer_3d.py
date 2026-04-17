@@ -67,11 +67,22 @@ _TextPathCacheKey = tuple[str, float, str, str]
 
 
 @dataclass(slots=True)
+class _PreparedBatchedGateGeometry3D:
+    geometry_points: np.ndarray
+    box_faces: list[list[tuple[float, float, float]]]
+    measurement_faces: list[list[tuple[float, float, float]]]
+    measurement_gates: list[SceneGate3D]
+    x_target_ring_segments: list[Segment3D]
+    x_target_cross_segments: list[Segment3D]
+
+
+@dataclass(slots=True)
 class _RenderContext3D:
     projection_matrix: np.ndarray
     data_transform: Transform
     projected_axis_scale_cache: dict[tuple[float, float, float], tuple[float, float, float]]
     x_target_unit_circle: np.ndarray
+    prepared_gate_geometry: _PreparedBatchedGateGeometry3D | None = None
 
 
 @lru_cache(maxsize=256)
@@ -137,12 +148,15 @@ class MatplotlibRenderer3D(BaseRenderer):
         if viewport_bounds is not None:
             self._expand_axes_to_fill_viewport(axes_3d, viewport_bounds)
         self._synchronize_axes_geometry(axes_3d)
+        fit_render_context = self._create_render_context(axes_3d)
         self._fit_scene_to_shorter_canvas_dimension(
             axes_3d,
             scene,
             viewport_bounds=viewport_bounds,
+            render_context=fit_render_context,
         )
         render_context = self._create_render_context(axes_3d)
+        render_context.prepared_gate_geometry = fit_render_context.prepared_gate_geometry
 
         hover_targets: list[tuple[Artist, str]] = []
         self._draw_topology_planes(axes_3d, scene)
@@ -248,12 +262,13 @@ class MatplotlibRenderer3D(BaseRenderer):
         scene: LayoutScene3D,
         *,
         viewport_bounds: tuple[float, float, float, float] | None = None,
+        render_context: _RenderContext3D | None = None,
     ) -> None:
-        render_context = self._create_render_context(axes)
+        context = render_context or self._create_render_context(axes)
         projected_scene_points = self._projected_scene_geometry_points(
             axes,
             scene,
-            render_context=render_context,
+            render_context=context,
         )
         if projected_scene_points.size == 0:
             return
@@ -367,6 +382,13 @@ class MatplotlibRenderer3D(BaseRenderer):
         *,
         render_context: _RenderContext3D,
     ) -> np.ndarray:
+        if self._should_prepare_batched_gate_geometry_offscreen(axes, scene):
+            return self._prepare_batched_gate_geometry_offscreen(
+                axes,
+                scene,
+                render_context=render_context,
+            ).geometry_points
+
         point_groups: list[np.ndarray] = []
         for gate in scene.gates:
             if gate.render_style is GateRenderStyle3D.X_TARGET:
@@ -399,6 +421,93 @@ class MatplotlibRenderer3D(BaseRenderer):
         if not point_groups:
             return np.empty((0, 3), dtype=float)
         return np.vstack(point_groups)
+
+    def _should_prepare_batched_gate_geometry_offscreen(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+    ) -> bool:
+        if scene.hover_enabled:
+            return False
+        if self._managed_viewport_bounds(axes) is None:
+            return False
+        return not backend_supports_interaction(figure_backend_name(axes.figure))
+
+    def _prepare_batched_gate_geometry_offscreen(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        render_context: _RenderContext3D,
+    ) -> _PreparedBatchedGateGeometry3D:
+        prepared_geometry = render_context.prepared_gate_geometry
+        if prepared_geometry is not None:
+            return prepared_geometry
+
+        point_groups: list[np.ndarray] = []
+        box_faces: list[list[tuple[float, float, float]]] = []
+        measurement_faces: list[list[tuple[float, float, float]]] = []
+        measurement_gates: list[SceneGate3D] = []
+        x_target_ring_segments: list[Segment3D] = []
+        x_target_cross_segments: list[Segment3D] = []
+
+        for gate in scene.gates:
+            if gate.render_style is GateRenderStyle3D.X_TARGET:
+                radius = min(gate.size_x, gate.size_y) * 0.32
+                ring_points = self._x_target_ring_points(gate, radius, render_context)
+                x_target_ring_segments.extend(self._segments_for_ring_points(ring_points))
+                x_target_cross_segments.extend(
+                    [
+                        (
+                            (gate.center.x - radius, gate.center.y, gate.center.z),
+                            (gate.center.x + radius, gate.center.y, gate.center.z),
+                        ),
+                        (
+                            (gate.center.x, gate.center.y - radius, gate.center.z),
+                            (gate.center.x, gate.center.y + radius, gate.center.z),
+                        ),
+                    ]
+                )
+                point_groups.append(ring_points)
+                point_groups.append(
+                    np.array(
+                        [
+                            (gate.center.x - radius, gate.center.y, gate.center.z),
+                            (gate.center.x + radius, gate.center.y, gate.center.z),
+                            (gate.center.x, gate.center.y - radius, gate.center.z),
+                            (gate.center.x, gate.center.y + radius, gate.center.z),
+                        ],
+                        dtype=float,
+                    )
+                )
+                continue
+
+            display_gate = self._display_compensated_gate(
+                axes,
+                gate,
+                render_context=render_context,
+            )
+            gate_faces = self._cuboid_faces(display_gate)
+            point_groups.append(
+                np.array([vertex for face in gate_faces for vertex in face], dtype=float)
+            )
+            if gate.render_style is GateRenderStyle3D.MEASUREMENT:
+                measurement_faces.extend(gate_faces)
+                measurement_gates.append(display_gate)
+                continue
+            box_faces.extend(gate_faces)
+
+        geometry_points = np.vstack(point_groups) if point_groups else np.empty((0, 3), dtype=float)
+        prepared_geometry = _PreparedBatchedGateGeometry3D(
+            geometry_points=geometry_points,
+            box_faces=box_faces,
+            measurement_faces=measurement_faces,
+            measurement_gates=measurement_gates,
+            x_target_ring_segments=x_target_ring_segments,
+            x_target_cross_segments=x_target_cross_segments,
+        )
+        render_context.prepared_gate_geometry = prepared_geometry
+        return prepared_geometry
 
     def _marker_geometry_points(self, scene: LayoutScene3D) -> np.ndarray:
         points: list[tuple[float, float, float]] = []
@@ -637,17 +746,32 @@ class MatplotlibRenderer3D(BaseRenderer):
         box_faces: list[list[tuple[float, float, float]]] = []
         measurement_faces: list[list[tuple[float, float, float]]] = []
         measurement_gates: list[SceneGate3D] = []
+        prepared_geometry: _PreparedBatchedGateGeometry3D | None = None
 
-        for gate in scene.gates:
-            if gate.render_style is GateRenderStyle3D.X_TARGET:
-                batched_x_targets.append(gate)
-                continue
-            display_gate = self._display_compensated_gate(axes, gate, render_context=render_context)
-            if gate.render_style is GateRenderStyle3D.MEASUREMENT:
-                measurement_faces.extend(self._cuboid_faces(display_gate))
-                measurement_gates.append(display_gate)
-                continue
-            box_faces.extend(self._cuboid_faces(display_gate))
+        if self._should_prepare_batched_gate_geometry_offscreen(axes, scene):
+            prepared_geometry = self._prepare_batched_gate_geometry_offscreen(
+                axes,
+                scene,
+                render_context=render_context,
+            )
+            box_faces = prepared_geometry.box_faces
+            measurement_faces = prepared_geometry.measurement_faces
+            measurement_gates = prepared_geometry.measurement_gates
+        else:
+            for gate in scene.gates:
+                if gate.render_style is GateRenderStyle3D.X_TARGET:
+                    batched_x_targets.append(gate)
+                    continue
+                display_gate = self._display_compensated_gate(
+                    axes,
+                    gate,
+                    render_context=render_context,
+                )
+                if gate.render_style is GateRenderStyle3D.MEASUREMENT:
+                    measurement_faces.extend(self._cuboid_faces(display_gate))
+                    measurement_gates.append(display_gate)
+                    continue
+                box_faces.extend(self._cuboid_faces(display_gate))
 
         if box_faces:
             collection = Poly3DCollection(
@@ -668,7 +792,14 @@ class MatplotlibRenderer3D(BaseRenderer):
             )
             axes.add_collection3d(collection)
             self._draw_measurement_symbols_batched(axes, measurement_gates, scene)
-        if batched_x_targets:
+        if prepared_geometry is not None:
+            self._draw_x_target_segment_collections(
+                axes,
+                prepared_geometry.x_target_ring_segments,
+                prepared_geometry.x_target_cross_segments,
+                scene,
+            )
+        elif batched_x_targets:
             self._draw_x_targets_batched(axes, batched_x_targets, scene, render_context)
 
     def _draw_topology_planes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
@@ -751,6 +882,22 @@ class MatplotlibRenderer3D(BaseRenderer):
                     ),
                 ]
             )
+        self._draw_x_target_segment_collections(
+            axes,
+            ring_segments,
+            cross_segments,
+            scene,
+        )
+
+    def _draw_x_target_segment_collections(
+        self,
+        axes: Axes3D,
+        ring_segments: list[Segment3D],
+        cross_segments: list[Segment3D],
+        scene: LayoutScene3D,
+    ) -> None:
+        if not ring_segments and not cross_segments:
+            return
         ring_collection = Line3DCollection(
             ring_segments,
             colors=scene.style.theme.wire_color,

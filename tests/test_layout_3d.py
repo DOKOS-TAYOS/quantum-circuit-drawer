@@ -698,6 +698,173 @@ def test_matplotlib_renderer_3d_batches_measurement_symbols_in_no_hover_mode() -
     plt.close(figure)
 
 
+def test_matplotlib_renderer_3d_offscreen_render_compensates_box_gates_once_per_gate() -> None:
+    class _CountingRenderer(MatplotlibRenderer3D):
+        def __init__(self) -> None:
+            super().__init__()
+            self.compensation_calls = 0
+
+        def _display_compensated_gate(
+            self,
+            axes: Axes3D,
+            gate: SceneGate3D,
+            render_context: _RenderContext3D | None = None,
+        ) -> SceneGate3D:
+            self.compensation_calls += 1
+            return super()._display_compensated_gate(
+                axes,
+                gate,
+                render_context=render_context,
+            )
+
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    renderer = _CountingRenderer()
+
+    result = renderer.render(scene)
+
+    assert isinstance(result, tuple)
+    figure, _ = result
+
+    assert renderer.compensation_calls == len(scene.gates)
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_caller_managed_render_keeps_standard_box_gate_compensation_path() -> (
+    None
+):
+    class _CountingRenderer(MatplotlibRenderer3D):
+        def __init__(self) -> None:
+            super().__init__()
+            self.compensation_calls = 0
+
+        def _display_compensated_gate(
+            self,
+            axes: Axes3D,
+            gate: SceneGate3D,
+            render_context: _RenderContext3D | None = None,
+        ) -> SceneGate3D:
+            self.compensation_calls += 1
+            return super()._display_compensated_gate(
+                axes,
+                gate,
+                render_context=render_context,
+            )
+
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+    renderer = _CountingRenderer()
+
+    renderer.render(scene, ax=axes)
+
+    assert renderer.compensation_calls == len(scene.gates) * 2
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_offscreen_render_reuses_x_target_geometry_between_fit_and_draw() -> (
+    None
+):
+    class _CountingRenderer(MatplotlibRenderer3D):
+        def __init__(self) -> None:
+            super().__init__()
+            self.ring_point_calls = 0
+            self.ring_segment_calls = 0
+
+        def _x_target_ring_points(
+            self,
+            gate: SceneGate3D,
+            radius: float,
+            render_context: _RenderContext3D,
+        ) -> np.ndarray:
+            self.ring_point_calls += 1
+            return super()._x_target_ring_points(gate, radius, render_context)
+
+        def _segments_for_ring_points(
+            self,
+            points: np.ndarray,
+        ) -> list[tuple[tuple[float, float, float], tuple[float, float, float]]]:
+            self.ring_segment_calls += 1
+            return super()._segments_for_ring_points(points)
+
+    scene = LayoutEngine3D().compute(
+        _multi_topological_control_ir(layers=4),
+        DrawStyle(),
+        topology_name="line",
+        direct=False,
+        hover_enabled=False,
+    )
+    x_target_count = sum(
+        1 for gate in scene.gates if gate.render_style is GateRenderStyle3D.X_TARGET
+    )
+    renderer = _CountingRenderer()
+
+    result = renderer.render(scene)
+
+    assert isinstance(result, tuple)
+    figure, _ = result
+
+    assert renderer.ring_point_calls == x_target_count
+    assert renderer.ring_segment_calls == x_target_count
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_hover_render_keeps_standard_x_target_geometry_path() -> None:
+    class _CountingRenderer(MatplotlibRenderer3D):
+        def __init__(self) -> None:
+            super().__init__()
+            self.ring_point_calls = 0
+            self.ring_segment_calls = 0
+
+        def _x_target_ring_points(
+            self,
+            gate: SceneGate3D,
+            radius: float,
+            render_context: _RenderContext3D,
+        ) -> np.ndarray:
+            self.ring_point_calls += 1
+            return super()._x_target_ring_points(gate, radius, render_context)
+
+        def _segments_for_ring_points(
+            self,
+            points: np.ndarray,
+        ) -> list[tuple[tuple[float, float, float], tuple[float, float, float]]]:
+            self.ring_segment_calls += 1
+            return super()._segments_for_ring_points(points)
+
+    scene = LayoutEngine3D().compute(
+        _multi_topological_control_ir(layers=4),
+        DrawStyle(),
+        topology_name="line",
+        direct=False,
+        hover_enabled=True,
+    )
+    x_target_count = sum(
+        1 for gate in scene.gates if gate.render_style is GateRenderStyle3D.X_TARGET
+    )
+    renderer = _CountingRenderer()
+
+    result = renderer.render(scene)
+
+    assert isinstance(result, tuple)
+    figure, _ = result
+
+    assert renderer.ring_point_calls == x_target_count * 2
+    assert renderer.ring_segment_calls == 0
+    plt.close(figure)
+
+
 def test_matplotlib_renderer_3d_batches_offscreen_texts_for_managed_non_hover_render() -> None:
     scene = LayoutEngine3D().compute(
         _multi_single_gate_ir(layers=6),
