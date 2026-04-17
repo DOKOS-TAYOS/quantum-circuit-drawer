@@ -83,6 +83,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         figure = axes_3d.figure
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
         self._prepare_axes(axes_3d, scene)
+        self._synchronize_axes_geometry(axes_3d)
         render_context = self._create_render_context(axes_3d)
 
         hover_targets: list[tuple[Artist, str]] = []
@@ -105,11 +106,20 @@ class MatplotlibRenderer3D(BaseRenderer):
         min_x = min(point.x for point in scene.quantum_wire_positions.values())
         max_x = max(point.x for point in scene.quantum_wire_positions.values())
         max_y = max(point.y for point in scene.quantum_wire_positions.values())
+        x_limits = (min_x - 1.8, max_x + 1.8)
+        y_limits = (scene.classical_plane_y - 1.4, max_y + 1.8)
+        z_limits = (0.0, scene.depth)
         axes.set_facecolor(scene.style.theme.axes_facecolor)
-        axes.set_xlim(min_x - 1.8, max_x + 1.8)
-        axes.set_ylim(scene.classical_plane_y - 1.4, max_y + 1.8)
-        axes.set_zlim(0.0, scene.depth)
-        axes.set_box_aspect((scene.width, scene.height, scene.depth))
+        axes.set_xlim(*x_limits)
+        axes.set_ylim(*y_limits)
+        axes.set_zlim(*z_limits)
+        axes.set_box_aspect(
+            (
+                x_limits[1] - x_limits[0],
+                y_limits[1] - y_limits[0],
+                z_limits[1] - z_limits[0],
+            )
+        )
         axes.grid(False)
         axes.set_xticks([])
         axes.set_yticks([])
@@ -125,6 +135,11 @@ class MatplotlibRenderer3D(BaseRenderer):
             axes.view_init(elev=18.0, azim=-55.0, vertical_axis="y")
         except TypeError:
             axes.view_init(elev=18.0, azim=-55.0)
+
+    def _synchronize_axes_geometry(self, axes: Axes3D) -> None:
+        """Apply the current 3D box geometry before projecting gate sizes."""
+
+        axes.apply_aspect()
 
     def _create_render_context(self, axes: Axes3D) -> _RenderContext3D:
         theta = np.linspace(0.0, 2.0 * np.pi, _X_TARGET_RING_SEGMENTS, endpoint=False)

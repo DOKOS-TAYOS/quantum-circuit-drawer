@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.colors import to_hex
 from matplotlib.text import Annotation
 from mpl_toolkits.mplot3d import proj3d
@@ -23,11 +26,20 @@ from quantum_circuit_drawer.layout.scene_3d import (
     ConnectionRenderStyle3D,
     GateRenderStyle3D,
     MarkerStyle3D,
+    Point3D,
+    SceneConnection3D,
+    SceneGate3D,
 )
 from quantum_circuit_drawer.layout.topology_3d import build_topology
-from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import MatplotlibRenderer3D
+from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import (
+    MatplotlibRenderer3D,
+    _RenderContext3D,
+)
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_sample_ir
+
+if TYPE_CHECKING:
+    from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
 
 
 def _line_control_ir() -> CircuitIR:
@@ -429,6 +441,215 @@ def test_matplotlib_renderer_3d_compensates_single_gate_projection_to_look_squar
     )
 
     assert max(display_sizes) / min(display_sizes) < 1.15
+
+
+def test_matplotlib_renderer_3d_keeps_gate_compensation_consistent_across_figsize_shapes() -> None:
+    class _RecordingRenderer(MatplotlibRenderer3D):
+        def __init__(self) -> None:
+            super().__init__()
+            self.compensated_sizes: list[tuple[float, float, float]] = []
+
+        def _display_compensated_gate(
+            self,
+            axes: Axes3D,
+            gate: SceneGate3D,
+            render_context: _RenderContext3D | None = None,
+        ) -> SceneGate3D:
+            result = super()._display_compensated_gate(
+                axes,
+                gate,
+                render_context=render_context,
+            )
+            self.compensated_sizes.append((result.size_x, result.size_y, result.size_z))
+            return result
+
+    scene = LayoutEngine3D().compute(
+        _single_gate_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    compensated_sizes_by_figsize: dict[tuple[int, int], tuple[float, float, float]] = {}
+
+    for figsize in ((12, 3), (3, 12)):
+        figure = plt.figure(figsize=figsize)
+        axes = figure.add_subplot(111, projection="3d")
+        renderer = _RecordingRenderer()
+
+        renderer.render(scene, ax=axes)
+
+        compensated_sizes_by_figsize[figsize] = renderer.compensated_sizes[0]
+        plt.close(figure)
+
+    assert compensated_sizes_by_figsize[(12, 3)] == pytest.approx(
+        compensated_sizes_by_figsize[(3, 12)],
+        rel=0.02,
+    )
+
+
+def test_matplotlib_renderer_3d_renders_double_line_classical_connections_as_parallel_segments() -> (
+    None
+):
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        classical_wires=[
+            WireIR(
+                id="c0",
+                index=0,
+                kind=WireKind.CLASSICAL,
+                label="c",
+                metadata={"bundle_size": 1},
+            )
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine3D().compute(
+        circuit,
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure()
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    parallel_segments = [
+        cast(
+            tuple[tuple[tuple[float, float, float], tuple[float, float, float]], ...],
+            collection._segments3d,
+        )
+        for collection in axes.collections
+        if isinstance(collection, Line3DCollection) and len(collection._segments3d) == 2
+    ]
+
+    assert any(
+        segments[0][0][1:] == segments[1][0][1:]
+        and segments[0][1][1:] == segments[1][1][1:]
+        and segments[1][0][0] - segments[0][0][0] == pytest.approx(0.1)
+        and segments[1][1][0] - segments[0][1][0] == pytest.approx(0.1)
+        for segments in parallel_segments
+    )
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_draws_swap_markers_as_diagonal_crosses_in_hover_mode() -> None:
+    scene = LayoutEngine3D().compute(
+        _dense_marker_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    figure = plt.figure()
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    diagonal_crosses = [
+        cast(
+            tuple[tuple[tuple[float, float, float], tuple[float, float, float]], ...],
+            collection._segments3d,
+        )
+        for collection in axes.collections
+        if isinstance(collection, Line3DCollection)
+        and len(collection._segments3d) == 2
+        and all(
+            segment[0][0] != segment[1][0] and segment[0][1] != segment[1][1]
+            for segment in collection._segments3d
+        )
+    ]
+
+    assert diagonal_crosses
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_skips_degenerate_connections_without_adding_segments() -> None:
+    scene = LayoutEngine3D().compute(
+        _single_gate_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    degenerate_scene = replace(
+        scene,
+        connections=scene.connections
+        + (
+            SceneConnection3D(
+                column=99,
+                points=(Point3D(x=0.0, y=0.0, z=scene.gates[0].center.z),),
+                render_style=ConnectionRenderStyle3D.STANDARD,
+            ),
+        ),
+    )
+    base_figure = plt.figure()
+    base_axes = base_figure.add_subplot(111, projection="3d")
+    degenerate_figure = plt.figure()
+    degenerate_axes = degenerate_figure.add_subplot(111, projection="3d")
+    renderer = MatplotlibRenderer3D()
+
+    renderer.render(scene, ax=base_axes)
+    renderer.render(degenerate_scene, ax=degenerate_axes)
+
+    base_line_collections = [
+        collection
+        for collection in base_axes.collections
+        if isinstance(collection, Line3DCollection)
+    ]
+    degenerate_line_collections = [
+        collection
+        for collection in degenerate_axes.collections
+        if isinstance(collection, Line3DCollection)
+    ]
+
+    assert len(degenerate_line_collections) == len(base_line_collections)
+    plt.close(base_figure)
+    plt.close(degenerate_figure)
+
+
+def test_matplotlib_renderer_3d_hides_hover_annotation_when_pointer_leaves_axes() -> None:
+    scene = LayoutEngine3D().compute(
+        _single_gate_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    figure = plt.figure()
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+    annotation.set_visible(True)
+    figure.canvas.draw()
+    figure.canvas.callbacks.process(
+        "motion_notify_event",
+        MouseEvent("motion_notify_event", figure.canvas, 0.0, 0.0),
+    )
+
+    assert annotation.get_visible() is False
+    plt.close(figure)
 
 
 def test_matplotlib_renderer_3d_batches_noninteractive_marker_scatters(
