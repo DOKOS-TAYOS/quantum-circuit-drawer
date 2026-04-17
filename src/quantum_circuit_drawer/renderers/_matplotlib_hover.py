@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from types import MethodType
 
 import numpy as np
-from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event, MouseEvent
-from matplotlib.transforms import Bbox
 
 from .._matrix_support import matrix_qubit_count, square_matrix
 from ..hover import HoverOptions
@@ -22,8 +19,11 @@ _SMALL_GATE_PIXEL_THRESHOLD = 48.0
 
 @dataclass(frozen=True, slots=True)
 class _HoverTarget2D:
-    artist: Artist
     hover_data: SceneHoverData
+    x_min: float
+    x_max: float
+    y_min: float
+    y_max: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,15 +40,25 @@ class _HoverBox2D:
 
 
 def add_hover_target(
-    axes: Axes,
     hover_targets: list[_HoverTarget2D],
-    artist: Artist,
     hover_data: SceneHoverData,
+    *,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
 ) -> None:
-    """Register one artist as hoverable for later hover-box aggregation."""
+    """Register one hoverable data-space box for later hover aggregation."""
 
-    _set_hover_artist_extent(axes, artist, hover_data)
-    hover_targets.append(_HoverTarget2D(artist, hover_data))
+    hover_targets.append(
+        _HoverTarget2D(
+            hover_data=hover_data,
+            x_min=min(x_min, x_max),
+            x_max=max(x_min, x_max),
+            y_min=min(y_min, y_max),
+            y_max=max(y_min, y_max),
+        )
+    )
 
 
 def attach_hover(
@@ -82,7 +92,7 @@ def attach_hover(
     canvas = axes.figure.canvas
     if canvas is None:
         return
-    hover_boxes = _build_hover_boxes(axes, hover_targets)
+    hover_boxes = _build_hover_boxes(hover_targets)
     active_hover_key: str | None = None
 
     def hide_annotation() -> None:
@@ -242,15 +252,12 @@ def _coerce_complex_scalar(value: object) -> complex | None:
 
 
 def _build_hover_boxes(
-    axes: Axes,
     hover_targets: list[_HoverTarget2D],
 ) -> tuple[_HoverBox2D, ...]:
     hover_boxes_by_key: dict[str, _HoverBox2D] = {}
-    renderer_getter = getattr(axes.figure.canvas, "get_renderer", None)
-    renderer = renderer_getter() if callable(renderer_getter) else None
 
     for target in hover_targets:
-        hover_box = _hover_box_from_target(axes, target, renderer=renderer)
+        hover_box = _hover_box_from_target(target)
         cached_hover_box = hover_boxes_by_key.get(target.hover_data.key)
         if cached_hover_box is None:
             hover_boxes_by_key[target.hover_data.key] = hover_box
@@ -263,91 +270,15 @@ def _build_hover_boxes(
     return tuple(hover_boxes_by_key.values())
 
 
-def _set_hover_artist_extent(
-    axes: Axes,
-    artist: Artist,
-    hover_data: SceneHoverData,
-) -> None:
-    original_get_window_extent = getattr(artist, "get_window_extent", None)
-
-    def hover_extent(_artist: Artist, renderer: object = None) -> Bbox:
-        if callable(original_get_window_extent):
-            try:
-                bounds = original_get_window_extent(renderer=renderer)
-                if all(np.isfinite(bounds.bounds)):
-                    return bounds
-            except (AttributeError, RuntimeError, ValueError):
-                pass
-        return axes.transData.transform_bbox(
-            Bbox.from_bounds(
-                hover_data.gate_x - (hover_data.gate_width / 2.0),
-                hover_data.gate_y - (hover_data.gate_height / 2.0),
-                hover_data.gate_width,
-                hover_data.gate_height,
-            )
-        )
-
-    setattr(artist, "get_window_extent", MethodType(hover_extent, artist))
-
-
 def _hover_box_from_target(
-    axes: Axes,
     target: _HoverTarget2D,
-    *,
-    renderer: object | None,
 ) -> _HoverBox2D:
-    target_bounds = _data_bounds_from_artist_extent(
-        axes,
-        target.artist,
-        renderer=renderer,
-    )
-    if target_bounds is None:
-        return _hover_box_from_hover_data(target.hover_data)
-
     return _HoverBox2D(
         hover_data=target.hover_data,
-        x_min=target_bounds.x0,
-        x_max=target_bounds.x1,
-        y_min=target_bounds.y0,
-        y_max=target_bounds.y1,
-    )
-
-
-def _data_bounds_from_artist_extent(
-    axes: Axes,
-    artist: Artist,
-    *,
-    renderer: object | None,
-) -> Bbox | None:
-    try:
-        display_bounds = artist.get_window_extent(renderer=renderer)
-    except (AttributeError, RuntimeError, ValueError):
-        return None
-
-    if not all(np.isfinite(display_bounds.bounds)):
-        return None
-
-    data_bounds = axes.transData.inverted().transform_bbox(display_bounds)
-    if not all(np.isfinite(data_bounds.bounds)):
-        return None
-
-    x_min, y_min = data_bounds.x0, data_bounds.y0
-    x_max, y_max = data_bounds.x1, data_bounds.y1
-    return Bbox.from_extents(
-        min(x_min, x_max),
-        min(y_min, y_max),
-        max(x_min, x_max),
-        max(y_min, y_max),
-    )
-
-
-def _hover_box_from_hover_data(hover_data: SceneHoverData) -> _HoverBox2D:
-    return _HoverBox2D(
-        hover_data=hover_data,
-        x_min=hover_data.gate_x - (hover_data.gate_width / 2.0),
-        x_max=hover_data.gate_x + (hover_data.gate_width / 2.0),
-        y_min=hover_data.gate_y - (hover_data.gate_height / 2.0),
-        y_max=hover_data.gate_y + (hover_data.gate_height / 2.0),
+        x_min=target.x_min,
+        x_max=target.x_max,
+        y_min=target.y_min,
+        y_max=target.y_max,
     )
 
 

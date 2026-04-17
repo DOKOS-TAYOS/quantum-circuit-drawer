@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
@@ -184,7 +185,7 @@ def test_draw_quantum_circuit_uses_agg_canvas_for_managed_show_false(
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_keeps_managed_figure_interactive_for_notebook_show_false(
+def test_draw_quantum_circuit_uses_agg_canvas_and_skips_hover_state_for_hidden_2d_hover_render(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import quantum_circuit_drawer.renderers._matplotlib_figure as figure_support
@@ -201,8 +202,9 @@ def test_draw_quantum_circuit_keeps_managed_figure_interactive_for_notebook_show
 
     figure, axes = draw_quantum_circuit(build_sample_ir(), hover=True, show=False)
 
-    assert captured_use_agg == [False]
-    assert get_hover_state(axes) is not None
+    assert captured_use_agg == [True]
+    assert isinstance(figure.canvas, FigureCanvasAgg)
+    assert get_hover_state(axes) is None
     plt.close(figure)
 
 
@@ -653,6 +655,53 @@ def test_draw_quantum_circuit_auto_paging_skips_hover_metadata_when_hover_is_dis
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_hidden_hover_render_skips_hover_metadata_even_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24),
+        style={"max_page_width": 4.0},
+        hover=True,
+        show=False,
+        figsize=(3.2, 12.0),
+    )
+
+    state = get_auto_paging_state(axes)
+
+    assert state is not None
+    assert _hover_payload_count(state.scene) == 0
+    assert get_hover_state(axes) is None
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_hidden_output_hover_render_skips_hover_metadata() -> None:
+    output = Path.cwd() / ".hidden-hover-output.png"
+    figure: Figure | None = None
+    try:
+        figure, axes = draw_quantum_circuit(
+            build_dense_rotation_ir(layer_count=24),
+            style={"max_page_width": 4.0},
+            hover=True,
+            show=False,
+            output=output,
+        )
+
+        state = get_auto_paging_state(axes)
+
+        assert output.exists()
+        assert state is not None
+        assert _hover_payload_count(state.scene) == 0
+        assert get_hover_state(axes) is None
+    finally:
+        if figure is not None:
+            plt.close(figure)
+        output.unlink(missing_ok=True)
+
+
 def test_draw_quantum_circuit_managed_figure_uses_viewport_adaptive_paging_without_slider() -> None:
     circuit = build_dense_rotation_ir(layer_count=24)
     strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
@@ -826,6 +875,56 @@ def test_draw_quantum_circuit_managed_figure_reconciles_auto_paging_on_first_dra
     assert viewport_calls >= 2
     assert len(reconciled_state.scene.pages) == len(reconciled_scene.pages)
     assert reconciled_state.effective_page_width == pytest.approx(12.0)
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_hidden_explicit_figsize_skips_initial_auto_paging_reconcile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer._draw_managed as draw_managed
+
+    circuit = build_dense_rotation_ir(layer_count=24)
+    viewport_calls = 0
+    original_viewport_adaptive_paged_scene = draw_managed.viewport_adaptive_paged_scene
+
+    def count_viewport_adaptive_paged_scene(
+        _circuit: object,
+        _layout_engine: object,
+        _style: object,
+        _axes: object,
+        *,
+        hover_enabled: bool = True,
+    ) -> tuple[object, float]:
+        nonlocal viewport_calls
+        viewport_calls += 1
+        return original_viewport_adaptive_paged_scene(
+            _circuit,
+            _layout_engine,
+            _style,
+            _axes,
+            hover_enabled=hover_enabled,
+        )
+
+    monkeypatch.setattr(
+        draw_managed,
+        "viewport_adaptive_paged_scene",
+        count_viewport_adaptive_paged_scene,
+    )
+
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0},
+        show=False,
+        figsize=(3.2, 12.0),
+    )
+
+    assert get_auto_paging_state(axes) is not None
+    assert viewport_calls == 1
+
+    figure.canvas.draw()
+
+    assert viewport_calls == 1
 
     plt.close(figure)
 

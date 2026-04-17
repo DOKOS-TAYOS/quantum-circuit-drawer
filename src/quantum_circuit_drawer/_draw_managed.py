@@ -184,7 +184,7 @@ def render_managed_draw_pipeline(
             axes=axes,
             output=output,
             enable_auto_paging=True,
-            reconcile_on_first_draw=True,
+            reconcile_on_first_draw=not (use_agg_canvas and figsize is not None),
         )
         logger.debug("Rendered managed figure without page slider")
 

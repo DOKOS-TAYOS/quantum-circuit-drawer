@@ -10,6 +10,7 @@ from matplotlib.text import Annotation, Text
 from pytest import approx
 
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
+import quantum_circuit_drawer.renderers.matplotlib_renderer as matplotlib_renderer_module
 from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
@@ -194,6 +195,63 @@ def _single_gate_without_matrix_ir() -> CircuitIR:
             LayerIR(
                 operations=[OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q0",))]
             )
+        ],
+    )
+
+
+def _hover_batching_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+            WireIR(id="q3", index=3, kind=WireKind.QUANTUM, label="q3"),
+        ],
+        classical_wires=[
+            WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c0"),
+            WireIR(id="c1", index=1, kind=WireKind.CLASSICAL, label="c1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    ),
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q3",),
+                        control_wires=("q2",),
+                    ),
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=("q0", "q1")),
+                    OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=("q2", "q3")),
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q1",),
+                        classical_target="c0",
+                    ),
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q3",),
+                        classical_target="c1",
+                    ),
+                ]
+            ),
         ],
     )
 
@@ -1009,6 +1067,33 @@ def test_gate_text_fitting_fast_path_reuses_numeric_shape_measurements(
     assert len(measured_texts) < len(numeric_subtitles)
 
 
+def test_gate_text_fitting_context_reuses_numeric_shape_cache_entries() -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=1, wire_count=1),
+        DrawStyle(show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(3.2, 2.4))
+
+    matplotlib_primitives.prepare_axes(axes, scene)
+    context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
+    cache: dict[tuple[str, float, float], float] = {}
+    numeric_subtitles = ("0.11", "1.22", "2.33", "3.44", "4.55", "5.66")
+
+    for subtitle in numeric_subtitles:
+        fitted_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
+            context=context,
+            width=scene.style.gate_width,
+            height=scene.style.gate_height,
+            text=subtitle,
+            default_font_size=scene.style.font_size * 0.78,
+            height_fraction=0.4,
+            cache=cache,
+        )
+        assert fitted_size > 0.0
+
+    assert len(cache) < len(numeric_subtitles)
+
+
 def test_matplotlib_renderer_reuses_gate_text_context_per_wrapped_page(monkeypatch) -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=24),
@@ -1242,6 +1327,76 @@ def test_draw_quantum_circuit_2d_hover_only_redraws_on_target_changes(
 
     _dispatch_motion_event_at(figure, axes_bounds.x0 + 4.0, axes_bounds.y0 + 4.0)
     assert redraw_count == 3
+
+
+def test_matplotlib_renderer_hover_keeps_batch_draws_for_hoverable_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine().compute(_hover_batching_ir(), DrawStyle())
+    figure, axes = plt.subplots()
+    singleton_calls = {
+        "controls": 0,
+        "swaps": 0,
+        "connections": 0,
+        "x_target_circles": 0,
+        "x_target_segments": 0,
+    }
+
+    original_draw_controls = matplotlib_renderer_module.draw_controls
+    original_draw_swaps = matplotlib_renderer_module.draw_swaps
+    original_draw_connections = matplotlib_renderer_module.draw_connections
+    original_draw_x_target_circles = matplotlib_renderer_module.draw_x_target_circles
+    original_draw_x_target_segments = matplotlib_renderer_module.draw_x_target_segments
+
+    def count_controls(*args: object, **kwargs: object) -> object:
+        controls = args[1]
+        if len(controls) == 1:
+            singleton_calls["controls"] += 1
+        return original_draw_controls(*args, **kwargs)
+
+    def count_swaps(*args: object, **kwargs: object) -> object:
+        swaps = args[1]
+        if len(swaps) == 1:
+            singleton_calls["swaps"] += 1
+        return original_draw_swaps(*args, **kwargs)
+
+    def count_connections(*args: object, **kwargs: object) -> object:
+        connections = args[1]
+        if len(connections) == 1:
+            singleton_calls["connections"] += 1
+        return original_draw_connections(*args, **kwargs)
+
+    def count_x_target_circles(*args: object, **kwargs: object) -> object:
+        gates = args[1]
+        if len(gates) == 1:
+            singleton_calls["x_target_circles"] += 1
+        return original_draw_x_target_circles(*args, **kwargs)
+
+    def count_x_target_segments(*args: object, **kwargs: object) -> object:
+        gates = args[1]
+        if len(gates) == 1:
+            singleton_calls["x_target_segments"] += 1
+        return original_draw_x_target_segments(*args, **kwargs)
+
+    monkeypatch.setattr(matplotlib_renderer_module, "draw_controls", count_controls)
+    monkeypatch.setattr(matplotlib_renderer_module, "draw_swaps", count_swaps)
+    monkeypatch.setattr(matplotlib_renderer_module, "draw_connections", count_connections)
+    monkeypatch.setattr(matplotlib_renderer_module, "draw_x_target_circles", count_x_target_circles)
+    monkeypatch.setattr(
+        matplotlib_renderer_module,
+        "draw_x_target_segments",
+        count_x_target_segments,
+    )
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert singleton_calls == {
+        "controls": 0,
+        "swaps": 0,
+        "connections": 0,
+        "x_target_circles": 0,
+        "x_target_segments": 0,
+    }
 
 
 def test_draw_quantum_circuit_keeps_gate_label_inside_box_after_zoom() -> None:

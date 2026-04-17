@@ -128,6 +128,7 @@ def build_draw_request(
         ax=ax,
         output=output,
         show=show,
+        view=view,
     )
     return DrawRequest(
         circuit=circuit,
@@ -220,13 +221,14 @@ def resolve_effective_hover(
     ax: Axes | None,
     output: OutputPath | None,
     show: bool,
+    view: ViewMode,
 ) -> HoverOptions:
     """Resolve whether hover annotations can actually stay interactive.
 
     Hover labels are disabled for saved output and non-interactive backends.
-    Managed figures created with ``show=False`` can still keep hover alive when
-    the active pyplot backend is interactive, which is important for notebooks
-    and callers that want to display the returned figure later.
+    Managed hidden 2D renders also disable hover because there is no
+    visible interaction to preserve and the hover payloads are expensive
+    to build for dense circuits.
     """
 
     if not hover.enabled or output is not None:
@@ -235,6 +237,8 @@ def resolve_effective_hover(
         if figure_backend_name(ax.figure) in NON_INTERACTIVE_BACKENDS:
             return disable_hover(hover)
         return hover
+    if view == "2d" and not show:
+        return disable_hover(hover)
     if not pyplot_backend_supports_interaction():
         return disable_hover(hover)
     return hover

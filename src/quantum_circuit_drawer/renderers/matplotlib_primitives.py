@@ -6,6 +6,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
+from types import MethodType
 from typing import Any, cast
 
 from matplotlib.axes import Axes
@@ -14,6 +15,7 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Arc, FancyArrowPatch, FancyBboxPatch, Patch
 from matplotlib.text import Text
 from matplotlib.textpath import TextPath
+from matplotlib.transforms import Bbox
 
 from ..layout.scene import (
     GateRenderStyle,
@@ -36,7 +38,7 @@ OCCLUSION_LAYER_ZORDER = 4
 SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
 LineSegment = tuple[tuple[float, float], tuple[float, float]]
-_GateTextCacheKey = tuple[str, float, float]
+_GateTextCacheKey = tuple[object, float, float]
 _SINGLE_LINE_HEIGHT_FRACTION = 0.62
 _STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
 _STACKED_LABEL_SHARE = 0.6
@@ -201,7 +203,38 @@ def _add_ellipse_collection(
         clip_on=False,
     )
     ax.add_collection(collection)
+    _set_artist_data_extent(
+        ax,
+        collection,
+        x_min=min(x - (width / 2.0) for (x, _), width in zip(offsets, widths, strict=True)),
+        x_max=max(x + (width / 2.0) for (x, _), width in zip(offsets, widths, strict=True)),
+        y_min=min(y - (height / 2.0) for (_, y), height in zip(offsets, heights, strict=True)),
+        y_max=max(y + (height / 2.0) for (_, y), height in zip(offsets, heights, strict=True)),
+    )
     return collection
+
+
+def _set_artist_data_extent(
+    ax: Axes,
+    artist: object,
+    *,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+) -> None:
+    def data_extent(_artist: object, renderer: object = None) -> Bbox:
+        del renderer
+        return ax.transData.transform_bbox(
+            Bbox.from_extents(
+                min(x_min, x_max),
+                min(y_min, y_max),
+                max(x_min, x_max),
+                max(y_min, y_max),
+            )
+        )
+
+    setattr(artist, "get_window_extent", MethodType(data_extent, artist))
 
 
 @lru_cache(maxsize=32)
@@ -1021,13 +1054,18 @@ def _fit_gate_text_font_size_with_context(
     if context.points_per_layout_unit <= 0.0:
         return effective_default_font_size
 
-    cache_text = text
+    cache_text: object = _gate_text_fit_cache_token(text)
     if (
         height is not None
         or max_font_size is not None
         or abs(height_fraction - _SINGLE_LINE_HEIGHT_FRACTION) > 1e-9
     ):
-        cache_text = f"{text}|{height}|{height_fraction}|{max_font_size}"
+        cache_text = (
+            _gate_text_fit_cache_token(text),
+            height,
+            height_fraction,
+            max_font_size,
+        )
     cache_key = (cache_text, width, default_font_size)
     cached_font_size = cache.get(cache_key)
     if cached_font_size is not None:
@@ -1059,6 +1097,13 @@ def _page_wrapped_font_scale(scene: LayoutScene) -> float:
     if page_count <= 1:
         return 1.0
     return 0.9 * max(0.4, 1.0 - ((page_count - 2) * 0.035))
+
+
+def _gate_text_fit_cache_token(text: str) -> object:
+    shape_key = _text_shape_key(text)
+    if shape_key is not None:
+        return shape_key
+    return text
 
 
 def _text_shape_key(text: str) -> tuple[str, str] | None:

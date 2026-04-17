@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
+from math import fabs
 from typing import Any, TypeVar
 
-from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
 
@@ -151,11 +151,7 @@ class MatplotlibRenderer(BaseRenderer):
         draw_barriers(axes, projected_page.barriers, scene, x_offset=x_offset, y_offset=y_offset)
         draw_connections(
             axes,
-            tuple(
-                connection
-                for connection in projected_page.connections
-                if not hover_enabled or connection.hover_data is None
-            ),
+            projected_page.connections,
             scene,
             x_offset=x_offset,
             y_offset=y_offset,
@@ -164,55 +160,27 @@ class MatplotlibRenderer(BaseRenderer):
         for gate in projected_page.gates:
             gate_patch = draw_gate_box(axes, gate, scene, x_offset=x_offset, y_offset=y_offset)
             if gate_patch is not None and hover_enabled and gate.hover_data is not None:
-                add_hover_target(axes, hover_targets, gate_patch, gate.hover_data)
+                self._add_gate_hover_target(
+                    hover_targets,
+                    gate,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
 
         draw_x_target_circles(
             axes,
-            tuple(
-                gate
-                for gate in projected_page.gates
-                if not hover_enabled or gate.hover_data is None
-            ),
+            projected_page.gates,
             scene,
             x_offset=x_offset,
             y_offset=y_offset,
         )
         draw_x_target_segments(
             axes,
-            tuple(
-                gate
-                for gate in projected_page.gates
-                if not hover_enabled or gate.hover_data is None
-            ),
+            projected_page.gates,
             scene,
             x_offset=x_offset,
             y_offset=y_offset,
         )
-        for gate in projected_page.gates:
-            if (
-                not hover_enabled
-                or gate.hover_data is None
-                or gate.render_style.value != "x_target"
-            ):
-                continue
-            x_target_circle = draw_x_target_circles(
-                axes,
-                (gate,),
-                scene,
-                x_offset=x_offset,
-                y_offset=y_offset,
-            )
-            if x_target_circle is not None:
-                add_hover_target(axes, hover_targets, x_target_circle, gate.hover_data)
-            x_target_segments = draw_x_target_segments(
-                axes,
-                (gate,),
-                scene,
-                x_offset=x_offset,
-                y_offset=y_offset,
-            )
-            if x_target_segments is not None:
-                add_hover_target(axes, hover_targets, x_target_segments, gate.hover_data)
 
         for measurement in projected_page.measurements:
             measurement_patch = draw_measurement_box(
@@ -222,8 +190,17 @@ class MatplotlibRenderer(BaseRenderer):
                 x_offset=x_offset,
                 y_offset=y_offset,
             )
-            if measurement.hover_data is not None:
-                add_hover_target(axes, hover_targets, measurement_patch, measurement.hover_data)
+            if (
+                measurement_patch is not None
+                and hover_enabled
+                and measurement.hover_data is not None
+            ):
+                self._add_measurement_hover_target(
+                    hover_targets,
+                    measurement,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
 
         for gate in projected_page.gates:
             if gate.render_style.value != "x_target":
@@ -273,64 +250,50 @@ class MatplotlibRenderer(BaseRenderer):
             )
         draw_controls(
             axes,
-            tuple(
-                control
-                for control in projected_page.controls
-                if not hover_enabled or control.hover_data is None
-            ),
+            projected_page.controls,
             scene,
             x_offset=x_offset,
             y_offset=y_offset,
         )
-        for control in projected_page.controls:
-            if not hover_enabled or control.hover_data is None:
-                continue
-            control_artist = draw_controls(
-                axes,
-                (control,),
-                scene,
-                x_offset=x_offset,
-                y_offset=y_offset,
-            )
-            if control_artist is not None:
-                add_hover_target(axes, hover_targets, control_artist, control.hover_data)
+        if hover_enabled:
+            for control in projected_page.controls:
+                if control.hover_data is None:
+                    continue
+                self._add_control_hover_target(
+                    hover_targets,
+                    control,
+                    scene,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
 
         draw_swaps(
             axes,
-            tuple(
-                swap
-                for swap in projected_page.swaps
-                if not hover_enabled or swap.hover_data is None
-            ),
+            projected_page.swaps,
             scene,
             x_offset=x_offset,
             y_offset=y_offset,
         )
-        for swap in projected_page.swaps:
-            if not hover_enabled or swap.hover_data is None:
-                continue
-            swap_artist = draw_swaps(
-                axes,
-                (swap,),
-                scene,
-                x_offset=x_offset,
-                y_offset=y_offset,
-            )
-            if swap_artist is not None:
-                add_hover_target(axes, hover_targets, swap_artist, swap.hover_data)
-
-        for connection in projected_page.connections:
-            if not hover_enabled or connection.hover_data is None:
-                continue
-            for artist in draw_connections(
-                axes,
-                (connection,),
-                scene,
-                x_offset=x_offset,
-                y_offset=y_offset,
-            ):
-                if isinstance(artist, Artist):
-                    add_hover_target(axes, hover_targets, artist, connection.hover_data)
+        if hover_enabled:
+            for swap in projected_page.swaps:
+                if swap.hover_data is None:
+                    continue
+                self._add_swap_hover_target(
+                    hover_targets,
+                    swap,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
+            for connection in projected_page.connections:
+                if connection.hover_data is None:
+                    continue
+                self._add_connection_hover_target(
+                    hover_targets,
+                    connection,
+                    scene,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
 
         for measurement in projected_page.measurements:
             draw_measurement_symbol(
@@ -361,3 +324,97 @@ class MatplotlibRenderer(BaseRenderer):
 
     def _page_y_offset(self, page: ScenePage) -> float:
         return page_y_offset(page)
+
+    def _add_gate_hover_target(
+        self,
+        hover_targets: list[_HoverTarget2D],
+        gate: SceneGate,
+        *,
+        x_offset: float,
+        y_offset: float,
+    ) -> None:
+        assert gate.hover_data is not None
+        add_hover_target(
+            hover_targets,
+            gate.hover_data,
+            x_min=gate.x + x_offset - (gate.width / 2.0),
+            x_max=gate.x + x_offset + (gate.width / 2.0),
+            y_min=gate.y + y_offset - (gate.height / 2.0),
+            y_max=gate.y + y_offset + (gate.height / 2.0),
+        )
+
+    def _add_measurement_hover_target(
+        self,
+        hover_targets: list[_HoverTarget2D],
+        measurement: SceneMeasurement,
+        *,
+        x_offset: float,
+        y_offset: float,
+    ) -> None:
+        assert measurement.hover_data is not None
+        add_hover_target(
+            hover_targets,
+            measurement.hover_data,
+            x_min=measurement.x + x_offset - (measurement.width / 2.0),
+            x_max=measurement.x + x_offset + (measurement.width / 2.0),
+            y_min=measurement.quantum_y + y_offset - (measurement.height / 2.0),
+            y_max=measurement.quantum_y + y_offset + (measurement.height / 2.0),
+        )
+
+    def _add_control_hover_target(
+        self,
+        hover_targets: list[_HoverTarget2D],
+        control: SceneControl,
+        scene: LayoutScene,
+        *,
+        x_offset: float,
+        y_offset: float,
+    ) -> None:
+        assert control.hover_data is not None
+        radius = scene.style.control_radius
+        add_hover_target(
+            hover_targets,
+            control.hover_data,
+            x_min=control.x + x_offset - radius,
+            x_max=control.x + x_offset + radius,
+            y_min=control.y + y_offset - radius,
+            y_max=control.y + y_offset + radius,
+        )
+
+    def _add_swap_hover_target(
+        self,
+        hover_targets: list[_HoverTarget2D],
+        swap: SceneSwap,
+        *,
+        x_offset: float,
+        y_offset: float,
+    ) -> None:
+        assert swap.hover_data is not None
+        add_hover_target(
+            hover_targets,
+            swap.hover_data,
+            x_min=swap.x + x_offset - swap.marker_size,
+            x_max=swap.x + x_offset + swap.marker_size,
+            y_min=swap.y_top + y_offset - swap.marker_size,
+            y_max=swap.y_bottom + y_offset + swap.marker_size,
+        )
+
+    def _add_connection_hover_target(
+        self,
+        hover_targets: list[_HoverTarget2D],
+        connection: SceneConnection,
+        scene: LayoutScene,
+        *,
+        x_offset: float,
+        y_offset: float,
+    ) -> None:
+        assert connection.hover_data is not None
+        half_width = max(0.08, fabs(scene.style.line_width) * 2.0)
+        add_hover_target(
+            hover_targets,
+            connection.hover_data,
+            x_min=connection.x + x_offset - half_width,
+            x_max=connection.x + x_offset + half_width,
+            y_min=connection.y_start + y_offset,
+            y_max=connection.y_end + y_offset,
+        )
