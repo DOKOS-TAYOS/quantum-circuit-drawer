@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -42,12 +43,22 @@ _STACKED_LABEL_SHARE = 0.6
 _STACKED_SUBTITLE_SHARE = 0.4
 _STACKED_GAP_FRACTION = 0.08
 _MIN_GATE_TEXT_FONT_SIZE = 1.0
+_MEASUREMENT_LABEL_FONT_SCALE = 0.62
+_MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE = 0.56
+_MEASUREMENT_CLASSICAL_LABEL_PATTERN = re.compile(r"^.+\[(\d+)\]$")
 
 
 @dataclass(frozen=True, slots=True)
 class _GateTextFittingContext:
     default_scale: float
     points_per_layout_unit: float
+
+
+@dataclass(frozen=True, slots=True)
+class _ConnectionLabelStyle:
+    text: str
+    font_size: float
+    bbox: Mapping[str, object]
 
 
 def prepare_axes(ax: Axes, scene: LayoutScene) -> None:
@@ -183,6 +194,99 @@ def _font_properties_for_size(font_size: float) -> FontProperties:
 @lru_cache(maxsize=1)
 def _default_font_properties() -> FontProperties:
     return FontProperties()
+
+
+def _fit_static_text_font_size(
+    ax: Axes,
+    scene: LayoutScene,
+    *,
+    text: str,
+    default_font_size: float,
+    available_width: float,
+    available_height: float,
+) -> float:
+    context = _build_gate_text_fitting_context(ax, scene)
+    return _fit_gate_text_font_size_with_context(
+        context=context,
+        width=available_width,
+        height=available_height,
+        text=text,
+        default_font_size=default_font_size,
+        height_fraction=1.0,
+        max_font_size=default_font_size,
+        cache={},
+    )
+
+
+def _compact_measurement_classical_label(label: str) -> str | None:
+    match = _MEASUREMENT_CLASSICAL_LABEL_PATTERN.match(label)
+    if match is None:
+        return None
+    return f"[{match.group(1)}]"
+
+
+def _connection_label_style(
+    ax: Axes,
+    connection: SceneConnection,
+    scene: LayoutScene,
+) -> _ConnectionLabelStyle:
+    default_bbox: Mapping[str, object] = {
+        "boxstyle": "round,pad=0.12,rounding_size=0.08",
+        "facecolor": scene.style.theme.axes_facecolor,
+        "edgecolor": "none",
+    }
+    if (
+        not connection.is_classical
+        or connection.label is None
+        or connection.double_line
+        or connection.linestyle != "dashed"
+    ):
+        return _ConnectionLabelStyle(
+            text=connection.label or "",
+            font_size=scene.style.font_size * 0.7,
+            bbox=default_bbox,
+        )
+
+    default_font_size = scene.style.font_size * _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE
+    available_width = max(0.72, scene.style.gate_width + (scene.style.layer_spacing * 1.1))
+    available_height = max(0.24, scene.style.wire_spacing * 0.3)
+    fitted_full_font_size = _fit_static_text_font_size(
+        ax,
+        scene,
+        text=connection.label,
+        default_font_size=default_font_size,
+        available_width=available_width,
+        available_height=available_height,
+    )
+    compact_label = _compact_measurement_classical_label(connection.label)
+    if compact_label is None or fitted_full_font_size >= default_font_size:
+        return _ConnectionLabelStyle(
+            text=connection.label,
+            font_size=fitted_full_font_size,
+            bbox={
+                "boxstyle": "round,pad=0.06,rounding_size=0.06",
+                "facecolor": scene.style.theme.axes_facecolor,
+                "edgecolor": "none",
+            },
+        )
+
+    compact_font_size = _fit_static_text_font_size(
+        ax,
+        scene,
+        text=compact_label,
+        default_font_size=default_font_size,
+        available_width=available_width,
+        available_height=available_height,
+    )
+    return _ConnectionLabelStyle(
+        text=compact_label,
+        font_size=compact_font_size,
+        bbox={
+            "boxstyle": "round,pad=0.05,rounding_size=0.05",
+            "facecolor": scene.style.theme.axes_facecolor,
+            "edgecolor": "none",
+        },
+    )
 
 
 def draw_wires(
@@ -339,23 +443,20 @@ def draw_connections(
             if label_y is None:
                 direction = 1.0 if connection_y_end >= connection_y_start else -1.0
                 label_y = connection_y_end - (direction * 0.12)
+            label_style = _connection_label_style(ax, connection, scene)
             _add_text_artist(
                 ax,
                 connection_x + 0.12,
                 label_y,
-                connection.label,
+                label_style.text,
                 ha="left",
                 va="center",
-                fontsize=scene.style.font_size * 0.7,
+                fontsize=label_style.font_size,
                 color=scene.style.theme.classical_wire_color
                 if connection.is_classical
                 else scene.style.theme.wire_color,
                 zorder=TEXT_LAYER_ZORDER,
-                bbox={
-                    "boxstyle": "round,pad=0.12,rounding_size=0.08",
-                    "facecolor": scene.style.theme.axes_facecolor,
-                    "edgecolor": "none",
-                },
+                bbox=label_style.bbox,
             )
 
     quantum_collection = _add_line_collection(
@@ -708,7 +809,7 @@ def draw_measurement_symbol(
         measurement.label,
         ha="center",
         va="center",
-        fontsize=scene.style.font_size * 0.76,
+        fontsize=scene.style.font_size * _MEASUREMENT_LABEL_FONT_SCALE,
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
     )

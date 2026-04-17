@@ -358,6 +358,21 @@ def test_draw_quantum_circuit_page_slider_keeps_text_size_stable_after_redraw() 
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_slider_uses_stable_gate_font_size_before_first_draw() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+
+    assert gate_label.get_fontsize() < 20.0
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_uses_wider_pages_on_wide_axes_without_slider() -> None:
     narrow_figure, narrow_axes = plt.subplots(figsize=(3.2, 12.0))
     wide_figure, wide_axes = plt.subplots(figsize=(12.0, 3.2))
@@ -636,8 +651,12 @@ def test_draw_quantum_circuit_updates_gate_text_immediately_when_zoom_changes() 
 
     axes.set_xlim(0.0, 2.5)
     axes.set_ylim(3.5, 0.0)
+    immediate_gate_font_size = gate_label.get_fontsize()
+    figure.canvas.draw()
+    drawn_gate_font_size = gate_label.get_fontsize()
 
-    assert gate_label.get_fontsize() > initial_gate_font_size
+    assert immediate_gate_font_size > initial_gate_font_size
+    assert immediate_gate_font_size == pytest.approx(drawn_gate_font_size, rel=1e-3, abs=1e-3)
     assert wire_label.get_fontsize() == pytest.approx(initial_wire_font_size)
 
     plt.close(figure)

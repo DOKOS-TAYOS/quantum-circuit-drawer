@@ -35,6 +35,50 @@ def _display_bounds(figure: object, artist: object) -> tuple[float, float, float
     return bounds
 
 
+def _measurement_register_ir(*, measurement_count: int) -> CircuitIR:
+    quantum_wires = [
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(measurement_count)
+    ]
+    return CircuitIR(
+        quantum_wires=quantum_wires,
+        classical_wires=[
+            WireIR(
+                id="c",
+                index=0,
+                kind=WireKind.CLASSICAL,
+                label="c",
+                metadata={"bundle_size": measurement_count},
+            )
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=(f"q{layer_index}",),
+                        classical_target="c",
+                        metadata={"classical_bit_label": f"c[{layer_index}]"},
+                    )
+                ]
+            )
+            for layer_index in range(measurement_count)
+        ],
+    )
+
+
+def _overlap_count(figure: object, texts: list[Text]) -> int:
+    renderer = figure.canvas.get_renderer()
+    overlap_count = 0
+    for left, right in zip(texts, texts[1:]):
+        if left.get_window_extent(renderer=renderer).overlaps(
+            right.get_window_extent(renderer=renderer)
+        ):
+            overlap_count += 1
+    return overlap_count
+
+
 def _outside_axes_artist_count(figure: object, axes: object, artists: object) -> int:
     renderer = figure.canvas.get_renderer()
     axes_bounds = axes.get_window_extent(renderer=renderer)
@@ -930,6 +974,30 @@ def test_matplotlib_renderer_rescales_gate_text_when_zooming() -> None:
 
     assert gate_label.get_fontsize() > initial_gate_font_size
     assert wire_label.get_fontsize() == approx(initial_wire_font_size)
+
+
+def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classical_bits() -> None:
+    figure, axes = plt.subplots(figsize=(3.5, 8.0))
+    scene = LayoutEngine().compute(_measurement_register_ir(measurement_count=18), DrawStyle())
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    measurement_label = next(text for text in axes.texts if text.get_text() == "M")
+    wire_label = next(text for text in axes.texts if text.get_text() == "q0")
+    classical_bit_labels = sorted(
+        [
+            text
+            for text in axes.texts
+            if text.get_text().startswith("c[") or text.get_text().startswith("[")
+        ],
+        key=lambda text: text.get_position()[0],
+    )
+
+    assert measurement_label.get_fontsize() <= wire_label.get_fontsize() * 0.8
+    assert any(text.get_text().startswith("[") for text in classical_bit_labels)
+    assert all(not text.get_text().startswith("c[") for text in classical_bit_labels)
+    assert _overlap_count(figure, classical_bit_labels) == 0
 
 
 def test_add_text_artist_skips_clip_path_when_fast_path_available(
