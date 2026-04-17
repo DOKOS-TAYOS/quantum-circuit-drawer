@@ -983,8 +983,9 @@ def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classica
     MatplotlibRenderer().render(scene, ax=axes)
     figure.canvas.draw()
 
+    context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
     measurement_label = next(text for text in axes.texts if text.get_text() == "M")
-    wire_label = next(text for text in axes.texts if text.get_text() == "q0")
+    classical_bundle_count = next(text for text in axes.texts if text.get_text() == "18")
     classical_bit_labels = sorted(
         [
             text
@@ -994,7 +995,29 @@ def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classica
         key=lambda text: text.get_position()[0],
     )
 
-    assert measurement_label.get_fontsize() <= wire_label.get_fontsize() * 0.8
+    assert measurement_label.get_fontsize() == approx(
+        matplotlib_primitives._fit_gate_text_font_size_with_context(
+            context=context,
+            width=scene.style.gate_width * 0.5,
+            height=scene.style.gate_height * 0.5,
+            text="M",
+            default_font_size=scene.style.font_size
+            * matplotlib_primitives._MEASUREMENT_LABEL_FONT_SCALE,
+            height_fraction=1.0,
+            cache={},
+        )
+    )
+    assert classical_bundle_count.get_fontsize() == approx(
+        matplotlib_primitives._fit_gate_text_font_size_with_context(
+            context=context,
+            width=scene.style.gate_width * 0.5,
+            height=scene.style.gate_height * 0.5,
+            text="18",
+            default_font_size=scene.style.font_size * 0.66,
+            height_fraction=1.0,
+            cache={},
+        )
+    )
     assert any(text.get_text().startswith("[") for text in classical_bit_labels)
     assert all(not text.get_text().startswith("c[") for text in classical_bit_labels)
     assert _overlap_count(figure, classical_bit_labels) == 0

@@ -8,6 +8,8 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.transforms import Bbox
 
+import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
+from quantum_circuit_drawer._draw_managed_zoom import current_text_scale
 from quantum_circuit_drawer.api import (
     _configure_page_slider,
     _figure_backend_name,
@@ -25,7 +27,9 @@ from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_auto_paging_state,
+    get_base_font_size,
     get_page_slider,
+    get_text_scaling_state,
 )
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import (
@@ -42,7 +46,15 @@ def _zoom_text_scaling_ir() -> CircuitIR:
             WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
             WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
         ],
-        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        classical_wires=[
+            WireIR(
+                id="c0",
+                index=0,
+                kind=WireKind.CLASSICAL,
+                label="c",
+                metadata={"bundle_size": 23},
+            )
+        ],
         layers=[
             LayerIR(
                 operations=[
@@ -72,6 +84,40 @@ def _zoom_text_scaling_ir() -> CircuitIR:
 def _font_size_by_text(axes: object, text: str) -> float:
     return next(
         text_artist.get_fontsize() for text_artist in axes.texts if text_artist.get_text() == text
+    )
+
+
+def _text_artist_by_text(axes: object, text: str) -> object:
+    return next(text_artist for text_artist in axes.texts if text_artist.get_text() == text)
+
+
+def _expected_box_fitted_font_size(
+    axes: object,
+    scene: object,
+    *,
+    text: str,
+    width: float,
+    height: float,
+    height_fraction: float,
+) -> float:
+    text_artist = _text_artist_by_text(axes, text)
+    text_scaling_state = get_text_scaling_state(axes)
+
+    assert text_scaling_state is not None
+
+    base_font_size = get_base_font_size(
+        text_artist,
+        default=float(text_artist.get_fontsize()),
+    )
+    return matplotlib_primitives._fit_gate_text_font_size_with_context(
+        context=matplotlib_primitives._build_gate_text_fitting_context(axes, scene),
+        width=width,
+        height=height,
+        text=text,
+        default_font_size=base_font_size,
+        height_fraction=height_fraction,
+        max_font_size=base_font_size * current_text_scale(axes, text_scaling_state),
+        cache={},
     )
 
 
@@ -662,7 +708,7 @@ def test_draw_quantum_circuit_rescales_all_2d_text_when_zooming() -> None:
     )
     figure.canvas.draw()
 
-    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest")
+    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest", "23")
     initial_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
 
     axes.set_xlim(0.0, 2.5)
@@ -685,7 +731,7 @@ def test_draw_quantum_circuit_updates_gate_text_immediately_when_zoom_changes() 
     )
     figure.canvas.draw()
 
-    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest")
+    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest", "23")
     initial_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
 
     axes.set_xlim(0.0, 2.5)
@@ -698,6 +744,56 @@ def test_draw_quantum_circuit_updates_gate_text_immediately_when_zoom_changes() 
         assert immediate_font_sizes[label] > initial_font_sizes[label]
         assert immediate_font_sizes[label] == pytest.approx(
             drawn_font_sizes[label],
+            rel=1e-3,
+            abs=1e-3,
+        )
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_fits_zoom_scaled_text_to_reference_boxes() -> None:
+    figure, axes = plt.subplots(figsize=(8.0, 3.0))
+    circuit = _zoom_text_scaling_ir()
+    style = DrawStyle(max_page_width=12.0)
+    scene = LayoutEngine().compute(circuit, style)
+
+    draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 12.0},
+        ax=axes,
+    )
+    figure.canvas.draw()
+
+    axes.set_xlim(0.0, 2.5)
+    axes.set_ylim(3.5, 0.0)
+
+    full_gate_box_labels = ("q0", "q1", "c")
+    half_gate_box_labels = ("M", "dest", "0", "1", "23")
+
+    for label in full_gate_box_labels:
+        assert _font_size_by_text(axes, label) == pytest.approx(
+            _expected_box_fitted_font_size(
+                axes,
+                scene,
+                text=label,
+                width=scene.style.gate_width,
+                height=scene.style.gate_height,
+                height_fraction=matplotlib_primitives._SINGLE_LINE_HEIGHT_FRACTION,
+            ),
+            rel=1e-3,
+            abs=1e-3,
+        )
+
+    for label in half_gate_box_labels:
+        assert _font_size_by_text(axes, label) == pytest.approx(
+            _expected_box_fitted_font_size(
+                axes,
+                scene,
+                text=label,
+                width=scene.style.gate_width * 0.5,
+                height=scene.style.gate_height * 0.5,
+                height_fraction=1.0,
+            ),
             rel=1e-3,
             abs=1e-3,
         )

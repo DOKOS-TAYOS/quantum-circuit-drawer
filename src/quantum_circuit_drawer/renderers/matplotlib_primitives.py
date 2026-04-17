@@ -46,6 +46,7 @@ _MIN_GATE_TEXT_FONT_SIZE = 1.0
 _MEASUREMENT_LABEL_FONT_SCALE = 0.62
 _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE = 0.56
 _MEASUREMENT_CLASSICAL_LABEL_PATTERN = re.compile(r"^.+\[(\d+)\]$")
+_GATE_TEXT_CONTEXT_CACHE_ATTR = "_quantum_circuit_drawer_gate_text_context_cache"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +60,19 @@ class _ConnectionLabelStyle:
     text: str
     font_size: float
     bbox: Mapping[str, object]
+
+
+def _measurement_half_gate_box(scene: LayoutScene) -> tuple[float, float]:
+    return scene.style.gate_width * 0.5, scene.style.gate_height * 0.5
+
+
+def _is_measurement_classical_connection_label(connection: SceneConnection) -> bool:
+    return (
+        connection.is_classical
+        and connection.label is not None
+        and not connection.double_line
+        and connection.linestyle == "dashed"
+    )
 
 
 def prepare_axes(ax: Axes, scene: LayoutScene) -> None:
@@ -235,12 +249,7 @@ def _connection_label_style(
         "facecolor": scene.style.theme.axes_facecolor,
         "edgecolor": "none",
     }
-    if (
-        not connection.is_classical
-        or connection.label is None
-        or connection.double_line
-        or connection.linestyle != "dashed"
-    ):
+    if not _is_measurement_classical_connection_label(connection):
         return _ConnectionLabelStyle(
             text=connection.label or "",
             font_size=scene.style.font_size * 0.7,
@@ -248,8 +257,7 @@ def _connection_label_style(
         )
 
     default_font_size = scene.style.font_size * _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE
-    available_width = max(0.72, scene.style.gate_width + (scene.style.layer_spacing * 1.1))
-    available_height = max(0.24, scene.style.wire_spacing * 0.3)
+    available_width, available_height = _measurement_half_gate_box(scene)
     fitted_full_font_size = _fit_static_text_font_size(
         ax,
         scene,
@@ -318,14 +326,22 @@ def draw_wires(
             classical_marker_segments.append(
                 ((marker_x - 0.06, wire_y - 0.12), (marker_x + 0.06, wire_y + 0.12))
             )
-            _add_text_artist(
+            classical_bundle_text = _add_text_artist(
                 ax,
                 marker_x,
                 wire_y - 0.22,
                 str(wire.bundle_size),
                 ha="center",
                 va="center",
-                fontsize=scene.style.font_size * 0.66,
+                fontsize=_fit_gate_text_font_size(
+                    ax=ax,
+                    scene=scene,
+                    width=scene.style.gate_width * 0.5,
+                    height=scene.style.gate_height * 0.5,
+                    text=str(wire.bundle_size),
+                    default_font_size=scene.style.font_size * 0.66,
+                    height_fraction=1.0,
+                ),
                 color=scene.style.theme.classical_wire_color,
                 zorder=TEXT_LAYER_ZORDER,
                 bbox={
@@ -333,6 +349,13 @@ def draw_wires(
                     "facecolor": scene.style.theme.axes_facecolor,
                     "edgecolor": "none",
                 },
+            )
+            set_gate_text_metadata(
+                classical_bundle_text,
+                role="classical_bundle_size",
+                gate_width=scene.style.gate_width * 0.5,
+                gate_height=scene.style.gate_height * 0.5,
+                height_fraction=1.0,
             )
             continue
 
@@ -444,7 +467,7 @@ def draw_connections(
                 direction = 1.0 if connection_y_end >= connection_y_start else -1.0
                 label_y = connection_y_end - (direction * 0.12)
             label_style = _connection_label_style(ax, connection, scene)
-            _add_text_artist(
+            label_artist = _add_text_artist(
                 ax,
                 connection_x + 0.12,
                 label_y,
@@ -458,6 +481,15 @@ def draw_connections(
                 zorder=TEXT_LAYER_ZORDER,
                 bbox=label_style.bbox,
             )
+            if _is_measurement_classical_connection_label(connection):
+                label_width, label_height = _measurement_half_gate_box(scene)
+                set_gate_text_metadata(
+                    label_artist,
+                    role="measurement_classical_label",
+                    gate_width=label_width,
+                    gate_height=label_height,
+                    height_fraction=1.0,
+                )
 
     quantum_collection = _add_line_collection(
         ax,
@@ -837,16 +869,31 @@ def draw_text(
     x_offset: float = 0.0,
     y_offset: float = 0.0,
 ) -> None:
-    _add_text_artist(
+    text_artist = _add_text_artist(
         ax,
         text.x + x_offset,
         text.y + y_offset,
         text.text,
         ha=text.ha,
         va=text.va,
-        fontsize=text.font_size or scene.style.font_size,
+        fontsize=_fit_gate_text_font_size(
+            ax=ax,
+            scene=scene,
+            width=scene.style.gate_width,
+            height=scene.style.gate_height,
+            text=text.text,
+            default_font_size=text.font_size or scene.style.font_size,
+            height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+        ),
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
+    )
+    set_gate_text_metadata(
+        text_artist,
+        role="wire_label",
+        gate_width=scene.style.gate_width,
+        gate_height=scene.style.gate_height,
+        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
     )
 
 
@@ -858,16 +905,31 @@ def draw_gate_annotation(
     x_offset: float = 0.0,
     y_offset: float = 0.0,
 ) -> None:
-    _add_text_artist(
+    annotation_artist = _add_text_artist(
         ax,
         annotation.x + x_offset,
         annotation.y + y_offset,
         annotation.text,
         ha="left",
         va="center",
-        fontsize=annotation.font_size,
+        fontsize=_fit_gate_text_font_size(
+            ax=ax,
+            scene=scene,
+            width=scene.style.gate_width * 0.5,
+            height=scene.style.gate_height * 0.5,
+            text=annotation.text,
+            default_font_size=annotation.font_size,
+            height_fraction=1.0,
+        ),
         color=scene.style.theme.text_color,
         zorder=TEXT_LAYER_ZORDER,
+    )
+    set_gate_text_metadata(
+        annotation_artist,
+        role="gate_annotation",
+        gate_width=scene.style.gate_width * 0.5,
+        gate_height=scene.style.gate_height * 0.5,
+        height_fraction=1.0,
     )
 
 
@@ -917,29 +979,51 @@ def _build_gate_text_fitting_context(ax: Axes, scene: LayoutScene) -> _GateTextF
     axes_width_fraction = ax.get_position().width
     x_limits = ax.get_xlim()
     scene_width = abs(x_limits[1] - x_limits[0])
-    if axes_width_fraction <= 0.0 or scene_width <= 0.0:
-        return _GateTextFittingContext(
-            default_scale=effective_default_scale,
-            points_per_layout_unit=0.0,
-        )
-
     figure = ax.figure
     canvas_width_pixels = (
         figure.canvas.get_width_height()[0]
         if figure.canvas is not None
         else figure.get_size_inches()[0] * figure.dpi
     )
+    cache_key = (
+        round(effective_default_scale, 9),
+        round(axes_width_fraction, 9),
+        round(x_limits[0], 9),
+        round(x_limits[1], 9),
+        round(scene_width, 9),
+        int(round(canvas_width_pixels)),
+        round(figure.dpi, 6),
+    )
+    cached_context = getattr(ax, _GATE_TEXT_CONTEXT_CACHE_ATTR, None)
+    if (
+        isinstance(cached_context, tuple)
+        and len(cached_context) == 2
+        and cached_context[0] == cache_key
+        and isinstance(cached_context[1], _GateTextFittingContext)
+    ):
+        return cached_context[1]
+
+    if axes_width_fraction <= 0.0 or scene_width <= 0.0:
+        empty_context = _GateTextFittingContext(
+            default_scale=effective_default_scale,
+            points_per_layout_unit=0.0,
+        )
+        setattr(ax, _GATE_TEXT_CONTEXT_CACHE_ATTR, (cache_key, empty_context))
+        return empty_context
+
     effective_scene_width = min(
         scene_width,
         get_viewport_width(figure, default=scene_width),
     )
     axes_width_points = (canvas_width_pixels * axes_width_fraction) * 72.0 / figure.dpi
     available_width_fraction = 0.74
-    return _GateTextFittingContext(
+    context = _GateTextFittingContext(
         default_scale=effective_default_scale,
         points_per_layout_unit=(axes_width_points * available_width_fraction)
         / effective_scene_width,
     )
+    setattr(ax, _GATE_TEXT_CONTEXT_CACHE_ATTR, (cache_key, context))
+    return context
 
 
 def _fit_gate_text_font_size_with_context(
