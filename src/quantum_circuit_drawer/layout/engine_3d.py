@@ -538,6 +538,11 @@ class LayoutEngine3D:
         )
         if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
             classical_point = classical_wire_positions[operation.classical_target]
+            classical_label = (
+                str(operation.metadata.get("classical_bit_label"))
+                if operation.metadata.get("classical_bit_label") is not None
+                else operation.classical_target
+            )
             connections.append(
                 SceneConnection3D(
                     column=column,
@@ -547,7 +552,7 @@ class LayoutEngine3D:
                     ),
                     is_classical=True,
                     arrow_at_end=True,
-                    label=operation.classical_target,
+                    label=classical_label,
                 )
             )
 

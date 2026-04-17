@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.colors import to_hex
@@ -39,7 +40,19 @@ from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_sample_ir
 
 if TYPE_CHECKING:
+    from matplotlib.figure import Figure
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
+
+
+def _rendered_content_size(figure: Figure) -> tuple[int, int]:
+    figure.canvas.draw()
+    image = np.asarray(figure.canvas.buffer_rgba())[:, :, :3]
+    non_background_pixels = np.any(image != 0, axis=2)
+    y_indices, x_indices = np.where(non_background_pixels)
+    return (
+        int(x_indices.max() - x_indices.min() + 1),
+        int(y_indices.max() - y_indices.min() + 1),
+    )
 
 
 def _line_control_ir() -> CircuitIR:
@@ -150,6 +163,44 @@ def _marker_and_measurement_ir() -> CircuitIR:
                         name="M",
                         target_wires=("q1",),
                         classical_target="c0",
+                    ),
+                ]
+            )
+        ],
+    )
+
+
+def _bundled_measurement_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        classical_wires=[
+            WireIR(
+                id="c0",
+                index=0,
+                kind=WireKind.CLASSICAL,
+                label="c",
+                metadata={"bundle_size": 2},
+            )
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                        metadata={"classical_bit_label": "c[0]"},
+                    ),
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q1",),
+                        classical_target="c0",
+                        metadata={"classical_bit_label": "c[1]"},
                     ),
                 ]
             )
@@ -417,6 +468,22 @@ def test_layout_engine_3d_marks_measurement_connection_with_arrow_to_classical_r
     assert measurement_connection.points[-1].y == classical_point.y
 
 
+def test_layout_engine_3d_prefers_specific_classical_bit_labels_for_measurements() -> None:
+    scene = LayoutEngine3D().compute(
+        _bundled_measurement_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+
+    classical_labels = [
+        connection.label for connection in scene.connections if connection.is_classical
+    ]
+
+    assert classical_labels == ["c[0]", "c[1]"]
+
+
 def test_matplotlib_renderer_3d_compensates_single_gate_projection_to_look_square() -> None:
     scene = LayoutEngine3D().compute(
         _single_gate_ir(),
@@ -441,6 +508,80 @@ def test_matplotlib_renderer_3d_compensates_single_gate_projection_to_look_squar
     )
 
     assert max(display_sizes) / min(display_sizes) < 1.15
+
+
+def test_draw_quantum_circuit_3d_uses_most_of_shorter_figsize_dimension() -> None:
+    wide_figure, _ = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        figsize=(12.0, 3.0),
+        show=False,
+    )
+    tall_figure, _ = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        figsize=(3.0, 12.0),
+        show=False,
+    )
+
+    wide_content_size = max(_rendered_content_size(wide_figure))
+    tall_content_size = max(_rendered_content_size(tall_figure))
+    wide_short_dimension = min(wide_figure.canvas.get_width_height())
+    tall_short_dimension = min(tall_figure.canvas.get_width_height())
+
+    assert wide_content_size / wide_short_dimension > 0.75
+    assert tall_content_size / tall_short_dimension > 0.75
+    plt.close(wide_figure)
+    plt.close(tall_figure)
+
+
+def test_draw_quantum_circuit_3d_fills_managed_figure_without_overflow() -> None:
+    wide_figure, wide_axes = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        figsize=(12.0, 3.0),
+        show=False,
+    )
+    tall_figure, tall_axes = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        figsize=(3.0, 12.0),
+        show=False,
+    )
+    wide_figure.canvas.draw()
+    tall_figure.canvas.draw()
+
+    wide_canvas_width, wide_canvas_height = wide_figure.canvas.get_width_height()
+    tall_canvas_width, tall_canvas_height = tall_figure.canvas.get_width_height()
+
+    assert wide_axes.bbox.x0 >= 0.0
+    assert wide_axes.bbox.y0 >= 0.0
+    assert wide_axes.bbox.x1 <= wide_canvas_width
+    assert wide_axes.bbox.y1 <= wide_canvas_height
+    assert (
+        min(
+            wide_axes.bbox.width / wide_canvas_width,
+            wide_axes.bbox.height / wide_canvas_height,
+        )
+        > 0.95
+    )
+    assert tall_axes.bbox.x0 >= 0.0
+    assert tall_axes.bbox.y0 >= 0.0
+    assert tall_axes.bbox.x1 <= tall_canvas_width
+    assert tall_axes.bbox.y1 <= tall_canvas_height
+    assert (
+        min(
+            tall_axes.bbox.width / tall_canvas_width,
+            tall_axes.bbox.height / tall_canvas_height,
+        )
+        > 0.95
+    )
+    plt.close(wide_figure)
+    plt.close(tall_figure)
 
 
 def test_matplotlib_renderer_3d_keeps_gate_compensation_consistent_across_figsize_shapes() -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
+from types import MethodType
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -49,6 +50,9 @@ _GATE_EDGE_WIDTH_SCALE = 0.56
 _HOVER_ZORDER = 10_000.0
 _CUBIC_GATE_SIZE_TOLERANCE = 1e-6
 _X_TARGET_RING_SEGMENTS = 40
+_SCENE_FIT_FILL_FRACTION = 0.92
+_MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
+_MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR = "_quantum_circuit_drawer_managed_3d_full_viewport_aspect"
 
 
 @dataclass(slots=True)
@@ -75,15 +79,26 @@ class MatplotlibRenderer3D(BaseRenderer):
             raise TypeError("MatplotlibRenderer3D only supports 3D layout scenes")
         axes = ax
         managed_figure = None
+        viewport_bounds: tuple[float, float, float, float] | None = None
         if axes is None:
             managed_figure, axes = create_managed_figure(scene, use_agg=True, projection="3d")
             logger.debug("Rendering 3D scene on renderer-managed Agg figure")
         assert axes is not None
         axes_3d = cast("Axes3D", axes)
+        viewport_bounds = self._managed_viewport_bounds(axes_3d)
+        if viewport_bounds is None and managed_figure is not None:
+            viewport_bounds = (0.0, 0.0, 1.0, 1.0)
         figure = axes_3d.figure
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
         self._prepare_axes(axes_3d, scene)
+        if viewport_bounds is not None:
+            self._expand_axes_to_fill_viewport(axes_3d, viewport_bounds)
         self._synchronize_axes_geometry(axes_3d)
+        self._fit_scene_to_shorter_canvas_dimension(
+            axes_3d,
+            scene,
+            viewport_bounds=viewport_bounds,
+        )
         render_context = self._create_render_context(axes_3d)
 
         hover_targets: list[tuple[Artist, str]] = []
@@ -140,6 +155,207 @@ class MatplotlibRenderer3D(BaseRenderer):
         """Apply the current 3D box geometry before projecting gate sizes."""
 
         axes.apply_aspect()
+
+    def _expand_axes_to_fill_viewport(
+        self,
+        axes: Axes3D,
+        viewport_bounds: tuple[float, float, float, float],
+    ) -> None:
+        axes.set_position(viewport_bounds)
+        self._install_full_viewport_aspect(axes)
+
+    def _install_full_viewport_aspect(self, axes: Axes3D) -> None:
+        if getattr(axes, _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR, False):
+            return
+
+        def _apply_full_viewport_aspect(
+            managed_axes: Axes3D,
+            position: object | None = None,
+        ) -> None:
+            active_position = (
+                position if position is not None else managed_axes.get_position(original=True)
+            )
+            managed_axes._set_position(active_position, "active")
+
+        axes.apply_aspect = MethodType(_apply_full_viewport_aspect, axes)
+        setattr(axes, _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR, True)
+
+    def _managed_viewport_bounds(
+        self,
+        axes: Axes3D,
+    ) -> tuple[float, float, float, float] | None:
+        bounds = getattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, None)
+        if (
+            isinstance(bounds, tuple)
+            and len(bounds) == 4
+            and all(isinstance(value, int | float) for value in bounds)
+        ):
+            return tuple(float(value) for value in bounds)
+        return None
+
+    def _fit_scene_to_shorter_canvas_dimension(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        viewport_bounds: tuple[float, float, float, float] | None = None,
+    ) -> None:
+        render_context = self._create_render_context(axes)
+        projected_scene_points = self._projected_scene_geometry_points(
+            axes,
+            scene,
+            render_context=render_context,
+        )
+        if projected_scene_points.size == 0:
+            return
+
+        content_width = float(np.ptp(projected_scene_points[:, 0]))
+        content_height = float(np.ptp(projected_scene_points[:, 1]))
+        content_size = max(content_width, content_height)
+        short_dimension = self._viewport_short_dimension(axes, viewport_bounds=viewport_bounds)
+        if content_size <= 0.0 or short_dimension <= 0.0:
+            return
+
+        zoom = (short_dimension * _SCENE_FIT_FILL_FRACTION) / content_size
+        if not np.isfinite(zoom) or zoom <= 0.0:
+            return
+        axes.set_box_aspect(self._axes_box_aspect(axes), zoom=zoom)
+        self._synchronize_axes_geometry(axes)
+
+    def _axes_box_aspect(self, axes: Axes3D) -> tuple[float, float, float]:
+        x_limits = axes.get_xlim3d()
+        y_limits = axes.get_ylim3d()
+        z_limits = axes.get_zlim3d()
+        return (
+            float(x_limits[1] - x_limits[0]),
+            float(y_limits[1] - y_limits[0]),
+            float(z_limits[1] - z_limits[0]),
+        )
+
+    def _viewport_short_dimension(
+        self,
+        axes: Axes3D,
+        *,
+        viewport_bounds: tuple[float, float, float, float] | None = None,
+    ) -> float:
+        if viewport_bounds is None:
+            return min(float(axes.bbox.width), float(axes.bbox.height))
+        _, _, width, height = viewport_bounds
+        canvas_width, canvas_height = axes.figure.canvas.get_width_height()
+        return min(width * float(canvas_width), height * float(canvas_height))
+
+    def _projected_scene_geometry_points(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        render_context: _RenderContext3D,
+    ) -> np.ndarray:
+        scene_points: list[Point3D] = []
+        scene_points.extend(self._topology_plane_points(scene))
+        scene_points.extend(self._wire_geometry_points(scene))
+        scene_points.extend(self._connection_geometry_points(scene))
+        scene_points.extend(self._gate_geometry_points(axes, scene, render_context=render_context))
+        scene_points.extend(self._marker_geometry_points(scene))
+        scene_points.extend(text.position for text in scene.texts)
+        if not scene_points:
+            return np.empty((0, 2), dtype=float)
+        return np.array(
+            [
+                self._projected_display_point(
+                    axes,
+                    point,
+                    render_context=render_context,
+                )
+                for point in scene_points
+            ],
+            dtype=float,
+        )
+
+    def _topology_plane_points(self, scene: LayoutScene3D) -> list[Point3D]:
+        return [
+            Point3D(x=x_value, y=y_value, z=plane.z)
+            for plane in scene.topology_planes
+            for x_value, y_value in (
+                (plane.x_min, plane.y_min),
+                (plane.x_max, plane.y_min),
+                (plane.x_max, plane.y_max),
+                (plane.x_min, plane.y_max),
+            )
+        ]
+
+    def _wire_geometry_points(self, scene: LayoutScene3D) -> list[Point3D]:
+        points: list[Point3D] = []
+        for wire in scene.wires:
+            if wire.double_line:
+                for delta in (-0.06, 0.06):
+                    points.extend(
+                        (
+                            Point3D(x=wire.start.x + delta, y=wire.start.y, z=wire.start.z),
+                            Point3D(x=wire.end.x + delta, y=wire.end.y, z=wire.end.z),
+                        )
+                    )
+                continue
+            points.extend((wire.start, wire.end))
+        return points
+
+    def _connection_geometry_points(self, scene: LayoutScene3D) -> list[Point3D]:
+        points: list[Point3D] = []
+        for connection in scene.connections:
+            points.extend(connection.points)
+            if connection.arrow_at_end:
+                for start, end in self._arrowhead_segments(connection.points):
+                    points.extend((Point3D(*start), Point3D(*end)))
+        return points
+
+    def _gate_geometry_points(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        render_context: _RenderContext3D,
+    ) -> list[Point3D]:
+        points: list[Point3D] = []
+        for gate in scene.gates:
+            if gate.render_style is GateRenderStyle3D.X_TARGET:
+                radius = min(gate.size_x, gate.size_y) * 0.32
+                ring_points = self._x_target_ring_points(gate, radius, render_context)
+                points.extend(Point3D(float(x), float(y), float(z)) for x, y, z in ring_points)
+                points.extend(
+                    (
+                        Point3D(gate.center.x - radius, gate.center.y, gate.center.z),
+                        Point3D(gate.center.x + radius, gate.center.y, gate.center.z),
+                        Point3D(gate.center.x, gate.center.y - radius, gate.center.z),
+                        Point3D(gate.center.x, gate.center.y + radius, gate.center.z),
+                    )
+                )
+                continue
+            display_gate = self._display_compensated_gate(
+                axes,
+                gate,
+                render_context=render_context,
+            )
+            points.extend(
+                Point3D(*vertex) for face in self._cuboid_faces(display_gate) for vertex in face
+            )
+        return points
+
+    def _marker_geometry_points(self, scene: LayoutScene3D) -> list[Point3D]:
+        points: list[Point3D] = []
+        for marker in scene.markers:
+            if marker.style is MarkerStyle3D.SWAP:
+                size = marker.size
+                points.extend(
+                    (
+                        Point3D(marker.center.x - size, marker.center.y - size, marker.center.z),
+                        Point3D(marker.center.x + size, marker.center.y + size, marker.center.z),
+                        Point3D(marker.center.x - size, marker.center.y + size, marker.center.z),
+                        Point3D(marker.center.x + size, marker.center.y - size, marker.center.z),
+                    )
+                )
+                continue
+            points.append(marker.center)
+        return points
 
     def _create_render_context(self, axes: Axes3D) -> _RenderContext3D:
         theta = np.linspace(0.0, 2.0 * np.pi, _X_TARGET_RING_SEGMENTS, endpoint=False)

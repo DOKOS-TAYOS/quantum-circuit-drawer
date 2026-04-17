@@ -68,6 +68,7 @@ if TYPE_CHECKING:
     from .layout.scene_3d import LayoutScene3D
 
 _PAGE_SLIDER_MAIN_AXES_BOTTOM = 0.18
+_MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 logger = logging.getLogger(__name__)
 
 
@@ -102,6 +103,7 @@ def render_managed_draw_pipeline(
             use_agg=use_agg_canvas,
             projection="3d",
         )
+        setattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, (0.0, 0.0, 1.0, 1.0))
         pipeline.renderer.render(scene_3d, ax=axes, output=output)
         logger.debug("Rendered managed 3D figure without page slider")
         show_figure_if_supported(figure, show=show)
