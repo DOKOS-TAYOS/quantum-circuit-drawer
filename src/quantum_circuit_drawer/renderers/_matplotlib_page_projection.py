@@ -80,9 +80,9 @@ def page_index_by_column(pages: tuple[ScenePage, ...]) -> tuple[int, ...]:
         return (0,)
     max_column = max(page.end_column for page in pages)
     page_indexes = [0] * (max_column + 1)
-    for page in pages:
+    for page_position, page in enumerate(pages):
         for column in range(page.start_column, page.end_column + 1):
-            page_indexes[column] = page.index
+            page_indexes[column] = page_position
     return tuple(page_indexes)
 
 

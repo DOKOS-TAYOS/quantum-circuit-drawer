@@ -27,9 +27,7 @@ from ._matplotlib_figure import clear_hover_state, create_managed_figure
 from ._matplotlib_hover import _HoverTarget2D, add_hover_target, attach_hover
 from ._matplotlib_page_projection import (
     _ProjectedPage,
-    bucket_by_page,
     is_in_page,
-    page_index_by_column,
     page_x_offset,
     page_y_offset,
     project_pages,
@@ -357,17 +355,6 @@ class MatplotlibRenderer(BaseRenderer):
 
     def _is_in_page(self, column: int, page: ScenePage) -> bool:
         return is_in_page(column, page)
-
-    def _page_index_by_column(self, pages: tuple[ScenePage, ...]) -> tuple[int, ...]:
-        return page_index_by_column(pages)
-
-    def _bucket_by_page(
-        self,
-        items: tuple[_SceneColumnItem, ...],
-        page_index_lookup: tuple[int, ...],
-        page_count: int,
-    ) -> tuple[tuple[_SceneColumnItem, ...], ...]:
-        return bucket_by_page(items, page_index_lookup, page_count)
 
     def _page_x_offset(self, page: ScenePage, scene: LayoutScene) -> float:
         return page_x_offset(page, scene)

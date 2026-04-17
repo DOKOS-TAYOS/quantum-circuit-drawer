@@ -17,6 +17,7 @@ from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
+from quantum_circuit_drawer.layout.scene import LayoutScene, SceneGate, ScenePage, SceneWire
 from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_dense_rotation_ir, build_sample_ir, build_sample_scene
@@ -305,6 +306,64 @@ def test_matplotlib_renderer_repeats_wire_labels_when_wrapping_pages() -> None:
 
     assert sum(text.get_text() == "q0" for text in axes.texts) == len(scene.pages)
     assert sum(text.get_text() == "q1" for text in axes.texts) == len(scene.pages)
+
+
+def test_matplotlib_renderer_projects_pages_without_relying_on_dense_page_indexes() -> None:
+    style = DrawStyle(show_wire_labels=False)
+    scene = LayoutScene(
+        width=style.margin_left + style.gate_width + style.margin_right,
+        height=style.margin_top + style.gate_height + style.margin_bottom,
+        page_height=style.margin_top + style.gate_height + style.margin_bottom,
+        style=style,
+        wires=(
+            SceneWire(
+                id="q0",
+                label="q0",
+                kind=WireKind.QUANTUM,
+                y=style.margin_top,
+                x_start=style.margin_left,
+                x_end=style.margin_left + style.gate_width,
+            ),
+        ),
+        gates=(
+            SceneGate(
+                column=0,
+                x=style.margin_left + (style.gate_width / 2.0),
+                y=style.margin_top,
+                width=style.gate_width,
+                height=style.gate_height,
+                label="X",
+                subtitle=None,
+                kind=OperationKind.GATE,
+            ),
+        ),
+        gate_annotations=(),
+        controls=(),
+        connections=(),
+        swaps=(),
+        barriers=(),
+        measurements=(),
+        texts=(),
+        pages=(
+            ScenePage(
+                index=7,
+                start_column=0,
+                end_column=0,
+                content_x_start=style.margin_left,
+                content_x_end=style.margin_left + style.gate_width,
+                content_width=style.gate_width,
+                y_offset=0.0,
+            ),
+        ),
+        hover=HoverOptions(enabled=False),
+        wire_y_positions={"q0": style.margin_top},
+    )
+
+    projected_pages = MatplotlibRenderer()._project_pages(scene)
+
+    assert len(projected_pages) == 1
+    assert projected_pages[0].gates == scene.gates
+    assert projected_pages[0].barriers == ()
 
 
 def test_matplotlib_renderer_draws_classical_bus_marker_and_size() -> None:
