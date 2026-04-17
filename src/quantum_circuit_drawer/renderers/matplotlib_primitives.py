@@ -386,14 +386,6 @@ def draw_wires(
     )
 
 
-def draw_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
-    draw_wires(ax, (wire,), scene)
-
-
-def draw_classical_wire(ax: Axes, wire: SceneWire, scene: LayoutScene) -> None:
-    draw_wires(ax, (wire,), scene)
-
-
 def draw_connections(
     ax: Axes,
     connections: Sequence[SceneConnection],
@@ -518,10 +510,6 @@ def draw_connections(
     return artists
 
 
-def draw_connection(ax: Axes, connection: SceneConnection, scene: LayoutScene) -> None:
-    draw_connections(ax, (connection,), scene)
-
-
 def draw_gate_box(
     ax: Axes,
     gate: SceneGate,
@@ -544,15 +532,6 @@ def draw_gate_box(
         zorder=OCCLUSION_LAYER_ZORDER,
     )
     return _add_patch_artist(ax, patch)
-
-
-def draw_x_target_circle(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
-    draw_x_target_circles(ax, (gate,), scene)
-
-
-def draw_x_target(ax: Axes, gate: SceneGate, scene: LayoutScene) -> None:
-    draw_x_target_circle(ax, gate, scene)
-    draw_x_target_segments(ax, (gate,), scene)
 
 
 def draw_x_target_circles(
@@ -692,10 +671,6 @@ def draw_gate_label(
     return label_artist, subtitle_artist
 
 
-def draw_control(ax: Axes, control: SceneControl, scene: LayoutScene) -> None:
-    draw_controls(ax, (control,), scene)
-
-
 def draw_controls(
     ax: Axes,
     controls: Sequence[SceneControl],
@@ -716,10 +691,6 @@ def draw_controls(
         linewidth=scene.style.line_width,
         zorder=SYMBOL_LAYER_ZORDER,
     )
-
-
-def draw_swap(ax: Axes, swap: SceneSwap, scene: LayoutScene) -> None:
-    draw_swaps(ax, (swap,), scene)
 
 
 def draw_swaps(
@@ -748,10 +719,6 @@ def draw_swaps(
         linewidth=scene.style.line_width,
         zorder=SYMBOL_LAYER_ZORDER,
     )
-
-
-def draw_barrier(ax: Axes, barrier: SceneBarrier, scene: LayoutScene) -> None:
-    draw_barriers(ax, (barrier,), scene)
 
 
 def draw_barriers(

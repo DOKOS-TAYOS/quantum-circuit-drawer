@@ -242,6 +242,59 @@ def test_resolved_operation_matrix_infers_controlled_gate_matrix() -> None:
     assert operation_matrix_dimension(operation) == 4
 
 
+def test_resolved_operation_matrix_infers_rzx_gate_matrix() -> None:
+    theta = 0.123
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="RZX",
+        target_wires=("q0", "q1"),
+        parameters=(theta,),
+    )
+
+    matrix = resolved_operation_matrix(operation)
+
+    assert matrix is not None
+    np.testing.assert_allclose(
+        matrix,
+        np.array(
+            (
+                (np.cos(theta / 2.0), 0.0, -1j * np.sin(theta / 2.0), 0.0),
+                (0.0, np.cos(theta / 2.0), 0.0, 1j * np.sin(theta / 2.0)),
+                (-1j * np.sin(theta / 2.0), 0.0, np.cos(theta / 2.0), 0.0),
+                (0.0, 1j * np.sin(theta / 2.0), 0.0, np.cos(theta / 2.0)),
+            ),
+            dtype=np.complex128,
+        ),
+    )
+    assert operation_matrix_dimension(operation) == 4
+
+
+def test_resolved_operation_matrix_infers_ecr_gate_matrix() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="ECR",
+        target_wires=("q0", "q1"),
+    )
+
+    matrix = resolved_operation_matrix(operation)
+
+    assert matrix is not None
+    np.testing.assert_allclose(
+        matrix,
+        np.array(
+            (
+                (0.0, 1.0, 0.0, 1j),
+                (1.0, 0.0, -1j, 0.0),
+                (0.0, 1j, 0.0, 1.0),
+                (-1j, 0.0, 1.0, 0.0),
+            ),
+            dtype=np.complex128,
+        )
+        / np.sqrt(2.0),
+    )
+    assert operation_matrix_dimension(operation) == 4
+
+
 def test_resolved_operation_matrix_accepts_zero_dim_numpy_scalar_parameters() -> None:
     operation = OperationIR(
         kind=OperationKind.GATE,

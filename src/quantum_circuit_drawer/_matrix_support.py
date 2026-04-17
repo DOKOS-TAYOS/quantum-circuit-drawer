@@ -233,20 +233,20 @@ def _two_qubit_gate_matrix(
         sine = cmath.sin(theta / 2.0)
         return np.array(
             (
-                (cosine, -1j * sine, 0.0, 0.0),
-                (-1j * sine, cosine, 0.0, 0.0),
-                (0.0, 0.0, cosine, 1j * sine),
-                (0.0, 0.0, 1j * sine, cosine),
+                (cosine, 0.0, -1j * sine, 0.0),
+                (0.0, cosine, 0.0, 1j * sine),
+                (-1j * sine, 0.0, cosine, 0.0),
+                (0.0, 1j * sine, 0.0, cosine),
             ),
             dtype=np.complex128,
         )
     if family is CanonicalGateFamily.ECR:
         return np.array(
             (
-                (0.0, 0.0, 1.0, 1j),
-                (0.0, 0.0, 1j, 1.0),
-                (1.0, -1j, 0.0, 0.0),
-                (-1j, 1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0, 1j),
+                (1.0, 0.0, -1j, 0.0),
+                (0.0, 1j, 0.0, 1.0),
+                (-1j, 0.0, 1.0, 0.0),
             ),
             dtype=np.complex128,
         ) / np.sqrt(2.0)
