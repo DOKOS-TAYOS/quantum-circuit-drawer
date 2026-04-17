@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 
 from .._matrix_support import operation_matrix_dimension, resolved_operation_matrix
@@ -55,6 +55,10 @@ class _OperationSceneBuilder:
     swaps: list[SceneSwap] = field(default_factory=list, init=False)
     barriers: list[SceneBarrier] = field(default_factory=list, init=False)
     measurements: list[SceneMeasurement] = field(default_factory=list, init=False)
+    hover_matrix_cache: dict[tuple[object, ...], tuple[object | None, int | None]] = field(
+        default_factory=dict,
+        init=False,
+    )
 
     def __post_init__(self) -> None:
         self.wire_map = self.circuit.wire_map
@@ -160,18 +164,51 @@ class _OperationSceneBuilder:
             else wire_id
             for wire_id in unique_other_wire_ids
         )
+        matrix, matrix_dimension = self._hover_matrix_and_dimension(operation)
         return SceneHoverData(
             key=f"op-{column}-{id(operation)}",
             name=name,
             qubit_labels=qubit_labels,
             other_wire_labels=other_wire_labels,
-            matrix=resolved_operation_matrix(operation),
-            matrix_dimension=operation_matrix_dimension(operation),
+            matrix=matrix,
+            matrix_dimension=matrix_dimension,
             gate_x=gate_x,
             gate_y=gate_y,
             gate_width=gate_width,
             gate_height=gate_height,
         )
+
+    def _hover_matrix_and_dimension(
+        self,
+        operation: OperationIR,
+    ) -> tuple[object | None, int | None]:
+        cache_key = self._hover_matrix_cache_key(operation)
+        cached_matrix_data = self.hover_matrix_cache.get(cache_key)
+        if cached_matrix_data is not None:
+            return cached_matrix_data
+
+        matrix_data = (
+            resolved_operation_matrix(operation),
+            operation_matrix_dimension(operation),
+        )
+        self.hover_matrix_cache[cache_key] = matrix_data
+        return matrix_data
+
+    def _hover_matrix_cache_key(self, operation: OperationIR) -> tuple[object, ...]:
+        explicit_matrix = operation.metadata.get("matrix")
+        explicit_matrix_key = id(explicit_matrix) if explicit_matrix is not None else None
+        return (
+            operation.kind,
+            operation.canonical_family,
+            operation.name,
+            len(operation.control_wires),
+            len(operation.target_wires),
+            tuple(self._cache_token(parameter) for parameter in operation.parameters),
+            explicit_matrix_key,
+        )
+
+    def _cache_token(self, value: object) -> object:
+        return value if isinstance(value, Hashable) else repr(value)
 
     def _maybe_hover_data(
         self,

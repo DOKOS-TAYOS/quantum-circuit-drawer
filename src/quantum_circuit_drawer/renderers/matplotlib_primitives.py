@@ -47,6 +47,10 @@ _MEASUREMENT_LABEL_FONT_SCALE = 0.62
 _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE = 0.56
 _MEASUREMENT_CLASSICAL_LABEL_PATTERN = re.compile(r"^.+\[(\d+)\]$")
 _GATE_TEXT_CONTEXT_CACHE_ATTR = "_quantum_circuit_drawer_gate_text_context_cache"
+_NUMERIC_TEXT_PATTERN = re.compile(
+    r"^[+\-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?(?:, [+\-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?)*$"
+)
+_SHAPE_METRICS_CACHE_SIZE = 256
 
 
 @dataclass(frozen=True, slots=True)
@@ -1057,13 +1061,46 @@ def _page_wrapped_font_scale(scene: LayoutScene) -> float:
     return 0.9 * max(0.4, 1.0 - ((page_count - 2) * 0.035))
 
 
+def _text_shape_key(text: str) -> tuple[str, str] | None:
+    if not text:
+        return None
+    if _NUMERIC_TEXT_PATTERN.fullmatch(text):
+        return ("numeric", re.sub(r"\d", "0", text))
+    return None
+
+
+def _text_shape_sample(shape_key: tuple[str, str]) -> str:
+    shape_kind, normalized_text = shape_key
+    if shape_kind == "numeric":
+        return normalized_text
+    raise ValueError(f"unknown text shape kind: {shape_kind}")
+
+
+@lru_cache(maxsize=_SHAPE_METRICS_CACHE_SIZE)
+def _text_shape_metrics_in_points(shape_key: tuple[str, str]) -> tuple[float, float]:
+    sample_text = _text_shape_sample(shape_key)
+    extents = TextPath(
+        (0.0, 0.0),
+        sample_text,
+        size=1.0,
+        prop=_default_font_properties(),
+    ).get_extents()
+    return float(extents.width), float(extents.height)
+
+
 @lru_cache(maxsize=128)
 def _text_width_in_points(text: str) -> float:
+    shape_key = _text_shape_key(text)
+    if shape_key is not None:
+        return _text_shape_metrics_in_points(shape_key)[0]
     return TextPath((0.0, 0.0), text, size=1.0, prop=_default_font_properties()).get_extents().width
 
 
 @lru_cache(maxsize=128)
 def _text_height_in_points(text: str) -> float:
+    shape_key = _text_shape_key(text)
+    if shape_key is not None:
+        return _text_shape_metrics_in_points(shape_key)[1]
     return (
         TextPath((0.0, 0.0), text, size=1.0, prop=_default_font_properties()).get_extents().height
     )

@@ -152,7 +152,20 @@ def _dispatch_motion_event(figure: object, axes: object, artist: object) -> None
         x + (width / 2.0),
         y + (height / 2.0),
     )
-    event.inaxes = axes
+    figure.canvas.callbacks.process("motion_notify_event", event)
+
+
+def _dispatch_motion_event_at(
+    figure: object,
+    x: float,
+    y: float,
+) -> None:
+    event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        x,
+        y,
+    )
     figure.canvas.callbacks.process("motion_notify_event", event)
 
 
@@ -450,6 +463,61 @@ def test_matplotlib_renderer_batches_dense_wire_segments_into_collections() -> N
 
     assert segmented_collections
     assert len(axes.lines) <= 2
+
+
+def test_matplotlib_renderer_draws_one_horizontal_wire_segment_per_quantum_wire() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(3)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),
+                    OperationIR(kind=OperationKind.GATE, name="Z", target_wires=("q1",)),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        canonical_family=CanonicalGateFamily.RZ,
+                        target_wires=("q2",),
+                        parameters=(0.5,),
+                    ),
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="Y", target_wires=("q0",)),
+                    OperationIR(kind=OperationKind.GATE, name="S", target_wires=("q1",)),
+                    OperationIR(kind=OperationKind.GATE, name="T", target_wires=("q2",)),
+                ]
+            ),
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    horizontal_segment_collections = [
+        collection
+        for collection in axes.collections
+        if hasattr(collection, "get_segments")
+        and len(collection.get_segments()) == len(scene.wires)
+        and all(segment[0][1] == approx(segment[1][1]) for segment in collection.get_segments())
+    ]
+
+    assert len(scene.wires) == 3
+    assert horizontal_segment_collections
+    for rendered_segment, wire in zip(
+        horizontal_segment_collections[0].get_segments(),
+        scene.wires,
+        strict=True,
+    ):
+        assert rendered_segment[0][0] == approx(wire.x_start)
+        assert rendered_segment[0][1] == approx(wire.y)
+        assert rendered_segment[1][0] == approx(wire.x_end)
+        assert rendered_segment[1][1] == approx(wire.y)
 
 
 def test_matplotlib_renderer_buckets_paged_artists_without_membership_rescans(
@@ -900,6 +968,47 @@ def test_gate_text_fitting_context_caches_repeated_inputs(monkeypatch) -> None:
     assert cache == {(gate.label, gate.width, scene.style.font_size): first_size}
 
 
+def test_gate_text_fitting_fast_path_reuses_numeric_shape_measurements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=1, wire_count=1),
+        DrawStyle(show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(3.2, 2.4))
+    measured_texts: list[str] = []
+    original_text_path = matplotlib_primitives.TextPath
+
+    class CountingTextPath:
+        def __init__(self, xy: tuple[float, float], text: str, **kwargs: object) -> None:
+            measured_texts.append(text)
+            self._path = original_text_path(xy, text, **kwargs)
+
+        def get_extents(self) -> object:
+            return self._path.get_extents()
+
+    monkeypatch.setattr(matplotlib_primitives, "TextPath", CountingTextPath)
+    matplotlib_primitives._text_width_in_points.cache_clear()
+    matplotlib_primitives._text_height_in_points.cache_clear()
+    matplotlib_primitives.prepare_axes(axes, scene)
+    context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
+
+    numeric_subtitles = ("0.11", "1.22", "2.33", "3.44", "4.55", "5.66")
+    for subtitle in numeric_subtitles:
+        fitted_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
+            context=context,
+            width=scene.style.gate_width,
+            height=scene.style.gate_height,
+            text=subtitle,
+            default_font_size=scene.style.font_size * 0.78,
+            height_fraction=0.4,
+            cache={},
+        )
+        assert fitted_size > 0.0
+
+    assert len(measured_texts) < len(numeric_subtitles)
+
+
 def test_matplotlib_renderer_reuses_gate_text_context_per_wrapped_page(monkeypatch) -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=24),
@@ -1090,6 +1199,49 @@ def test_draw_quantum_circuit_2d_hover_reports_controlled_gate_matrix_dimensions
 
     assert "matrix: 4 x 4" in annotation.get_text().lower()
     assert "qubits: q0, q1" in annotation.get_text().lower()
+
+
+def test_draw_quantum_circuit_2d_hover_only_redraws_on_target_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(build_sample_ir(), hover=True)
+    figure.canvas.draw()
+
+    redraw_count = 0
+    original_draw_idle = figure.canvas.draw_idle
+
+    def count_draw_idle() -> None:
+        nonlocal redraw_count
+        redraw_count += 1
+        original_draw_idle()
+
+    monkeypatch.setattr(figure.canvas, "draw_idle", count_draw_idle)
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    measurement_patch = max(
+        (patch for patch in axes.patches if isinstance(patch, FancyBboxPatch)),
+        key=lambda patch: patch.get_y(),
+    )
+    axes_bounds = axes.get_window_extent(renderer=figure.canvas.get_renderer())
+
+    _dispatch_motion_event(figure, axes, gate_patch)
+    assert redraw_count == 1
+
+    _dispatch_motion_event(figure, axes, gate_patch)
+    _dispatch_motion_event(figure, axes, gate_patch)
+    assert redraw_count == 1
+
+    _dispatch_motion_event(figure, axes, measurement_patch)
+    assert redraw_count == 2
+
+    _dispatch_motion_event_at(figure, axes_bounds.x0 + 4.0, axes_bounds.y0 + 4.0)
+    assert redraw_count == 3
+
+    _dispatch_motion_event_at(figure, axes_bounds.x0 + 4.0, axes_bounds.y0 + 4.0)
+    assert redraw_count == 3
 
 
 def test_draw_quantum_circuit_keeps_gate_label_inside_box_after_zoom() -> None:

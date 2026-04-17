@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import quantum_circuit_drawer.layout._operation_layout as operation_layout_module
 import quantum_circuit_drawer.layout._operation_text as operation_text_module
 import quantum_circuit_drawer.layout.spacing as spacing_module
 from quantum_circuit_drawer.ir import ClassicalConditionIR
@@ -73,6 +74,69 @@ def test_layout_engine_assigns_columns_and_geometry() -> None:
     assert scene.gates[0].column == 0
     assert scene.gates[1].column == 0
     assert scene.gates[2].column == 1
+
+
+def test_layout_engine_reuses_hover_matrix_resolution_for_repeated_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolved_matrix_calls = 0
+    matrix_dimension_calls = 0
+    original_resolved_matrix = operation_layout_module.resolved_operation_matrix
+    original_matrix_dimension = operation_layout_module.operation_matrix_dimension
+
+    def count_resolved_matrix(operation: OperationIR) -> object | None:
+        nonlocal resolved_matrix_calls
+        resolved_matrix_calls += 1
+        return original_resolved_matrix(operation)
+
+    def count_matrix_dimension(operation: OperationIR) -> int | None:
+        nonlocal matrix_dimension_calls
+        matrix_dimension_calls += 1
+        return original_matrix_dimension(operation)
+
+    monkeypatch.setattr(
+        operation_layout_module,
+        "resolved_operation_matrix",
+        count_resolved_matrix,
+    )
+    monkeypatch.setattr(
+        operation_layout_module,
+        "operation_matrix_dimension",
+        count_matrix_dimension,
+    )
+
+    repeated_rotations = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        canonical_family=CanonicalGateFamily.H,
+                        target_wires=("q0",),
+                    ),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q1",),
+                    ),
+                ]
+            )
+            for _ in range(8)
+        ],
+    )
+
+    scene = LayoutEngine().compute(repeated_rotations, DrawStyle())
+    hover_items = [gate.hover_data for gate in scene.gates if gate.hover_data is not None]
+
+    assert hover_items
+    assert resolved_matrix_calls <= 2
+    assert matrix_dimension_calls <= 2
 
 
 def test_layout_engine_keeps_late_measurements_after_swap_and_barrier() -> None:
@@ -651,6 +715,42 @@ def test_layout_engine_uses_controlled_gate_hover_names(
     }
 
     assert hover_names == {expected_hover_name}
+
+
+def test_layout_engine_uses_single_connection_span_for_same_side_multicontrol() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+            WireIR(id="q3", index=3, kind=WireKind.QUANTUM, label="q3"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q3",),
+                        control_wires=("q0", "q1"),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    quantum_connections = [
+        connection for connection in scene.connections if not connection.is_classical
+    ]
+
+    assert len(scene.controls) == 2
+    assert len(quantum_connections) == 1
+    assert quantum_connections[0].x == scene.controls[0].x == scene.controls[1].x
+    assert quantum_connections[0].y_start == scene.wire_y_positions["q0"]
+    assert quantum_connections[0].y_end == scene.wire_y_positions["q3"]
 
 
 def test_layout_engine_adds_target_wire_order_annotations_for_multi_wire_boxes() -> None:
