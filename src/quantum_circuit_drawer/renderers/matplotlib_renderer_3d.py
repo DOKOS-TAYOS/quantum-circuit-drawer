@@ -190,7 +190,8 @@ class MatplotlibRenderer3D(BaseRenderer):
             and len(bounds) == 4
             and all(isinstance(value, int | float) for value in bounds)
         ):
-            return tuple(float(value) for value in bounds)
+            left, bottom, width, height = bounds
+            return (float(left), float(bottom), float(width), float(height))
         return None
 
     def _fit_scene_to_shorter_canvas_dimension(
