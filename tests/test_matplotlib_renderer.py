@@ -951,7 +951,7 @@ def test_draw_quantum_circuit_keeps_gate_label_inside_box_after_zoom() -> None:
     assert text_x + text_width <= patch_x + patch_width
 
 
-def test_matplotlib_renderer_rescales_gate_text_when_zooming() -> None:
+def test_matplotlib_renderer_rescales_gate_and_wire_text_when_zooming() -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=6),
         DrawStyle(),
@@ -973,7 +973,7 @@ def test_matplotlib_renderer_rescales_gate_text_when_zooming() -> None:
     figure.canvas.draw()
 
     assert gate_label.get_fontsize() > initial_gate_font_size
-    assert wire_label.get_fontsize() == approx(initial_wire_font_size)
+    assert wire_label.get_fontsize() > initial_wire_font_size
 
 
 def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classical_bits() -> None:
