@@ -103,6 +103,10 @@ class QiskitAdapter(BaseAdapter):
         matrix_metadata = self._matrix_metadata(operation)
 
         if name == "measure":
+            if not target_wires:
+                raise UnsupportedOperationError(
+                    "Qiskit instruction 'measure' has no quantum target"
+                )
             if not clbits:
                 raise UnsupportedOperationError(
                     "Qiskit instruction 'measure' has no classical target"
@@ -411,19 +415,5 @@ class QiskitAdapter(BaseAdapter):
             )
             for bit_index, bit in enumerate(unmapped_bits):
                 classical_targets[bit] = (wire_id, f"c[{bit_index}]")
-        elif not classical_wires:
-            classical_wires.append(
-                WireIR(
-                    id="c0",
-                    index=0,
-                    kind=WireKind.CLASSICAL,
-                    label="c",
-                    metadata={"bundle_size": len(clbits)},
-                )
-            )
-            for bit_index, bit in enumerate(clbits):
-                classical_targets[bit] = ("c0", f"c[{bit_index}]")
-            for register in registers:
-                register_targets[register] = ("c0", getattr(register, "name", None) or "c")
 
         return classical_wires, classical_targets, register_targets

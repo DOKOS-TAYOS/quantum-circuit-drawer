@@ -6,7 +6,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from quantum_circuit_drawer.adapters.pennylane_adapter import PennyLaneAdapter
-from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError
+from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError, UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 
 skip_real_pennylane_on_windows = pytest.mark.skipif(
@@ -150,6 +150,23 @@ def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPa
 
     with pytest.raises(UnsupportedFrameworkError, match="PennyLane support in v0.1"):
         PennyLaneAdapter().to_ir(object())
+
+
+def test_pennylane_adapter_rejects_mid_measure_without_wire(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0,),
+        operations=(FakeOperation(name="MidMeasureMP", wires=()),),
+        measurements=(),
+    )
+
+    with pytest.raises(
+        UnsupportedOperationError,
+        match="mid-measurement operation has no quantum target",
+    ):
+        PennyLaneAdapter().to_ir(FakeTapeWrapper(tape))
 
 
 @skip_real_pennylane_on_windows
