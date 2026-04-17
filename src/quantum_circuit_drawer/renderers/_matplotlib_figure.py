@@ -43,6 +43,7 @@ class AutoPagingState:
     normalized_style: DrawStyle
     scene: LayoutScene
     effective_page_width: float
+    hover_enabled: bool = True
     last_viewport_signature: tuple[int, int] | None = None
     needs_initial_draw_reconcile: bool = False
     is_updating: bool = False

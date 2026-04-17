@@ -41,6 +41,20 @@ from tests.support import (
 )
 
 
+def _hover_payload_count(scene: object) -> int:
+    return sum(
+        1
+        for item in (
+            *scene.gates,
+            *scene.controls,
+            *scene.connections,
+            *scene.swaps,
+            *scene.measurements,
+        )
+        if getattr(item, "hover_data", None) is not None
+    )
+
+
 def _zoom_text_scaling_ir() -> CircuitIR:
     return CircuitIR(
         quantum_wires=[
@@ -189,6 +203,63 @@ def test_draw_quantum_circuit_keeps_managed_figure_interactive_for_notebook_show
 
     assert captured_use_agg == [False]
     assert get_hover_state(axes) is not None
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_3d_uses_agg_canvas_for_hidden_non_hover_render_on_interactive_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer.renderers._matplotlib_figure as figure_support
+
+    captured_use_agg: list[bool] = []
+    original_create_managed_figure = figure_support.create_managed_figure
+
+    def capture_create_managed_figure(*args: object, **kwargs: object) -> tuple[Figure, object]:
+        captured_use_agg.append(bool(kwargs.get("use_agg", False)))
+        return original_create_managed_figure(*args, **kwargs)
+
+    monkeypatch.setattr(plt, "get_backend", lambda: "TkAgg")
+    monkeypatch.setattr(figure_support, "create_managed_figure", capture_create_managed_figure)
+
+    figure, axes = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert captured_use_agg == [True]
+    assert isinstance(figure.canvas, FigureCanvasAgg)
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_3d_keeps_interactive_canvas_for_hidden_hover_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer.renderers._matplotlib_figure as figure_support
+
+    captured_use_agg: list[bool] = []
+    original_create_managed_figure = figure_support.create_managed_figure
+
+    def capture_create_managed_figure(*args: object, **kwargs: object) -> tuple[Figure, object]:
+        captured_use_agg.append(bool(kwargs.get("use_agg", False)))
+        return original_create_managed_figure(*args, **kwargs)
+
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+    monkeypatch.setattr(figure_support, "create_managed_figure", capture_create_managed_figure)
+
+    figure, axes = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        hover=True,
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert captured_use_agg == [False]
     plt.close(figure)
 
 
@@ -556,6 +627,32 @@ def test_draw_quantum_circuit_repages_when_axes_resize_without_slider() -> None:
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_auto_paging_skips_hover_metadata_when_hover_is_disabled() -> None:
+    figure, axes = plt.subplots(figsize=(3.2, 12.0))
+
+    draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24),
+        style={"max_page_width": 20.0},
+        ax=axes,
+        show=False,
+    )
+
+    initial_state = get_auto_paging_state(axes)
+
+    assert initial_state is not None
+    assert _hover_payload_count(initial_state.scene) == 0
+
+    figure.set_size_inches(12.0, 3.2, forward=True)
+    figure.canvas.draw()
+
+    resized_state = get_auto_paging_state(axes)
+
+    assert resized_state is not None
+    assert _hover_payload_count(resized_state.scene) == 0
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_managed_figure_uses_viewport_adaptive_paging_without_slider() -> None:
     circuit = build_dense_rotation_ir(layer_count=24)
     strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
@@ -699,9 +796,12 @@ def test_draw_quantum_circuit_managed_figure_reconciles_auto_paging_on_first_dra
         _layout_engine: object,
         _style: object,
         _axes: object,
+        *,
+        hover_enabled: bool = True,
     ) -> tuple[object, float]:
         nonlocal viewport_calls
         viewport_calls += 1
+        assert hover_enabled is False
         if viewport_calls == 1:
             return initial_scene, 4.0
         return reconciled_scene, 12.0

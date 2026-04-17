@@ -73,13 +73,20 @@ def pyplot_backend_supports_interaction() -> bool:
     return backend_supports_interaction(pyplot_backend_name())
 
 
-def should_use_managed_agg_canvas(*, show: bool, output: OutputPath | None) -> bool:
+def should_use_managed_agg_canvas(
+    *,
+    show: bool,
+    output: OutputPath | None,
+    prefer_offscreen_when_hidden: bool = False,
+) -> bool:
     """Return whether managed rendering should force an Agg canvas."""
 
     if output is not None:
         return True
     if show:
         return False
+    if prefer_offscreen_when_hidden:
+        return True
     return not pyplot_backend_supports_interaction()
 
 

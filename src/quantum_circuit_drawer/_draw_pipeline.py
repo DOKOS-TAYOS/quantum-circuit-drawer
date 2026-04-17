@@ -15,7 +15,6 @@ from .typing import (
     LayoutEngine3DLike,
     LayoutEngineLike,
     _NormalizedLayoutEngine3DLike,
-    _NormalizedLayoutEngineLike,
 )
 
 if TYPE_CHECKING:
@@ -98,7 +97,12 @@ def prepare_draw_pipeline(
         )
     else:
         layout_engine_2d = resolve_layout_engine(layout)
-        scene_2d = _compute_2d_scene(layout_engine_2d, ir, normalized_style)
+        scene_2d = _compute_2d_scene(
+            layout_engine_2d,
+            ir,
+            normalized_style,
+            hover_enabled=draw_options.hover.enabled,
+        )
         scene_2d.hover = draw_options.hover
         paged_scene = scene_2d
         layout_engine = layout_engine_2d
@@ -174,11 +178,16 @@ def _compute_2d_scene(
     layout_engine: LayoutEngineLike,
     circuit: CircuitIR,
     style: DrawStyle,
+    *,
+    hover_enabled: bool,
 ) -> LayoutScene:
-    if hasattr(layout_engine, "_compute_with_normalized_style"):
-        return cast(_NormalizedLayoutEngineLike, layout_engine)._compute_with_normalized_style(
+    from .layout.engine import LayoutEngine
+
+    if isinstance(layout_engine, LayoutEngine):
+        return layout_engine._compute_with_normalized_style(
             circuit,
             style,
+            hover_enabled=hover_enabled,
         )
     return layout_engine.compute(circuit, style)
 

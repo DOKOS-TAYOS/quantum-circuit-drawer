@@ -15,6 +15,20 @@ from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_sample_ir
 
 
+def _hover_payload_count(scene: object) -> int:
+    return sum(
+        1
+        for item in (
+            *scene.gates,
+            *scene.controls,
+            *scene.connections,
+            *scene.swaps,
+            *scene.measurements,
+        )
+        if getattr(item, "hover_data", None) is not None
+    )
+
+
 class _CapturingAdapter:
     def __init__(self, ir: CircuitIR) -> None:
         self._ir = ir
@@ -199,3 +213,27 @@ def test_resolve_layout_engine_accepts_layout_like_objects() -> None:
 def test_resolve_layout_engine_rejects_objects_without_compute() -> None:
     with pytest.raises(LayoutError, match="layout must be None or expose a compute"):
         resolve_layout_engine(object())
+
+
+def test_prepare_draw_pipeline_omits_2d_hover_metadata_when_hover_is_disabled() -> None:
+    pipeline = prepare_draw_pipeline(
+        circuit=build_sample_ir(),
+        framework="ir",
+        style=None,
+        layout=None,
+        options={"hover": HoverOptions(enabled=False)},
+    )
+
+    assert _hover_payload_count(pipeline.paged_scene) == 0
+
+
+def test_prepare_draw_pipeline_keeps_2d_hover_metadata_when_hover_is_enabled() -> None:
+    pipeline = prepare_draw_pipeline(
+        circuit=build_sample_ir(),
+        framework="ir",
+        style=None,
+        layout=None,
+        options={"hover": HoverOptions()},
+    )
+
+    assert _hover_payload_count(pipeline.paged_scene) > 0

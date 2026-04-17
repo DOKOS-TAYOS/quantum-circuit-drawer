@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from typing import cast
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
@@ -12,7 +11,7 @@ from matplotlib.figure import Figure, SubFigure
 from .ir.circuit import CircuitIR
 from .layout.scene import LayoutScene
 from .style import DrawStyle
-from .typing import LayoutEngineLike, _NormalizedLayoutEngineLike
+from .typing import LayoutEngineLike
 
 _VIEWPORT_SEARCH_STEPS = 10
 
@@ -21,16 +20,18 @@ def build_continuous_slider_scene(
     circuit: CircuitIR,
     layout_engine: LayoutEngineLike,
     style: DrawStyle,
+    *,
+    hover_enabled: bool = True,
 ) -> LayoutScene:
     """Compute a continuous-width 2D scene for page-slider mode."""
 
     slider_style = replace(style, max_page_width=float("inf"))
-    if hasattr(layout_engine, "_compute_with_normalized_style"):
-        return cast(_NormalizedLayoutEngineLike, layout_engine)._compute_with_normalized_style(
-            circuit,
-            slider_style,
-        )
-    return layout_engine.compute(circuit, slider_style)
+    return _compute_layout_scene(
+        circuit,
+        layout_engine,
+        slider_style,
+        hover_enabled=hover_enabled,
+    )
 
 
 def viewport_adaptive_paged_scene(
@@ -38,15 +39,30 @@ def viewport_adaptive_paged_scene(
     layout_engine: LayoutEngineLike,
     style: DrawStyle,
     axes: Axes,
+    *,
+    hover_enabled: bool = True,
 ) -> tuple[LayoutScene, float]:
     """Return the paged scene whose aspect best matches the current axes viewport."""
 
     max_page_width = style.max_page_width
     viewport_ratio = axes_viewport_ratio(axes)
     if viewport_ratio <= 0.0:
-        return compute_paged_scene(circuit, layout_engine, style), max_page_width
+        return (
+            compute_paged_scene(
+                circuit,
+                layout_engine,
+                style,
+                hover_enabled=hover_enabled,
+            ),
+            max_page_width,
+        )
 
-    continuous_scene = build_continuous_slider_scene(circuit, layout_engine, style)
+    continuous_scene = build_continuous_slider_scene(
+        circuit,
+        layout_engine,
+        style,
+        hover_enabled=hover_enabled,
+    )
     continuous_page_width = (
         continuous_scene.pages[0].content_width
         if continuous_scene.pages
@@ -67,6 +83,7 @@ def viewport_adaptive_paged_scene(
             circuit,
             layout_engine,
             replace(style, max_page_width=page_width),
+            hover_enabled=hover_enabled,
         )
         scene_cache[page_width] = scene
         return scene
@@ -106,15 +123,17 @@ def compute_paged_scene(
     circuit: CircuitIR,
     layout_engine: LayoutEngineLike,
     style: DrawStyle,
+    *,
+    hover_enabled: bool = True,
 ) -> LayoutScene:
     """Compute a paged 2D scene using the provided normalized style."""
 
-    if hasattr(layout_engine, "_compute_with_normalized_style"):
-        return cast(_NormalizedLayoutEngineLike, layout_engine)._compute_with_normalized_style(
-            circuit,
-            style,
-        )
-    return layout_engine.compute(circuit, style)
+    return _compute_layout_scene(
+        circuit,
+        layout_engine,
+        style,
+        hover_enabled=hover_enabled,
+    )
 
 
 def auto_paging_matches(
@@ -194,3 +213,21 @@ def _figure_size_inches(figure: Figure | SubFigure) -> tuple[float, float]:
     else:
         size_inches = figure.figure.get_size_inches()
     return float(size_inches[0]), float(size_inches[1])
+
+
+def _compute_layout_scene(
+    circuit: CircuitIR,
+    layout_engine: LayoutEngineLike,
+    style: DrawStyle,
+    *,
+    hover_enabled: bool,
+) -> LayoutScene:
+    from .layout.engine import LayoutEngine
+
+    if isinstance(layout_engine, LayoutEngine):
+        return layout_engine._compute_with_normalized_style(
+            circuit,
+            style,
+            hover_enabled=hover_enabled,
+        )
+    return layout_engine.compute(circuit, style)

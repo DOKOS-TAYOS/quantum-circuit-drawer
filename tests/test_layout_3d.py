@@ -231,6 +231,28 @@ def _multi_single_gate_ir(*, layers: int = 4) -> CircuitIR:
     )
 
 
+def _multi_topological_control_ir(*, layers: int = 4) -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q3",),
+                        control_wires=("q0",),
+                    )
+                ]
+            )
+            for _ in range(layers)
+        ],
+    )
+
+
 def test_build_topology_grid_prefers_more_columns_when_near_square() -> None:
     quantum_wires = tuple(
         WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
@@ -508,6 +530,161 @@ def test_matplotlib_renderer_3d_compensates_single_gate_projection_to_look_squar
     )
 
     assert max(display_sizes) / min(display_sizes) < 1.15
+
+
+def test_matplotlib_renderer_3d_batched_projection_matches_scalar_projection() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=4),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+    renderer = MatplotlibRenderer3D()
+
+    renderer.render(scene, ax=axes)
+
+    assert hasattr(renderer, "_projected_display_points")
+
+    context = renderer._create_render_context(axes)
+    point_array = np.array(
+        [
+            [scene.wires[0].start.x, scene.wires[0].start.y, scene.wires[0].start.z],
+            [scene.wires[0].end.x, scene.wires[0].end.y, scene.wires[0].end.z],
+            [scene.gates[0].center.x, scene.gates[0].center.y, scene.gates[0].center.z],
+        ],
+        dtype=float,
+    )
+
+    batched_points = renderer._projected_display_points(
+        axes,
+        point_array,
+        render_context=context,
+    )
+    scalar_points = np.array(
+        [
+            renderer._projected_display_point(
+                axes,
+                Point3D(x=float(point[0]), y=float(point[1]), z=float(point[2])),
+                render_context=context,
+            )
+            for point in point_array
+        ],
+        dtype=float,
+    )
+
+    assert np.allclose(batched_points, scalar_points)
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_batches_box_gates_when_hover_is_disabled() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    gate_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, Poly3DCollection)
+        and len(collection.get_facecolors()) > 0
+        and to_hex(collection.get_facecolors()[0], keep_alpha=False)
+        == to_hex(DrawStyle().theme.gate_facecolor, keep_alpha=False)
+    ]
+
+    assert len(scene.gates) == 6
+    assert len(gate_collections) == 1
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_keeps_separate_gate_artists_when_hover_is_enabled() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=6),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    gate_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, Poly3DCollection)
+        and len(collection.get_facecolors()) > 0
+        and to_hex(collection.get_facecolors()[0], keep_alpha=False)
+        == to_hex(DrawStyle().theme.gate_facecolor, keep_alpha=False)
+    ]
+
+    assert len(gate_collections) == len(scene.gates)
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_batches_connections_when_hover_is_disabled() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_topological_control_ir(layers=4),
+        DrawStyle(),
+        topology_name="line",
+        direct=False,
+        hover_enabled=False,
+    )
+    connection_only_scene = replace(
+        scene,
+        gates=(),
+        markers=(),
+        texts=(),
+        topology_planes=(),
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(connection_only_scene, ax=axes)
+
+    line_collections = [
+        collection for collection in axes.collections if isinstance(collection, Line3DCollection)
+    ]
+
+    assert len(scene.connections) > 2
+    assert len(line_collections) <= 2
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_batches_measurement_symbols_in_no_hover_mode() -> None:
+    scene = LayoutEngine3D().compute(
+        _bundled_measurement_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    measurement_symbol_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, Line3DCollection)
+        and len(collection.get_colors()) > 0
+        and to_hex(collection.get_colors()[0], keep_alpha=False)
+        == to_hex(DrawStyle().theme.measurement_color, keep_alpha=False)
+    ]
+
+    assert len(measurement_symbol_collections) >= 1
+    plt.close(figure)
 
 
 def test_draw_quantum_circuit_3d_uses_most_of_shorter_figsize_dimension() -> None:
@@ -821,6 +998,50 @@ def test_matplotlib_renderer_3d_batches_noninteractive_marker_scatters(
     assert scatter_calls == 2
 
 
+def test_matplotlib_renderer_3d_uses_batched_projection_when_fitting_scene(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine3D().compute(
+        _dense_marker_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    figure = plt.figure(figsize=(12, 3))
+    axes = figure.add_subplot(111, projection="3d")
+    renderer = MatplotlibRenderer3D()
+
+    renderer._prepare_axes(axes, scene)
+    renderer._synchronize_axes_geometry(axes)
+
+    assert hasattr(renderer, "_projected_display_points")
+
+    scalar_projection_calls = 0
+    batched_projection_calls = 0
+    original_projected_display_point = renderer._projected_display_point
+    original_projected_display_points = renderer._projected_display_points
+
+    def counting_projected_display_point(*args: object, **kwargs: object) -> np.ndarray:
+        nonlocal scalar_projection_calls
+        scalar_projection_calls += 1
+        return original_projected_display_point(*args, **kwargs)
+
+    def counting_projected_display_points(*args: object, **kwargs: object) -> np.ndarray:
+        nonlocal batched_projection_calls
+        batched_projection_calls += 1
+        return original_projected_display_points(*args, **kwargs)
+
+    monkeypatch.setattr(renderer, "_projected_display_point", counting_projected_display_point)
+    monkeypatch.setattr(renderer, "_projected_display_points", counting_projected_display_points)
+
+    renderer._fit_scene_to_shorter_canvas_dimension(axes, scene)
+
+    assert batched_projection_calls >= 1
+    assert scalar_projection_calls == 0
+    plt.close(figure)
+
+
 def test_matplotlib_renderer_3d_batches_noninteractive_x_target_rings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1063,10 +1284,12 @@ def test_draw_quantum_circuit_renders_topology_plane_gate_borders_measurement_sy
         for collection in gate_collections
         if to_hex(collection.get_facecolors()[0], keep_alpha=False) == "#22c55e"
     ]
-    measurement_symbol_lines = [
-        line
-        for line in axes.lines
-        if to_hex(line.get_color(), keep_alpha=False)
+    measurement_symbol_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, Line3DCollection)
+        and len(collection.get_colors()) > 0
+        and to_hex(collection.get_colors()[0], keep_alpha=False)
         == to_hex(DrawStyle().theme.measurement_color, keep_alpha=False)
     ]
     classical_arrow_collections = [
@@ -1086,7 +1309,7 @@ def test_draw_quantum_circuit_renders_topology_plane_gate_borders_measurement_sy
     assert any(
         collection.get_linewidths()[0] < DrawStyle().line_width for collection in gate_collections
     )
-    assert measurement_symbol_lines
+    assert measurement_symbol_collections
     assert not any(text.get_text() == "M" for text in axes.texts)
     assert any(
         len(getattr(collection, "_segments3d", collection.get_segments())) >= 2

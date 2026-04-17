@@ -45,6 +45,7 @@ class _SceneCollections:
 class _OperationSceneBuilder:
     circuit: CircuitIR
     scaffold: _LayoutScaffold
+    hover_enabled: bool = True
     wire_map: dict[str, WireIR] = field(init=False)
     gates: list[SceneGate] = field(default_factory=list, init=False)
     gate_annotations: list[SceneGateAnnotation] = field(default_factory=list, init=False)
@@ -160,6 +161,29 @@ class _OperationSceneBuilder:
             gate_height=gate_height,
         )
 
+    def _maybe_hover_data(
+        self,
+        *,
+        operation: OperationIR,
+        column: int,
+        name: str,
+        gate_x: float,
+        gate_y: float,
+        gate_width: float,
+        gate_height: float,
+    ) -> SceneHoverData | None:
+        if not self.hover_enabled:
+            return None
+        return self._hover_data(
+            operation=operation,
+            column=column,
+            name=name,
+            gate_x=gate_x,
+            gate_y=gate_y,
+            gate_width=gate_width,
+            gate_height=gate_height,
+        )
+
     def _layout_operation(
         self,
         *,
@@ -242,7 +266,7 @@ class _OperationSceneBuilder:
             )
         connector_x = x + metrics.width * 0.24
         connector_y = quantum_y + style.gate_height * 0.18
-        hover_data = self._hover_data(
+        hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
             name=metrics.display_label,
@@ -288,7 +312,7 @@ class _OperationSceneBuilder:
     def _layout_swap(self, *, operation: OperationIR, column: int, x: float) -> None:
         style = self.scaffold.draw_style
         y_top, y_bottom = vertical_span(self.scaffold.wire_positions, operation.target_wires)
-        hover_data = self._hover_data(
+        hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
             name=operation.label or operation.name,
@@ -344,7 +368,7 @@ class _OperationSceneBuilder:
         y_top, y_bottom = vertical_span(self.scaffold.wire_positions, operation.target_wires)
         gate_y = (y_top + y_bottom) / 2
         gate_height = max(style.gate_height, (y_bottom - y_top) + style.gate_height)
-        hover_data = self._hover_data(
+        hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
             name=metrics.display_label,
@@ -406,7 +430,7 @@ class _OperationSceneBuilder:
     def _layout_controlled_z(self, *, operation: OperationIR, column: int, x: float) -> None:
         style = self.scaffold.draw_style
         control_ids = (*operation.control_wires, *operation.target_wires)
-        hover_data = self._hover_data(
+        hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
             name=operation.label or operation.name,
@@ -446,7 +470,7 @@ class _OperationSceneBuilder:
         style = self.scaffold.draw_style
         target_wire = operation.target_wires[0]
         target_y = self.scaffold.wire_positions[target_wire]
-        hover_data = self._hover_data(
+        hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
             name=operation.label or operation.name,
@@ -511,7 +535,7 @@ class _OperationSceneBuilder:
         y_top, y_bottom = vertical_span(self.scaffold.wire_positions, operation.target_wires)
         gate_y = (y_top + y_bottom) / 2
         gate_height = max(style.gate_height, (y_bottom - y_top) + style.gate_height)
-        hover_data = self._hover_data(
+        hover_data = self._maybe_hover_data(
             operation=operation,
             column=column,
             name=metrics.display_label,
@@ -586,7 +610,16 @@ class _OperationSceneBuilder:
             )
 
 
-def build_scene_collections(circuit: CircuitIR, scaffold: _LayoutScaffold) -> _SceneCollections:
+def build_scene_collections(
+    circuit: CircuitIR,
+    scaffold: _LayoutScaffold,
+    *,
+    hover_enabled: bool = True,
+) -> _SceneCollections:
     """Build all scene primitives using the shared scaffold."""
 
-    return _OperationSceneBuilder(circuit=circuit, scaffold=scaffold).build()
+    return _OperationSceneBuilder(
+        circuit=circuit,
+        scaffold=scaffold,
+        hover_enabled=hover_enabled,
+    ).build()

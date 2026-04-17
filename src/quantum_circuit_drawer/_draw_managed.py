@@ -88,7 +88,16 @@ def render_managed_draw_pipeline(
         set_viewport_width,
     )
 
-    use_agg_canvas = should_use_managed_agg_canvas(show=show, output=output)
+    hover_enabled = (
+        pipeline.paged_scene.hover_enabled
+        if is_3d_scene(pipeline.paged_scene)
+        else cast("LayoutScene", pipeline.paged_scene).hover.enabled
+    )
+    use_agg_canvas = should_use_managed_agg_canvas(
+        show=show,
+        output=output,
+        prefer_offscreen_when_hidden=not hover_enabled,
+    )
 
     if is_3d_scene(pipeline.paged_scene):
         scene_3d = pipeline.paged_scene
@@ -116,6 +125,7 @@ def render_managed_draw_pipeline(
             pipeline.ir,
             layout_engine,
             pipeline.normalized_style,
+            hover_enabled=scene_2d.hover.enabled,
         )
         slider_scene.hover = scene_2d.hover
         initial_viewport_width = min(scene_2d.width, slider_scene.width)
@@ -208,13 +218,15 @@ def render_draw_pipeline_on_axes(
         pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
         return axes
 
+    prepared_scene = cast("LayoutScene", pipeline.paged_scene)
     scene_2d, effective_page_width = viewport_adaptive_paged_scene(
         pipeline.ir,
         cast(LayoutEngineLike, pipeline.layout_engine),
         pipeline.normalized_style,
         axes,
+        hover_enabled=prepared_scene.hover.enabled,
     )
-    scene_2d.hover = cast("LayoutScene", pipeline.paged_scene).hover
+    scene_2d.hover = prepared_scene.hover
     axes.clear()
     pipeline.renderer.render(scene_2d, ax=axes, output=output)
     set_viewport_width(axes.figure, viewport_width=scene_2d.width)
@@ -227,6 +239,7 @@ def render_draw_pipeline_on_axes(
         normalized_style=pipeline.normalized_style,
         scene=scene_2d,
         effective_page_width=effective_page_width,
+        hover_enabled=prepared_scene.hover.enabled,
         last_viewport_signature=viewport_signature(axes),
         needs_initial_draw_reconcile=reconcile_on_first_draw,
     )
@@ -239,10 +252,17 @@ def build_continuous_slider_scene(
     circuit: CircuitIR,
     layout_engine: LayoutEngineLike,
     style: DrawStyle,
+    *,
+    hover_enabled: bool = True,
 ) -> LayoutScene:
     """Compute a continuous-width 2D scene for page-slider mode."""
 
-    return _build_continuous_slider_scene_impl(circuit, layout_engine, style)
+    return _build_continuous_slider_scene_impl(
+        circuit,
+        layout_engine,
+        style,
+        hover_enabled=hover_enabled,
+    )
 
 
 def viewport_adaptive_paged_scene(
@@ -250,20 +270,35 @@ def viewport_adaptive_paged_scene(
     layout_engine: LayoutEngineLike,
     style: DrawStyle,
     axes: Axes,
+    *,
+    hover_enabled: bool = True,
 ) -> tuple[LayoutScene, float]:
     """Return the paged scene whose aspect best matches the current axes viewport."""
 
-    return _viewport_adaptive_paged_scene_impl(circuit, layout_engine, style, axes)
+    return _viewport_adaptive_paged_scene_impl(
+        circuit,
+        layout_engine,
+        style,
+        axes,
+        hover_enabled=hover_enabled,
+    )
 
 
 def compute_paged_scene(
     circuit: CircuitIR,
     layout_engine: LayoutEngineLike,
     style: DrawStyle,
+    *,
+    hover_enabled: bool = True,
 ) -> LayoutScene:
     """Compute a paged 2D scene using the provided normalized style."""
 
-    return _compute_paged_scene_impl(circuit, layout_engine, style)
+    return _compute_paged_scene_impl(
+        circuit,
+        layout_engine,
+        style,
+        hover_enabled=hover_enabled,
+    )
 
 
 def configure_auto_paging(axes: Axes, state: object) -> None:
@@ -308,6 +343,7 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
             state.layout_engine,
             state.normalized_style,
             axes,
+            hover_enabled=state.hover_enabled,
         )
         candidate_scene.hover = state.scene.hover
         state.last_viewport_signature = current_signature

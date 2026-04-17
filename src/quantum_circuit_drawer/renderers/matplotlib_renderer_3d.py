@@ -53,6 +53,7 @@ _X_TARGET_RING_SEGMENTS = 40
 _SCENE_FIT_FILL_FRACTION = 0.92
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR = "_quantum_circuit_drawer_managed_3d_full_viewport_aspect"
+Segment3D = tuple[tuple[float, float, float], tuple[float, float, float]]
 
 
 @dataclass(slots=True)
@@ -252,62 +253,65 @@ class MatplotlibRenderer3D(BaseRenderer):
         *,
         render_context: _RenderContext3D,
     ) -> np.ndarray:
-        scene_points: list[Point3D] = []
-        scene_points.extend(self._topology_plane_points(scene))
-        scene_points.extend(self._wire_geometry_points(scene))
-        scene_points.extend(self._connection_geometry_points(scene))
-        scene_points.extend(self._gate_geometry_points(axes, scene, render_context=render_context))
-        scene_points.extend(self._marker_geometry_points(scene))
-        scene_points.extend(text.position for text in scene.texts)
-        if not scene_points:
+        point_groups = [
+            self._topology_plane_points(scene),
+            self._wire_geometry_points(scene),
+            self._connection_geometry_points(scene),
+            self._gate_geometry_points(axes, scene, render_context=render_context),
+            self._marker_geometry_points(scene),
+            self._text_geometry_points(scene),
+        ]
+        non_empty_groups = [points for points in point_groups if points.size > 0]
+        if not non_empty_groups:
             return np.empty((0, 2), dtype=float)
-        return np.array(
-            [
-                self._projected_display_point(
-                    axes,
-                    point,
-                    render_context=render_context,
-                )
-                for point in scene_points
-            ],
-            dtype=float,
+        return self._projected_display_points(
+            axes,
+            np.vstack(non_empty_groups),
+            render_context=render_context,
         )
 
-    def _topology_plane_points(self, scene: LayoutScene3D) -> list[Point3D]:
-        return [
-            Point3D(x=x_value, y=y_value, z=plane.z)
-            for plane in scene.topology_planes
-            for x_value, y_value in (
-                (plane.x_min, plane.y_min),
-                (plane.x_max, plane.y_min),
-                (plane.x_max, plane.y_max),
-                (plane.x_min, plane.y_max),
-            )
-        ]
+    def _topology_plane_points(self, scene: LayoutScene3D) -> np.ndarray:
+        return self._point_array(
+            [
+                (x_value, y_value, plane.z)
+                for plane in scene.topology_planes
+                for x_value, y_value in (
+                    (plane.x_min, plane.y_min),
+                    (plane.x_max, plane.y_min),
+                    (plane.x_max, plane.y_max),
+                    (plane.x_min, plane.y_max),
+                )
+            ]
+        )
 
-    def _wire_geometry_points(self, scene: LayoutScene3D) -> list[Point3D]:
-        points: list[Point3D] = []
+    def _wire_geometry_points(self, scene: LayoutScene3D) -> np.ndarray:
+        points: list[tuple[float, float, float]] = []
         for wire in scene.wires:
             if wire.double_line:
                 for delta in (-0.06, 0.06):
                     points.extend(
                         (
-                            Point3D(x=wire.start.x + delta, y=wire.start.y, z=wire.start.z),
-                            Point3D(x=wire.end.x + delta, y=wire.end.y, z=wire.end.z),
+                            (wire.start.x + delta, wire.start.y, wire.start.z),
+                            (wire.end.x + delta, wire.end.y, wire.end.z),
                         )
                     )
                 continue
-            points.extend((wire.start, wire.end))
-        return points
+            points.extend(
+                (
+                    (wire.start.x, wire.start.y, wire.start.z),
+                    (wire.end.x, wire.end.y, wire.end.z),
+                )
+            )
+        return self._point_array(points)
 
-    def _connection_geometry_points(self, scene: LayoutScene3D) -> list[Point3D]:
-        points: list[Point3D] = []
+    def _connection_geometry_points(self, scene: LayoutScene3D) -> np.ndarray:
+        points: list[tuple[float, float, float]] = []
         for connection in scene.connections:
-            points.extend(connection.points)
+            points.extend((point.x, point.y, point.z) for point in connection.points)
             if connection.arrow_at_end:
                 for start, end in self._arrowhead_segments(connection.points):
-                    points.extend((Point3D(*start), Point3D(*end)))
-        return points
+                    points.extend((start, end))
+        return self._point_array(points)
 
     def _gate_geometry_points(
         self,
@@ -315,19 +319,22 @@ class MatplotlibRenderer3D(BaseRenderer):
         scene: LayoutScene3D,
         *,
         render_context: _RenderContext3D,
-    ) -> list[Point3D]:
-        points: list[Point3D] = []
+    ) -> np.ndarray:
+        point_groups: list[np.ndarray] = []
         for gate in scene.gates:
             if gate.render_style is GateRenderStyle3D.X_TARGET:
                 radius = min(gate.size_x, gate.size_y) * 0.32
                 ring_points = self._x_target_ring_points(gate, radius, render_context)
-                points.extend(Point3D(float(x), float(y), float(z)) for x, y, z in ring_points)
-                points.extend(
-                    (
-                        Point3D(gate.center.x - radius, gate.center.y, gate.center.z),
-                        Point3D(gate.center.x + radius, gate.center.y, gate.center.z),
-                        Point3D(gate.center.x, gate.center.y - radius, gate.center.z),
-                        Point3D(gate.center.x, gate.center.y + radius, gate.center.z),
+                point_groups.append(ring_points)
+                point_groups.append(
+                    np.array(
+                        [
+                            (gate.center.x - radius, gate.center.y, gate.center.z),
+                            (gate.center.x + radius, gate.center.y, gate.center.z),
+                            (gate.center.x, gate.center.y - radius, gate.center.z),
+                            (gate.center.x, gate.center.y + radius, gate.center.z),
+                        ],
+                        dtype=float,
                     )
                 )
                 continue
@@ -336,27 +343,42 @@ class MatplotlibRenderer3D(BaseRenderer):
                 gate,
                 render_context=render_context,
             )
-            points.extend(
-                Point3D(*vertex) for face in self._cuboid_faces(display_gate) for vertex in face
+            point_groups.append(
+                np.array(
+                    [vertex for face in self._cuboid_faces(display_gate) for vertex in face],
+                    dtype=float,
+                )
             )
-        return points
+        if not point_groups:
+            return np.empty((0, 3), dtype=float)
+        return np.vstack(point_groups)
 
-    def _marker_geometry_points(self, scene: LayoutScene3D) -> list[Point3D]:
-        points: list[Point3D] = []
+    def _marker_geometry_points(self, scene: LayoutScene3D) -> np.ndarray:
+        points: list[tuple[float, float, float]] = []
         for marker in scene.markers:
             if marker.style is MarkerStyle3D.SWAP:
                 size = marker.size
                 points.extend(
                     (
-                        Point3D(marker.center.x - size, marker.center.y - size, marker.center.z),
-                        Point3D(marker.center.x + size, marker.center.y + size, marker.center.z),
-                        Point3D(marker.center.x - size, marker.center.y + size, marker.center.z),
-                        Point3D(marker.center.x + size, marker.center.y - size, marker.center.z),
+                        (marker.center.x - size, marker.center.y - size, marker.center.z),
+                        (marker.center.x + size, marker.center.y + size, marker.center.z),
+                        (marker.center.x - size, marker.center.y + size, marker.center.z),
+                        (marker.center.x + size, marker.center.y - size, marker.center.z),
                     )
                 )
                 continue
-            points.append(marker.center)
-        return points
+            points.append((marker.center.x, marker.center.y, marker.center.z))
+        return self._point_array(points)
+
+    def _text_geometry_points(self, scene: LayoutScene3D) -> np.ndarray:
+        return self._point_array(
+            [(text.position.x, text.position.y, text.position.z) for text in scene.texts]
+        )
+
+    def _point_array(self, points: list[tuple[float, float, float]]) -> np.ndarray:
+        if not points:
+            return np.empty((0, 3), dtype=float)
+        return np.array(points, dtype=float)
 
     def _create_render_context(self, axes: Axes3D) -> _RenderContext3D:
         theta = np.linspace(0.0, 2.0 * np.pi, _X_TARGET_RING_SEGMENTS, endpoint=False)
@@ -403,32 +425,27 @@ class MatplotlibRenderer3D(BaseRenderer):
         axes: Axes3D,
         scene: LayoutScene3D,
     ) -> list[tuple[Artist, str]]:
+        if scene.hover_enabled:
+            return self._draw_connections_with_hover(axes, scene)
+        self._draw_connections_batched(axes, scene)
+        return []
+
+    def _draw_connections_with_hover(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+    ) -> list[tuple[Artist, str]]:
         hover_targets: list[tuple[Artist, str]] = []
         for connection in scene.connections:
-            segments = self._segments_for_points(connection.points)
+            segments = self._connection_segments(connection)
             if not segments:
-                logger.debug(
-                    "Skipping degenerate 3D connection in column=%d with %d point(s)",
-                    connection.column,
-                    len(connection.points),
-                )
                 continue
-            if connection.arrow_at_end:
-                segments.extend(self._arrowhead_segments(connection.points))
             connection_color = self._connection_color(connection, scene)
             connection_width = self._connection_line_width(connection, scene)
             if connection.is_classical and connection.double_line:
-                draw_segments: list[
-                    tuple[tuple[float, float, float], tuple[float, float, float]]
-                ] = []
+                draw_segments: list[Segment3D] = []
                 for delta in (-0.05, 0.05):
-                    draw_segments.extend(
-                        (
-                            (first[0] + delta, first[1], first[2]),
-                            (second[0] + delta, second[1], second[2]),
-                        )
-                        for first, second in segments
-                    )
+                    draw_segments.extend(self._offset_segments_along_x(segments, delta=delta))
                 collection = Line3DCollection(
                     draw_segments,
                     colors=connection_color,
@@ -446,20 +463,83 @@ class MatplotlibRenderer3D(BaseRenderer):
             )
             axes.add_collection3d(collection)
             if connection.label:
-                label_point = connection.points[-1]
-                axes.text(
-                    label_point.x + 0.08,
-                    label_point.y,
-                    label_point.z,
-                    connection.label,
-                    color=scene.style.theme.classical_wire_color
-                    if connection.is_classical
-                    else scene.style.theme.wire_color,
-                    fontsize=scene.style.font_size * 0.72,
-                )
+                self._draw_connection_label(axes, connection, scene)
             if connection.hover_text:
                 hover_targets.append((collection, connection.hover_text))
         return hover_targets
+
+    def _draw_connections_batched(self, axes: Axes3D, scene: LayoutScene3D) -> None:
+        standard_segments: list[Segment3D] = []
+        control_segments: list[Segment3D] = []
+        topology_segments: list[Segment3D] = []
+        classical_segments: list[Segment3D] = []
+        classical_double_segments: list[Segment3D] = []
+
+        for connection in scene.connections:
+            segments = self._connection_segments(connection)
+            if not segments:
+                continue
+            if connection.is_classical and connection.double_line:
+                for delta in (-0.05, 0.05):
+                    classical_double_segments.extend(
+                        self._offset_segments_along_x(segments, delta=delta)
+                    )
+            elif connection.is_classical:
+                classical_segments.extend(segments)
+            elif connection.render_style is ConnectionRenderStyle3D.CONTROL:
+                control_segments.extend(segments)
+            elif connection.render_style is ConnectionRenderStyle3D.TOPOLOGY_EDGE:
+                topology_segments.extend(segments)
+            else:
+                standard_segments.extend(segments)
+
+            if connection.label:
+                self._draw_connection_label(axes, connection, scene)
+
+        if standard_segments:
+            collection = Line3DCollection(
+                standard_segments,
+                colors=scene.style.theme.wire_color,
+                linewidths=scene.style.line_width,
+                linestyles="solid",
+            )
+            collection.set_zorder(0.8)
+            axes.add_collection3d(collection)
+        if control_segments:
+            collection = Line3DCollection(
+                control_segments,
+                colors=_CONTROL_CONNECTION_COLOR,
+                linewidths=scene.style.line_width * _CONTROL_CONNECTION_WIDTH_SCALE,
+                linestyles="solid",
+            )
+            collection.set_zorder(2.4)
+            axes.add_collection3d(collection)
+        if topology_segments:
+            collection = Line3DCollection(
+                topology_segments,
+                colors=_TOPOLOGY_EDGE_COLOR,
+                linewidths=scene.style.line_width * _TOPOLOGY_EDGE_WIDTH_SCALE,
+                linestyles="solid",
+            )
+            collection.set_zorder(0.8)
+            axes.add_collection3d(collection)
+        if classical_segments:
+            collection = Line3DCollection(
+                classical_segments,
+                colors=scene.style.theme.classical_wire_color,
+                linewidths=scene.style.line_width,
+                linestyles="dashed",
+            )
+            collection.set_zorder(0.8)
+            axes.add_collection3d(collection)
+        if classical_double_segments:
+            collection = Line3DCollection(
+                classical_double_segments,
+                colors=scene.style.theme.classical_wire_color,
+                linewidths=scene.style.line_width,
+            )
+            collection.set_zorder(0.8)
+            axes.add_collection3d(collection)
 
     def _draw_gates(
         self,
@@ -467,14 +547,21 @@ class MatplotlibRenderer3D(BaseRenderer):
         scene: LayoutScene3D,
         render_context: _RenderContext3D,
     ) -> list[tuple[Artist, str]]:
+        if scene.hover_enabled:
+            return self._draw_gates_with_hover(axes, scene, render_context)
+        self._draw_gates_batched(axes, scene, render_context)
+        return []
+
+    def _draw_gates_with_hover(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        render_context: _RenderContext3D,
+    ) -> list[tuple[Artist, str]]:
         hover_targets: list[tuple[Artist, str]] = []
-        batched_x_targets: list[SceneGate3D] = []
         for gate in scene.gates:
             if gate.render_style is GateRenderStyle3D.X_TARGET:
-                if scene.hover_enabled:
-                    hover_targets.extend(self._draw_x_target(axes, gate, scene, render_context))
-                else:
-                    batched_x_targets.append(gate)
+                hover_targets.extend(self._draw_x_target(axes, gate, scene, render_context))
                 continue
             display_gate = self._display_compensated_gate(axes, gate, render_context=render_context)
             collection = Poly3DCollection(
@@ -491,11 +578,51 @@ class MatplotlibRenderer3D(BaseRenderer):
             axes.add_collection3d(collection)
             if gate.hover_text:
                 hover_targets.append((collection, gate.hover_text))
-            if gate.render_style is GateRenderStyle3D.MEASUREMENT and not scene.hover_enabled:
-                self._draw_measurement_symbol(axes, display_gate, scene)
+        return hover_targets
+
+    def _draw_gates_batched(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        render_context: _RenderContext3D,
+    ) -> None:
+        batched_x_targets: list[SceneGate3D] = []
+        box_faces: list[list[tuple[float, float, float]]] = []
+        measurement_faces: list[list[tuple[float, float, float]]] = []
+        measurement_gates: list[SceneGate3D] = []
+
+        for gate in scene.gates:
+            if gate.render_style is GateRenderStyle3D.X_TARGET:
+                batched_x_targets.append(gate)
+                continue
+            display_gate = self._display_compensated_gate(axes, gate, render_context=render_context)
+            if gate.render_style is GateRenderStyle3D.MEASUREMENT:
+                measurement_faces.extend(self._cuboid_faces(display_gate))
+                measurement_gates.append(display_gate)
+                continue
+            box_faces.extend(self._cuboid_faces(display_gate))
+
+        if box_faces:
+            collection = Poly3DCollection(
+                box_faces,
+                facecolors=scene.style.theme.gate_facecolor,
+                edgecolors=scene.style.theme.gate_edgecolor,
+                linewidths=scene.style.line_width * _GATE_EDGE_WIDTH_SCALE,
+                alpha=0.96,
+            )
+            axes.add_collection3d(collection)
+        if measurement_faces:
+            collection = Poly3DCollection(
+                measurement_faces,
+                facecolors=scene.style.theme.measurement_facecolor,
+                edgecolors=scene.style.theme.measurement_color,
+                linewidths=scene.style.line_width * _GATE_EDGE_WIDTH_SCALE,
+                alpha=0.96,
+            )
+            axes.add_collection3d(collection)
+            self._draw_measurement_symbols_batched(axes, measurement_gates, scene)
         if batched_x_targets:
             self._draw_x_targets_batched(axes, batched_x_targets, scene, render_context)
-        return hover_targets
 
     def _draw_topology_planes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
         for plane in scene.topology_planes:
@@ -706,40 +833,59 @@ class MatplotlibRenderer3D(BaseRenderer):
             axes.add_collection3d(collection)
         return []
 
-    def _draw_measurement_symbol(
+    def _draw_measurement_symbols_batched(
         self,
         axes: Axes3D,
-        gate: SceneGate3D,
+        gates: list[SceneGate3D],
         scene: LayoutScene3D,
     ) -> None:
-        top_z = gate.center.z + (gate.size_z * 0.53)
-        theta = np.linspace(np.pi, 2.0 * np.pi, 32)
-        arc_x = gate.center.x + (gate.size_x * 0.26 * np.cos(theta))
-        arc_y = gate.center.y - (gate.size_y * 0.06) + (gate.size_y * 0.24 * np.sin(theta))
-        axes.plot(
-            arc_x,
-            arc_y,
-            np.full_like(theta, top_z),
-            color=scene.style.theme.measurement_color,
-            linewidth=scene.style.line_width,
-            solid_capstyle="round",
-            zorder=3.6,
-        )
-        axes.plot(
-            [
-                gate.center.x - (gate.size_x * 0.04),
-                gate.center.x + (gate.size_x * 0.16),
-            ],
-            [
-                gate.center.y - (gate.size_y * 0.12),
-                gate.center.y + (gate.size_y * 0.16),
-            ],
-            [top_z, top_z],
-            color=scene.style.theme.measurement_color,
-            linewidth=scene.style.line_width,
-            solid_capstyle="round",
-            zorder=3.6,
-        )
+        arc_segments: list[Segment3D] = []
+        pointer_segments: list[Segment3D] = []
+
+        for gate in gates:
+            top_z = gate.center.z + (gate.size_z * 0.53)
+            theta = np.linspace(np.pi, 2.0 * np.pi, 32)
+            arc_points = np.column_stack(
+                (
+                    gate.center.x + (gate.size_x * 0.26 * np.cos(theta)),
+                    gate.center.y - (gate.size_y * 0.06) + (gate.size_y * 0.24 * np.sin(theta)),
+                    np.full_like(theta, top_z),
+                )
+            )
+            arc_segments.extend(self._segments_for_path_points(arc_points))
+            pointer_segments.append(
+                (
+                    (
+                        gate.center.x - (gate.size_x * 0.04),
+                        gate.center.y - (gate.size_y * 0.12),
+                        top_z,
+                    ),
+                    (
+                        gate.center.x + (gate.size_x * 0.16),
+                        gate.center.y + (gate.size_y * 0.16),
+                        top_z,
+                    ),
+                )
+            )
+
+        if arc_segments:
+            arc_collection = Line3DCollection(
+                arc_segments,
+                colors=scene.style.theme.measurement_color,
+                linewidths=scene.style.line_width,
+            )
+            arc_collection.set_capstyle("round")
+            arc_collection.set_zorder(3.6)
+            axes.add_collection3d(arc_collection)
+        if pointer_segments:
+            pointer_collection = Line3DCollection(
+                pointer_segments,
+                colors=scene.style.theme.measurement_color,
+                linewidths=scene.style.line_width,
+            )
+            pointer_collection.set_capstyle("round")
+            pointer_collection.set_zorder(3.6)
+            axes.add_collection3d(pointer_collection)
 
     def _draw_texts(self, axes: Axes3D, scene: LayoutScene3D) -> None:
         for text in scene.texts:
@@ -820,6 +966,51 @@ class MatplotlibRenderer3D(BaseRenderer):
             return scene.style.line_width * _TOPOLOGY_EDGE_WIDTH_SCALE
         return scene.style.line_width
 
+    def _draw_connection_label(
+        self,
+        axes: Axes3D,
+        connection: SceneConnection3D,
+        scene: LayoutScene3D,
+    ) -> None:
+        label_point = connection.points[-1]
+        axes.text(
+            label_point.x + 0.08,
+            label_point.y,
+            label_point.z,
+            connection.label,
+            color=scene.style.theme.classical_wire_color
+            if connection.is_classical
+            else scene.style.theme.wire_color,
+            fontsize=scene.style.font_size * 0.72,
+        )
+
+    def _connection_segments(self, connection: SceneConnection3D) -> list[Segment3D]:
+        segments = self._segments_for_points(connection.points)
+        if not segments:
+            logger.debug(
+                "Skipping degenerate 3D connection in column=%d with %d point(s)",
+                connection.column,
+                len(connection.points),
+            )
+            return []
+        if connection.arrow_at_end:
+            segments.extend(self._arrowhead_segments(connection.points))
+        return segments
+
+    def _offset_segments_along_x(
+        self,
+        segments: list[Segment3D],
+        *,
+        delta: float,
+    ) -> list[Segment3D]:
+        return [
+            (
+                (first[0] + delta, first[1], first[2]),
+                (second[0] + delta, second[1], second[2]),
+            )
+            for first, second in segments
+        ]
+
     def _segments_for_points(
         self,
         points: tuple[Point3D, ...],
@@ -835,7 +1026,7 @@ class MatplotlibRenderer3D(BaseRenderer):
     def _segments_for_ring_points(
         self,
         points: np.ndarray,
-    ) -> list[tuple[tuple[float, float, float], tuple[float, float, float]]]:
+    ) -> list[Segment3D]:
         point_count = points.shape[0]
         return [
             (
@@ -847,6 +1038,20 @@ class MatplotlibRenderer3D(BaseRenderer):
                 ),
             )
             for index in range(point_count)
+        ]
+
+    def _segments_for_path_points(self, points: np.ndarray) -> list[Segment3D]:
+        point_count = points.shape[0]
+        return [
+            (
+                (float(points[index][0]), float(points[index][1]), float(points[index][2])),
+                (
+                    float(points[index + 1][0]),
+                    float(points[index + 1][1]),
+                    float(points[index + 1][2]),
+                ),
+            )
+            for index in range(max(0, point_count - 1))
         ]
 
     def _x_target_ring_points(
@@ -971,29 +1176,54 @@ class MatplotlibRenderer3D(BaseRenderer):
         cached_scales = context.projected_axis_scale_cache.get(center_key)
         if cached_scales is not None:
             return cached_scales
-        origin = self._projected_display_point(axes, center, render_context=context)
-        x_axis_point = self._projected_display_point(
+        projected_points = self._projected_display_points(
             axes,
-            Point3D(x=center.x + 1.0, y=center.y, z=center.z),
+            np.array(
+                [
+                    (center.x, center.y, center.z),
+                    (center.x + 1.0, center.y, center.z),
+                    (center.x, center.y + 1.0, center.z),
+                    (center.x, center.y, center.z + 1.0),
+                ],
+                dtype=float,
+            ),
             render_context=context,
         )
-        y_axis_point = self._projected_display_point(
-            axes,
-            Point3D(x=center.x, y=center.y + 1.0, z=center.z),
-            render_context=context,
-        )
-        z_axis_point = self._projected_display_point(
-            axes,
-            Point3D(x=center.x, y=center.y, z=center.z + 1.0),
-            render_context=context,
-        )
+        origin = projected_points[0]
         scales = (
-            float(np.linalg.norm(x_axis_point - origin)),
-            float(np.linalg.norm(y_axis_point - origin)),
-            float(np.linalg.norm(z_axis_point - origin)),
+            float(np.linalg.norm(projected_points[1] - origin)),
+            float(np.linalg.norm(projected_points[2] - origin)),
+            float(np.linalg.norm(projected_points[3] - origin)),
         )
         context.projected_axis_scale_cache[center_key] = scales
         return scales
+
+    def _projected_display_points(
+        self,
+        axes: Axes3D,
+        points: np.ndarray,
+        *,
+        render_context: _RenderContext3D | None = None,
+    ) -> np.ndarray:
+        if points.size == 0:
+            return np.empty((0, 2), dtype=float)
+        if points.ndim != 2 or points.shape[1] != 3:
+            raise ValueError("points must be an Nx3 array")
+
+        context = render_context or self._create_render_context(axes)
+        projected_x, projected_y, _ = proj3d.proj_transform(
+            points[:, 0],
+            points[:, 1],
+            points[:, 2],
+            context.projection_matrix,
+        )
+        projected_xy = np.column_stack(
+            (
+                np.asarray(projected_x, dtype=float),
+                np.asarray(projected_y, dtype=float),
+            )
+        )
+        return np.asarray(context.data_transform.transform(projected_xy), dtype=float)
 
     def _projected_display_point(
         self,
@@ -1003,14 +1233,12 @@ class MatplotlibRenderer3D(BaseRenderer):
         render_context: _RenderContext3D | None = None,
     ) -> np.ndarray:
         context = render_context or self._create_render_context(axes)
-        projected_x, projected_y, _ = proj3d.proj_transform(
-            point.x,
-            point.y,
-            point.z,
-            context.projection_matrix,
+        projected_points = self._projected_display_points(
+            axes,
+            np.array([(point.x, point.y, point.z)], dtype=float),
+            render_context=context,
         )
-        display_x, display_y = context.data_transform.transform((projected_x, projected_y))
-        return np.array([float(display_x), float(display_y)], dtype=float)
+        return projected_points[0]
 
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
         try:

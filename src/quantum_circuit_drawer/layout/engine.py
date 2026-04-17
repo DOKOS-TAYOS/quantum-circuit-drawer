@@ -19,14 +19,28 @@ class LayoutEngine:
     """Compute a backend-neutral scene from CircuitIR."""
 
     def compute(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
-        return self._compute_with_normalized_style(circuit, normalize_style(style))
+        return self._compute_with_normalized_style(
+            circuit,
+            normalize_style(style),
+            hover_enabled=True,
+        )
 
-    def _compute_with_normalized_style(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
+    def _compute_with_normalized_style(
+        self,
+        circuit: CircuitIR,
+        style: DrawStyle,
+        *,
+        hover_enabled: bool = True,
+    ) -> LayoutScene:
         if not circuit.quantum_wires:
             raise LayoutError("circuit must contain at least one quantum wire")
 
         scaffold = self._build_layout_scaffold(circuit, style)
-        scene_collections = self._build_scene_collections(circuit, scaffold)
+        scene_collections = self._build_scene_collections(
+            circuit,
+            scaffold,
+            hover_enabled=hover_enabled,
+        )
         scene = LayoutScene(
             width=scaffold.scene_width,
             height=scaffold.scene_height,
@@ -66,5 +80,11 @@ class LayoutEngine:
         self,
         circuit: CircuitIR,
         scaffold: _LayoutScaffold,
+        *,
+        hover_enabled: bool = True,
     ) -> _SceneCollections:
-        return build_scene_collections(circuit, scaffold)
+        return build_scene_collections(
+            circuit,
+            scaffold,
+            hover_enabled=hover_enabled,
+        )
