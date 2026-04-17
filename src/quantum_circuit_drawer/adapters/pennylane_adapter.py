@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
 from .._matrix_support import square_matrix
-from ..exceptions import UnsupportedFrameworkError
+from ..exceptions import UnsupportedFrameworkError, UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
@@ -145,6 +145,10 @@ class PennyLaneAdapter(BaseAdapter):
         composite_mode: str,
     ) -> list[OperationIR | MeasurementIR]:
         if self._is_mid_measure(operation):
+            if not operation.wires:
+                raise UnsupportedOperationError(
+                    "PennyLane mid-measurement operation has no quantum target"
+                )
             measurement_id = self._mid_measure_id(operation)
             classical_target, classical_bit_label = mid_measure_targets[measurement_id]
             return [

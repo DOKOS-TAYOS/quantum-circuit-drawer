@@ -500,3 +500,20 @@ def test_qiskit_adapter_raises_for_misaligned_composite_definition_clbits() -> N
             classical_targets={"outer-c0": ("c0", "c[0]")},
             composite_mode="expand",
         )
+
+
+def test_qiskit_adapter_rejects_measure_without_quantum_target() -> None:
+    adapter = QiskitAdapter()
+    malformed_instruction = SimpleNamespace(name="measure", params=())
+
+    with pytest.raises(
+        UnsupportedOperationError,
+        match="Qiskit instruction 'measure' has no quantum target",
+    ):
+        adapter._convert_instruction(
+            (malformed_instruction, (), ("cbit",)),
+            {},
+            {"cbit": ("c0", "c[0]")},
+            {},
+            composite_mode="compact",
+        )
