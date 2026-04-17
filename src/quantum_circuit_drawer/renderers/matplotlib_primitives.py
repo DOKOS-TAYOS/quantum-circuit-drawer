@@ -243,6 +243,7 @@ def _connection_label_style(
     ax: Axes,
     connection: SceneConnection,
     scene: LayoutScene,
+    label: str,
 ) -> _ConnectionLabelStyle:
     default_bbox: Mapping[str, object] = {
         "boxstyle": "round,pad=0.12,rounding_size=0.08",
@@ -251,7 +252,7 @@ def _connection_label_style(
     }
     if not _is_measurement_classical_connection_label(connection):
         return _ConnectionLabelStyle(
-            text=connection.label or "",
+            text=label,
             font_size=scene.style.font_size * 0.7,
             bbox=default_bbox,
         )
@@ -261,15 +262,15 @@ def _connection_label_style(
     fitted_full_font_size = _fit_static_text_font_size(
         ax,
         scene,
-        text=connection.label,
+        text=label,
         default_font_size=default_font_size,
         available_width=available_width,
         available_height=available_height,
     )
-    compact_label = _compact_measurement_classical_label(connection.label)
+    compact_label = _compact_measurement_classical_label(label)
     if compact_label is None or fitted_full_font_size >= default_font_size:
         return _ConnectionLabelStyle(
-            text=connection.label,
+            text=label,
             font_size=fitted_full_font_size,
             bbox={
                 "boxstyle": "round,pad=0.06,rounding_size=0.06",
@@ -466,7 +467,8 @@ def draw_connections(
             if label_y is None:
                 direction = 1.0 if connection_y_end >= connection_y_start else -1.0
                 label_y = connection_y_end - (direction * 0.12)
-            label_style = _connection_label_style(ax, connection, scene)
+            label = connection.label
+            label_style = _connection_label_style(ax, connection, scene, label)
             label_artist = _add_text_artist(
                 ax,
                 connection_x + 0.12,

@@ -126,26 +126,26 @@ def _single_qubit_gate_matrix(
         assert sx_matrix is not None
         return np.conjugate(sx_matrix).T
     if family is CanonicalGateFamily.P:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         return np.array(((1.0, 0.0), (0.0, cmath.exp(1j * theta))), dtype=np.complex128)
     if family is CanonicalGateFamily.RX:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         cosine = cmath.cos(theta / 2.0)
         sine = cmath.sin(theta / 2.0)
         return np.array(((cosine, -1j * sine), (-1j * sine, cosine)), dtype=np.complex128)
     if family is CanonicalGateFamily.RY:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         cosine = cmath.cos(theta / 2.0)
         sine = cmath.sin(theta / 2.0)
         return np.array(((cosine, -sine), (sine, cosine)), dtype=np.complex128)
     if family is CanonicalGateFamily.RZ:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         return np.array(
@@ -181,7 +181,7 @@ def _two_qubit_gate_matrix(
     parameters: Sequence[object],
 ) -> np.ndarray | None:
     if family is CanonicalGateFamily.RXX:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         cosine = cmath.cos(theta / 2.0)
@@ -196,7 +196,7 @@ def _two_qubit_gate_matrix(
             dtype=np.complex128,
         )
     if family is CanonicalGateFamily.RYY:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         cosine = cmath.cos(theta / 2.0)
@@ -211,7 +211,7 @@ def _two_qubit_gate_matrix(
             dtype=np.complex128,
         )
     if family is CanonicalGateFamily.RZZ:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         leading = cmath.exp(-1j * theta / 2.0)
@@ -226,7 +226,7 @@ def _two_qubit_gate_matrix(
             dtype=np.complex128,
         )
     if family is CanonicalGateFamily.RZX:
-        theta = _coerce_real_parameter(parameters, 1)
+        theta = _coerce_real_parameter(parameters)
         if theta is None:
             return None
         cosine = cmath.cos(theta / 2.0)
@@ -290,11 +290,24 @@ def _swap_matrix() -> np.ndarray:
     )
 
 
-def _coerce_real_parameter(parameters: Sequence[object], expected_count: int) -> float | None:
-    resolved = _coerce_real_parameters(parameters, expected_count)
-    if expected_count != 1:
-        raise ValueError("expected_count must be 1 for scalar coercion")
-    return resolved[0]
+def _coerce_real_scalar_parameter(parameter: object) -> float | None:
+    try:
+        numeric = np.asarray(parameter, dtype=np.complex128)
+    except (TypeError, ValueError):
+        return None
+    if numeric.ndim != 0:
+        return None
+
+    scalar = complex(numeric.item())
+    if abs(scalar.imag) > 1e-12:
+        return None
+    return float(scalar.real)
+
+
+def _coerce_real_parameter(parameters: Sequence[object]) -> float | None:
+    if len(parameters) != 1:
+        return None
+    return _coerce_real_scalar_parameter(parameters[0])
 
 
 def _coerce_real_parameters(
@@ -304,13 +317,10 @@ def _coerce_real_parameters(
     if len(parameters) != expected_count:
         return tuple(None for _ in range(expected_count))
 
-    values: list[float | None] = []
+    values: list[float] = []
     for parameter in parameters:
-        try:
-            numeric = complex(np.complex128(parameter))
-        except (TypeError, ValueError):
+        resolved = _coerce_real_scalar_parameter(parameter)
+        if resolved is None:
             return tuple(None for _ in range(expected_count))
-        if abs(numeric.imag) > 1e-12:
-            return tuple(None for _ in range(expected_count))
-        values.append(float(numeric.real))
+        values.append(resolved)
     return tuple(values)

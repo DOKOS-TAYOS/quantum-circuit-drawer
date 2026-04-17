@@ -68,6 +68,26 @@ def _measurement_register_ir(*, measurement_count: int) -> CircuitIR:
     )
 
 
+def _single_measurement_ir(*, classical_label: str, bit_label: str) -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label=classical_label)],
+        layers=[
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                        metadata={"classical_bit_label": bit_label},
+                    )
+                ]
+            )
+        ],
+    )
+
+
 def _overlap_count(figure: object, texts: list[Text]) -> int:
     renderer = figure.canvas.get_renderer()
     overlap_count = 0
@@ -1089,6 +1109,27 @@ def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classica
     assert any(text.get_text().startswith("[") for text in classical_bit_labels)
     assert all(not text.get_text().startswith("c[") for text in classical_bit_labels)
     assert _overlap_count(figure, classical_bit_labels) == 0
+
+
+def test_matplotlib_renderer_keeps_full_measurement_classical_label_when_space_allows() -> None:
+    circuit = _single_measurement_ir(classical_label="alpha", bit_label="alpha[1]")
+    figure, axes = plt.subplots(figsize=(20.0, 10.0))
+
+    draw_quantum_circuit(circuit, ax=axes, show=False)
+    figure.canvas.draw()
+
+    axis_texts = {text.get_text() for text in axes.texts}
+
+    assert "alpha[1]" in axis_texts
+    assert "[1]" not in axis_texts
+
+
+def test_matplotlib_renderer_does_not_add_empty_connection_labels() -> None:
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(build_sample_scene(), ax=axes)
+
+    assert all(text.get_text() for text in axes.texts)
 
 
 def test_add_text_artist_skips_clip_path_when_fast_path_available(

@@ -4,6 +4,7 @@ import builtins
 import sys
 from types import ModuleType, SimpleNamespace
 
+import numpy as np
 import pytest
 
 from quantum_circuit_drawer._matrix_support import (
@@ -239,3 +240,77 @@ def test_resolved_operation_matrix_infers_controlled_gate_matrix() -> None:
         [0j, 0j, (1 + 0j), 0j],
     ]
     assert operation_matrix_dimension(operation) == 4
+
+
+def test_resolved_operation_matrix_accepts_zero_dim_numpy_scalar_parameters() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="RX",
+        target_wires=("q0",),
+        parameters=(np.array(0.5),),
+    )
+
+    matrix = resolved_operation_matrix(operation)
+
+    assert matrix is not None
+    assert operation_matrix_dimension(operation) == 2
+
+
+def test_resolved_operation_matrix_rejects_parameters_with_imaginary_component() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="RX",
+        target_wires=("q0",),
+        parameters=(np.array(0.5 + 0.1j),),
+    )
+
+    assert resolved_operation_matrix(operation) is None
+
+
+def test_resolved_operation_matrix_rejects_non_scalar_numpy_parameter_arrays() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="RX",
+        target_wires=("q0",),
+        parameters=(np.array([0.5]),),
+    )
+
+    assert resolved_operation_matrix(operation) is None
+
+
+def test_resolved_operation_matrix_rejects_single_parameter_gates_with_wrong_parameter_count() -> (
+    None
+):
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="RX",
+        target_wires=("q0",),
+        parameters=(),
+    )
+
+    assert resolved_operation_matrix(operation) is None
+
+
+def test_resolved_operation_matrix_infers_u_gate_with_three_real_parameters() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="U",
+        target_wires=("q0",),
+        parameters=(0.2, 0.3, 0.4),
+    )
+
+    matrix = resolved_operation_matrix(operation)
+
+    assert matrix is not None
+    assert operation_matrix_dimension(operation) == 2
+
+
+def test_resolved_operation_matrix_rejects_u_gate_with_wrong_parameter_count() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="U",
+        target_wires=("q0",),
+        parameters=(0.2, 0.3),
+    )
+
+    assert resolved_operation_matrix(operation) is None
