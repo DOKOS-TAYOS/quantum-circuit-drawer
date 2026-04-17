@@ -24,7 +24,6 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
     from .renderers.matplotlib_primitives import (
         _build_gate_text_fitting_context,
         _fit_gate_text_font_size_with_context,
-        _GateTextFittingContext,
     )
 
     base_view_width, base_view_height = current_view_size(axes)
@@ -56,15 +55,8 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
                 return
 
             scale_factor = current_text_scale(axes, state)
-            if request_redraw:
-                gate_text_context = _build_gate_text_fitting_context(axes, current_state.scene)
-                points_per_layout_unit = gate_text_context.points_per_layout_unit
-            else:
-                points_per_layout_unit = state.base_points_per_layout_unit * scale_factor
-                gate_text_context = _GateTextFittingContext(
-                    default_scale=1.0,
-                    points_per_layout_unit=points_per_layout_unit,
-                )
+            gate_text_context = _build_gate_text_fitting_context(axes, current_state.scene)
+            points_per_layout_unit = gate_text_context.points_per_layout_unit
 
             if math.isclose(
                 scale_factor,
