@@ -44,3 +44,24 @@ def test_managed_figure_metadata_tracks_slider_and_viewport() -> None:
     assert get_page_slider(figure) is slider
     assert get_viewport_width(figure, default=7.5) == 3.25
     plt.close(figure)
+
+
+def test_clear_hover_state_tolerates_annotation_already_removed_by_axes_clear() -> None:
+    from quantum_circuit_drawer.renderers._matplotlib_figure import (
+        HoverState,
+        clear_hover_state,
+        get_hover_state,
+        set_hover_state,
+    )
+
+    figure, axes = plt.subplots()
+    annotation = axes.annotate("hover", xy=(0.0, 0.0))
+    callback_id = figure.canvas.mpl_connect("motion_notify_event", lambda _event: None)
+
+    set_hover_state(axes, HoverState(annotation=annotation, callback_id=callback_id))
+
+    axes.clear()
+    clear_hover_state(axes)
+
+    assert get_hover_state(axes) is None
+    plt.close(figure)

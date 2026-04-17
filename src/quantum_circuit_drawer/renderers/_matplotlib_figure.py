@@ -266,7 +266,11 @@ def clear_hover_state(axes: Axes) -> None:
         canvas.mpl_disconnect(state.callback_id)
     annotation = state.annotation
     if hasattr(annotation, "remove"):
-        annotation.remove()
+        try:
+            annotation.remove()
+        except NotImplementedError:
+            # ``axes.clear()`` can detach the annotation before hover cleanup runs.
+            pass
     delattr(axes, _HOVER_STATE_ATTR)
 
 

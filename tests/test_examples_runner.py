@@ -83,6 +83,10 @@ def test_run_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
             output=None,
             show=False,
             figsize=(14.0, 8.0),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
         )
     ]
     assert render_calls == [
@@ -126,6 +130,10 @@ def test_run_demo_with_args_builds_subject_and_renders(
         output=output,
         show=False,
         figsize=(9.0, 4.0),
+        hover=True,
+        hover_matrix="always",
+        hover_matrix_max_qubits=3,
+        hover_show_size=True,
     )
 
     def fake_builder(request: ExampleRequest) -> object:
@@ -164,6 +172,10 @@ def test_run_demo_with_args_builds_subject_and_renders(
             output=output,
             show=False,
             figsize=(9.0, 4.0),
+            hover=True,
+            hover_matrix="always",
+            hover_matrix_max_qubits=3,
+            hover_show_size=True,
         )
     ]
     assert render_calls == [
@@ -202,6 +214,10 @@ def test_run_demo_with_args_rejects_3d_slider_before_loading_demo(
         output=None,
         show=False,
         figsize=(9.0, 4.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
     )
 
     def fail_if_called(spec: DemoSpec) -> object:

@@ -15,11 +15,12 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit  # noqa: E402
 
 ViewMode = Literal["2d", "3d"]
 RenderMode = Literal["pages", "slider"]
 TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
+HoverMatrixMode = Literal["never", "auto", "always"]
 
 SUPPORTED_TOPOLOGIES: tuple[TopologyMode, ...] = (
     "line",
@@ -44,6 +45,10 @@ class ExampleRequest:
     output: Path | None
     show: bool
     figsize: tuple[float, float]
+    hover: bool
+    hover_matrix: HoverMatrixMode
+    hover_matrix_max_qubits: int
+    hover_show_size: bool
 
 
 ExampleBuilder = Callable[[ExampleRequest], object]
@@ -130,6 +135,36 @@ def add_render_arguments(
         action="store_false",
         help="Render without opening the Matplotlib window.",
     )
+    parser.add_argument(
+        "--hover",
+        dest="hover",
+        action="store_true",
+        default=True,
+        help="Enable hover tooltips when the Matplotlib backend supports them.",
+    )
+    parser.add_argument(
+        "--no-hover",
+        dest="hover",
+        action="store_false",
+        help="Disable hover tooltips.",
+    )
+    parser.add_argument(
+        "--hover-matrix",
+        choices=("never", "auto", "always"),
+        default="auto",
+        help="Control whether hover tooltips include the gate matrix.",
+    )
+    parser.add_argument(
+        "--hover-matrix-max-qubits",
+        type=int,
+        default=2,
+        help="Maximum gate width, in qubits, for showing full matrices in hover.",
+    )
+    parser.add_argument(
+        "--hover-show-size",
+        action="store_true",
+        help="Also include the visual gate size in the hover tooltip.",
+    )
 
 
 def parse_example_args(
@@ -178,6 +213,12 @@ def request_from_namespace(
     if view == "3d" and mode == "slider":
         raise SystemExit("Slider mode is only available in 2D. Use --mode pages with --view 3d.")
     figure_width, figure_height = _normalize_figsize(args.figsize)
+    hover_matrix_max_qubits = int(getattr(args, "hover_matrix_max_qubits", 2))
+    if hover_matrix_max_qubits < 1:
+        raise SystemExit("--hover-matrix-max-qubits must be at least 1.")
+    hover_matrix = str(getattr(args, "hover_matrix", "auto"))
+    if hover_matrix not in {"never", "auto", "always"}:
+        hover_matrix = "auto"
 
     return ExampleRequest(
         qubits=qubits,
@@ -189,6 +230,10 @@ def request_from_namespace(
         output=args.output,
         show=bool(args.show),
         figsize=(figure_width, figure_height),
+        hover=bool(getattr(args, "hover", True)),
+        hover_matrix=hover_matrix,
+        hover_matrix_max_qubits=hover_matrix_max_qubits,
+        hover_show_size=bool(getattr(args, "hover_show_size", False)),
     )
 
 
@@ -222,14 +267,28 @@ def recommended_page_width(columns: int) -> float:
 def build_render_options(request: ExampleRequest) -> dict[str, object]:
     """Return draw options derived from the shared example request."""
 
+    render_options: dict[str, object] = {"hover": demo_hover_options(request)}
     if request.view == "2d":
-        return {}
-    return {
-        "view": "3d",
-        "topology": request.topology,
-        "direct": False,
-        "hover": True,
-    }
+        return render_options
+    render_options.update(
+        {
+            "view": "3d",
+            "topology": request.topology,
+            "direct": False,
+        }
+    )
+    return render_options
+
+
+def demo_hover_options(request: ExampleRequest) -> HoverOptions:
+    """Return hover settings for the shared example scripts."""
+
+    return HoverOptions(
+        enabled=request.hover,
+        show_size=request.hover_show_size,
+        show_matrix=request.hover_matrix,
+        matrix_max_qubits=request.hover_matrix_max_qubits,
+    )
 
 
 def render_example(

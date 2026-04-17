@@ -26,6 +26,10 @@ Every script and `examples/run_demo.py` accepts the same main flags:
 - `--view 2d|3d`: standard 2D view or topology-aware 3D view
 - `--topology line|grid|star|star_tree|honeycomb`: only used in 3D
 - `--seed`: random seed for the random demos
+- `--hover` or `--no-hover`: enable or disable hover tooltips
+- `--hover-matrix never|auto|always`: control when the tooltip shows a full matrix
+- `--hover-matrix-max-qubits <n>`: maximum gate width for full matrices in hover
+- `--hover-show-size`: also include the visual gate size in the tooltip
 - `--output <path>`: save the figure too
 - `--no-show`: render without opening the Matplotlib window
 
@@ -34,7 +38,9 @@ Notes:
 - In the QAOA demos, `--columns` means QAOA layers.
 - `--topology` has no effect in 2D.
 - `--mode slider` is only available in 2D.
-- The 3D examples use routed connections with hover enabled to show the topology engine better.
+- Hover is enabled by default in both 2D and 3D when the Matplotlib backend is interactive.
+- By default, hover tooltips show gate name, matrix dimensions, and affected qubits, and they add the full matrix automatically for small gates.
+- The 3D examples still use routed connections to show the topology engine better.
 
 ## Requirements
 
@@ -81,6 +87,7 @@ Linux or WSL:
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 6 --columns 32 --mode pages
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 24 --columns 32 --mode pages
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa --qubits 18 --columns 12 --mode slider
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 6 --columns 8 --hover-matrix always
 ```
 
 ### Cirq

@@ -34,6 +34,11 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
             "--figsize",
             "9",
             "4",
+            "--hover-matrix",
+            "always",
+            "--hover-matrix-max-qubits",
+            "3",
+            "--hover-show-size",
             "--no-show",
         ],
     )
@@ -55,6 +60,10 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
         output=Path("demo.png"),
         show=False,
         figsize=(9.0, 4.0),
+        hover=True,
+        hover_matrix="always",
+        hover_matrix_max_qubits=3,
+        hover_show_size=True,
     )
 
 
@@ -71,9 +80,36 @@ def test_request_from_namespace_rejects_3d_slider() -> None:
         output=None,
         show=True,
         figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
     )
 
     with pytest.raises(SystemExit, match="Slider mode is only available in 2D"):
+        request_from_namespace(args, default_qubits=4, default_columns=5)
+
+
+def test_request_from_namespace_rejects_non_positive_hover_matrix_max_qubits() -> None:
+    from examples._shared import request_from_namespace
+
+    args = Namespace(
+        qubits=6,
+        columns=8,
+        mode="pages",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=True,
+        figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=0,
+        hover_show_size=False,
+    )
+
+    with pytest.raises(SystemExit, match="--hover-matrix-max-qubits must be at least 1"):
         request_from_namespace(args, default_qubits=4, default_columns=5)
 
 
@@ -90,8 +126,10 @@ def test_demo_style_scales_with_columns_and_clamps() -> None:
     assert DEFAULT_DEMO_FIGSIZE == (14.0, 8.0)
 
 
-def test_build_render_options_ignores_topology_in_2d() -> None:
+def test_build_render_options_enables_hover_in_2d() -> None:
     from examples._shared import ExampleRequest, build_render_options
+
+    from quantum_circuit_drawer import HoverOptions
 
     request = ExampleRequest(
         qubits=8,
@@ -103,9 +141,20 @@ def test_build_render_options_ignores_topology_in_2d() -> None:
         output=None,
         show=True,
         figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="always",
+        hover_matrix_max_qubits=1,
+        hover_show_size=True,
     )
 
-    assert build_render_options(request) == {}
+    assert build_render_options(request) == {
+        "hover": HoverOptions(
+            enabled=True,
+            show_size=True,
+            show_matrix="always",
+            matrix_max_qubits=1,
+        )
+    }
 
 
 def test_render_example_draws_and_reports_saved_output(
@@ -114,6 +163,8 @@ def test_render_example_draws_and_reports_saved_output(
     capsys,
 ) -> None:
     from examples._shared import ExampleRequest, render_example
+
+    from quantum_circuit_drawer import HoverOptions
 
     output = sandbox_tmp_path / "render-demo.png"
     draw_calls: list[dict[str, object]] = []
@@ -129,7 +180,7 @@ def test_render_example_draws_and_reports_saved_output(
         view: str = "2d",
         topology: str = "line",
         direct: bool = True,
-        hover: bool = False,
+        hover: object = False,
         figsize: tuple[float, float] | None = None,
     ) -> None:
         draw_calls.append(
@@ -160,6 +211,10 @@ def test_render_example_draws_and_reports_saved_output(
         output=output,
         show=False,
         figsize=(9.0, 3.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
     )
     render_example(
         {"kind": "demo"},
@@ -185,7 +240,7 @@ def test_render_example_draws_and_reports_saved_output(
             "view": "3d",
             "topology": "grid",
             "direct": False,
-            "hover": True,
+            "hover": HoverOptions(),
             "figsize": (9.0, 3.5),
         }
     ]
@@ -205,6 +260,10 @@ def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.Monk
         output=None,
         show=False,
         figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
     )
     builder_calls: list[ExampleRequest] = []
     render_calls: list[dict[str, object]] = []

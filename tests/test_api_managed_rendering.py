@@ -653,6 +653,37 @@ def test_draw_quantum_circuit_managed_figure_expands_beyond_initial_page_width_w
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_managed_figure_resize_keeps_hover_cleanup_stable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24),
+        style={"max_page_width": 4.0},
+        hover=True,
+        figsize=(3.2, 12.0),
+    )
+
+    initial_state = get_auto_paging_state(axes)
+    initial_hover_state = get_hover_state(axes)
+
+    assert initial_state is not None
+    assert initial_hover_state is not None
+
+    figure.set_size_inches(12.0, 3.2, forward=True)
+    figure.canvas.draw()
+
+    resized_state = get_auto_paging_state(axes)
+    resized_hover_state = get_hover_state(axes)
+
+    assert resized_state is not None
+    assert resized_hover_state is not None
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_managed_figure_reconciles_auto_paging_on_first_draw(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
