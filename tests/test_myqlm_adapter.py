@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import importlib
 import sys
+from dataclasses import dataclass
 from types import ModuleType
 
 import pytest
@@ -168,6 +169,49 @@ def build_composite_myqlm_circuit() -> FakeMyQLMCircuit:
     )
 
 
+@dataclass(slots=True)
+class FakeMyQLMParam:
+    is_abstract: bool | None = None
+    type: int | None = None
+    int_p: int | None = None
+    double_p: float | None = None
+    string_p: str | None = None
+    matrix_p: object | None = None
+    serialized_p: object | None = None
+    complex_p: object | None = None
+
+
+def build_parametric_myqlm_circuit() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "RX_theta": FakeMyQLMGateDefinition(
+            name="RX_theta",
+            arity=1,
+            syntax=FakeMyQLMSyntax(
+                name="RX",
+                parameters=(FakeMyQLMParam(is_abstract=True, string_p="theta"),),
+            ),
+        ),
+        "RY_half": FakeMyQLMGateDefinition(
+            name="RY_half",
+            arity=1,
+            syntax=FakeMyQLMSyntax(
+                name="RY",
+                parameters=(FakeMyQLMParam(type=1, double_p=0.5),),
+            ),
+        ),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(gate="RX_theta", qbits=(0,)),
+            FakeMyQLMOp(gate="RY_half", qbits=(1,)),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=2,
+        nbcbits=0,
+        name="myqlm_parametric_demo",
+    )
+
+
 def test_myqlm_adapter_converts_common_operations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -301,6 +345,19 @@ def test_myqlm_adapter_expands_composite_operations_when_requested(
     assert operations[1].target_wires == ("q0",)
 
 
+def test_myqlm_adapter_normalizes_param_objects_to_readable_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter_type = load_myqlm_adapter_type()
+
+    ir = adapter_type().to_ir(build_parametric_myqlm_circuit())
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert operations[0].parameters == ("theta",)
+    assert operations[1].parameters == (0.5,)
+
+
 @pytest.mark.parametrize("operation_type", ["BREAK", "CLASSIC", "REMAP"])
 def test_myqlm_adapter_rejects_unsupported_operation_types(
     operation_type: str,
@@ -370,6 +427,24 @@ def test_draw_quantum_circuit_accepts_myqlm_framework_override(
 
     assert figure is not None
     assert axes.figure is figure
+
+
+def test_draw_quantum_circuit_renders_readable_myqlm_param_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+
+    figure, axes = draw_quantum_circuit(
+        build_parametric_myqlm_circuit(),
+        framework="myqlm",
+        show=False,
+    )
+    texts = [text.get_text() for text in axes.texts]
+
+    assert "theta" in texts
+    assert "0.5" in texts
+    assert not any("Param(" in text for text in texts)
+    assert figure is not None
 
 
 def test_myqlm_adapter_can_handle_nested_qat_core_circuit_type(

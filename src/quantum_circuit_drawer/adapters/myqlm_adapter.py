@@ -391,7 +391,42 @@ class MyQLMAdapter(BaseAdapter):
     ) -> tuple[object, ...]:
         if definition is None or definition.syntax is None:
             return ()
-        return tuple(definition.syntax.parameters or ())
+        return tuple(
+            self._normalize_parameter_value(parameter)
+            for parameter in (definition.syntax.parameters or ())
+        )
+
+    def _normalize_parameter_value(self, parameter: object) -> object:
+        if isinstance(parameter, bool | int | float | complex | str):
+            return parameter
+
+        int_value = getattr(parameter, "int_p", None)
+        if int_value is not None:
+            return int(int_value)
+
+        double_value = getattr(parameter, "double_p", None)
+        if double_value is not None:
+            return float(double_value)
+
+        string_value = getattr(parameter, "string_p", None)
+        if isinstance(string_value, str) and string_value:
+            return string_value
+
+        complex_value = self._complex_parameter_value(getattr(parameter, "complex_p", None))
+        if complex_value is not None:
+            return complex_value
+
+        return parameter
+
+    def _complex_parameter_value(self, value: object) -> complex | None:
+        if value is None:
+            return None
+
+        real_part = getattr(value, "re", getattr(value, "real", None))
+        imaginary_part = getattr(value, "im", getattr(value, "imag", None))
+        if isinstance(real_part, int | float) and isinstance(imaginary_part, int | float):
+            return complex(float(real_part), float(imaginary_part))
+        return None
 
     def _control_count(self, definition: _MyQLMGateDefinitionLike | None) -> int:
         if definition is None:
