@@ -17,6 +17,7 @@ from ._helpers import (
     canonical_gate_spec,
     expand_operation_sequence,
     extract_dependency_types,
+    is_expected_matrix_unavailable_error,
     resolve_composite_mode,
 )
 from .base import BaseAdapter
@@ -212,7 +213,9 @@ class QiskitAdapter(BaseAdapter):
 
         try:
             matrix = matrix_getter()
-        except Exception:
+        except Exception as exc:
+            if not is_expected_matrix_unavailable_error(exc):
+                raise
             return {}
 
         if square_matrix(matrix) is None:

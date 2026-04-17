@@ -18,6 +18,7 @@ from ._helpers import (
     canonical_gate_spec,
     expand_operation_sequence,
     extract_dependency_types,
+    is_expected_matrix_unavailable_error,
     resolve_composite_mode,
     sequential_bit_labels,
 )
@@ -54,7 +55,7 @@ class PennyLaneAdapter(BaseAdapter):
         if tape_types and isinstance(circuit, tape_types):
             return True
         return any(
-            getattr(circuit, attribute, None) is not None
+            _looks_like_tape(getattr(circuit, attribute, None))
             for attribute in ("qtape", "tape", "_tape")
         )
 
@@ -132,9 +133,13 @@ class PennyLaneAdapter(BaseAdapter):
             )
         for attribute in ("qtape", "tape", "_tape"):
             tape = getattr(circuit, attribute, None)
-            if tape is not None:
+            if _looks_like_tape(tape):
                 return cast(_PennyLaneTapeLike, tape)
-        return cast(_PennyLaneTapeLike, circuit)
+        if _looks_like_tape(circuit):
+            return cast(_PennyLaneTapeLike, circuit)
+        raise UnsupportedFrameworkError(
+            "PennyLane support in v0.1 expects a QuantumTape/QuantumScript or an object exposing .qtape/.tape"
+        )
 
     def _convert_operation(
         self,
@@ -294,7 +299,9 @@ class PennyLaneAdapter(BaseAdapter):
             if callable(direct_matrix):
                 try:
                     direct_matrix = direct_matrix()
-                except Exception:
+                except Exception as exc:
+                    if not is_expected_matrix_unavailable_error(exc):
+                        raise
                     direct_matrix = None
             if direct_matrix is not None and square_matrix(direct_matrix) is not None:
                 return {"matrix": direct_matrix}
@@ -310,9 +317,19 @@ class PennyLaneAdapter(BaseAdapter):
 
         try:
             matrix = matrix_function(operation)
-        except Exception:
+        except Exception as exc:
+            if not is_expected_matrix_unavailable_error(exc):
+                raise
             return {}
 
         if square_matrix(matrix) is None:
             return {}
         return {"matrix": matrix}
+
+
+def _looks_like_tape(candidate: object | None) -> bool:
+    if candidate is None:
+        return False
+    return all(
+        hasattr(candidate, attribute) for attribute in ("wires", "operations", "measurements")
+    )

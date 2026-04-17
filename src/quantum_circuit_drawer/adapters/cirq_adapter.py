@@ -20,6 +20,7 @@ from ._helpers import (
     canonical_gate_spec,
     expand_operation_sequence,
     extract_dependency_types,
+    is_expected_matrix_unavailable_error,
     resolve_composite_mode,
     sequential_bit_labels,
 )
@@ -325,7 +326,9 @@ class CirqAdapter(BaseAdapter):
     def _matrix_metadata(self, *, cirq: Any, operation: object) -> dict[str, object]:
         try:
             matrix = cirq.unitary(operation, default=None)
-        except Exception:
+        except Exception as exc:
+            if not is_expected_matrix_unavailable_error(exc):
+                raise
             return {}
 
         if matrix is None or square_matrix(matrix) is None:

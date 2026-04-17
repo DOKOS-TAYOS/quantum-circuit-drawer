@@ -152,6 +152,15 @@ def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPa
         PennyLaneAdapter().to_ir(object())
 
 
+def test_pennylane_adapter_rejects_wrappers_with_invalid_tape_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+
+    with pytest.raises(UnsupportedFrameworkError, match="PennyLane support in v0.1"):
+        PennyLaneAdapter().to_ir(SimpleNamespace(tape=object()))
+
+
 def test_pennylane_adapter_rejects_mid_measure_without_wire(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

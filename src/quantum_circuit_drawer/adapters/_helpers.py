@@ -102,6 +102,15 @@ _CANONICAL_LABEL_BY_ALIAS: dict[str, str] = {
     "ISWAP": "iSWAP",
 }
 
+_MATRIX_UNAVAILABLE_ERROR_NAMES = frozenset(
+    {
+        "CircuitError",
+        "MatrixUndefinedError",
+        "QiskitError",
+        "TransformError",
+    }
+)
+
 
 def load_optional_dependency(module_name: str) -> ModuleType | None:
     """Import an optional dependency and return ``None`` when it is unavailable."""
@@ -269,6 +278,14 @@ def canonical_gate_spec(raw_name: str) -> CanonicalGateSpec:
         label=compact_label,
         family=infer_canonical_gate_family(compact_label),
     )
+
+
+def is_expected_matrix_unavailable_error(exc: Exception) -> bool:
+    """Return whether a matrix-extraction error means "metadata unavailable"."""
+
+    if isinstance(exc, (AttributeError, NotImplementedError, TypeError, ValueError)):
+        return True
+    return type(exc).__name__ in _MATRIX_UNAVAILABLE_ERROR_NAMES
 
 
 def _normalized_gate_token(raw_name: str) -> str:
