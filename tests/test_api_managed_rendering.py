@@ -13,15 +13,7 @@ from matplotlib.transforms import Bbox
 import quantum_circuit_drawer._draw_managed as managed_module
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
 from quantum_circuit_drawer._draw_managed_zoom import current_text_scale
-from quantum_circuit_drawer.api import (
-    _configure_page_slider,
-    _figure_backend_name,
-    _normalize_backend_name,
-    _page_slider_figsize,
-    _show_managed_figure_if_supported,
-    _slider_viewport_width,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
@@ -35,6 +27,11 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_page_slider,
     get_text_scaling_state,
     get_topology_menu_state,
+)
+from quantum_circuit_drawer.renderers._render_support import (
+    figure_backend_name,
+    normalize_backend_name,
+    show_figure_if_supported,
 )
 from quantum_circuit_drawer.style import DrawStyle
 from quantum_circuit_drawer.utils import format_visible_label
@@ -598,7 +595,7 @@ def test_show_managed_figure_calls_patched_show_on_non_interactive_backend(
 
     monkeypatch.setattr(plt, "show", fake_show)
 
-    _show_managed_figure_if_supported(figure, show=True)
+    show_figure_if_supported(figure, show=True)
 
     assert show_calls == [True]
     plt.close(figure)
@@ -1253,7 +1250,7 @@ def test_show_managed_figure_skips_builtin_show_for_notebook_backends(
     monkeypatch.setattr(plt, "show", fake_builtin_show)
     monkeypatch.setattr(render_support, "figure_backend_name", lambda _figure: "nbagg")
 
-    _show_managed_figure_if_supported(figure, show=True)
+    show_figure_if_supported(figure, show=True)
 
     assert show_calls == []
     plt.close(figure)
@@ -1397,7 +1394,7 @@ def test_slider_viewport_width_falls_back_to_scene_width_for_zero_sized_axes(
         lambda *args, **kwargs: Bbox.from_bounds(0.0, 0.0, 0.0, 0.0),
     )
 
-    assert _slider_viewport_width(axes, scene) == scene.width
+    assert managed_module.slider_viewport_width(axes, scene) == scene.width
     plt.close(figure)
 
 
@@ -1412,7 +1409,7 @@ def test_slider_viewport_width_tracks_subplots_adjusted_original_viewport() -> N
         figure_height * figure.dpi * axes_position.height
     )
 
-    assert _slider_viewport_width(axes, scene) == pytest.approx(
+    assert managed_module.slider_viewport_width(axes, scene) == pytest.approx(
         min(scene.width, scene.height * expected_ratio)
     )
     plt.close(figure)
@@ -1430,7 +1427,7 @@ def test_slider_viewport_width_remains_consistent_after_resize() -> None:
         figure_height * figure.dpi * axes_position.height
     )
 
-    assert _slider_viewport_width(axes, scene) == pytest.approx(
+    assert managed_module.slider_viewport_width(axes, scene) == pytest.approx(
         min(scene.width, scene.height * expected_ratio)
     )
     plt.close(figure)
@@ -1441,7 +1438,7 @@ def test_configure_page_slider_skips_slider_when_viewport_already_fits_scene() -
     figure, axes = plt.subplots()
     attached_sliders: list[object] = []
 
-    _configure_page_slider(
+    managed_module.configure_page_slider(
         figure=figure,
         axes=axes,
         scene=scene,
@@ -1467,15 +1464,15 @@ def test_normalize_backend_name_strips_known_prefixes(
     backend_name: str,
     expected: str,
 ) -> None:
-    assert _normalize_backend_name(backend_name) == expected
+    assert normalize_backend_name(backend_name) == expected
 
 
 def test_page_slider_figsize_respects_minimum_dimensions() -> None:
-    assert _page_slider_figsize(1.0, 0.5) == pytest.approx((4.8, 3.0))
+    assert managed_module.page_slider_figsize(1.0, 0.5) == pytest.approx((4.8, 3.0))
 
 
 def test_figure_backend_name_prefers_canvas_type_name() -> None:
     figure, _ = draw_quantum_circuit(build_sample_ir(), show=False)
 
-    assert _figure_backend_name(figure) == "agg"
+    assert figure_backend_name(figure) == "agg"
     plt.close(figure)
