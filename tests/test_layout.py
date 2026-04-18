@@ -14,7 +14,7 @@ from quantum_circuit_drawer.layout._layering import normalize_draw_layers
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.spacing import (
     estimate_text_width,
-    operation_width,
+    operation_label_parts,
     operation_width_from_parts,
 )
 from quantum_circuit_drawer.style import DrawStyle
@@ -394,7 +394,7 @@ def test_layout_engine_keeps_barrier_columns_compact() -> None:
     assert scene.width < 6.0
 
 
-def test_operation_width_keeps_parametric_rotation_gates_compact() -> None:
+def test_operation_width_from_parts_keeps_parametric_rotation_gates_compact() -> None:
     style = DrawStyle()
     operation = OperationIR(
         kind=OperationKind.GATE,
@@ -402,15 +402,24 @@ def test_operation_width_keeps_parametric_rotation_gates_compact() -> None:
         target_wires=("q0",),
         parameters=(3.1415926535,),
     )
+    label, subtitle = operation_label_parts(operation, style)
 
-    assert operation_width(operation, style) == style.gate_width
+    assert (
+        operation_width_from_parts(
+            operation=operation,
+            style=style,
+            label=label,
+            subtitle=subtitle,
+        )
+        == style.gate_width
+    )
 
 
 def test_estimate_text_width_returns_zero_for_empty_labels() -> None:
     assert estimate_text_width("", font_size=12.0) == 0.0
 
 
-def test_operation_width_expands_for_long_labels_and_subtitles() -> None:
+def test_operation_width_from_parts_expands_for_long_labels_and_subtitles() -> None:
     style = DrawStyle(show_params=True)
     operation = OperationIR(
         kind=OperationKind.GATE,
@@ -418,8 +427,17 @@ def test_operation_width_expands_for_long_labels_and_subtitles() -> None:
         target_wires=("q0",),
         parameters=(3.1415926535,),
     )
+    label, subtitle = operation_label_parts(operation, style)
 
-    assert operation_width(operation, style) > style.gate_width
+    assert (
+        operation_width_from_parts(
+            operation=operation,
+            style=style,
+            label=label,
+            subtitle=subtitle,
+        )
+        > style.gate_width
+    )
 
 
 def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() -> None:

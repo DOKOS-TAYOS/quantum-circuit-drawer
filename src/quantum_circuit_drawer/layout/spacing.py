@@ -56,18 +56,6 @@ def uses_compact_label_width(
     return len(label) <= 4
 
 
-def operation_width(operation: OperationIR | MeasurementIR, style: DrawStyle) -> float:
-    """Estimate minimum width required by an operation."""
-
-    label, subtitle = operation_label_parts(operation, style)
-    return operation_width_from_parts(
-        operation=operation,
-        style=style,
-        label=label,
-        subtitle=subtitle,
-    )
-
-
 def operation_width_from_parts(
     *,
     operation: OperationIR | MeasurementIR,
