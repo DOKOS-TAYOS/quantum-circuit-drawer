@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, cast
 from ._draw_request import DrawPipelineOptions, TopologyMode, ViewMode
 from .exceptions import LayoutError
 from .hover import HoverOptions, normalize_hover
+from .ir.circuit import CircuitIR
 from .style import DrawStyle, normalize_style
 from .typing import (
     LayoutEngine3DLike,
@@ -18,7 +19,6 @@ from .typing import (
 )
 
 if TYPE_CHECKING:
-    from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
     from .layout.scene_3d import LayoutScene3D
     from .layout.topology_3d import TopologyName
@@ -68,8 +68,14 @@ def prepare_draw_pipeline(
     )
 
     normalized_style = normalize_style(style)
-    adapter = get_adapter(circuit, framework)
-    ir = adapter.to_ir(circuit, options=adapter_options)
+    adapter_name = "unknown"
+    if isinstance(circuit, CircuitIR) and framework in {None, "ir"}:
+        ir = circuit
+        adapter_name = "IRAdapter(fast-path)"
+    else:
+        adapter = get_adapter(circuit, framework)
+        ir = adapter.to_ir(circuit, options=adapter_options)
+        adapter_name = type(adapter).__name__
     paged_scene: LayoutScene | LayoutScene3D
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     renderer: BaseRenderer
@@ -90,7 +96,7 @@ def prepare_draw_pipeline(
         renderer = MatplotlibRenderer3D()
         logger.debug(
             "Prepared 3D render pipeline with adapter=%s, quantum_wires=%d, layers=%d, topology=%s",
-            type(adapter).__name__,
+            adapter_name,
             ir.quantum_wire_count,
             len(ir.layers),
             topology,
@@ -109,7 +115,7 @@ def prepare_draw_pipeline(
         renderer = MatplotlibRenderer()
         logger.debug(
             "Prepared render pipeline with adapter=%s, quantum_wires=%d, layers=%d, pages=%d",
-            type(adapter).__name__,
+            adapter_name,
             ir.quantum_wire_count,
             len(ir.layers),
             len(scene_2d.pages),

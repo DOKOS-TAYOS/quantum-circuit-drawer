@@ -237,3 +237,25 @@ def test_prepare_draw_pipeline_keeps_2d_hover_metadata_when_hover_is_enabled() -
     )
 
     assert _hover_payload_count(pipeline.paged_scene) > 0
+
+
+def test_prepare_draw_pipeline_uses_ir_fast_path_without_registry_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer.adapters.registry as registry_module
+
+    monkeypatch.setattr(
+        registry_module,
+        "get_adapter",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("get_adapter should not run")),
+    )
+
+    pipeline = prepare_draw_pipeline(
+        circuit=build_sample_ir(),
+        framework="ir",
+        style=None,
+        layout=None,
+        options={},
+    )
+
+    assert pipeline.ir.quantum_wire_count == 2

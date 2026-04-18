@@ -230,7 +230,6 @@ def render_draw_pipeline_on_axes(
     axes.clear()
     pipeline.renderer.render(scene_2d, ax=axes, output=output)
     set_viewport_width(axes.figure, viewport_width=scene_2d.width)
-    configure_zoom_text_scaling(axes, scene=scene_2d)
 
     auto_paging_state = AutoPagingState(
         ir=pipeline.ir,
@@ -320,14 +319,16 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
         return
 
     def request_redraw(_event: Event) -> None:
-        if state.is_updating:
+        if state.is_updating or state.redraw_queued:
             return
+        state.redraw_queued = True
         canvas.draw_idle()
 
     def redraw_if_needed(_event: Event) -> None:
         current_state = get_auto_paging_state(axes)
         if current_state is None or current_state is not state or state.is_updating:
             return
+        state.redraw_queued = False
 
         current_signature = viewport_signature(axes)
         if current_signature is None:
@@ -338,13 +339,20 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
         ):
             return
 
-        candidate_scene, candidate_page_width = viewport_adaptive_paged_scene(
-            state.ir,
-            state.layout_engine,
-            state.normalized_style,
-            axes,
-            hover_enabled=state.hover_enabled,
-        )
+        cached_candidate = state.viewport_scene_cache.get(current_signature)
+        if cached_candidate is None:
+            candidate_scene, candidate_page_width = viewport_adaptive_paged_scene(
+                state.ir,
+                state.layout_engine,
+                state.normalized_style,
+                axes,
+                hover_enabled=state.hover_enabled,
+            )
+            state.viewport_scene_cache[current_signature] = (candidate_scene, candidate_page_width)
+            if len(state.viewport_scene_cache) > 6:
+                state.viewport_scene_cache.pop(next(iter(state.viewport_scene_cache)))
+        else:
+            candidate_scene, candidate_page_width = cached_candidate
         candidate_scene.hover = state.scene.hover
         state.last_viewport_signature = current_signature
         state.needs_initial_draw_reconcile = False
@@ -360,7 +368,6 @@ def configure_auto_paging(axes: Axes, state: object) -> None:
             axes.clear()
             state.renderer.render(candidate_scene, ax=axes)
             set_viewport_width(axes.figure, viewport_width=candidate_scene.width)
-            configure_zoom_text_scaling(axes, scene=candidate_scene)
             state.scene = candidate_scene
             state.effective_page_width = candidate_page_width
         finally:

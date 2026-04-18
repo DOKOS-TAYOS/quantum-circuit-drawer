@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from matplotlib.axes import Axes
@@ -47,6 +47,10 @@ class AutoPagingState:
     last_viewport_signature: tuple[int, int] | None = None
     needs_initial_draw_reconcile: bool = False
     is_updating: bool = False
+    redraw_queued: bool = False
+    viewport_scene_cache: dict[tuple[int, int], tuple[LayoutScene, float]] = field(
+        default_factory=dict
+    )
     draw_callback_id: int | None = None
     resize_callback_id: int | None = None
 
@@ -60,6 +64,7 @@ class TextScalingState:
     last_scale_factor: float = 1.0
     last_points_per_layout_unit: float = 0.0
     is_updating: bool = False
+    update_queued: bool = False
     draw_callback_id: int | None = None
     xlim_callback_id: int | None = None
     ylim_callback_id: int | None = None

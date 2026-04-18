@@ -204,13 +204,24 @@ def _add_ellipse_collection(
         clip_on=False,
     )
     ax.add_collection(collection)
+    x_min = float("inf")
+    x_max = float("-inf")
+    y_min = float("inf")
+    y_max = float("-inf")
+    for (x, y), width, height in zip(offsets, widths, heights, strict=True):
+        half_width = width / 2.0
+        half_height = height / 2.0
+        x_min = min(x_min, x - half_width)
+        x_max = max(x_max, x + half_width)
+        y_min = min(y_min, y - half_height)
+        y_max = max(y_max, y + half_height)
     _set_artist_data_extent(
         ax,
         collection,
-        x_min=min(x - (width / 2.0) for (x, _), width in zip(offsets, widths, strict=True)),
-        x_max=max(x + (width / 2.0) for (x, _), width in zip(offsets, widths, strict=True)),
-        y_min=min(y - (height / 2.0) for (_, y), height in zip(offsets, heights, strict=True)),
-        y_max=max(y + (height / 2.0) for (_, y), height in zip(offsets, heights, strict=True)),
+        x_min=x_min,
+        x_max=x_max,
+        y_min=y_min,
+        y_max=y_max,
     )
     return collection
 

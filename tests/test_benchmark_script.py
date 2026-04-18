@@ -53,6 +53,7 @@ def test_parse_args_reads_custom_values() -> None:
     assert args.layers == 8
     assert args.repeats == 2
     assert args.emit_json is True
+    assert args.benchmark == "synthetic"
 
 
 def test_parse_args_reads_3d_render_options() -> None:
@@ -281,3 +282,98 @@ def test_benchmark_demo_scenarios_cover_expected_multi_framework_cases() -> None
         ("pennylane-qaoa", 18, 12, "slider"),
         ("myqlm-random", 24, 32, "pages"),
     )
+
+
+def test_main_emits_demo_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    benchmark_module = _load_benchmark_module()
+    monkeypatch.setattr(
+        benchmark_module,
+        "benchmark_demo",
+        lambda demo_id, qubits, columns, mode, repeats: {
+            "demo_id": demo_id,
+            "framework": "fake",
+            "qubits": qubits,
+            "columns": columns,
+            "mode": mode,
+            "repeats": repeats,
+            "import_seconds": 0.01,
+            "build_seconds": 0.02,
+            "adapt_seconds": 0.03,
+            "draw_seconds": 0.04,
+            "total_seconds": 0.1,
+        },
+    )
+
+    exit_code = benchmark_module.main(
+        [
+            "--benchmark",
+            "demo",
+            "--demo-id",
+            "qiskit-random",
+            "--qubits",
+            "8",
+            "--columns",
+            "12",
+            "--mode",
+            "slider",
+            "--repeats",
+            "2",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Demo benchmark:" in captured.out
+    assert "id=qiskit-random" in captured.out
+    assert "mode=slider" in captured.out
+    assert "total=0.100000s" in captured.out
+
+
+def test_main_emits_demo_suite_json_with_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    benchmark_module = _load_benchmark_module()
+
+    monkeypatch.setattr(
+        benchmark_module,
+        "demo_benchmark_scenarios",
+        lambda: (("ok-demo", 4, 8, "pages"), ("bad-demo", 6, 10, "slider")),
+    )
+
+    def fake_benchmark_demo(
+        demo_id: str,
+        qubits: int,
+        columns: int,
+        mode: str,
+        repeats: int,
+    ) -> dict[str, float | int | str]:
+        if demo_id == "bad-demo":
+            raise RuntimeError("missing dependency")
+        return {
+            "demo_id": demo_id,
+            "framework": "fake",
+            "qubits": qubits,
+            "columns": columns,
+            "mode": mode,
+            "repeats": repeats,
+            "import_seconds": 0.01,
+            "build_seconds": 0.02,
+            "adapt_seconds": 0.03,
+            "draw_seconds": 0.04,
+            "total_seconds": 0.1,
+        }
+
+    monkeypatch.setattr(benchmark_module, "benchmark_demo", fake_benchmark_demo)
+
+    exit_code = benchmark_module.main(["--benchmark", "demo-suite", "--repeats", "1", "--json"])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert payload[0]["demo_id"] == "ok-demo"
+    assert payload[1]["demo_id"] == "bad-demo"
+    assert "missing dependency" in payload[1]["error"]
