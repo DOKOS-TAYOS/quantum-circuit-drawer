@@ -34,30 +34,42 @@ def matrix_qubit_count(matrix: np.ndarray) -> int | None:
 def resolved_operation_matrix(operation: OperationIR) -> np.ndarray | None:
     """Return the best available matrix for an operation."""
 
-    explicit_matrix = square_matrix(operation.metadata.get("matrix"))
-    if explicit_matrix is not None:
-        return explicit_matrix
-    return inferred_operation_matrix(operation)
+    return _resolved_operation_matrix_and_dimension(operation)[0]
 
 
 def operation_matrix_dimension(operation: OperationIR) -> int | None:
     """Return the matrix dimension for an operation when it is well-defined."""
 
-    resolved_matrix = resolved_operation_matrix(operation)
+    return _resolved_operation_matrix_and_dimension(operation)[1]
+
+
+def _resolved_operation_matrix_and_dimension(
+    operation: OperationIR,
+) -> tuple[np.ndarray | None, int | None]:
+    """Return the best available matrix together with its resolved dimension."""
+
+    resolved_matrix = _resolved_operation_matrix(operation)
     if resolved_matrix is not None:
-        return int(resolved_matrix.shape[0])
+        return resolved_matrix, int(resolved_matrix.shape[0])
 
     if operation.kind not in {
         OperationKind.GATE,
         OperationKind.CONTROLLED_GATE,
         OperationKind.SWAP,
     }:
-        return None
+        return None, None
 
     qubit_count = len(dict.fromkeys((*operation.control_wires, *operation.target_wires)))
     if qubit_count <= 0:
-        return None
-    return 1 << qubit_count
+        return None, None
+    return None, 1 << qubit_count
+
+
+def _resolved_operation_matrix(operation: OperationIR) -> np.ndarray | None:
+    explicit_matrix = square_matrix(operation.metadata.get("matrix"))
+    if explicit_matrix is not None:
+        return explicit_matrix
+    return inferred_operation_matrix(operation)
 
 
 def inferred_operation_matrix(operation: OperationIR) -> np.ndarray | None:

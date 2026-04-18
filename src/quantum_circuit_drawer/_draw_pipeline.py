@@ -65,11 +65,10 @@ def prepare_draw_pipeline(
         "matplotlib",
         framework,
         draw_options.view,
-        len(draw_options.to_mapping()),
+        6 + len(draw_options.extra),
     )
 
     normalized_style = normalize_style(style)
-    adapter_name = "unknown"
     if isinstance(circuit, CircuitIR) and framework in {None, "ir"}:
         ir = circuit
         adapter_name = "IRAdapter(fast-path)"

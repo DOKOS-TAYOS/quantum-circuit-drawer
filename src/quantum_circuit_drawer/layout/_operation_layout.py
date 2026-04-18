@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 
-from .._matrix_support import operation_matrix_dimension, resolved_operation_matrix
+from .. import _matrix_support as _matrix_support_module
+from .._matrix_support import (
+    _resolved_operation_matrix_and_dimension,
+)
 from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
@@ -27,6 +30,9 @@ from .scene import (
     SceneText,
     SceneWire,
 )
+
+resolved_operation_matrix = _matrix_support_module.resolved_operation_matrix
+operation_matrix_dimension = _matrix_support_module.operation_matrix_dimension
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,10 +193,7 @@ class _OperationSceneBuilder:
         if cached_matrix_data is not None:
             return cached_matrix_data
 
-        matrix_data = (
-            resolved_operation_matrix(operation),
-            operation_matrix_dimension(operation),
-        )
+        matrix_data = _resolved_operation_matrix_and_dimension(operation)
         self.hover_matrix_cache[cache_key] = matrix_data
         return matrix_data
 

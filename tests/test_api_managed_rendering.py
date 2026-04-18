@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
+from typing import cast
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -19,6 +20,7 @@ from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
+from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_auto_paging_state,
@@ -1029,11 +1031,13 @@ def test_draw_quantum_circuit_managed_figure_reconciles_auto_paging_on_first_dra
         _axes: object,
         *,
         hover_enabled: bool = True,
+        initial_scene: object | None = None,
     ) -> tuple[object, float]:
         nonlocal viewport_calls
         viewport_calls += 1
         assert hover_enabled is False
         if viewport_calls == 1:
+            assert initial_scene is not None
             return initial_scene, 4.0
         return reconciled_scene, 12.0
 
@@ -1077,6 +1081,7 @@ def test_draw_quantum_circuit_hidden_explicit_figsize_skips_initial_auto_paging_
         _axes: object,
         *,
         hover_enabled: bool = True,
+        initial_scene: LayoutScene | None = None,
     ) -> tuple[object, float]:
         nonlocal viewport_calls
         viewport_calls += 1
@@ -1086,6 +1091,7 @@ def test_draw_quantum_circuit_hidden_explicit_figsize_skips_initial_auto_paging_
             _style,
             _axes,
             hover_enabled=hover_enabled,
+            initial_scene=cast("LayoutScene | None", initial_scene),
         )
 
     monkeypatch.setattr(
@@ -1107,6 +1113,54 @@ def test_draw_quantum_circuit_hidden_explicit_figsize_skips_initial_auto_paging_
     figure.canvas.draw()
 
     assert viewport_calls == 1
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_hidden_auto_paging_avoids_full_layout_for_each_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer.layout.engine as layout_engine_module
+
+    circuit = build_dense_rotation_ir(layer_count=24)
+    strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+    compute_calls = 0
+    original_compute = layout_engine_module.LayoutEngine._compute_with_normalized_style
+
+    def count_compute(
+        self: LayoutEngine,
+        circuit: CircuitIR,
+        style: DrawStyle,
+        *,
+        hover_enabled: bool = True,
+    ) -> object:
+        nonlocal compute_calls
+        compute_calls += 1
+        return original_compute(
+            self,
+            circuit,
+            style,
+            hover_enabled=hover_enabled,
+        )
+
+    monkeypatch.setattr(
+        layout_engine_module.LayoutEngine,
+        "_compute_with_normalized_style",
+        count_compute,
+    )
+
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0},
+        show=False,
+        figsize=(3.2, 12.0),
+    )
+    auto_paging_state = get_auto_paging_state(axes)
+
+    assert auto_paging_state is not None
+    assert auto_paging_state.effective_page_width > 4.0
+    assert len(auto_paging_state.scene.pages) <= len(strict_scene.pages)
+    assert compute_calls <= 3
 
     plt.close(figure)
 

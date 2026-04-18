@@ -40,6 +40,21 @@ class _LayoutScaffold:
     scene_height: float
 
 
+@dataclass(frozen=True, slots=True)
+class _LayoutPagingInputs:
+    draw_style: DrawStyle
+    column_widths: tuple[float, ...]
+    x_centers: tuple[float, ...]
+    page_height: float
+
+
+@dataclass(frozen=True, slots=True)
+class _PagedSceneMetrics:
+    pages: tuple[ScenePage, ...]
+    scene_width: float
+    scene_height: float
+
+
 class _OperationWidthResolver(Protocol):
     def __call__(
         self,
@@ -69,12 +84,16 @@ def build_layout_scaffold(
     wire_positions = _build_wire_positions(circuit, draw_style)
     x_centers = tuple(_build_column_centers(column_widths, draw_style))
     page_height = max(wire_positions.values()) + draw_style.margin_bottom
-    pages = _build_pages(column_widths, x_centers, page_height, draw_style)
-    scene_width = max(
-        (draw_style.margin_left + page.content_width + draw_style.margin_right for page in pages),
-        default=_scene_width(column_widths, draw_style),
+    paging_inputs = _LayoutPagingInputs(
+        draw_style=draw_style,
+        column_widths=column_widths,
+        x_centers=x_centers,
+        page_height=page_height,
     )
-    scene_height = page_height + ((len(pages) - 1) * (page_height + draw_style.page_vertical_gap))
+    paged_scene_metrics = _paged_scene_metrics_for_width(
+        paging_inputs,
+        max_page_width=draw_style.max_page_width,
+    )
     return _LayoutScaffold(
         draw_style=draw_style,
         normalized_layers=normalized_layers,
@@ -82,10 +101,48 @@ def build_layout_scaffold(
         wire_positions=wire_positions,
         column_widths=column_widths,
         x_centers=x_centers,
-        pages=pages,
+        pages=paged_scene_metrics.pages,
         page_height=page_height,
-        scene_width=scene_width,
-        scene_height=scene_height,
+        scene_width=paged_scene_metrics.scene_width,
+        scene_height=paged_scene_metrics.scene_height,
+    )
+
+
+def build_layout_paging_inputs(
+    circuit: CircuitIR,
+    style: DrawStyle,
+    *,
+    operation_width_resolver: _OperationWidthResolver = operation_width_from_parts,
+) -> _LayoutPagingInputs:
+    """Build reusable page-sizing inputs without materializing scene primitives."""
+
+    draw_style = _resolve_scene_style(circuit, style)
+    normalized_layers = normalize_draw_layers(circuit)
+    _, column_widths = _build_operation_metrics_and_column_widths(
+        normalized_layers,
+        draw_style,
+        operation_width_resolver=operation_width_resolver,
+    )
+    wire_positions = _build_wire_positions(circuit, draw_style)
+    page_height = max(wire_positions.values()) + draw_style.margin_bottom
+    return _LayoutPagingInputs(
+        draw_style=draw_style,
+        column_widths=column_widths,
+        x_centers=tuple(_build_column_centers(column_widths, draw_style)),
+        page_height=page_height,
+    )
+
+
+def paged_scene_metrics_for_width(
+    paging_inputs: _LayoutPagingInputs,
+    *,
+    max_page_width: float,
+) -> _PagedSceneMetrics:
+    """Return paging-only scene metrics for one candidate page width."""
+
+    return _paged_scene_metrics_for_width(
+        paging_inputs,
+        max_page_width=max_page_width,
     )
 
 
@@ -186,6 +243,32 @@ def _scene_width(widths: Sequence[float], style: DrawStyle) -> float:
     total_columns = sum(widths)
     total_spacing = style.layer_spacing * max(0, len(widths) - 1)
     return style.margin_left + total_columns + total_spacing + style.margin_right
+
+
+def _paged_scene_metrics_for_width(
+    paging_inputs: _LayoutPagingInputs,
+    *,
+    max_page_width: float,
+) -> _PagedSceneMetrics:
+    draw_style = replace_draw_style(paging_inputs.draw_style, max_page_width=max_page_width)
+    pages = _build_pages(
+        paging_inputs.column_widths,
+        paging_inputs.x_centers,
+        paging_inputs.page_height,
+        draw_style,
+    )
+    scene_width = max(
+        (draw_style.margin_left + page.content_width + draw_style.margin_right for page in pages),
+        default=_scene_width(paging_inputs.column_widths, draw_style),
+    )
+    scene_height = paging_inputs.page_height + (
+        (len(pages) - 1) * (paging_inputs.page_height + draw_style.page_vertical_gap)
+    )
+    return _PagedSceneMetrics(
+        pages=pages,
+        scene_width=scene_width,
+        scene_height=scene_height,
+    )
 
 
 def _build_pages(

@@ -246,6 +246,7 @@ def render_draw_pipeline_on_axes(
         pipeline.normalized_style,
         axes,
         hover_enabled=prepared_scene.hover.enabled,
+        initial_scene=prepared_scene,
     )
     scene_2d.hover = prepared_scene.hover
     frozen_style = _freeze_default_line_width_for_scene(
@@ -298,6 +299,7 @@ def viewport_adaptive_paged_scene(
     axes: Axes,
     *,
     hover_enabled: bool = True,
+    initial_scene: LayoutScene | None = None,
 ) -> tuple[LayoutScene, float]:
     """Return the paged scene whose aspect best matches the current axes viewport."""
 
@@ -307,6 +309,7 @@ def viewport_adaptive_paged_scene(
         style,
         axes,
         hover_enabled=hover_enabled,
+        initial_scene=initial_scene,
     )
 
 

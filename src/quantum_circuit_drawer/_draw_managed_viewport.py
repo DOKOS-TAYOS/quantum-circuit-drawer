@@ -8,6 +8,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
 
 from .ir.circuit import CircuitIR
+from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from .layout.scene import LayoutScene
 from .style import DrawStyle
 from .style.defaults import replace_draw_style
@@ -41,12 +42,15 @@ def viewport_adaptive_paged_scene(
     axes: Axes,
     *,
     hover_enabled: bool = True,
+    initial_scene: LayoutScene | None = None,
 ) -> tuple[LayoutScene, float]:
     """Return the paged scene whose aspect best matches the current axes viewport."""
 
     max_page_width = style.max_page_width
     viewport_ratio = axes_viewport_ratio(axes)
     if viewport_ratio <= 0.0:
+        if initial_scene is not None:
+            return initial_scene, max_page_width
         return (
             compute_paged_scene(
                 circuit,
@@ -57,66 +61,102 @@ def viewport_adaptive_paged_scene(
             max_page_width,
         )
 
-    continuous_scene = build_continuous_slider_scene(
-        circuit,
-        layout_engine,
-        style,
-        hover_enabled=hover_enabled,
+    paging_inputs = build_layout_paging_inputs(circuit, style)
+    continuous_metrics = paged_scene_metrics_for_width(
+        paging_inputs,
+        max_page_width=float("inf"),
     )
     continuous_page_width = (
-        continuous_scene.pages[0].content_width
-        if continuous_scene.pages
-        else continuous_scene.width
+        continuous_metrics.pages[0].content_width
+        if continuous_metrics.pages
+        else continuous_metrics.scene_width
     )
     if not math.isfinite(max_page_width):
-        max_page_width = continuous_page_width
+        if initial_scene is not None:
+            return initial_scene, continuous_page_width
+        return (
+            build_continuous_slider_scene(
+                circuit,
+                layout_engine,
+                style,
+                hover_enabled=hover_enabled,
+            ),
+            continuous_page_width,
+        )
 
     lower_bound = min(style.gate_width, max_page_width)
     upper_bound = max(max_page_width, continuous_page_width)
-    scene_cache: dict[float, LayoutScene] = {}
+    metrics_cache: dict[float, tuple[float, float]] = {
+        upper_bound: (continuous_metrics.scene_width, continuous_metrics.scene_height)
+    }
 
-    def scene_for_width(page_width: float) -> LayoutScene:
-        cached_scene = scene_cache.get(page_width)
-        if cached_scene is not None:
-            return cached_scene
-        scene = compute_paged_scene(
-            circuit,
-            layout_engine,
-            replace_draw_style(style, max_page_width=page_width),
-            hover_enabled=hover_enabled,
+    def candidate_metrics(page_width: float) -> tuple[float, float]:
+        cached_metrics = metrics_cache.get(page_width)
+        if cached_metrics is not None:
+            return cached_metrics
+        candidate = paged_scene_metrics_for_width(
+            paging_inputs,
+            max_page_width=page_width,
         )
-        scene_cache[page_width] = scene
-        return scene
+        resolved_metrics = (candidate.scene_width, candidate.scene_height)
+        metrics_cache[page_width] = resolved_metrics
+        return resolved_metrics
 
     best_page_width = upper_bound
-    best_scene = scene_for_width(best_page_width)
-    best_score = viewport_scene_score(best_scene, viewport_ratio)
+    best_width, best_height = metrics_cache[best_page_width]
+    best_score = _viewport_scene_score_for_size(best_width, best_height, viewport_ratio)
 
     low = lower_bound
     high = upper_bound
     for page_width in (low, high):
-        candidate_scene = scene_for_width(page_width)
-        candidate_score = viewport_scene_score(candidate_scene, viewport_ratio)
+        candidate_width, candidate_height = candidate_metrics(page_width)
+        candidate_score = _viewport_scene_score_for_size(
+            candidate_width,
+            candidate_height,
+            viewport_ratio,
+        )
         if candidate_score < best_score:
             best_page_width = page_width
-            best_scene = candidate_scene
+            best_width = candidate_width
+            best_height = candidate_height
             best_score = candidate_score
 
     for _ in range(_VIEWPORT_SEARCH_STEPS):
         mid = (low + high) / 2.0
-        candidate_scene = scene_for_width(mid)
-        candidate_ratio = scene_aspect_ratio(candidate_scene)
-        candidate_score = viewport_scene_score(candidate_scene, viewport_ratio)
+        candidate_width, candidate_height = candidate_metrics(mid)
+        candidate_ratio = _scene_aspect_ratio_for_size(candidate_width, candidate_height)
+        candidate_score = _viewport_scene_score_for_size(
+            candidate_width,
+            candidate_height,
+            viewport_ratio,
+        )
         if candidate_score < best_score:
             best_page_width = mid
-            best_scene = candidate_scene
+            best_width = candidate_width
+            best_height = candidate_height
             best_score = candidate_score
         if candidate_ratio <= viewport_ratio:
             low = mid
             continue
         high = mid
 
-    return best_scene, best_page_width
+    del best_width, best_height
+    if initial_scene is not None and math.isclose(
+        best_page_width,
+        max_page_width,
+        rel_tol=1e-9,
+        abs_tol=1e-9,
+    ):
+        return initial_scene, best_page_width
+    return (
+        compute_paged_scene(
+            circuit,
+            layout_engine,
+            replace_draw_style(style, max_page_width=best_page_width),
+            hover_enabled=hover_enabled,
+        ),
+        best_page_width,
+    )
 
 
 def compute_paged_scene(
@@ -201,10 +241,7 @@ def scene_aspect_ratio(scene: LayoutScene) -> float:
 def viewport_scene_score(scene: LayoutScene, viewport_ratio: float) -> float:
     """Return how closely the scene aspect matches the viewport aspect."""
 
-    scene_ratio = max(scene_aspect_ratio(scene), 1e-6)
-    if viewport_ratio <= 0.0:
-        return math.inf
-    return abs(math.log(scene_ratio / viewport_ratio))
+    return _viewport_scene_score_for_size(scene.width, scene.height, viewport_ratio)
 
 
 def _figure_size_inches(figure: Figure | SubFigure) -> tuple[float, float]:
@@ -213,6 +250,23 @@ def _figure_size_inches(figure: Figure | SubFigure) -> tuple[float, float]:
     else:
         size_inches = figure.figure.get_size_inches()
     return float(size_inches[0]), float(size_inches[1])
+
+
+def _scene_aspect_ratio_for_size(scene_width: float, scene_height: float) -> float:
+    if scene_height <= 0.0:
+        return scene_width
+    return scene_width / scene_height
+
+
+def _viewport_scene_score_for_size(
+    scene_width: float,
+    scene_height: float,
+    viewport_ratio: float,
+) -> float:
+    scene_ratio = max(_scene_aspect_ratio_for_size(scene_width, scene_height), 1e-6)
+    if viewport_ratio <= 0.0:
+        return math.inf
+    return abs(math.log(scene_ratio / viewport_ratio))
 
 
 def _compute_layout_scene(
