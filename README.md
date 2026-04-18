@@ -2,7 +2,7 @@
   <img
     src="https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/Quantum_Circuit_Drawer_logo.png"
     alt="Quantum Circuit Drawer — neon logo with a circuit-style atom icon and glowing typography (transparent background)"
-    width="640"
+    width="560"
   />
 </p>
 
