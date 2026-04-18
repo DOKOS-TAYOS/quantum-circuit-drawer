@@ -135,16 +135,23 @@ def extract_dependency_types(
 ) -> tuple[type[object], ...]:
     """Return the available runtime types exposed by an optional dependency."""
 
-    return _extract_dependency_types_cached(module_name, tuple(attribute_paths))
+    normalized_paths = tuple(attribute_paths)
+    return _extract_dependency_types_cached(
+        module_name,
+        normalized_paths,
+        _dependency_resolution_state(module_name, normalized_paths),
+    )
 
 
 @lru_cache(maxsize=128)
 def _extract_dependency_types_cached(
     module_name: str,
     attribute_paths: tuple[str, ...],
+    resolution_state: tuple[object, ...],
 ) -> tuple[type[object], ...]:
     """Cached implementation for resolving dependency runtime types."""
 
+    del resolution_state
     module = load_optional_dependency(module_name)
     if module is None:
         return ()
@@ -155,6 +162,81 @@ def _extract_dependency_types_cached(
         if isinstance(candidate, type):
             resolved_types.append(candidate)
     return tuple(resolved_types)
+
+
+def _dependency_resolution_state(
+    module_name: str,
+    attribute_paths: tuple[str, ...],
+) -> tuple[object, ...]:
+    """Return the import state that determines optional type resolution."""
+
+    state: list[object] = [_cache_state_value(__import__)]
+    top_level_module = sys.modules.get(module_name)
+    state.extend((module_name, _cache_state_value(top_level_module)))
+    for attribute_path in attribute_paths:
+        state.extend(_attribute_path_resolution_state(module_name, attribute_path))
+    return tuple(state)
+
+
+def _attribute_path_resolution_state(
+    module_name: str,
+    attribute_path: str,
+) -> tuple[object, ...]:
+    """Return the current module/attribute chain state for one dependency path."""
+
+    state: list[object] = []
+    candidate: object | None = sys.modules.get(module_name)
+    current_module_name = module_name
+    path_parts = attribute_path.split(".")
+    last_index = len(path_parts) - 1
+
+    for index, attribute in enumerate(path_parts):
+        next_candidate = getattr(candidate, attribute, None)
+        state.extend(
+            (
+                current_module_name,
+                attribute,
+                _cache_state_value(next_candidate),
+            )
+        )
+        if next_candidate is not None:
+            candidate = next_candidate
+            if isinstance(candidate, ModuleType):
+                current_module_name = candidate.__name__
+                state.extend(
+                    (
+                        current_module_name,
+                        _cache_state_value(candidate),
+                    )
+                )
+            continue
+        if index == last_index or not isinstance(candidate, ModuleType):
+            candidate = None
+            continue
+
+        qualified_name = f"{current_module_name}.{attribute}"
+        imported_submodule = sys.modules.get(qualified_name)
+        state.extend(
+            (
+                qualified_name,
+                _cache_state_value(imported_submodule),
+            )
+        )
+        candidate = imported_submodule
+        current_module_name = qualified_name
+    return tuple(state)
+
+
+def _cache_state_value(value: object | None) -> object | None:
+    """Return a hashable cache token component for one resolution value."""
+
+    if value is None:
+        return None
+    try:
+        hash(value)
+    except TypeError:
+        return ("id", type(value), id(value))
+    return value
 
 
 def _resolve_dependency_candidate(

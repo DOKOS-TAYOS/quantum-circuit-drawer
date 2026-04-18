@@ -154,6 +154,79 @@ def test_extract_dependency_types_caches_module_resolution(
     assert import_count == 1
 
 
+def test_extract_dependency_types_reloads_when_module_appears_after_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    late_type = type("LateCircuit", (), {})
+    original_import = builtins.__import__
+
+    monkeypatch.delitem(sys.modules, "late_quantum_dep", raising=False)
+    _extract_dependency_types_cached.cache_clear()
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "late_quantum_dep":
+            module = sys.modules.get(name)
+            if module is not None:
+                return module
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert extract_dependency_types("late_quantum_dep", ("Circuit",)) == ()
+
+    fake_module = ModuleType("late_quantum_dep")
+    fake_module.Circuit = late_type
+    monkeypatch.setitem(sys.modules, "late_quantum_dep", fake_module)
+
+    assert extract_dependency_types("late_quantum_dep", ("Circuit",)) == (late_type,)
+
+
+def test_extract_dependency_types_reloads_when_nested_submodule_appears_after_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nested_type = type("LateNestedCircuit", (), {})
+    fake_package = ModuleType("late_nested_quantum_dep")
+    fake_package.__path__ = []
+    original_import = builtins.__import__
+
+    monkeypatch.setitem(sys.modules, "late_nested_quantum_dep", fake_package)
+    monkeypatch.delitem(sys.modules, "late_nested_quantum_dep.core", raising=False)
+    _extract_dependency_types_cached.cache_clear()
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "late_nested_quantum_dep":
+            return fake_package
+        if name == "late_nested_quantum_dep.core":
+            module = sys.modules.get(name)
+            if module is not None:
+                return fake_package
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert extract_dependency_types("late_nested_quantum_dep", ("core.Circuit",)) == ()
+
+    fake_submodule = ModuleType("late_nested_quantum_dep.core")
+    fake_submodule.Circuit = nested_type
+    monkeypatch.setitem(sys.modules, "late_nested_quantum_dep.core", fake_submodule)
+
+    assert extract_dependency_types("late_nested_quantum_dep", ("core.Circuit",)) == (nested_type,)
+
+
 def test_sequential_bit_labels_build_expected_labels() -> None:
     assert sequential_bit_labels(3, label="alpha") == ("alpha[0]", "alpha[1]", "alpha[2]")
 
