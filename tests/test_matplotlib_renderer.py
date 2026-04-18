@@ -673,31 +673,6 @@ def test_matplotlib_renderer_extends_horizontal_wire_segments_before_and_after_e
             assert rendered_segment[1][0] > last_gate_right
 
 
-def test_matplotlib_renderer_buckets_paged_artists_without_membership_rescans(
-    monkeypatch,
-) -> None:
-    figure, axes = plt.subplots()
-    renderer = MatplotlibRenderer()
-    membership_checks = 0
-    original_is_in_page = renderer._is_in_page
-
-    def count_is_in_page(*args, **kwargs):
-        nonlocal membership_checks
-        membership_checks += 1
-        return original_is_in_page(*args, **kwargs)
-
-    monkeypatch.setattr(renderer, "_is_in_page", count_is_in_page)
-
-    scene = LayoutEngine().compute(
-        build_dense_rotation_ir(layer_count=24),
-        DrawStyle(max_page_width=4.0, show_params=True),
-    )
-    renderer.render(scene, ax=axes)
-
-    assert len(scene.pages) > 1
-    assert membership_checks == 0
-
-
 def test_matplotlib_renderer_draws_canonical_cx_without_gate_box_text() -> None:
     circuit = CircuitIR(
         quantum_wires=[

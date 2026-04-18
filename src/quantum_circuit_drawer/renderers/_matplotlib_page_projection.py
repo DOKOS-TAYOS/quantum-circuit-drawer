@@ -67,12 +67,6 @@ def project_pages(scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
     )
 
 
-def is_in_page(column: int, page: ScenePage) -> bool:
-    """Return whether a logical column belongs to the provided page."""
-
-    return page.start_column <= column <= page.end_column
-
-
 def page_index_by_column(pages: tuple[ScenePage, ...]) -> tuple[int, ...]:
     """Return the page index for every column in the scene."""
 
