@@ -334,6 +334,21 @@ def resolve_composite_mode(
     return str(requested_mode) if requested_mode is not None else default
 
 
+def resolve_explicit_matrices(
+    options: Mapping[str, object] | None,
+    *,
+    default: bool = True,
+) -> bool:
+    """Return whether adapters should request exact framework matrices."""
+
+    requested_value = options.get("explicit_matrices") if options is not None else None
+    if requested_value is None:
+        return default
+    if isinstance(requested_value, bool):
+        return requested_value
+    return bool(requested_value)
+
+
 def append_classical_conditions(
     operation: OperationNode,
     conditions: Sequence[ClassicalConditionIR],

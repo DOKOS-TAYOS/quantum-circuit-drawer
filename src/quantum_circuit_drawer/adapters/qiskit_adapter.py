@@ -19,6 +19,7 @@ from ._helpers import (
     extract_dependency_types,
     is_expected_matrix_unavailable_error,
     resolve_composite_mode,
+    resolve_explicit_matrices,
 )
 from .base import BaseAdapter
 
@@ -53,6 +54,7 @@ class QiskitAdapter(BaseAdapter):
 
         typed_circuit = cast(_QiskitCircuitLike, circuit)
         composite_mode = resolve_composite_mode(options)
+        explicit_matrices = resolve_explicit_matrices(options)
         qubits = list(typed_circuit.qubits)
         clbits = list(typed_circuit.clbits)
         qubit_ids = {bit: f"q{index}" for index, bit in enumerate(qubits)}
@@ -75,6 +77,7 @@ class QiskitAdapter(BaseAdapter):
                     classical_targets,
                     register_targets,
                     composite_mode=composite_mode,
+                    explicit_matrices=explicit_matrices,
                 )
             )
 
@@ -95,13 +98,17 @@ class QiskitAdapter(BaseAdapter):
         register_targets: dict[object, tuple[str, str]],
         *,
         composite_mode: str,
+        explicit_matrices: bool = True,
     ) -> list[OperationIR | MeasurementIR]:
         operation, qubits, clbits = self._normalize_entry(entry)
         raw_name = str(getattr(operation, "name", operation.__class__.__name__))
         name = raw_name.lower()
         target_wires = tuple(qubit_ids[qubit] for qubit in qubits)
         parameters = tuple(getattr(operation, "params", ()) or ())
-        matrix_metadata = self._matrix_metadata(operation)
+        matrix_metadata = self._matrix_metadata(
+            operation,
+            explicit_matrices=explicit_matrices,
+        )
 
         if name == "measure":
             if not target_wires:
@@ -131,6 +138,7 @@ class QiskitAdapter(BaseAdapter):
                 classical_targets=classical_targets,
                 register_targets=register_targets,
                 composite_mode=composite_mode,
+                explicit_matrices=explicit_matrices,
             )
         if name == "barrier":
             return [
@@ -176,6 +184,7 @@ class QiskitAdapter(BaseAdapter):
                     qubit_ids=qubit_ids,
                     classical_targets=classical_targets,
                     composite_mode=composite_mode,
+                    explicit_matrices=explicit_matrices,
                 )
             if not target_wires:
                 raise UnsupportedOperationError(
@@ -206,7 +215,15 @@ class QiskitAdapter(BaseAdapter):
             )
         ]
 
-    def _matrix_metadata(self, operation: object) -> dict[str, object]:
+    def _matrix_metadata(
+        self,
+        operation: object,
+        *,
+        explicit_matrices: bool = True,
+    ) -> dict[str, object]:
+        if not explicit_matrices:
+            return {}
+
         matrix_getter = getattr(operation, "to_matrix", None)
         if not callable(matrix_getter):
             return {}
@@ -232,6 +249,7 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: dict[object, tuple[str, str]],
         register_targets: dict[object, tuple[str, str]],
         composite_mode: str,
+        explicit_matrices: bool = True,
     ) -> list[OperationIR | MeasurementIR]:
         blocks = tuple(getattr(operation, "blocks", ()) or ())
         if not blocks:
@@ -282,6 +300,7 @@ class QiskitAdapter(BaseAdapter):
                 nested_classical_targets,
                 register_targets={},
                 composite_mode=composite_mode,
+                explicit_matrices=explicit_matrices,
             ),
         )
         return [append_classical_conditions(node, (condition,)) for node in converted_operations]
@@ -316,6 +335,7 @@ class QiskitAdapter(BaseAdapter):
         qubit_ids: dict[object, str],
         classical_targets: dict[object, tuple[str, str]],
         composite_mode: str,
+        explicit_matrices: bool = True,
     ) -> list[OperationIR | MeasurementIR]:
         definition = getattr(operation, "definition", None)
         if definition is None:
@@ -350,6 +370,7 @@ class QiskitAdapter(BaseAdapter):
                 nested_classical_targets,
                 register_targets={},
                 composite_mode=composite_mode,
+                explicit_matrices=explicit_matrices,
             ),
         )
 

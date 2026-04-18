@@ -152,6 +152,14 @@ def test_qiskit_adapter_matrix_metadata_does_not_swallow_unexpected_errors() -> 
         QiskitAdapter()._matrix_metadata(_BrokenMatrixOperation())
 
 
+def test_qiskit_adapter_matrix_metadata_skips_framework_lookup_when_disabled() -> None:
+    class _BrokenMatrixOperation:
+        def to_matrix(self) -> object:
+            raise RuntimeError("boom: qiskit matrix")
+
+    assert QiskitAdapter()._matrix_metadata(_BrokenMatrixOperation(), explicit_matrices=False) == {}
+
+
 def test_cirq_adapter_matrix_metadata_does_not_swallow_unexpected_errors() -> None:
     class _BrokenCirqModule:
         @staticmethod
@@ -161,6 +169,23 @@ def test_cirq_adapter_matrix_metadata_does_not_swallow_unexpected_errors() -> No
 
     with pytest.raises(RuntimeError, match="boom: cirq unitary"):
         CirqAdapter()._matrix_metadata(cirq=_BrokenCirqModule(), operation=object())
+
+
+def test_cirq_adapter_matrix_metadata_skips_framework_lookup_when_disabled() -> None:
+    class _BrokenCirqModule:
+        @staticmethod
+        def unitary(operation: object, default: object | None = None) -> object:
+            del operation, default
+            raise RuntimeError("boom: cirq unitary")
+
+    assert (
+        CirqAdapter()._matrix_metadata(
+            cirq=_BrokenCirqModule(),
+            operation=object(),
+            explicit_matrices=False,
+        )
+        == {}
+    )
 
 
 def test_pennylane_adapter_matrix_metadata_does_not_swallow_unexpected_errors(
@@ -177,3 +202,18 @@ def test_pennylane_adapter_matrix_metadata_does_not_swallow_unexpected_errors(
 
     with pytest.raises(RuntimeError, match="boom: pennylane matrix"):
         PennyLaneAdapter()._matrix_metadata(object())
+
+
+def test_pennylane_adapter_matrix_metadata_skips_framework_lookup_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_module = ModuleType("pennylane")
+
+    def fake_matrix(operation: object) -> object:
+        del operation
+        raise RuntimeError("boom: pennylane matrix")
+
+    fake_module.matrix = fake_matrix
+    monkeypatch.setitem(sys.modules, "pennylane", fake_module)
+
+    assert PennyLaneAdapter()._matrix_metadata(object(), explicit_matrices=False) == {}

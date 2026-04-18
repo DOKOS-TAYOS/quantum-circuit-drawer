@@ -5,6 +5,7 @@ This page lists common problems and the quickest fix to try first.
 ## Contents
 
 - [Optional framework import fails](#optional-framework-import-fails)
+- [Cirq or PennyLane demos are slow or unstable on native Windows](#cirq-or-pennylane-demos-are-slow-or-unstable-on-native-windows)
 - [CUDA-Q does not install on Windows](#cuda-q-does-not-install-on-windows)
 - [No Matplotlib window opens](#no-matplotlib-window-opens)
 - [Saving output fails](#saving-output-fails)
@@ -41,6 +42,16 @@ Linux or WSL:
 ```
 
 Replace `qiskit` with `cirq`, `pennylane`, `myqlm`, or `cudaq` as needed. See [Installation](installation.md#install-optional-framework-extras).
+
+## Cirq or PennyLane demos are slow or unstable on native Windows
+
+On native Windows, Cirq and PennyLane can still hit upstream SciPy/HiGHS issues during import or shutdown. This project now skips eager exact-matrix extraction for those demo paths by default on Windows, so startup should be lighter than before, but the underlying framework instability can still appear.
+
+Try this first:
+
+- Re-run the same demo in WSL or Linux if you need the most reliable behavior.
+- On native Windows, keep the default hover-matrix mode (`auto`) or use `never` for the lightest path.
+- Only use `--hover-matrix always` when you really need exact framework matrices in the tooltip.
 
 ## CUDA-Q does not install on Windows
 

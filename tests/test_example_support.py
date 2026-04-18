@@ -182,6 +182,7 @@ def test_render_example_draws_and_reports_saved_output(
         direct: bool = True,
         hover: object = False,
         figsize: tuple[float, float] | None = None,
+        **options: object,
     ) -> None:
         draw_calls.append(
             {
@@ -196,6 +197,7 @@ def test_render_example_draws_and_reports_saved_output(
                 "direct": direct,
                 "hover": hover,
                 "figsize": figsize,
+                "options": options,
             }
         )
 
@@ -242,9 +244,131 @@ def test_render_example_draws_and_reports_saved_output(
             "direct": False,
             "hover": HoverOptions(),
             "figsize": (9.0, 3.5),
+            "options": {},
         }
     ]
     assert f"Saved qiskit-random to {output}" in captured.out
+
+
+def test_render_example_disables_explicit_matrices_for_cirq_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import examples._shared as shared_module
+    from examples._shared import ExampleRequest, render_example
+
+    draw_calls: list[dict[str, object]] = []
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        framework: str | None = None,
+        *,
+        style: dict[str, object],
+        output: Path | None = None,
+        show: bool = True,
+        page_slider: bool = False,
+        hover: object = False,
+        figsize: tuple[float, float] | None = None,
+        **options: object,
+    ) -> None:
+        draw_calls.append(
+            {
+                "circuit": circuit,
+                "framework": framework,
+                "style": style,
+                "output": output,
+                "show": show,
+                "page_slider": page_slider,
+                "hover": hover,
+                "figsize": figsize,
+                "options": options,
+            }
+        )
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+    monkeypatch.setattr(shared_module.sys, "platform", "win32")
+
+    request = ExampleRequest(
+        qubits=8,
+        columns=12,
+        mode="pages",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    render_example({"kind": "demo"}, request=request, framework="cirq", saved_label="cirq-random")
+
+    assert draw_calls[0]["options"]["explicit_matrices"] is False
+
+
+def test_render_example_keeps_explicit_matrices_for_windows_hover_matrix_always(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import examples._shared as shared_module
+    from examples._shared import ExampleRequest, render_example
+
+    draw_calls: list[dict[str, object]] = []
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        framework: str | None = None,
+        *,
+        style: dict[str, object],
+        output: Path | None = None,
+        show: bool = True,
+        page_slider: bool = False,
+        hover: object = False,
+        figsize: tuple[float, float] | None = None,
+        **options: object,
+    ) -> None:
+        draw_calls.append(
+            {
+                "circuit": circuit,
+                "framework": framework,
+                "style": style,
+                "output": output,
+                "show": show,
+                "page_slider": page_slider,
+                "hover": hover,
+                "figsize": figsize,
+                "options": options,
+            }
+        )
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+    monkeypatch.setattr(shared_module.sys, "platform", "win32")
+
+    request = ExampleRequest(
+        qubits=8,
+        columns=12,
+        mode="pages",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="always",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    render_example(
+        {"kind": "demo"},
+        request=request,
+        framework="pennylane",
+        saved_label="pennylane-random",
+    )
+
+    assert draw_calls[0]["options"]["explicit_matrices"] is True
 
 
 def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.MonkeyPatch) -> None:

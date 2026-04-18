@@ -130,6 +130,7 @@ def build_draw_request(
         show=show,
         view=view,
     )
+    resolved_options = _resolved_adapter_extra_options(options, effective_hover)
     return DrawRequest(
         circuit=circuit,
         framework=framework,
@@ -147,7 +148,7 @@ def build_draw_request(
             topology=topology,
             direct=direct,
             hover=effective_hover,
-            extra=options,
+            extra=resolved_options,
         ),
     )
 
@@ -242,3 +243,15 @@ def resolve_effective_hover(
     if not pyplot_backend_supports_interaction():
         return disable_hover(hover)
     return hover
+
+
+def _resolved_adapter_extra_options(
+    options: Mapping[str, object],
+    effective_hover: HoverOptions,
+) -> dict[str, object]:
+    """Return adapter options after applying hover-related defaults."""
+
+    resolved_options = dict(options)
+    if not effective_hover.enabled and resolved_options.get("explicit_matrices") is not True:
+        resolved_options["explicit_matrices"] = False
+    return resolved_options

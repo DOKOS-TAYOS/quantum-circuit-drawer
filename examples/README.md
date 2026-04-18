@@ -41,6 +41,7 @@ Notes:
 - Hover is enabled by default in both 2D and 3D when the Matplotlib backend is interactive.
 - By default, hover tooltips show gate name, matrix dimensions, and affected qubits, and they add the full matrix automatically for small gates.
 - The 3D examples still use routed connections to show the topology engine better.
+- On native Windows, Cirq and PennyLane demos now avoid eager exact-matrix extraction by default to improve startup. Use `--hover-matrix always` only when you specifically want exact framework matrices, and prefer WSL or Linux if those frameworks are still unstable in your environment.
 
 ## Requirements
 

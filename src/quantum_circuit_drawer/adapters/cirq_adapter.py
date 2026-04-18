@@ -22,6 +22,7 @@ from ._helpers import (
     extract_dependency_types,
     is_expected_matrix_unavailable_error,
     resolve_composite_mode,
+    resolve_explicit_matrices,
     sequential_bit_labels,
 )
 from .base import BaseAdapter
@@ -59,6 +60,7 @@ class CirqAdapter(BaseAdapter):
 
         typed_circuit = cast(_CirqCircuitLike, circuit)
         composite_mode = resolve_composite_mode(options)
+        explicit_matrices = resolve_explicit_matrices(options)
         qubits = sorted(typed_circuit.all_qubits(), key=str)
         qubit_ids = {qubit: f"q{index}" for index, qubit in enumerate(qubits)}
         quantum_wires = [
@@ -97,6 +99,7 @@ class CirqAdapter(BaseAdapter):
                         measurement_key_targets=measurement_key_targets,
                         operation_key=(moment_index, operation_index),
                         composite_mode=composite_mode,
+                        explicit_matrices=explicit_matrices,
                     )
                 )
 
@@ -172,6 +175,7 @@ class CirqAdapter(BaseAdapter):
         measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
         operation_key: tuple[int, ...],
         composite_mode: str,
+        explicit_matrices: bool,
     ) -> list[OperationIR | MeasurementIR]:
         if self._is_measurement(operation):
             converted: list[OperationIR | MeasurementIR] = []
@@ -213,6 +217,7 @@ class CirqAdapter(BaseAdapter):
                 measurement_key_targets=measurement_key_targets,
                 operation_key=operation_key,
                 composite_mode=composite_mode,
+                explicit_matrices=explicit_matrices,
             )
             return [append_classical_conditions(node, conditions) for node in converted]
 
@@ -233,6 +238,7 @@ class CirqAdapter(BaseAdapter):
                         measurement_key_targets=measurement_key_targets,
                         operation_key=(*operation_key, item[0], item[1]),
                         composite_mode=composite_mode,
+                        explicit_matrices=explicit_matrices,
                     ),
                 )
             return [
@@ -241,7 +247,11 @@ class CirqAdapter(BaseAdapter):
                     name=operation.__class__.__name__,
                     label=operation.__class__.__name__,
                     target_wires=tuple(qubit_ids[qubit] for qubit in operation.qubits),
-                    metadata=self._matrix_metadata(cirq=cirq, operation=operation),
+                    metadata=self._matrix_metadata(
+                        cirq=cirq,
+                        operation=operation,
+                        explicit_matrices=explicit_matrices,
+                    ),
                 )
             ]
 
@@ -268,7 +278,11 @@ class CirqAdapter(BaseAdapter):
                     target_wires=targets,
                     control_wires=controls,
                     parameters=parameters,
-                    metadata=self._matrix_metadata(cirq=cirq, operation=operation),
+                    metadata=self._matrix_metadata(
+                        cirq=cirq,
+                        operation=operation,
+                        explicit_matrices=explicit_matrices,
+                    ),
                 )
             ]
 
@@ -285,7 +299,11 @@ class CirqAdapter(BaseAdapter):
                     target_wires=(target_wires[-1],),
                     control_wires=target_wires[:control_count],
                     parameters=self._extract_parameters(gate),
-                    metadata=self._matrix_metadata(cirq=cirq, operation=operation),
+                    metadata=self._matrix_metadata(
+                        cirq=cirq,
+                        operation=operation,
+                        explicit_matrices=explicit_matrices,
+                    ),
                 )
             ]
         if class_name == "czpowgate":
@@ -298,7 +316,11 @@ class CirqAdapter(BaseAdapter):
                     target_wires=(target_wires[1],),
                     control_wires=(target_wires[0],),
                     parameters=self._extract_parameters(gate),
-                    metadata=self._matrix_metadata(cirq=cirq, operation=operation),
+                    metadata=self._matrix_metadata(
+                        cirq=cirq,
+                        operation=operation,
+                        explicit_matrices=explicit_matrices,
+                    ),
                 )
             ]
         if class_name == "swappowgate":
@@ -307,7 +329,11 @@ class CirqAdapter(BaseAdapter):
                     kind=OperationKind.SWAP,
                     name="SWAP",
                     target_wires=target_wires,
-                    metadata=self._matrix_metadata(cirq=cirq, operation=operation),
+                    metadata=self._matrix_metadata(
+                        cirq=cirq,
+                        operation=operation,
+                        explicit_matrices=explicit_matrices,
+                    ),
                 )
             ]
 
@@ -319,11 +345,24 @@ class CirqAdapter(BaseAdapter):
                 canonical_family=canonical_gate.family,
                 target_wires=target_wires,
                 parameters=parameters,
-                metadata=self._matrix_metadata(cirq=cirq, operation=operation),
+                metadata=self._matrix_metadata(
+                    cirq=cirq,
+                    operation=operation,
+                    explicit_matrices=explicit_matrices,
+                ),
             )
         ]
 
-    def _matrix_metadata(self, *, cirq: Any, operation: object) -> dict[str, object]:
+    def _matrix_metadata(
+        self,
+        *,
+        cirq: Any,
+        operation: object,
+        explicit_matrices: bool = True,
+    ) -> dict[str, object]:
+        if not explicit_matrices:
+            return {}
+
         try:
             matrix = cirq.unitary(operation, default=None)
         except Exception as exc:

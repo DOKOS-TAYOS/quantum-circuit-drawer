@@ -42,7 +42,7 @@ Linux or WSL:
 .venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
 ```
 
-On native Windows, Cirq imports can fail inside SciPy/HiGHS. For Cirq adapter work, prefer Linux or WSL if you need to run that part of the suite.
+On native Windows, Cirq and PennyLane can still fail inside SciPy/HiGHS during import or teardown. The demo path now avoids eager exact-matrix extraction for those frameworks by default, which reduces startup cost, but it does not remove the upstream Windows instability. For Cirq or PennyLane adapter work, prefer Linux or WSL if you need reliable end-to-end runs.
 
 For CUDA-Q development, use Linux or WSL2:
 

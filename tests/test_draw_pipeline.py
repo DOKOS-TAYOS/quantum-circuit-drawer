@@ -136,7 +136,7 @@ def test_draw_pipeline_options_keep_adapter_options_separate_from_view_controls(
         topology="grid",
         direct=False,
         hover=HoverOptions(show_matrix="always"),
-        extra={"precision": 3, "page_slider": True},
+        extra={"precision": 3, "page_slider": True, "explicit_matrices": False},
     )
 
     assert options.to_mapping()["hover"] == HoverOptions(show_matrix="always")
@@ -144,6 +144,7 @@ def test_draw_pipeline_options_keep_adapter_options_separate_from_view_controls(
         "composite_mode": "expand",
         "precision": 3,
         "page_slider": True,
+        "explicit_matrices": False,
     }
 
 
@@ -171,6 +172,48 @@ def test_build_draw_request_disables_2d_hover_for_notebook_backend_show_false(
     )
 
     assert request.pipeline_options.hover.enabled is False
+
+
+def test_build_draw_request_disables_explicit_matrices_when_effective_hover_is_disabled() -> None:
+    request = build_draw_request(
+        circuit=build_sample_ir(),
+        hover=HoverOptions(),
+        show=False,
+    )
+
+    assert request.pipeline_options.hover.enabled is False
+    assert request.pipeline_options.adapter_options()["explicit_matrices"] is False
+
+
+def test_build_draw_request_keeps_explicit_matrices_true_when_explicitly_requested() -> None:
+    request = build_draw_request(
+        circuit=build_sample_ir(),
+        hover=HoverOptions(),
+        show=False,
+        explicit_matrices=True,
+    )
+
+    assert request.pipeline_options.hover.enabled is False
+    assert request.pipeline_options.adapter_options()["explicit_matrices"] is True
+
+
+def test_build_draw_request_preserves_explicit_matrices_false_when_hover_stays_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "quantum_circuit_drawer._draw_request.pyplot_backend_supports_interaction",
+        lambda: True,
+    )
+
+    request = build_draw_request(
+        circuit=build_sample_ir(),
+        hover=HoverOptions(),
+        show=True,
+        explicit_matrices=False,
+    )
+
+    assert request.pipeline_options.hover.enabled is True
+    assert request.pipeline_options.adapter_options()["explicit_matrices"] is False
 
 
 def test_build_draw_request_keeps_figsize_out_of_pipeline_adapter_options() -> None:

@@ -20,6 +20,7 @@ from ._helpers import (
     extract_dependency_types,
     is_expected_matrix_unavailable_error,
     resolve_composite_mode,
+    resolve_explicit_matrices,
     sequential_bit_labels,
 )
 from .base import BaseAdapter
@@ -62,6 +63,7 @@ class PennyLaneAdapter(BaseAdapter):
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
         tape = self._extract_tape(circuit)
         composite_mode = resolve_composite_mode(options)
+        explicit_matrices = resolve_explicit_matrices(options)
         wire_ids = {wire: f"q{index}" for index, wire in enumerate(tape.wires)}
         quantum_wires = [
             WireIR(id=wire_ids[wire], index=index, kind=WireKind.QUANTUM, label=str(wire))
@@ -93,6 +95,7 @@ class PennyLaneAdapter(BaseAdapter):
                     wire_ids,
                     mid_measure_targets=mid_measure_targets,
                     composite_mode=composite_mode,
+                    explicit_matrices=explicit_matrices,
                 )
             )
 
@@ -148,6 +151,7 @@ class PennyLaneAdapter(BaseAdapter):
         *,
         mid_measure_targets: dict[str, tuple[str, str]],
         composite_mode: str,
+        explicit_matrices: bool,
     ) -> list[OperationIR | MeasurementIR]:
         if self._is_mid_measure(operation):
             if not operation.wires:
@@ -177,6 +181,7 @@ class PennyLaneAdapter(BaseAdapter):
                 wire_ids,
                 mid_measure_targets=mid_measure_targets,
                 composite_mode=composite_mode,
+                explicit_matrices=explicit_matrices,
             )
             return [append_classical_conditions(node, (condition,)) for node in converted_base]
 
@@ -193,6 +198,7 @@ class PennyLaneAdapter(BaseAdapter):
                         wire_ids,
                         mid_measure_targets=mid_measure_targets,
                         composite_mode=composite_mode,
+                        explicit_matrices=explicit_matrices,
                     ),
                 )
 
@@ -230,7 +236,10 @@ class PennyLaneAdapter(BaseAdapter):
                     target_wires=target_wires,
                     control_wires=control_wires,
                     parameters=parameters,
-                    metadata=self._matrix_metadata(operation),
+                    metadata=self._matrix_metadata(
+                        operation,
+                        explicit_matrices=explicit_matrices,
+                    ),
                 )
             ]
         return [
@@ -240,7 +249,10 @@ class PennyLaneAdapter(BaseAdapter):
                 canonical_family=canonical_gate.family,
                 target_wires=target_wires,
                 parameters=parameters,
-                metadata=self._matrix_metadata(operation),
+                metadata=self._matrix_metadata(
+                    operation,
+                    explicit_matrices=explicit_matrices,
+                ),
             )
         ]
 
@@ -293,7 +305,15 @@ class PennyLaneAdapter(BaseAdapter):
             return tuple(decomposition())
         return ()
 
-    def _matrix_metadata(self, operation: object) -> dict[str, object]:
+    def _matrix_metadata(
+        self,
+        operation: object,
+        *,
+        explicit_matrices: bool = True,
+    ) -> dict[str, object]:
+        if not explicit_matrices:
+            return {}
+
         direct_matrix = getattr(operation, "matrix", None)
         if direct_matrix is not None:
             if callable(direct_matrix):

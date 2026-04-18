@@ -19,6 +19,7 @@ if str(SRC) not in sys.path:
 from examples._shared import (  # noqa: E402
     DEFAULT_DEMO_FIGSIZE,
     build_render_options,
+    demo_adapter_options,
     demo_style,
     request_from_namespace,
 )
@@ -189,7 +190,7 @@ def benchmark_demo(
         request = _build_example_request(spec, qubits=qubits, columns=columns, mode=mode)
         subject = builder(request)
         built_at = perf_counter()
-        ir = _build_ir(subject, framework=spec.framework)
+        ir = _build_ir(subject, framework=spec.framework, request=request)
         adapted_at = perf_counter()
         figure, _ = draw_quantum_circuit(
             ir,
@@ -263,9 +264,20 @@ def _load_demo_builder(spec: DemoSpec) -> object:
     return getattr(module, spec.builder_name)
 
 
-def _build_ir(subject: object, *, framework: str | None) -> CircuitIR:
+def _build_ir(
+    subject: object,
+    *,
+    framework: str | None,
+    request: object,
+) -> CircuitIR:
     adapter = get_adapter(subject, framework)
-    return adapter.to_ir(subject, options={"composite_mode": "compact"})
+    return adapter.to_ir(
+        subject,
+        options={
+            "composite_mode": "compact",
+            **demo_adapter_options(request, framework=framework),
+        },
+    )
 
 
 def _operation_count(circuit: CircuitIR) -> int:

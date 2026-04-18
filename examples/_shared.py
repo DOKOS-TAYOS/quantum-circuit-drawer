@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -280,6 +281,20 @@ def build_render_options(request: ExampleRequest) -> dict[str, object]:
     return render_options
 
 
+def demo_adapter_options(
+    request: ExampleRequest,
+    *,
+    framework: str | None,
+) -> dict[str, object]:
+    """Return adapter options tuned for the current demo environment."""
+
+    if not sys.platform.startswith("win"):
+        return {}
+    if framework not in {"cirq", "pennylane"}:
+        return {}
+    return {"explicit_matrices": request.hover_matrix == "always"}
+
+
 def demo_hover_options(request: ExampleRequest) -> HoverOptions:
     """Return hover settings for the shared example scripts."""
 
@@ -308,6 +323,7 @@ def render_example(
         show=request.show,
         figsize=request.figsize,
         page_slider=request.mode == "slider",
+        **demo_adapter_options(request, framework=framework),
         **build_render_options(request),
     )
 

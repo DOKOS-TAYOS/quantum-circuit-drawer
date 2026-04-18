@@ -145,6 +145,23 @@ def test_pennylane_adapter_attaches_framework_matrix_when_available(
     assert first_operation.metadata["matrix"] == ((1, 1), (1, -1))
 
 
+def test_pennylane_adapter_skips_framework_matrices_when_explicit_matrices_are_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_matrix(operation: object) -> object:
+        raise AssertionError(f"matrix lookup should not run for {operation!r}")
+
+    install_fake_pennylane(monkeypatch, matrix_function=fake_matrix)
+
+    ir = PennyLaneAdapter().to_ir(
+        FakeTapeWrapper(build_fake_tape()),
+        options={"explicit_matrices": False},
+    )
+    first_operation = next(operation for layer in ir.layers for operation in layer.operations)
+
+    assert "matrix" not in first_operation.metadata
+
+
 def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPatch) -> None:
     install_fake_pennylane(monkeypatch)
 

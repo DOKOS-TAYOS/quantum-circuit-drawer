@@ -164,6 +164,18 @@ def test_qiskit_adapter_attaches_framework_matrices_when_available() -> None:
     assert np.allclose(cx_matrix, np.asarray(circuit.data[1].operation.to_matrix()))
 
 
+def test_qiskit_adapter_skips_framework_matrices_when_explicit_matrices_are_disabled() -> None:
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.h(0)
+    circuit.cx(0, 1)
+
+    ir = QiskitAdapter().to_ir(circuit, options={"explicit_matrices": False})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert "matrix" not in operations[0].metadata
+    assert "matrix" not in operations[1].metadata
+
+
 def test_qiskit_adapter_converts_bit_if_test_into_classically_conditioned_operation() -> None:
     quantum = qiskit.QuantumRegister(2, "q")
     classical = qiskit.ClassicalRegister(2, "c")

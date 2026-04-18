@@ -108,6 +108,8 @@ Current support includes common gates, controlled gates, classically controlled 
 
 Use `composite_mode="expand"` when you want supported `CircuitOperation` contents to appear as separate operations.
 
+On native Windows, Cirq imports and teardown can still be limited by upstream SciPy/HiGHS behavior. The bundled demos reduce exact-matrix work by default there, but WSL or Linux remains the more reliable option for repeated demo runs.
+
 ## PennyLane
 
 Install:
@@ -138,6 +140,8 @@ draw_quantum_circuit(tape, framework="pennylane")
 ```
 
 Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
+
+On native Windows, PennyLane can still be limited by upstream SciPy/HiGHS behavior. The bundled demos reduce exact-matrix work by default there, but WSL or Linux remains the more reliable option for repeated demo runs.
 
 ## MyQLM
 

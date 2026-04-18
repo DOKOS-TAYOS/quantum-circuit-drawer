@@ -269,6 +269,60 @@ def test_benchmark_demo_returns_phase_breakdown(
     }
 
 
+def test_benchmark_demo_disables_explicit_matrices_for_windows_cirq(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    benchmark_module = _load_benchmark_module()
+    import examples._shared as shared_module
+
+    fake_spec = SimpleNamespace(
+        demo_id="cirq-demo",
+        module_name="examples.demo_a",
+        builder_name="build_circuit",
+        framework="cirq",
+        default_qubits=4,
+        default_columns=3,
+    )
+    captured_options: list[dict[str, object] | None] = []
+    fake_ir = SimpleNamespace(
+        layers=(SimpleNamespace(operations=(1,)),),
+        quantum_wire_count=4,
+        classical_wire_count=0,
+    )
+
+    monkeypatch.setattr(benchmark_module, "catalog_by_id", lambda: {"cirq-demo": fake_spec})
+    monkeypatch.setattr(
+        benchmark_module.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(build_circuit=lambda request: object()),
+    )
+    monkeypatch.setattr(
+        benchmark_module,
+        "get_adapter",
+        lambda circuit, framework: SimpleNamespace(
+            to_ir=lambda circuit, options=None: (
+                captured_options.append(dict(options or {})) or fake_ir
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        benchmark_module,
+        "draw_quantum_circuit",
+        lambda *args, **kwargs: (SimpleNamespace(clear=lambda: None), object()),
+    )
+    monkeypatch.setattr(shared_module.sys, "platform", "win32")
+
+    benchmark_module.benchmark_demo(
+        demo_id="cirq-demo",
+        qubits=4,
+        columns=3,
+        mode="pages",
+        repeats=1,
+    )
+
+    assert captured_options == [{"composite_mode": "compact", "explicit_matrices": False}]
+
+
 def test_benchmark_demo_scenarios_cover_expected_multi_framework_cases() -> None:
     benchmark_module = _load_benchmark_module()
 
