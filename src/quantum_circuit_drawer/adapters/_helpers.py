@@ -6,6 +6,7 @@ import re
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from types import ModuleType
 from typing import TypeVar
 
@@ -133,6 +134,16 @@ def extract_dependency_types(
     attribute_paths: Sequence[str],
 ) -> tuple[type[object], ...]:
     """Return the available runtime types exposed by an optional dependency."""
+
+    return _extract_dependency_types_cached(module_name, tuple(attribute_paths))
+
+
+@lru_cache(maxsize=128)
+def _extract_dependency_types_cached(
+    module_name: str,
+    attribute_paths: tuple[str, ...],
+) -> tuple[type[object], ...]:
+    """Cached implementation for resolving dependency runtime types."""
 
     module = load_optional_dependency(module_name)
     if module is None:

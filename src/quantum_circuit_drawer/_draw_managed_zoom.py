@@ -58,6 +58,7 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
             scale_factor = current_text_scale(axes, state)
             gate_text_context = _build_gate_text_fitting_context(axes, current_state.scene)
             points_per_layout_unit = gate_text_context.points_per_layout_unit
+            text_fit_cache: dict[tuple[object, float, float], float] = {}
 
             if math.isclose(
                 scale_factor,
@@ -104,7 +105,7 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
                             default_font_size=base_font_size,
                             height_fraction=gate_text_metadata.height_fraction,
                             max_font_size=base_font_size * scale_factor,
-                            cache={},
+                            cache=text_fit_cache,
                         )
                     )
                 state.last_scale_factor = scale_factor
