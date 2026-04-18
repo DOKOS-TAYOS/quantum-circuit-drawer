@@ -36,12 +36,15 @@ from quantum_circuit_drawer.renderers._render_support import (
 from quantum_circuit_drawer.style import DrawStyle
 from quantum_circuit_drawer.utils import format_visible_label
 from tests.support import (
+    assert_saved_image_has_visible_content,
     build_dense_rotation_ir,
     build_sample_ir,
     build_sample_scene,
     build_wrapped_ir,
     normalize_rendered_text,
 )
+
+pytestmark = pytest.mark.renderer
 
 
 def _hover_payload_count(scene: object) -> int:
@@ -530,8 +533,7 @@ def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider
     )
 
     assert axes.figure is figure
-    assert output.exists()
-    assert output.stat().st_size > 0
+    assert_saved_image_has_visible_content(output)
     assert saved_axes_counts == [1]
     assert len(figure.axes) == 2
     plt.close(figure)
@@ -565,7 +567,7 @@ def test_draw_quantum_circuit_page_slider_with_output_reuses_single_managed_figu
     )
 
     assert axes.figure is figure
-    assert output.exists()
+    assert_saved_image_has_visible_content(output)
     assert create_calls == 1
     plt.close(figure)
 
@@ -872,7 +874,7 @@ def test_draw_quantum_circuit_hidden_output_hover_render_skips_hover_metadata() 
 
         state = get_auto_paging_state(axes)
 
-        assert output.exists()
+        assert_saved_image_has_visible_content(output)
         assert state is not None
         assert _hover_payload_count(state.scene) == 0
         assert get_hover_state(axes) is None

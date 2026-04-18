@@ -22,12 +22,16 @@ from quantum_circuit_drawer.layout.scene import LayoutScene, SceneGate, ScenePag
 from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import (
+    assert_axes_contains_circuit_artists,
+    assert_figure_has_visible_content,
     build_dense_rotation_ir,
     build_sample_ir,
     build_sample_scene,
     build_wrapped_ir,
     normalize_rendered_text,
 )
+
+pytestmark = pytest.mark.renderer
 
 
 def _display_patch_ratio(figure: object, patch: object) -> float:
@@ -331,8 +335,8 @@ def test_matplotlib_renderer_does_not_require_pyplot_subplots(monkeypatch) -> No
     figure, axes = MatplotlibRenderer().render(build_sample_scene())
 
     assert axes.figure is figure
-    assert axes.patches
-    assert axes.lines
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "M", "q0", "q1", "c0"})
+    assert_figure_has_visible_content(figure)
 
 
 def test_matplotlib_renderer_draws_occluding_patches_above_lines() -> None:

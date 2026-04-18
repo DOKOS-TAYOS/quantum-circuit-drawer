@@ -9,6 +9,9 @@ import pytest
 from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import OperationKind
+from tests.support import assert_axes_contains_circuit_artists, assert_figure_has_visible_content
+
+pytestmark = pytest.mark.optional
 
 
 def load_cudaq_adapter_type() -> type[object]:
@@ -302,6 +305,43 @@ def test_cudaq_adapter_rejects_parameterized_kernels(
         adapter_type().to_ir(kernel)
 
 
+def test_cudaq_adapter_rejects_non_cudaq_kernel_objects() -> None:
+    adapter_type = load_cudaq_adapter_type()
+
+    with pytest.raises(TypeError, match="non-CUDA-Q kernel"):
+        adapter_type().to_ir(object())
+
+
+def test_cudaq_adapter_rejects_empty_mlir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir="")
+
+    with pytest.raises(UnsupportedOperationError, match="did not produce a Quake/MLIR string"):
+        adapter_type().to_ir(kernel)
+
+
+def test_cudaq_adapter_rejects_entrypoint_arguments_from_mlir_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(
+        mlir="""
+module {
+  func.func @__nvqpp__mlirgen__argument_kernel(%arg0 : f64) {
+    return
+  }
+}
+""".strip()
+    )
+
+    with pytest.raises(UnsupportedOperationError, match="closed kernels"):
+        adapter_type().to_ir(kernel)
+
+
 def test_cudaq_adapter_rejects_unsupported_quake_operations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -353,5 +393,6 @@ def test_draw_quantum_circuit_accepts_cudaq_framework_override(
 
     figure, axes = draw_quantum_circuit(kernel, framework="cudaq")
 
-    assert figure is not None
     assert axes.figure is figure
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "RZ", "MZ", "q0", "q1", "q2"})
+    assert_figure_has_visible_content(figure)

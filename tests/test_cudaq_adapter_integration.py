@@ -8,11 +8,19 @@ import pytest
 from quantum_circuit_drawer.adapters.cudaq_adapter import CudaqAdapter
 from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.ir.operations import OperationKind
-
-pytestmark = pytest.mark.skipif(
-    not sys.platform.startswith("linux"),
-    reason="CUDA-Q integration coverage is Linux/WSL-first in v0.1",
+from tests.support import (
+    assert_axes_contains_circuit_artists,
+    assert_saved_image_has_visible_content,
 )
+
+pytestmark = [
+    pytest.mark.optional,
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not sys.platform.startswith("linux"),
+        reason="CUDA-Q integration coverage is Linux/WSL-first in v0.1",
+    ),
+]
 
 
 def test_cudaq_adapter_converts_make_kernel_kernel_on_linux() -> None:
@@ -87,8 +95,9 @@ def test_cudaq_example_smoke_render_on_linux(sandbox_tmp_path: Path) -> None:
         show=False,
     )
 
-    assert output.exists()
-    assert output.stat().st_size > 0
-    assert axes.lines
-    assert axes.patches
+    assert_saved_image_has_visible_content(output)
+    assert_axes_contains_circuit_artists(
+        axes,
+        expected_texts={"H", "X", "MZ", "q0", "q1", "q2", "q3"},
+    )
     figure.clear()

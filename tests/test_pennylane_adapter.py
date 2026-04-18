@@ -8,6 +8,15 @@ import pytest
 from quantum_circuit_drawer.adapters.pennylane_adapter import PennyLaneAdapter
 from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError, UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
+from tests.support import (
+    OperationSignature,
+    assert_classical_wire_bundles,
+    assert_operation_signatures,
+    assert_quantum_wire_labels,
+    flatten_operations,
+)
+
+pytestmark = pytest.mark.optional
 
 skip_real_pennylane_on_windows = pytest.mark.skipif(
     sys.platform.startswith("win"),
@@ -76,6 +85,46 @@ def build_fake_tape() -> FakeQuantumTape:
         ),
         measurements=(FakeMeasurement((1,)),),
     )
+
+
+def test_pennylane_adapter_matches_canonical_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_pennylane(monkeypatch)
+
+    ir = PennyLaneAdapter().to_ir(FakeTapeWrapper(build_fake_tape()))
+    measurement = flatten_operations(ir)[-1]
+
+    assert ir.metadata["framework"] == "pennylane"
+    assert_quantum_wire_labels(ir, ["0", "1"])
+    assert_classical_wire_bundles(ir, [("c", 1)])
+    assert_operation_signatures(
+        ir,
+        [
+            OperationSignature(
+                OperationKind.GATE,
+                CanonicalGateFamily.H,
+                "H",
+                (),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.CONTROLLED_GATE,
+                CanonicalGateFamily.X,
+                "X",
+                (),
+                ("q1",),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.MEASUREMENT,
+                CanonicalGateFamily.CUSTOM,
+                "M",
+                (),
+                ("q1",),
+            ),
+        ],
+    )
+    assert measurement.classical_target == "c0"
+    assert measurement.metadata["classical_bit_label"] == "c[0]"
 
 
 def test_pennylane_adapter_converts_tape_like_objects(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -196,6 +245,7 @@ def test_pennylane_adapter_rejects_mid_measure_without_wire(
 
 
 @skip_real_pennylane_on_windows
+@pytest.mark.integration
 def test_pennylane_adapter_converts_mid_measure_and_conditional_operations() -> None:
     qml = pytest.importorskip("pennylane")
 
@@ -213,6 +263,7 @@ def test_pennylane_adapter_converts_mid_measure_and_conditional_operations() -> 
 
 
 @skip_real_pennylane_on_windows
+@pytest.mark.integration
 def test_pennylane_adapter_keeps_composite_operations_compact_by_default() -> None:
     qml = pytest.importorskip("pennylane")
 
@@ -227,6 +278,7 @@ def test_pennylane_adapter_keeps_composite_operations_compact_by_default() -> No
 
 
 @skip_real_pennylane_on_windows
+@pytest.mark.integration
 def test_pennylane_adapter_expands_composite_operations_when_requested() -> None:
     qml = pytest.importorskip("pennylane")
 
@@ -241,6 +293,7 @@ def test_pennylane_adapter_expands_composite_operations_when_requested() -> None
 
 
 @skip_real_pennylane_on_windows
+@pytest.mark.integration
 def test_pennylane_adapter_converts_multi_wire_terminal_measurements() -> None:
     qml = pytest.importorskip("pennylane")
 

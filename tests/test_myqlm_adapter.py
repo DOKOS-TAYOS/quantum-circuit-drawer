@@ -17,9 +17,13 @@ from tests.support import (
     FakeMyQLMGateDefinition,
     FakeMyQLMOp,
     FakeMyQLMSyntax,
+    assert_axes_contains_circuit_artists,
+    assert_figure_has_visible_content,
     install_fake_myqlm,
     normalize_rendered_text,
 )
+
+pytestmark = pytest.mark.optional
 
 
 def load_myqlm_adapter_type() -> type[object]:
@@ -426,8 +430,9 @@ def test_draw_quantum_circuit_accepts_myqlm_framework_override(
         show=False,
     )
 
-    assert figure is not None
     assert axes.figure is figure
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "M", "q0", "q1", "c"})
+    assert_figure_has_visible_content(figure)
 
 
 def test_draw_quantum_circuit_renders_readable_myqlm_param_labels(
@@ -445,7 +450,7 @@ def test_draw_quantum_circuit_renders_readable_myqlm_param_labels(
     assert "theta" in texts
     assert "0.5" in texts
     assert not any("Param(" in text for text in texts)
-    assert figure is not None
+    assert_figure_has_visible_content(figure)
 
 
 def test_myqlm_adapter_can_handle_nested_qat_core_circuit_type(

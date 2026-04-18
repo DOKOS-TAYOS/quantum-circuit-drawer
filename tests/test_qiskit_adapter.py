@@ -5,11 +5,71 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+pytestmark = [pytest.mark.optional, pytest.mark.integration]
+
 qiskit = pytest.importorskip("qiskit")
 
 from quantum_circuit_drawer.adapters.qiskit_adapter import QiskitAdapter
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
+from tests.support import (
+    OperationSignature,
+    assert_classical_wire_bundles,
+    assert_operation_signatures,
+    assert_quantum_wire_labels,
+    flatten_operations,
+)
+
+
+def test_qiskit_adapter_matches_canonical_contract() -> None:
+    circuit = qiskit.QuantumCircuit(2, 1)
+    circuit.h(0)
+    circuit.rz(0.5, 1)
+    circuit.cx(0, 1)
+    circuit.measure(1, 0)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    measurement = flatten_operations(ir)[-1]
+
+    assert ir.metadata["framework"] == "qiskit"
+    assert_quantum_wire_labels(ir, ["q0", "q1"])
+    assert_classical_wire_bundles(ir, [("c", 1)])
+    assert_operation_signatures(
+        ir,
+        [
+            OperationSignature(
+                OperationKind.GATE,
+                CanonicalGateFamily.H,
+                "H",
+                (),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.GATE,
+                CanonicalGateFamily.RZ,
+                "RZ",
+                (0.5,),
+                ("q1",),
+            ),
+            OperationSignature(
+                OperationKind.CONTROLLED_GATE,
+                CanonicalGateFamily.X,
+                "X",
+                (),
+                ("q1",),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.MEASUREMENT,
+                CanonicalGateFamily.CUSTOM,
+                "M",
+                (),
+                ("q1",),
+            ),
+        ],
+    )
+    assert measurement.classical_target == "c0"
+    assert measurement.metadata["classical_bit_label"] == "c[0]"
 
 
 def test_qiskit_adapter_converts_common_operations() -> None:

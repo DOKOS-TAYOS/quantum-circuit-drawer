@@ -13,6 +13,8 @@ import pytest
 from examples._shared import ExampleRequest
 from examples.demo_catalog import DemoSpec, catalog_by_id, examples_directory, get_demo_catalog
 
+from tests.support import assert_saved_image_has_visible_content
+
 
 def test_demo_catalog_entries_are_unique_and_reference_existing_example_files() -> None:
     catalog = get_demo_catalog()
@@ -322,6 +324,8 @@ def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
     assert result.stdout.strip() == str(expected_module_path.resolve())
 
 
+@pytest.mark.optional
+@pytest.mark.integration
 @pytest.mark.parametrize(
     ("demo_id", "dependency"),
     [
@@ -368,11 +372,12 @@ def test_examples_runner_can_render_selected_optional_demo(
     )
 
     assert result.returncode == 0, result.stderr
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
+    assert_saved_image_has_visible_content(output_path)
     assert f"Saved {demo_id} to {output_path}" in result.stdout
 
 
+@pytest.mark.optional
+@pytest.mark.integration
 def test_examples_runner_can_render_slider_demo_for_random_qiskit(sandbox_tmp_path: Path) -> None:
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the slider smoke test")
@@ -402,10 +407,11 @@ def test_examples_runner_can_render_slider_demo_for_random_qiskit(sandbox_tmp_pa
     )
 
     assert result.returncode == 0, result.stderr
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
+    assert_saved_image_has_visible_content(output_path)
 
 
+@pytest.mark.optional
+@pytest.mark.integration
 def test_examples_runner_can_render_3d_demo_for_random_qiskit(sandbox_tmp_path: Path) -> None:
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the 3D smoke test")
@@ -437,8 +443,7 @@ def test_examples_runner_can_render_3d_demo_for_random_qiskit(sandbox_tmp_path: 
     )
 
     assert result.returncode == 0, result.stderr
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
+    assert_saved_image_has_visible_content(output_path)
 
 
 def test_examples_runner_rejects_slider_mode_in_3d() -> None:
@@ -465,6 +470,8 @@ def test_examples_runner_rejects_slider_mode_in_3d() -> None:
     assert "Slider mode is only available in 2D" in (result.stderr or result.stdout)
 
 
+@pytest.mark.optional
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "module_path",
     [

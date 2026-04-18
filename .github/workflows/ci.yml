@@ -3,6 +3,9 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
 
 jobs:
   test-core:
@@ -21,18 +24,69 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install core development dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
 
       - name: Lint
         run: python -m ruff check .
 
+      - name: Format check
+        run: python -m ruff format --check .
+
       - name: Type check
         run: python -m mypy
 
-      - name: Test core package
-        run: python -m pytest
+      - name: Test core package with coverage
+        shell: pwsh
+        run: |
+          python -m coverage run --branch --source=quantum_circuit_drawer --omit="*/adapters/qiskit_adapter.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py,*/adapters/cudaq_adapter.py,*/adapters/_cudaq_quake_parser.py" -m pytest -m "not integration"
+          python -m coverage report --show-missing --fail-under=90
 
-  test-optional-frameworks:
+  test-optional-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Linux optional adapters
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+
+      - name: Test real optional adapters with coverage
+        run: |
+          python -m coverage erase
+          python -m coverage run --branch -m pytest tests/test_qiskit_adapter.py tests/test_cirq_adapter.py tests/test_pennylane_adapter.py tests/test_myqlm_adapter.py tests/test_examples_runner.py
+          python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
+
+  test-optional-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Windows optional adapters
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,qiskit]"
+
+      - name: Test stable Windows optional coverage
+        shell: pwsh
+        run: |
+          python -m coverage erase
+          python -m coverage run --branch -m pytest tests/test_qiskit_adapter.py tests/test_myqlm_adapter.py tests/test_optional_imports.py tests/test_examples_runner.py
+          python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
+
+  test-cudaq-parser:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -46,15 +100,21 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install optional adapters
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+      - name: Install core development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
 
-      - name: Test optional adapters
-        run: python -m pytest tests/test_qiskit_adapter.py tests/test_cirq_adapter.py tests/test_pennylane_adapter.py tests/test_examples_runner.py -q --no-cov
+      - name: Test CUDA-Q parser/fake adapter coverage
+        shell: pwsh
+        run: |
+          python -m coverage erase
+          python -m coverage run --branch -m pytest tests/test_cudaq_adapter.py
+          python -m coverage report --include="*/adapters/cudaq_adapter.py,*/adapters/_cudaq_quake_parser.py" --show-missing --fail-under=80
 
   test-cudaq-linux:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -64,13 +124,19 @@ jobs:
           python-version: "3.11"
 
       - name: Install CUDA-Q adapter dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,cudaq]"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,cudaq]"
 
-      - name: Test CUDA-Q adapter
-        run: python -m pytest tests/test_cudaq_adapter.py tests/test_cudaq_adapter_integration.py -q --no-cov
+      - name: Test real CUDA-Q integration
+        run: python -m pytest tests/test_cudaq_adapter.py tests/test_cudaq_adapter_integration.py
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +146,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tooling
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
 
       - name: Build package
         run: python -m build
@@ -89,9 +157,11 @@ jobs:
         run: python -m twine check dist/*
 
       - name: Smoke test built wheel
+        shell: pwsh
         run: |
           python -m venv .wheel-smoke
-          . .wheel-smoke/bin/activate
-          python -m pip install --upgrade pip
-          python -m pip install dist/*.whl
-          python -c "import quantum_circuit_drawer; print(quantum_circuit_drawer.__version__)"
+          $python = if ($IsWindows) { ".wheel-smoke\Scripts\python.exe" } else { ".wheel-smoke/bin/python" }
+          & $python -m pip install --upgrade pip
+          $wheel = Get-ChildItem dist -Filter "*.whl" | Select-Object -First 1
+          & $python -m pip install $wheel.FullName
+          & $python -c "import quantum_circuit_drawer; print(quantum_circuit_drawer.__version__)"

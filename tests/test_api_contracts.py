@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -8,7 +7,6 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
-from matplotlib.text import Text
 
 import quantum_circuit_drawer
 from quantum_circuit_drawer.api import draw_quantum_circuit
@@ -20,16 +18,14 @@ from quantum_circuit_drawer.exceptions import (
 )
 from quantum_circuit_drawer.hover import HoverOptions
 from tests.support import (
+    assert_axes_contains_circuit_artists,
+    assert_figure_has_visible_content,
+    assert_saved_image_has_visible_content,
     build_sample_ir,
     build_sample_myqlm_circuit,
     install_fake_cudaq,
     install_fake_myqlm,
-    normalize_rendered_text,
 )
-
-
-def _text_labels(texts: Iterable[Text]) -> set[str]:
-    return {normalize_rendered_text(text.get_text()) for text in texts}
 
 
 def test_draw_quantum_circuit_returns_populated_managed_agg_figure_for_ir() -> None:
@@ -37,9 +33,8 @@ def test_draw_quantum_circuit_returns_populated_managed_agg_figure_for_ir() -> N
 
     assert isinstance(figure.canvas, FigureCanvasAgg)
     assert axes.figure is figure
-    assert axes.lines
-    assert axes.patches
-    assert {"H", "M", "q0", "q1", "c0"}.issubset(_text_labels(axes.texts))
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "M", "q0", "q1", "c0"})
+    assert_figure_has_visible_content(figure)
     plt.close(figure)
 
 
@@ -50,8 +45,8 @@ def test_draw_quantum_circuit_draws_on_existing_axes() -> None:
 
     assert result is axes
     assert axes.figure is figure
-    assert axes.lines
-    assert axes.patches
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "M", "q0", "q1", "c0"})
+    assert_figure_has_visible_content(figure)
     plt.close(figure)
 
 
@@ -60,8 +55,7 @@ def test_draw_quantum_circuit_saves_non_empty_output(sandbox_tmp_path: Path) -> 
 
     figure, _ = draw_quantum_circuit(build_sample_ir(), output=output, show=False)
 
-    assert output.exists()
-    assert output.stat().st_size > 0
+    assert_saved_image_has_visible_content(output)
     plt.close(figure)
 
 
@@ -166,7 +160,8 @@ def test_draw_quantum_circuit_accepts_cudaq_framework_override(
     figure, axes = draw_quantum_circuit(fake_kernel_type(), framework="cudaq", show=False)
 
     assert isinstance(figure.canvas, FigureCanvasAgg)
-    assert {"H", "MZ", "q0", "c"}.issubset(_text_labels(axes.texts))
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "MZ", "q0", "c"})
+    assert_figure_has_visible_content(figure)
     plt.close(figure)
 
 
@@ -182,7 +177,8 @@ def test_draw_quantum_circuit_accepts_myqlm_framework_override(
     )
 
     assert isinstance(figure.canvas, FigureCanvasAgg)
-    assert {"H", "M", "q0", "c"}.issubset(_text_labels(axes.texts))
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "M", "q0", "c"})
+    assert_figure_has_visible_content(figure)
     plt.close(figure)
 
 

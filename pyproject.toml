@@ -77,7 +77,14 @@ version = { attr = "quantum_circuit_drawer._version.__version__" }
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
-addopts = "-ra --strict-markers -p no:cacheprovider --cov=quantum_circuit_drawer --cov-report=term-missing --cov-fail-under=90"
+addopts = "-ra --strict-markers -p no:cacheprovider"
+markers = [
+  "integration: tests that exercise real optional framework packages or subprocess flows",
+  "optional: tests for optional framework adapters and examples",
+  "renderer: tests that inspect Matplotlib rendering output",
+  "slow: tests that are useful but slower than the normal unit test path",
+  "unit: deterministic tests that avoid real optional framework dependencies",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -118,10 +125,7 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["quantum_circuit_drawer"]
-omit = [
-  "*/adapters/qiskit_adapter.py",
-  "*/adapters/cirq_adapter.py",
-]
+branch = true
 
 [tool.coverage.report]
 fail_under = 90

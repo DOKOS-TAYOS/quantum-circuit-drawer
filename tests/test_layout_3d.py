@@ -39,7 +39,16 @@ from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import (
     _RenderContext3D,
 )
 from quantum_circuit_drawer.style import DrawStyle
-from tests.support import build_dense_rotation_ir, build_sample_ir, normalize_rendered_text
+from tests.support import (
+    assert_axes_contains_circuit_artists,
+    assert_figure_has_visible_content,
+    assert_saved_image_has_visible_content,
+    build_dense_rotation_ir,
+    build_sample_ir,
+    normalize_rendered_text,
+)
+
+pytestmark = pytest.mark.renderer
 
 if TYPE_CHECKING:
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
@@ -1471,7 +1480,7 @@ def test_draw_quantum_circuit_projects_time_axis_horizontally_by_default() -> No
     delta_x = abs(end_display[0] - start_display[0])
     delta_y = abs(end_display[1] - start_display[1])
 
-    assert figure is not None
+    assert_figure_has_visible_content(figure)
     assert delta_x > delta_y
 
 
@@ -1486,9 +1495,8 @@ def test_draw_quantum_circuit_saves_non_empty_3d_output(sandbox_tmp_path: Path) 
         show=False,
     )
 
-    assert figure is not None
-    assert output.exists()
-    assert output.stat().st_size > 0
+    assert_figure_has_visible_content(figure)
+    assert_saved_image_has_visible_content(output)
 
 
 def test_draw_quantum_circuit_uses_distinct_quantum_control_and_topology_line_styles() -> None:
@@ -1597,7 +1605,7 @@ def test_draw_quantum_circuit_renders_topological_controlled_z_in_3d_grid(
         show=False,
     )
 
-    assert figure is not None
     assert axes.name == "3d"
-    assert output.exists()
-    assert output.stat().st_size > 0
+    assert_axes_contains_circuit_artists(axes, min_line_like_artists=2, min_patches=0)
+    assert_figure_has_visible_content(figure)
+    assert_saved_image_has_visible_content(output)

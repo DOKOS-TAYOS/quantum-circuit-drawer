@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
+import matplotlib.image as mpimg
+import numpy as np
 import pytest
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
-from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
+from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
@@ -41,6 +47,16 @@ _MATHTEXT_GREEK_TO_NAME: dict[str, str] = {
     r"\omega": "omega",
 }
 _MATHTEXT_WRAPPER_PATTERN = re.compile(r"^\$(?P<inner>.*)\$$")
+
+
+@dataclass(frozen=True, slots=True)
+class OperationSignature:
+    kind: OperationKind
+    canonical_family: CanonicalGateFamily | None
+    name: str
+    parameters: tuple[object, ...]
+    target_wires: tuple[str, ...]
+    control_wires: tuple[str, ...] = ()
 
 
 def build_sample_ir() -> CircuitIR:
@@ -133,6 +149,98 @@ def build_dense_rotation_ir(*, layer_count: int, wire_count: int = 4) -> Circuit
 
 def build_sample_scene() -> LayoutScene:
     return LayoutEngine().compute(build_sample_ir(), DrawStyle())
+
+
+def flatten_operations(circuit: CircuitIR) -> list[OperationIR]:
+    return [operation for layer in circuit.layers for operation in layer.operations]
+
+
+def operation_signature(operation: OperationIR) -> OperationSignature:
+    return OperationSignature(
+        kind=operation.kind,
+        canonical_family=operation.canonical_family,
+        name=operation.name,
+        parameters=tuple(operation.parameters),
+        target_wires=tuple(operation.target_wires),
+        control_wires=tuple(operation.control_wires),
+    )
+
+
+def assert_operation_signatures(
+    circuit: CircuitIR,
+    expected: Sequence[OperationSignature],
+) -> None:
+    assert [operation_signature(operation) for operation in flatten_operations(circuit)] == list(
+        expected
+    )
+
+
+def assert_quantum_wire_labels(circuit: CircuitIR, expected: Sequence[str]) -> None:
+    assert [wire.label for wire in circuit.quantum_wires] == list(expected)
+
+
+def assert_classical_wire_bundles(
+    circuit: CircuitIR,
+    expected: Sequence[tuple[str, int]],
+) -> None:
+    assert [
+        (wire.label, int(wire.metadata.get("bundle_size", 1))) for wire in circuit.classical_wires
+    ] == list(expected)
+
+
+def assert_axes_contains_circuit_artists(
+    axes: Axes,
+    *,
+    expected_texts: set[str] | None = None,
+    min_line_like_artists: int = 1,
+    min_patches: int = 1,
+) -> None:
+    line_like_count = len(axes.lines) + len(axes.collections)
+
+    assert line_like_count >= min_line_like_artists
+    assert len(axes.patches) >= min_patches
+
+    if expected_texts is not None:
+        observed_texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}
+        assert expected_texts.issubset(observed_texts)
+
+
+def figure_rgb_array(figure: Figure) -> np.ndarray:
+    figure.canvas.draw()
+    return np.asarray(figure.canvas.buffer_rgba())[..., :3].copy()
+
+
+def assert_figure_has_visible_content(
+    figure: Figure,
+    *,
+    min_changed_pixels: int = 250,
+    tolerance: int = 4,
+) -> None:
+    rgb = figure_rgb_array(figure).astype(np.int16)
+    background = rgb[0, 0]
+    changed = np.any(np.abs(rgb - background) > tolerance, axis=2)
+
+    assert int(changed.sum()) >= min_changed_pixels
+
+
+def assert_saved_image_has_visible_content(
+    path: Path,
+    *,
+    min_changed_pixels: int = 250,
+    tolerance: float = 0.01,
+) -> None:
+    assert path.exists()
+
+    image = np.asarray(mpimg.imread(path))
+    if image.ndim == 2:
+        rgb = image[..., np.newaxis]
+    else:
+        rgb = image[..., :3]
+
+    background = rgb[0, 0]
+    changed = np.any(np.abs(rgb - background) > tolerance, axis=-1)
+
+    assert int(changed.sum()) >= min_changed_pixels
 
 
 def normalize_rendered_text(text: str) -> str:

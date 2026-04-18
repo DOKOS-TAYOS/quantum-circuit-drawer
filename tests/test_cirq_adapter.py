@@ -5,6 +5,8 @@ import sys
 import numpy as np
 import pytest
 
+pytestmark = [pytest.mark.optional, pytest.mark.integration]
+
 if sys.platform.startswith("win"):
     pytest.skip("Cirq collection is not reliable on native Windows", allow_module_level=True)
 
@@ -12,6 +14,58 @@ cirq = pytest.importorskip("cirq")
 
 from quantum_circuit_drawer.adapters.cirq_adapter import CirqAdapter
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
+from tests.support import (
+    OperationSignature,
+    assert_classical_wire_bundles,
+    assert_operation_signatures,
+    assert_quantum_wire_labels,
+    flatten_operations,
+)
+
+
+def test_cirq_adapter_matches_canonical_contract() -> None:
+    q0, q1 = cirq.LineQubit.range(2)
+    circuit = cirq.Circuit(
+        cirq.H(q0),
+        cirq.CNOT(q0, q1),
+        cirq.measure(q1, key="m"),
+    )
+
+    ir = CirqAdapter().to_ir(circuit)
+    measurement = flatten_operations(ir)[-1]
+
+    assert ir.metadata["framework"] == "cirq"
+    assert_quantum_wire_labels(ir, ["q(0)", "q(1)"])
+    assert_classical_wire_bundles(ir, [("c", 1)])
+    assert_operation_signatures(
+        ir,
+        [
+            OperationSignature(
+                OperationKind.GATE,
+                CanonicalGateFamily.H,
+                "H",
+                (),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.CONTROLLED_GATE,
+                CanonicalGateFamily.X,
+                "X",
+                (),
+                ("q1",),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.MEASUREMENT,
+                CanonicalGateFamily.CUSTOM,
+                "M",
+                (),
+                ("q1",),
+            ),
+        ],
+    )
+    assert measurement.classical_target == "c0"
+    assert measurement.metadata["classical_bit_label"] == "c[0]"
 
 
 def test_cirq_adapter_converts_common_operations() -> None:

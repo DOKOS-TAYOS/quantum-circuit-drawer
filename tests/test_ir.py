@@ -12,6 +12,14 @@ from quantum_circuit_drawer.ir.operations import (
     infer_canonical_gate_family,
 )
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
+from tests.support import (
+    OperationSignature,
+    assert_classical_wire_bundles,
+    assert_operation_signatures,
+    assert_quantum_wire_labels,
+    build_sample_ir,
+    flatten_operations,
+)
 
 
 def test_layer_ir_normalizes_operations_and_circuit_counts_wires() -> None:
@@ -39,6 +47,42 @@ def test_layer_ir_normalizes_operations_and_circuit_counts_wires() -> None:
     assert circuit.quantum_wire_count == 2
     assert circuit.classical_wire_count == 1
     assert circuit.total_wire_count == 3
+
+
+def test_internal_ir_matches_canonical_contract_shape() -> None:
+    circuit = build_sample_ir()
+    measurement = flatten_operations(circuit)[-1]
+
+    assert_quantum_wire_labels(circuit, ["q0", "q1"])
+    assert_classical_wire_bundles(circuit, [("c0", 1)])
+    assert_operation_signatures(
+        circuit,
+        [
+            OperationSignature(
+                OperationKind.GATE,
+                CanonicalGateFamily.H,
+                "H",
+                (),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.CONTROLLED_GATE,
+                CanonicalGateFamily.X,
+                "X",
+                (),
+                ("q1",),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.MEASUREMENT,
+                CanonicalGateFamily.CUSTOM,
+                "M",
+                (),
+                ("q1",),
+            ),
+        ],
+    )
+    assert measurement.classical_target == "c0"
 
 
 def test_circuit_ir_rejects_duplicate_wire_ids() -> None:
