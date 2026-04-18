@@ -9,7 +9,7 @@ rendering.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
 
 from ._draw_pipeline import prepare_draw_pipeline
@@ -20,10 +20,9 @@ from .typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath, RenderResu
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
-    from matplotlib.figure import Figure, SubFigure
+    from matplotlib.figure import Figure
 
     from ._draw_pipeline import PreparedDrawPipeline
-    from .layout.scene import LayoutScene
 
 logger = logging.getLogger(__name__)
 
@@ -116,55 +115,6 @@ def draw_quantum_circuit(
         output=request.output,
         enable_auto_paging=request.pipeline_options.view == "2d",
     )
-
-
-def _configure_page_slider(
-    *,
-    figure: Figure,
-    axes: Axes,
-    scene: LayoutScene,
-    viewport_width: float,
-    set_page_slider: Callable[[Figure, object], None],
-) -> None:
-    from ._draw_managed import configure_page_slider
-
-    configure_page_slider(
-        figure=figure,
-        axes=axes,
-        scene=scene,
-        viewport_width=viewport_width,
-        set_page_slider=set_page_slider,
-    )
-
-
-def _page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
-    from ._draw_managed import page_slider_figsize
-
-    return page_slider_figsize(viewport_width, scene_height)
-
-
-def _slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
-    from ._draw_managed import slider_viewport_width
-
-    return slider_viewport_width(axes, scene)
-
-
-def _figure_backend_name(figure: Figure | SubFigure) -> str:
-    from .renderers._render_support import figure_backend_name
-
-    return figure_backend_name(figure)
-
-
-def _normalize_backend_name(backend_name: str) -> str:
-    from .renderers._render_support import normalize_backend_name
-
-    return normalize_backend_name(backend_name)
-
-
-def _show_managed_figure_if_supported(figure: Figure | SubFigure, *, show: bool) -> None:
-    from .renderers._render_support import show_figure_if_supported
-
-    show_figure_if_supported(figure, show=show)
 
 
 def _render_managed_draw_pipeline(

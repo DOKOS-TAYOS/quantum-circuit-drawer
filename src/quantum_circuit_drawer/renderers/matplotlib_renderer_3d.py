@@ -1542,21 +1542,6 @@ class MatplotlibRenderer3D(BaseRenderer):
         )
         return np.asarray(context.data_transform.transform(projected_xy), dtype=float)
 
-    def _projected_display_point(
-        self,
-        axes: Axes3D,
-        point: Point3D,
-        *,
-        render_context: _RenderContext3D | None = None,
-    ) -> np.ndarray:
-        context = render_context or self._create_render_context(axes)
-        projected_points = self._projected_display_points(
-            axes,
-            np.array([(point.x, point.y, point.z)], dtype=float),
-            render_context=context,
-        )
-        return projected_points[0]
-
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
         try:
             save_rendered_figure(figure, output)
