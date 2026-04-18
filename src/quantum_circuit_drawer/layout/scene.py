@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
 
+from .._compat import StrEnum
 from ..hover import HoverOptions
 from ..ir.operations import OperationKind
 from ..ir.wires import WireKind

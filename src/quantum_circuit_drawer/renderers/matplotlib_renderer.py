@@ -28,7 +28,6 @@ from ._matplotlib_figure import clear_hover_state, create_managed_figure
 from ._matplotlib_hover import _HoverTarget2D, add_hover_target, attach_hover
 from ._matplotlib_page_projection import (
     _ProjectedPage,
-    is_in_page,
     page_x_offset,
     page_y_offset,
     project_pages,
@@ -352,9 +351,6 @@ class MatplotlibRenderer(BaseRenderer):
         except RenderingError as exc:
             logger.debug("Failed to save rendered circuit to %r: %s", output, exc)
             raise
-
-    def _is_in_page(self, column: int, page: ScenePage) -> bool:
-        return is_in_page(column, page)
 
     def _page_x_offset(self, page: ScenePage, scene: LayoutScene) -> float:
         return page_x_offset(page, scene)
