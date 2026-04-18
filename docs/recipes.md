@@ -119,12 +119,15 @@ draw_quantum_circuit(
     circuit,
     view="3d",
     topology="star",
+    topology_menu=True,
     direct=False,
     hover=True,
 )
 ```
 
 Supported 3D topologies are `line`, `grid`, `star`, `star_tree`, and `honeycomb`.
+
+With `topology_menu=True`, managed interactive figures add a small selector that lets you switch between valid topologies without recreating the figure. Invalid options stay visible but disabled.
 
 In 3D, `hover=True` keeps the compact tooltip behavior for interactive figures. Saved renders or non-interactive backends fall back to visible labels.
 

@@ -44,6 +44,15 @@ def test_draw_quantum_circuit_rejects_page_slider_in_3d_view() -> None:
         )
 
 
+def test_draw_quantum_circuit_rejects_topology_menu_in_2d_view() -> None:
+    with pytest.raises(ValueError, match="topology_menu=True is only supported for view='3d'"):
+        draw_quantum_circuit(
+            build_sample_ir(),
+            topology_menu=True,
+            show=False,
+        )
+
+
 def test_draw_quantum_circuit_rejects_2d_axes_for_3d_view() -> None:
     _, axes = plt.subplots()
 
@@ -58,6 +67,19 @@ def test_draw_quantum_circuit_accepts_caller_managed_3d_axes() -> None:
     result = draw_quantum_circuit(build_sample_ir(), view="3d", topology="line", ax=axes)
 
     assert result is axes
+
+
+def test_draw_quantum_circuit_accepts_topology_menu_in_managed_3d_view() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert axes.name == "3d"
 
 
 def test_draw_quantum_circuit_rejects_invalid_grid_qubit_count_in_3d() -> None:

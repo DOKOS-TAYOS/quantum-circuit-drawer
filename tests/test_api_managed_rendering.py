@@ -33,6 +33,7 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_hover_state,
     get_page_slider,
     get_text_scaling_state,
+    get_topology_menu_state,
 )
 from quantum_circuit_drawer.style import DrawStyle
 from quantum_circuit_drawer.utils import format_visible_label
@@ -291,6 +292,91 @@ def test_draw_quantum_circuit_3d_keeps_interactive_canvas_for_hidden_hover_rende
 
     assert axes.figure is figure
     assert captured_use_agg == [False]
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_attaches_topology_menu_state_for_managed_interactive_3d(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+    )
+    menu_state = get_topology_menu_state(figure)
+
+    assert axes.figure is figure
+    assert menu_state is not None
+    assert menu_state.active_topology == "line"
+    assert menu_state.valid_topologies == ("line", "star")
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_skips_topology_menu_for_caller_managed_3d_axes() -> None:
+    figure = plt.figure()
+    axes = figure.add_subplot(111, projection="3d")
+
+    draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        ax=axes,
+    )
+
+    assert get_topology_menu_state(figure) is None
+    plt.close(figure)
+
+
+def test_topology_menu_redraws_same_axes_with_new_valid_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=2, wire_count=4),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+    )
+    menu_state = get_topology_menu_state(figure)
+
+    assert menu_state is not None
+    menu_state.select_topology("grid")
+
+    assert menu_state.active_topology == "grid"
+    assert menu_state.axes is axes
+    assert menu_state.scene.topology.name == "grid"
+    plt.close(figure)
+
+
+def test_topology_menu_keeps_invalid_topologies_visible_but_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, _ = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+    )
+    menu_state = get_topology_menu_state(figure)
+
+    assert menu_state is not None
+    assert menu_state.is_enabled("line") is True
+    assert menu_state.is_enabled("grid") is False
+    assert set(menu_state.topologies) == {"line", "grid", "star", "star_tree", "honeycomb"}
+
+    menu_state.select_topology("grid")
+
+    assert menu_state.active_topology == "line"
     plt.close(figure)
 
 

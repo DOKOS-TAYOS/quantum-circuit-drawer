@@ -211,6 +211,7 @@ draw_quantum_circuit(
     circuit,
     view="3d",
     topology="grid",
+    topology_menu=True,
     direct=False,
     hover=True,
 )
@@ -222,9 +223,12 @@ draw_quantum_circuit(
 - `topology="grid"` is useful when your qubit count forms a suitable rectangle.
 - `topology="star"` and `topology="star_tree"` highlight hub-like structures.
 - `topology="honeycomb"` currently targets a 53-qubit reference layout.
+- `topology_menu=True` adds a managed-figure selector for switching between valid topologies on the fly.
 - `direct=True` draws straight connections.
 - `direct=False` routes connections along topology paths.
 - `hover=True` keeps the current compact 3D tooltip behavior; saved or non-interactive renders fall back to visible labels.
+
+When `topology_menu=True`, the menu is only shown when the library owns the figure and the render stays interactive. Invalid topologies remain visible but disabled. If you save to `output=...`, use `ax=...`, or render off-screen, the circuit still draws normally without the menu.
 
 If you provide your own axes with `ax=...`, it must be a 3D Matplotlib axes. See [Troubleshooting](troubleshooting.md#view3d-raises-an-axes-error).
 

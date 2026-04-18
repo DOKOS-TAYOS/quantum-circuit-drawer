@@ -33,6 +33,7 @@ _HOVER_STATE_ATTR = "_quantum_circuit_drawer_hover_state"
 class _ManagedFigureMetadata:
     viewport_width: float | None = None
     page_slider: object | None = None
+    topology_menu_state: object | None = None
 
 
 @dataclass(slots=True)
@@ -142,6 +143,30 @@ def get_page_slider(figure: Figure | SubFigure) -> object | None:
     """Return the stored page slider if one has been attached."""
 
     return _metadata_for(figure).page_slider
+
+
+def set_topology_menu_state(figure: Figure | SubFigure, state: object) -> None:
+    """Store topology-menu state attached to a managed figure."""
+
+    _metadata_for(figure).topology_menu_state = state
+
+
+def get_topology_menu_state(figure: Figure | SubFigure) -> object | None:
+    """Return topology-menu state attached to a managed figure, if any."""
+
+    return _metadata_for(figure).topology_menu_state
+
+
+def clear_topology_menu_state(figure: Figure | SubFigure) -> None:
+    """Detach topology-menu state and remove any attached menu artists."""
+
+    state = get_topology_menu_state(figure)
+    if state is None:
+        return
+
+    if hasattr(state, "remove"):
+        state.remove()
+    _metadata_for(figure).topology_menu_state = None
 
 
 def set_auto_paging_state(axes: Axes, state: AutoPagingState) -> None:

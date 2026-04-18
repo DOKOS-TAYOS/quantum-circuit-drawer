@@ -36,6 +36,7 @@ class PreparedDrawPipeline:
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     paged_scene: LayoutScene | LayoutScene3D
     renderer: BaseRenderer
+    draw_options: DrawPipelineOptions
 
 
 def prepare_draw_pipeline(
@@ -126,6 +127,7 @@ def prepare_draw_pipeline(
         layout_engine=layout_engine,
         paged_scene=paged_scene,
         renderer=renderer,
+        draw_options=draw_options,
     )
 
 
@@ -140,12 +142,13 @@ def coerce_pipeline_options(
         composite_mode=str(options.get("composite_mode", "compact")),
         view=cast(ViewMode, str(options.get("view", "2d"))),
         topology=cast(TopologyMode, str(options.get("topology", "line"))),
+        topology_menu=bool(options.get("topology_menu", False)),
         direct=bool(options.get("direct", True)),
         hover=_normalize_hover_option(options.get("hover", False)),
         extra={
             key: value
             for key, value in options.items()
-            if key not in {"composite_mode", "view", "topology", "direct", "hover"}
+            if key not in {"composite_mode", "view", "topology", "topology_menu", "direct", "hover"}
         },
     )
 

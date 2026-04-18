@@ -38,6 +38,7 @@ class DrawPipelineOptions:
     composite_mode: str = "compact"
     view: ViewMode = "2d"
     topology: TopologyMode = "line"
+    topology_menu: bool = False
     direct: bool = True
     hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
     extra: Mapping[str, object] = field(default_factory=dict)
@@ -52,6 +53,7 @@ class DrawPipelineOptions:
             "composite_mode": self.composite_mode,
             "view": self.view,
             "topology": self.topology,
+            "topology_menu": self.topology_menu,
             "direct": self.direct,
             "hover": self.hover,
             **self.extra,
@@ -66,7 +68,7 @@ class DrawPipelineOptions:
         """
 
         options = self.to_mapping()
-        for key in ("view", "topology", "direct", "hover"):
+        for key in ("view", "topology", "topology_menu", "direct", "hover"):
             options.pop(key, None)
         return options
 
@@ -103,6 +105,7 @@ def build_draw_request(
     composite_mode: str = "compact",
     view: ViewMode = "2d",
     topology: TopologyMode = "line",
+    topology_menu: bool = False,
     direct: bool = True,
     hover: bool | HoverOptions | Mapping[str, object] = False,
     **options: object,
@@ -121,6 +124,7 @@ def build_draw_request(
         direct=direct,
         show=show,
         page_slider=page_slider,
+        topology_menu=topology_menu,
         figsize=figsize,
     )
     effective_hover = resolve_effective_hover(
@@ -146,6 +150,7 @@ def build_draw_request(
             composite_mode=composite_mode,
             view=view,
             topology=topology,
+            topology_menu=topology_menu,
             direct=direct,
             hover=effective_hover,
             extra=resolved_options,
@@ -161,6 +166,7 @@ def validate_public_options(
     direct: object,
     show: object,
     page_slider: object,
+    topology_menu: object,
     figsize: object,
 ) -> None:
     """Validate public draw options that are not enforced by Python typing."""
@@ -171,6 +177,7 @@ def validate_public_options(
     _validate_bool("direct", direct)
     _validate_bool("show", show)
     _validate_bool("page_slider", page_slider)
+    _validate_bool("topology_menu", topology_menu)
     _validate_figsize(figsize)
 
 
@@ -212,6 +219,8 @@ def validate_draw_request(request: DrawRequest) -> None:
         raise ValueError(
             "figsize cannot be used with ax because the caller already owns the figure"
         )
+    if request.pipeline_options.view != "3d" and request.pipeline_options.topology_menu:
+        raise ValueError("topology_menu=True is only supported for view='3d'")
     if request.pipeline_options.view == "3d" and request.page_slider:
         raise ValueError("page_slider=True is only supported for view='2d'")
 

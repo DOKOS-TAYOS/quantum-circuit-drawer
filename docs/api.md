@@ -33,6 +33,7 @@ draw_quantum_circuit(
     composite_mode="compact",
     view="2d",
     topology="line",
+    topology_menu=False,
     direct=True,
     hover=False,
     **options,
@@ -61,6 +62,7 @@ from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 | `composite_mode` | `"compact"` | Use `"compact"` for one box, or `"expand"` for supported decompositions |
 | `view` | `"2d"` | Use `"2d"` or `"3d"` |
 | `topology` | `"line"` | 3D topology: `"line"`, `"grid"`, `"star"`, `"star_tree"`, or `"honeycomb"` |
+| `topology_menu` | `False` | In managed interactive 3D figures, show a topology selector that redraws the same view when you switch to another valid topology |
 | `direct` | `True` | In 3D, draw direct control connections when `True`; route through topology paths when `False` |
 | `hover` | `False` | `False`, `True`, a `HoverOptions` object, or a mapping with hover fields; enables interactive gate hover where supported |
 | `**options` | none | Reserved for forward-compatible options used by the draw pipeline |
@@ -189,6 +191,7 @@ draw_quantum_circuit(
     circuit,
     view="3d",
     topology="grid",
+    topology_menu=True,
     direct=False,
     hover=True,
 )

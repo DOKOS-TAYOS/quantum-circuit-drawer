@@ -78,6 +78,7 @@ def test_draw_quantum_circuit_rejects_invalid_backend() -> None:
         ("composite_mode", "typo", "composite_mode must be one of: compact, expand"),
         ("show", "yes", "show must be a boolean"),
         ("page_slider", 1, "page_slider must be a boolean"),
+        ("topology_menu", 1, "topology_menu must be a boolean"),
         ("direct", "yes", "direct must be a boolean"),
         ("hover", 1, "hover must be a boolean, HoverOptions, or a mapping"),
     ],
@@ -217,6 +218,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
         figsize: tuple[float, float] | None = None,
         page_slider: bool = False,
         composite_mode: str = "compact",
+        topology_menu: bool = False,
         **options: object,
     ) -> tuple[object, object]:
         captured.update(
@@ -232,6 +234,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
                 "figsize": figsize,
                 "page_slider": page_slider,
                 "composite_mode": composite_mode,
+                "topology_menu": topology_menu,
                 "options": options,
             }
         )
@@ -246,6 +249,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
         show=False,
         figsize=(8.0, 3.0),
         composite_mode="expand",
+        topology_menu=True,
     )
 
     assert result is expected_result
@@ -253,6 +257,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
     assert captured["figsize"] == (8.0, 3.0)
     assert captured["backend"] == "matplotlib"
     assert captured["composite_mode"] == "expand"
+    assert captured["topology_menu"] is True
     assert captured["framework"] is None
 
 

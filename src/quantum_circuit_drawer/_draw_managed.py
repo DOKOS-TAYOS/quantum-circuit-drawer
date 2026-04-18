@@ -18,6 +18,7 @@ from ._draw_managed_slider import (
 from ._draw_managed_slider import (
     slider_viewport_width as _slider_viewport_width_impl,
 )
+from ._draw_managed_topology_menu import attach_topology_menu
 from ._draw_managed_viewport import (
     auto_paging_matches as _auto_paging_matches_impl,
 )
@@ -83,6 +84,7 @@ def render_managed_draw_pipeline(
     """Render a prepared pipeline on a managed figure."""
 
     from .renderers._matplotlib_figure import (
+        clear_topology_menu_state,
         create_managed_figure,
         set_page_slider,
         set_viewport_width,
@@ -112,7 +114,11 @@ def render_managed_draw_pipeline(
             use_agg=use_agg_canvas,
             projection="3d",
         )
-        setattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, (0.0, 0.0, 1.0, 1.0))
+        clear_topology_menu_state(figure)
+        if pipeline.draw_options.topology_menu and output is None and not use_agg_canvas:
+            attach_topology_menu(figure=figure, axes=axes, pipeline=pipeline)
+        else:
+            setattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, (0.0, 0.0, 1.0, 1.0))
         pipeline.renderer.render(scene_3d, ax=axes, output=output)
         logger.debug("Rendered managed 3D figure without page slider")
         show_figure_if_supported(figure, show=show)

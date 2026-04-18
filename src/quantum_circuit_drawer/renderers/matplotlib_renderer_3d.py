@@ -34,7 +34,12 @@ from ..layout.scene_3d import (
 )
 from ..typing import OutputPath, RenderResult
 from ..utils.formatting import format_parameter_text, format_visible_label
-from ._matplotlib_figure import create_managed_figure
+from ._matplotlib_figure import (
+    HoverState,
+    clear_hover_state,
+    create_managed_figure,
+    set_hover_state,
+)
 from ._render_support import backend_supports_interaction, figure_backend_name, save_rendered_figure
 from .base import BaseRenderer
 from .matplotlib_primitives import _default_font_properties
@@ -150,6 +155,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             setattr(axes_3d, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, viewport_bounds)
         figure = axes_3d.figure
         self._clear_batched_text_artists(axes_3d)
+        clear_hover_state(axes_3d)
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
         self._prepare_axes(axes_3d, scene)
         if viewport_bounds is not None:
@@ -1244,7 +1250,8 @@ class MatplotlibRenderer3D(BaseRenderer):
                 figure.canvas.draw_idle()
 
         if figure.canvas is not None:
-            figure.canvas.mpl_connect("motion_notify_event", _on_move)
+            callback_id = figure.canvas.mpl_connect("motion_notify_event", _on_move)
+            set_hover_state(axes, HoverState(annotation=annotation, callback_id=callback_id))
 
     def _connection_color(
         self,
