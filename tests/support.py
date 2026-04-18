@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass
 from types import ModuleType, SimpleNamespace
@@ -13,6 +14,33 @@ from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.style import DrawStyle
+
+_MATHTEXT_GREEK_TO_NAME: dict[str, str] = {
+    r"\alpha": "alpha",
+    r"\beta": "beta",
+    r"\gamma": "gamma",
+    r"\delta": "delta",
+    r"\epsilon": "epsilon",
+    r"\zeta": "zeta",
+    r"\eta": "eta",
+    r"\theta": "theta",
+    r"\iota": "iota",
+    r"\kappa": "kappa",
+    r"\lambda": "lambda",
+    r"\mu": "mu",
+    r"\nu": "nu",
+    r"\xi": "xi",
+    r"\pi": "pi",
+    r"\rho": "rho",
+    r"\sigma": "sigma",
+    r"\tau": "tau",
+    r"\upsilon": "upsilon",
+    r"\phi": "phi",
+    r"\chi": "chi",
+    r"\psi": "psi",
+    r"\omega": "omega",
+}
+_MATHTEXT_WRAPPER_PATTERN = re.compile(r"^\$(?P<inner>.*)\$$")
 
 
 def build_sample_ir() -> CircuitIR:
@@ -105,6 +133,33 @@ def build_dense_rotation_ir(*, layer_count: int, wire_count: int = 4) -> Circuit
 
 def build_sample_scene() -> LayoutScene:
     return LayoutEngine().compute(build_sample_ir(), DrawStyle())
+
+
+def normalize_rendered_text(text: str) -> str:
+    """Normalize plain text and MathText strings into a comparable plain form."""
+
+    match = _MATHTEXT_WRAPPER_PATTERN.match(text)
+    if match is None:
+        return text
+
+    inner_text = match.group("inner")
+    if inner_text.startswith(r"\mathrm{") and inner_text.endswith("}"):
+        inner_text = inner_text[len(r"\mathrm{") : -1]
+
+    inner_text = inner_text.replace(r"\ ", " ")
+    inner_text = inner_text.replace(r"\{", "{").replace(r"\}", "}")
+    inner_text = inner_text.replace(r"\$", "$")
+    inner_text = inner_text.replace(r"\%", "%")
+    inner_text = inner_text.replace(r"\&", "&")
+    inner_text = inner_text.replace(r"\#", "#")
+    inner_text = inner_text.replace(r"\_", "_")
+    inner_text = inner_text.replace(r"\^", "^")
+    inner_text = inner_text.replace(r"\\", "\\")
+
+    for mathtext_command, plain_name in _MATHTEXT_GREEK_TO_NAME.items():
+        inner_text = inner_text.replace(mathtext_command, plain_name)
+
+    return inner_text
 
 
 def install_fake_cudaq(monkeypatch: pytest.MonkeyPatch) -> type[object]:

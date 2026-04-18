@@ -28,7 +28,7 @@ POSITIVE_FIELDS = {
     "max_page_width",
     "page_vertical_gap",
 }
-BOOLEAN_FIELDS = {"show_params", "show_wire_labels"}
+BOOLEAN_FIELDS = {"show_params", "show_wire_labels", "use_mathtext"}
 
 
 def normalize_style(style: DrawStyle | Mapping[str, object] | None) -> DrawStyle:

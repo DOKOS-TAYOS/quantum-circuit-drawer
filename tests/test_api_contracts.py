@@ -24,11 +24,12 @@ from tests.support import (
     build_sample_myqlm_circuit,
     install_fake_cudaq,
     install_fake_myqlm,
+    normalize_rendered_text,
 )
 
 
 def _text_labels(texts: Iterable[Text]) -> set[str]:
-    return {text.get_text() for text in texts}
+    return {normalize_rendered_text(text.get_text()) for text in texts}
 
 
 def test_draw_quantum_circuit_returns_populated_managed_agg_figure_for_ir() -> None:

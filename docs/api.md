@@ -98,6 +98,7 @@ Hover behavior in this release:
 - In interactive 2D figures, hover can show the gate name, matrix dimensions, affected qubits, and an optional matrix.
 - When a framework provides an exact matrix, hover uses it. Otherwise, supported canonical 1- and 2-qubit gates fall back to an internal matrix resolver.
 - In interactive 3D figures, `hover` still enables the existing compact tooltip behavior.
+- The `use_mathtext` style flag only changes the visible circuit labels. Hover text stays plain.
 - Saved figures and non-interactive backends keep static labels and do not create tooltips.
 - Managed figures created with `show=False` keep hover active on interactive backends, including notebook backends such as `nbagg`, `ipympl`, and `widget`.
 - Gate text in 2D rescales on zoom, but wire labels and other annotations keep their base size.
@@ -209,6 +210,7 @@ draw_quantum_circuit(
     style={
         "theme": "paper",
         "show_params": False,
+        "use_mathtext": True,
         "max_page_width": 6.0,
     },
 )
@@ -219,7 +221,7 @@ You can also pass a typed `DrawStyle` instance:
 ```python
 from quantum_circuit_drawer import DrawStyle, draw_quantum_circuit
 
-style = DrawStyle(show_params=False, max_page_width=6.0)
+style = DrawStyle(show_params=False, use_mathtext=True, max_page_width=6.0)
 draw_quantum_circuit(circuit, style=style)
 ```
 
@@ -246,6 +248,7 @@ Unknown style keys and invalid values raise `StyleValidationError`.
 | `control_radius` | `0.08` | Controlled-gate dot radius |
 | `show_params` | `True` | Show gate parameters |
 | `show_wire_labels` | `True` | Show labels next to wires |
+| `use_mathtext` | `True` | Render visible circuit text with Matplotlib MathText for paper-friendly labels; hover text stays plain |
 | `theme` | `dark` | Built-in theme name or a `DrawTheme` |
 | `margin_left` | `0.85` | Left outer margin |
 | `margin_right` | `0.35` | Right outer margin |

@@ -30,6 +30,7 @@ from ..layout.scene import (
     SceneText,
     SceneWire,
 )
+from ..utils.formatting import format_parameter_text, format_visible_label
 from ._matplotlib_figure import get_viewport_width, set_gate_text_metadata
 
 BASE_LAYER_ZORDER = 1
@@ -45,7 +46,9 @@ _STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
 _STACKED_LABEL_SHARE = 0.6
 _STACKED_SUBTITLE_SHARE = 0.4
 _STACKED_GAP_FRACTION = 0.08
-_MIN_GATE_TEXT_FONT_SIZE = 1.0
+_MIN_GATE_TEXT_FONT_SIZE = 0.7
+_MATHTEXT_WIDTH_PADDING_FACTOR = 1.25
+_MATHTEXT_HEIGHT_PADDING_FACTOR = 1.1
 _MEASUREMENT_LABEL_FONT_SCALE = 0.62
 _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE = 0.56
 _MEASUREMENT_CLASSICAL_LABEL_PATTERN = re.compile(r"^.+\[(\d+)\]$")
@@ -306,17 +309,18 @@ def _connection_label_style(
     }
     if not _is_measurement_classical_connection_label(connection):
         return _ConnectionLabelStyle(
-            text=label,
+            text=format_visible_label(label, use_mathtext=scene.style.use_mathtext),
             font_size=scene.style.font_size * 0.7,
             bbox=default_bbox,
         )
 
     default_font_size = scene.style.font_size * _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE
     available_width, available_height = _measurement_half_gate_box(scene)
+    visible_label = format_visible_label(label, use_mathtext=scene.style.use_mathtext)
     fitted_full_font_size = _fit_static_text_font_size(
         ax,
         scene,
-        text=label,
+        text=visible_label,
         default_font_size=default_font_size,
         available_width=available_width,
         available_height=available_height,
@@ -326,7 +330,7 @@ def _connection_label_style(
     compact_label = _compact_measurement_classical_label(label)
     if compact_label is None or fitted_full_font_size >= default_font_size:
         return _ConnectionLabelStyle(
-            text=label,
+            text=visible_label,
             font_size=fitted_full_font_size,
             bbox={
                 "boxstyle": "round,pad=0.06,rounding_size=0.06",
@@ -335,10 +339,14 @@ def _connection_label_style(
             },
         )
 
+    visible_compact_label = format_visible_label(
+        compact_label,
+        use_mathtext=scene.style.use_mathtext,
+    )
     compact_font_size = _fit_static_text_font_size(
         ax,
         scene,
-        text=compact_label,
+        text=visible_compact_label,
         default_font_size=default_font_size,
         available_width=available_width,
         available_height=available_height,
@@ -346,7 +354,7 @@ def _connection_label_style(
         cache=text_fit_cache,
     )
     return _ConnectionLabelStyle(
-        text=compact_label,
+        text=visible_compact_label,
         font_size=compact_font_size,
         bbox={
             "boxstyle": "round,pad=0.05,rounding_size=0.05",
@@ -387,11 +395,15 @@ def draw_wires(
             classical_marker_segments.append(
                 ((marker_x - 0.06, wire_y - 0.12), (marker_x + 0.06, wire_y + 0.12))
             )
+            bundle_text = format_parameter_text(
+                str(wire.bundle_size),
+                use_mathtext=scene.style.use_mathtext,
+            )
             classical_bundle_text = _add_text_artist(
                 ax,
                 marker_x,
                 wire_y - 0.22,
-                str(wire.bundle_size),
+                bundle_text,
                 ha="center",
                 va="center",
                 fontsize=_fit_gate_text_font_size(
@@ -399,7 +411,7 @@ def draw_wires(
                     scene=scene,
                     width=scene.style.gate_width * 0.5,
                     height=scene.style.gate_height * 0.5,
-                    text=str(wire.bundle_size),
+                    text=bundle_text,
                     default_font_size=scene.style.font_size * 0.66,
                     height_fraction=1.0,
                     context=text_fit_context,
@@ -684,13 +696,14 @@ def draw_gate_label(
         return None
 
     label_y, subtitle_y, label_height_fraction, subtitle_height_fraction = _gate_text_layout(gate)
+    visible_label = format_visible_label(gate.label, use_mathtext=scene.style.use_mathtext)
 
     resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
         ax=ax,
         scene=scene,
         width=gate.width,
         height=gate.height,
-        text=gate.label,
+        text=visible_label,
         default_font_size=scene.style.font_size,
         height_fraction=label_height_fraction,
         context=text_fit_context,
@@ -700,7 +713,7 @@ def draw_gate_label(
         ax,
         gate.x + x_offset,
         label_y + y_offset,
-        gate.label,
+        visible_label,
         ha="center",
         va="center",
         fontsize=resolved_label_font_size,
@@ -716,12 +729,16 @@ def draw_gate_label(
     )
     subtitle_artist: Text | None = None
     if gate.subtitle and subtitle_y is not None:
+        visible_subtitle = format_parameter_text(
+            gate.subtitle,
+            use_mathtext=scene.style.use_mathtext,
+        )
         resolved_subtitle_font_size = subtitle_font_size or _fit_gate_text_font_size(
             ax=ax,
             scene=scene,
             width=gate.width,
             height=gate.height,
-            text=gate.subtitle,
+            text=visible_subtitle,
             default_font_size=scene.style.font_size * 0.78,
             height_fraction=subtitle_height_fraction,
             context=text_fit_context,
@@ -731,7 +748,7 @@ def draw_gate_label(
             ax,
             gate.x + x_offset,
             subtitle_y + y_offset,
-            gate.subtitle,
+            visible_subtitle,
             ha="center",
             va="center",
             fontsize=resolved_subtitle_font_size,
@@ -857,6 +874,10 @@ def draw_measurement_symbol(
     text_fit_context: _GateTextFittingContext | None = None,
     text_fit_cache: _GateTextCache | None = None,
 ) -> None:
+    visible_label = format_visible_label(
+        measurement.label,
+        use_mathtext=scene.style.use_mathtext,
+    )
     measurement_x = measurement.x + x_offset
     measurement_y = measurement.quantum_y + y_offset
     arc_center_y = measurement_y - measurement.height * 0.02
@@ -886,13 +907,13 @@ def draw_measurement_symbol(
         ax,
         measurement_x,
         measurement_y + measurement.height * 0.34,
-        measurement.label,
+        visible_label,
         ha="center",
         va="center",
         fontsize=_fit_static_text_font_size(
             ax,
             scene,
-            text=measurement.label,
+            text=visible_label,
             default_font_size=scene.style.font_size * _MEASUREMENT_LABEL_FONT_SCALE,
             available_width=measurement.width * 0.5,
             available_height=measurement.height * 0.5,
@@ -921,11 +942,12 @@ def draw_text(
     text_fit_context: _GateTextFittingContext | None = None,
     text_fit_cache: _GateTextCache | None = None,
 ) -> None:
+    visible_text = format_visible_label(text.text, use_mathtext=scene.style.use_mathtext)
     text_artist = _add_text_artist(
         ax,
         text.x + x_offset,
         text.y + y_offset,
-        text.text,
+        visible_text,
         ha=text.ha,
         va=text.va,
         fontsize=_fit_gate_text_font_size(
@@ -933,7 +955,7 @@ def draw_text(
             scene=scene,
             width=scene.style.gate_width,
             height=scene.style.gate_height,
-            text=text.text,
+            text=visible_text,
             default_font_size=text.font_size or scene.style.font_size,
             height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
             context=text_fit_context,
@@ -961,11 +983,15 @@ def draw_gate_annotation(
     text_fit_context: _GateTextFittingContext | None = None,
     text_fit_cache: _GateTextCache | None = None,
 ) -> None:
+    visible_text = format_visible_label(
+        annotation.text,
+        use_mathtext=scene.style.use_mathtext,
+    )
     annotation_artist = _add_text_artist(
         ax,
         annotation.x + x_offset,
         annotation.y + y_offset,
-        annotation.text,
+        visible_text,
         ha="left",
         va="center",
         fontsize=_fit_gate_text_font_size(
@@ -973,7 +999,7 @@ def draw_gate_annotation(
             scene=scene,
             width=scene.style.gate_width * 0.5,
             height=scene.style.gate_height * 0.5,
-            text=annotation.text,
+            text=visible_text,
             default_font_size=annotation.font_size,
             height_fraction=1.0,
             context=text_fit_context,
@@ -1127,6 +1153,8 @@ def _fit_gate_text_font_size_with_context(
 
     available_width_points = context.points_per_layout_unit * width
     text_width_at_one_point = _text_width_in_points(text)
+    if _is_mathtext_string(text):
+        text_width_at_one_point *= _MATHTEXT_WIDTH_PADDING_FACTOR
     if text_width_at_one_point <= 0.0:
         cache[cache_key] = effective_default_font_size
         return effective_default_font_size
@@ -1136,6 +1164,8 @@ def _fit_gate_text_font_size_with_context(
     if height is not None:
         available_height_points = context.points_per_layout_unit * height * height_fraction
         text_height_at_one_point = _text_height_in_points(text)
+        if _is_mathtext_string(text):
+            text_height_at_one_point *= _MATHTEXT_HEIGHT_PADDING_FACTOR
         if text_height_at_one_point > 0.0:
             fitted_height_font_size = available_height_points / text_height_at_one_point
     resolved_font_size = max(
@@ -1158,6 +1188,10 @@ def _gate_text_fit_cache_token(text: str) -> object:
     if shape_key is not None:
         return shape_key
     return text
+
+
+def _is_mathtext_string(text: str) -> bool:
+    return len(text) >= 2 and text.startswith("$") and text.endswith("$")
 
 
 def _text_shape_key(text: str) -> tuple[str, str] | None:

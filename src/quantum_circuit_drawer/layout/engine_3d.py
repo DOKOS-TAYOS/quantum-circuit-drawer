@@ -310,6 +310,7 @@ class LayoutEngine3D:
                     position=Point3D(x=position.x, y=position.y + 0.24, z=position.z - 0.35),
                     text=wire.label or wire.id,
                     font_size=draw_style.font_size * 0.88,
+                    role="label",
                 )
             )
         for wire in circuit.classical_wires:
@@ -319,6 +320,7 @@ class LayoutEngine3D:
                     position=Point3D(x=position.x, y=position.y - 0.28, z=position.z - 0.35),
                     text=wire.label or wire.id,
                     font_size=draw_style.font_size * 0.82,
+                    role="label",
                 )
             )
         return texts
@@ -414,6 +416,7 @@ class LayoutEngine3D:
                         ),
                         text=gate.label,
                         font_size=label_font_size,
+                        role="label",
                     )
                 )
                 if gate.subtitle:
@@ -431,6 +434,7 @@ class LayoutEngine3D:
                             ),
                             text=gate.subtitle,
                             font_size=subtitle_font_size,
+                            role="parameter",
                         )
                     )
 

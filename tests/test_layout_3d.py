@@ -39,7 +39,7 @@ from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import (
     _RenderContext3D,
 )
 from quantum_circuit_drawer.style import DrawStyle
-from tests.support import build_sample_ir
+from tests.support import build_dense_rotation_ir, build_sample_ir, normalize_rendered_text
 
 if TYPE_CHECKING:
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
@@ -64,6 +64,10 @@ def _batched_text_artists(figure: Figure) -> list[PathCollection]:
         for artist in figure.artists
         if isinstance(artist, PathCollection) and artist.get_gid() == _BATCHED_TEXT_ARTIST_GID
     ]
+
+
+def _normalized_axis_text_values(axes: Axes3D) -> set[str]:
+    return {normalize_rendered_text(text.get_text()) for text in axes.texts}
 
 
 def _line_control_ir() -> CircuitIR:
@@ -1374,6 +1378,23 @@ def test_draw_quantum_circuit_hides_gate_and_wire_labels_when_hover_is_interacti
     assert "q1" not in labels
     assert "H" not in labels
     assert "M" not in labels
+
+
+def test_draw_quantum_circuit_3d_uses_mathtext_for_visible_labels_by_default() -> None:
+    figure = plt.figure()
+    axes = figure.add_subplot(111, projection="3d")
+
+    draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=1, wire_count=1),
+        view="3d",
+        topology="line",
+        ax=axes,
+        show=False,
+    )
+
+    assert r"$\mathrm{0}$" in {text.get_text() for text in axes.texts}
+    assert r"$\mathrm{RX}$" in {text.get_text() for text in axes.texts}
+    assert r"$0.5$" in {text.get_text() for text in axes.texts}
 
 
 def test_draw_quantum_circuit_interactive_hover_draws_without_annotation_crash(

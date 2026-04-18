@@ -18,6 +18,7 @@ from tests.support import (
     FakeMyQLMOp,
     FakeMyQLMSyntax,
     install_fake_myqlm,
+    normalize_rendered_text,
 )
 
 
@@ -439,7 +440,7 @@ def test_draw_quantum_circuit_renders_readable_myqlm_param_labels(
         framework="myqlm",
         show=False,
     )
-    texts = [text.get_text() for text in axes.texts]
+    texts = [normalize_rendered_text(text.get_text()) for text in axes.texts]
 
     assert "theta" in texts
     assert "0.5" in texts

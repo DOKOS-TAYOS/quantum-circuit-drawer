@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Visible circuit labels now use Matplotlib MathText by default through `DrawStyle(use_mathtext=True)`, giving paper-friendly gate names and parameters while keeping hover text plain
+
 ## [0.2.1] - 2026-04-18
 
 ### Changed

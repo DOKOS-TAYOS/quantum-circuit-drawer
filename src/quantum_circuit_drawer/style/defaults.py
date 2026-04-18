@@ -25,6 +25,7 @@ class DrawStyle:
     control_radius: float = 0.08
     show_params: bool = True
     show_wire_labels: bool = True
+    use_mathtext: bool = True
     theme: DrawTheme = field(default_factory=lambda: resolve_theme(None))
     margin_left: float = 0.85
     margin_right: float = 0.35

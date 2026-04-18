@@ -33,6 +33,7 @@ from ..layout.scene_3d import (
     SceneGate3D,
 )
 from ..typing import OutputPath, RenderResult
+from ..utils.formatting import format_parameter_text, format_visible_label
 from ._matplotlib_figure import create_managed_figure
 from ._render_support import backend_supports_interaction, figure_backend_name, save_rendered_figure
 from .base import BaseRenderer
@@ -113,6 +114,12 @@ def _text_vertical_anchor(extents: Bbox, va: str) -> float:
     if resolved_va in {"baseline", "center_baseline"}:
         return 0.0
     return float(extents.y0 + (extents.height / 2.0))
+
+
+def _visible_3d_text_value(text: str, *, role: str, scene: LayoutScene3D) -> str:
+    if role == "parameter":
+        return format_parameter_text(text, use_mathtext=scene.style.use_mathtext)
+    return format_visible_label(text, use_mathtext=scene.style.use_mathtext)
 
 
 class MatplotlibRenderer3D(BaseRenderer):
@@ -1104,11 +1111,12 @@ class MatplotlibRenderer3D(BaseRenderer):
 
     def _draw_texts_standard(self, axes: Axes3D, scene: LayoutScene3D) -> None:
         for text in scene.texts:
+            visible_text = _visible_3d_text_value(text.text, role=text.role, scene=scene)
             axes.text(
                 text.position.x,
                 text.position.y,
                 text.position.z,
-                text.text,
+                visible_text,
                 ha=text.ha,
                 va=text.va,
                 fontsize=text.font_size or scene.style.font_size,
@@ -1136,8 +1144,9 @@ class MatplotlibRenderer3D(BaseRenderer):
         )
         grouped_offsets: dict[_TextPathCacheKey, list[tuple[float, float]]] = {}
         for text, projected_position in zip(scene.texts, projected_positions):
+            visible_text = _visible_3d_text_value(text.text, role=text.role, scene=scene)
             text_key = (
-                text.text,
+                visible_text,
                 float(text.font_size or scene.style.font_size),
                 text.ha,
                 text.va,
@@ -1270,11 +1279,15 @@ class MatplotlibRenderer3D(BaseRenderer):
         scene: LayoutScene3D,
     ) -> None:
         label_point = connection.points[-1]
+        visible_label = format_visible_label(
+            connection.label or "",
+            use_mathtext=scene.style.use_mathtext,
+        )
         axes.text(
             label_point.x + 0.08,
             label_point.y,
             label_point.z,
-            connection.label,
+            visible_label,
             color=scene.style.theme.classical_wire_color
             if connection.is_classical
             else scene.style.theme.wire_color,

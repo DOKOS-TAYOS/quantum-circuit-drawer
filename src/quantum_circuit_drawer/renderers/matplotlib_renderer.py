@@ -23,6 +23,7 @@ from ..layout.scene import (
 )
 from ..layout.scene_3d import LayoutScene3D
 from ..typing import OutputPath, RenderResult
+from ..utils.formatting import format_parameter_text, format_visible_label
 from ._matplotlib_figure import clear_hover_state, create_managed_figure
 from ._matplotlib_hover import _HoverTarget2D, add_hover_target, attach_hover
 from ._matplotlib_page_projection import (
@@ -211,11 +212,15 @@ class MatplotlibRenderer(BaseRenderer):
                 label_y, subtitle_y, label_height_fraction, subtitle_height_fraction = (
                     _gate_text_layout(gate)
                 )
+                visible_label = format_visible_label(
+                    gate.label,
+                    use_mathtext=scene.style.use_mathtext,
+                )
                 label_font_size = _fit_gate_text_font_size_with_context(
                     context=gate_text_context,
                     width=gate.width,
                     height=gate.height,
-                    text=gate.label,
+                    text=visible_label,
                     default_font_size=scene.style.font_size,
                     height_fraction=label_height_fraction,
                     cache=gate_text_cache,
@@ -225,7 +230,10 @@ class MatplotlibRenderer(BaseRenderer):
                         context=gate_text_context,
                         width=gate.width,
                         height=gate.height,
-                        text=gate.subtitle,
+                        text=format_parameter_text(
+                            gate.subtitle,
+                            use_mathtext=scene.style.use_mathtext,
+                        ),
                         default_font_size=scene.style.font_size * 0.78,
                         height_fraction=subtitle_height_fraction,
                         cache=gate_text_cache,

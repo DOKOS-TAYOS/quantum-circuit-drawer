@@ -21,7 +21,12 @@ from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene, SceneGate, ScenePage, SceneWire
 from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from quantum_circuit_drawer.style import DrawStyle
-from tests.support import build_dense_rotation_ir, build_sample_ir, build_sample_scene
+from tests.support import (
+    build_dense_rotation_ir,
+    build_sample_ir,
+    build_sample_scene,
+    normalize_rendered_text,
+)
 
 
 def _display_patch_ratio(figure: object, patch: object) -> float:
@@ -35,6 +40,16 @@ def _display_bounds(figure: object, artist: object) -> tuple[float, float, float
     renderer = figure.canvas.get_renderer()
     bounds = artist.get_window_extent(renderer=renderer).bounds
     return bounds
+
+
+def _normalized_axis_text_values(axes: object) -> set[str]:
+    return {normalize_rendered_text(text.get_text()) for text in axes.texts}
+
+
+def _find_axis_text(axes: object, expected_text: str) -> Text:
+    return next(
+        text for text in axes.texts if normalize_rendered_text(text.get_text()) == expected_text
+    )
 
 
 def _measurement_register_ir(*, measurement_count: int) -> CircuitIR:
@@ -265,7 +280,45 @@ def test_matplotlib_renderer_adds_artists() -> None:
     assert axes.figure is figure
     assert len(axes.patches) >= len(scene.gates) + len(scene.measurements)
     assert _line_artist_count(axes) >= len(scene.wires)
+    assert {"H", "M", "q0", "q1", "c0"}.issubset(_normalized_axis_text_values(axes))
+
+
+def test_matplotlib_renderer_uses_mathtext_for_visible_circuit_text_by_default() -> None:
+    figure, axes = plt.subplots()
+
+    scene = build_sample_scene()
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert {
+        r"$\mathrm{H}$",
+        r"$\mathrm{M}$",
+        r"$\mathrm{q0}$",
+        r"$\mathrm{q1}$",
+        r"$\mathrm{c0}$",
+    }.issubset({text.get_text() for text in axes.texts})
+
+
+def test_matplotlib_renderer_renders_gate_parameters_with_mathtext_by_default() -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=1, wire_count=1),
+        DrawStyle(show_params=True),
+    )
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert r"$\mathrm{RX}$" in {text.get_text() for text in axes.texts}
+    assert r"$0.5$" in {text.get_text() for text in axes.texts}
+
+
+def test_matplotlib_renderer_keeps_visible_text_plain_when_mathtext_is_disabled() -> None:
+    figure, axes = plt.subplots()
+
+    scene = LayoutEngine().compute(build_sample_ir(), DrawStyle(use_mathtext=False))
+    MatplotlibRenderer().render(scene, ax=axes)
+
     assert {"H", "M", "q0", "q1", "c0"}.issubset({text.get_text() for text in axes.texts})
+    assert not any(text.get_text().startswith("$") for text in axes.texts)
 
 
 def test_matplotlib_renderer_does_not_require_pyplot_subplots(monkeypatch) -> None:
@@ -300,7 +353,7 @@ def test_matplotlib_renderer_draws_measurement_destination_arrow_and_label() -> 
     MatplotlibRenderer().render(build_sample_scene(), ax=axes)
 
     assert any(isinstance(patch, FancyArrowPatch) for patch in axes.patches)
-    assert sum(text.get_text() == "c0" for text in axes.texts) >= 2
+    assert sum(normalize_rendered_text(text.get_text()) == "c0" for text in axes.texts) >= 2
 
 
 def test_matplotlib_renderer_draws_classical_condition_with_arrow_and_bottom_label() -> None:
@@ -327,7 +380,7 @@ def test_matplotlib_renderer_draws_classical_condition_with_arrow_and_bottom_lab
 
     MatplotlibRenderer().render(scene, ax=axes)
 
-    label = next(text for text in axes.texts if text.get_text() == "if c[0]=1")
+    label = _find_axis_text(axes, "if c[0]=1")
 
     assert abs(label.get_position()[1] - scene.wire_y_positions["c0"]) < abs(
         label.get_position()[1] - scene.wire_y_positions["q0"]
@@ -375,8 +428,12 @@ def test_matplotlib_renderer_repeats_wire_labels_when_wrapping_pages() -> None:
 
     MatplotlibRenderer().render(scene, ax=axes)
 
-    assert sum(text.get_text() == "q0" for text in axes.texts) == len(scene.pages)
-    assert sum(text.get_text() == "q1" for text in axes.texts) == len(scene.pages)
+    assert sum(normalize_rendered_text(text.get_text()) == "q0" for text in axes.texts) == len(
+        scene.pages
+    )
+    assert sum(normalize_rendered_text(text.get_text()) == "q1" for text in axes.texts) == len(
+        scene.pages
+    )
 
 
 def test_matplotlib_renderer_projects_pages_without_relying_on_dense_page_indexes() -> None:
@@ -467,7 +524,7 @@ def test_matplotlib_renderer_draws_classical_bus_marker_and_size() -> None:
 
     MatplotlibRenderer().render(scene, ax=axes)
 
-    assert any(text.get_text() == "3" for text in axes.texts)
+    assert any(normalize_rendered_text(text.get_text()) == "3" for text in axes.texts)
 
 
 def test_matplotlib_renderer_draws_measurement_pointer_downward() -> None:
@@ -665,9 +722,11 @@ def test_matplotlib_renderer_renders_large_wrapped_scene_without_errors() -> Non
     MatplotlibRenderer().render(scene, ax=axes)
 
     assert len(scene.pages) > 1
-    assert sum(text.get_text() == "q0" for text in axes.texts) == len(scene.pages)
-    assert any(text.get_text() == "RX" for text in axes.texts)
-    assert any(text.get_text() == "H" for text in axes.texts)
+    assert sum(normalize_rendered_text(text.get_text()) == "q0" for text in axes.texts) == len(
+        scene.pages
+    )
+    assert any(normalize_rendered_text(text.get_text()) == "RX" for text in axes.texts)
+    assert any(normalize_rendered_text(text.get_text()) == "H" for text in axes.texts)
     assert axes.get_xlim() == approx((0.0, scene.width))
 
 
@@ -773,7 +832,11 @@ def test_matplotlib_renderer_projects_gate_annotations_only_on_matching_page() -
 
     MatplotlibRenderer().render(scene, ax=axes)
 
-    annotation_texts = [text.get_text() for text in axes.texts if text.get_text() in {"0", "1"}]
+    annotation_texts = [
+        normalize_rendered_text(text.get_text())
+        for text in axes.texts
+        if normalize_rendered_text(text.get_text()) in {"0", "1"}
+    ]
 
     assert len(scene.pages) > 1
     assert annotation_texts == ["0", "1"]
@@ -795,7 +858,7 @@ def test_matplotlib_renderer_keeps_four_letter_gate_label_inside_box() -> None:
     figure.canvas.draw()
 
     gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    gate_text = _find_axis_text(axes, "SWAP")
     patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
     text_x, _, text_width, _ = _display_bounds(figure, gate_text)
 
@@ -835,7 +898,7 @@ def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_wrapped_ma
         key=lambda patch: patch.get_y(),
     )
     gate_texts = sorted(
-        (text for text in axes.texts if text.get_text() == "SWAP"),
+        (text for text in axes.texts if normalize_rendered_text(text.get_text()) == "SWAP"),
         key=lambda text: text.get_position()[1],
     )
 
@@ -878,7 +941,7 @@ def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_narrow_wra
     figure.canvas.draw()
 
     gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    gate_text = _find_axis_text(axes, "SWAP")
     patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
     text_x, _, text_width, _ = _display_bounds(figure, gate_text)
 
@@ -896,14 +959,14 @@ def test_matplotlib_renderer_keeps_tiny_dense_labels_inside_boxes() -> None:
             for _ in range(40)
         ],
     )
-    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=200.0))
+    scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=200.0, use_mathtext=False))
     figure, axes = plt.subplots(figsize=(4.0, 1.2))
 
     MatplotlibRenderer().render(scene, ax=axes)
     figure.canvas.draw()
 
     gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    gate_text = _find_axis_text(axes, "SWAP")
     patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
     text_x, _, text_width, _ = _display_bounds(figure, gate_text)
 
@@ -915,7 +978,7 @@ def test_matplotlib_renderer_keeps_tiny_dense_labels_inside_boxes() -> None:
 def test_matplotlib_renderer_keeps_tiny_dense_label_and_subtitle_inside_box() -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=80, wire_count=4),
-        DrawStyle(max_page_width=200.0, show_params=True),
+        DrawStyle(max_page_width=200.0, show_params=True, use_mathtext=False),
     )
     figure, axes = plt.subplots(figsize=(5.0, 1.8))
 
@@ -923,8 +986,8 @@ def test_matplotlib_renderer_keeps_tiny_dense_label_and_subtitle_inside_box() ->
     figure.canvas.draw()
 
     gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
-    gate_subtitle = next(text for text in axes.texts if text.get_text() == "0.5")
+    gate_label = _find_axis_text(axes, "RX")
+    gate_subtitle = _find_axis_text(axes, "0.5")
     patch_x, patch_y, patch_width, patch_height = _display_bounds(figure, gate_patch)
 
     for text_artist in (gate_label, gate_subtitle):
@@ -1126,8 +1189,8 @@ def test_draw_gate_label_centers_label_and_subtitle_block() -> None:
     MatplotlibRenderer().render(scene, ax=axes)
 
     gate = scene.gates[0]
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
-    gate_subtitle = next(text for text in axes.texts if text.get_text() == "0.5")
+    gate_label = _find_axis_text(axes, "RX")
+    gate_subtitle = _find_axis_text(axes, "0.5")
 
     assert ((gate_label.get_position()[1] + gate_subtitle.get_position()[1]) / 2.0) == approx(
         gate.y,
@@ -1176,6 +1239,26 @@ def test_draw_quantum_circuit_2d_measurement_hover_reports_destination_bit(
 
     assert "qubits: q0" in annotation.get_text().lower()
     assert "bits: alpha[1]" in annotation.get_text().lower()
+
+
+def test_draw_quantum_circuit_2d_hover_annotation_stays_plain_with_mathtext_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _single_gate_with_matrix_ir(),
+        hover=HoverOptions(show_matrix="never"),
+    )
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    _dispatch_motion_event(figure, axes, gate_patch)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+    assert "$" not in annotation.get_text()
+    assert "x" in annotation.get_text().lower()
 
 
 def test_draw_quantum_circuit_2d_hover_covers_control_and_target_artists(
@@ -1417,7 +1500,7 @@ def test_draw_quantum_circuit_keeps_gate_label_inside_box_after_zoom() -> None:
     figure.canvas.draw()
 
     gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    gate_text = next(text for text in axes.texts if text.get_text() == "SWAP")
+    gate_text = _find_axis_text(axes, "SWAP")
     patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
     text_x, _, text_width, _ = _display_bounds(figure, gate_text)
 
@@ -1435,8 +1518,8 @@ def test_matplotlib_renderer_rescales_gate_and_wire_text_when_zooming() -> None:
     MatplotlibRenderer().render(scene, ax=axes)
     figure.canvas.draw()
 
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
-    wire_label = next(text for text in axes.texts if text.get_text() == "0")
+    gate_label = _find_axis_text(axes, "RX")
+    wire_label = _find_axis_text(axes, "0")
     initial_gate_font_size = gate_label.get_fontsize()
     initial_wire_font_size = wire_label.get_fontsize()
     left, right = axes.get_xlim()
@@ -1452,19 +1535,25 @@ def test_matplotlib_renderer_rescales_gate_and_wire_text_when_zooming() -> None:
 
 def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classical_bits() -> None:
     figure, axes = plt.subplots(figsize=(3.5, 8.0))
-    scene = LayoutEngine().compute(_measurement_register_ir(measurement_count=18), DrawStyle())
+    scene = LayoutEngine().compute(
+        _measurement_register_ir(measurement_count=18),
+        DrawStyle(use_mathtext=False),
+    )
 
     MatplotlibRenderer().render(scene, ax=axes)
     figure.canvas.draw()
 
     context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
-    measurement_label = next(text for text in axes.texts if text.get_text() == "M")
-    classical_bundle_count = next(text for text in axes.texts if text.get_text() == "18")
+    measurement_label = _find_axis_text(axes, "M")
+    classical_bundle_count = _find_axis_text(axes, "18")
     classical_bit_labels = sorted(
         [
             text
             for text in axes.texts
-            if text.get_text().startswith("c[") or text.get_text().startswith("[")
+            if (
+                normalize_rendered_text(text.get_text()).startswith("c[")
+                or normalize_rendered_text(text.get_text()).startswith("[")
+            )
         ],
         key=lambda text: text.get_position()[0],
     )
@@ -1492,8 +1581,13 @@ def test_matplotlib_renderer_uses_smaller_measurement_label_and_compact_classica
             cache={},
         )
     )
-    assert any(text.get_text().startswith("[") for text in classical_bit_labels)
-    assert all(not text.get_text().startswith("c[") for text in classical_bit_labels)
+    assert any(
+        normalize_rendered_text(text.get_text()).startswith("[") for text in classical_bit_labels
+    )
+    assert all(
+        not normalize_rendered_text(text.get_text()).startswith("c[")
+        for text in classical_bit_labels
+    )
     assert _overlap_count(figure, classical_bit_labels) == 0
 
 
@@ -1527,7 +1621,7 @@ def test_matplotlib_renderer_keeps_full_measurement_classical_label_when_space_a
     draw_quantum_circuit(circuit, ax=axes, show=False)
     figure.canvas.draw()
 
-    axis_texts = {text.get_text() for text in axes.texts}
+    axis_texts = _normalized_axis_text_values(axes)
 
     assert "alpha[1]" in axis_texts
     assert "[1]" not in axis_texts

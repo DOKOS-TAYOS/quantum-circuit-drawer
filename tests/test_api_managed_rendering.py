@@ -35,11 +35,13 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_text_scaling_state,
 )
 from quantum_circuit_drawer.style import DrawStyle
+from quantum_circuit_drawer.utils import format_visible_label
 from tests.support import (
     build_dense_rotation_ir,
     build_sample_ir,
     build_sample_scene,
     build_wrapped_ir,
+    normalize_rendered_text,
 )
 
 
@@ -98,14 +100,20 @@ def _zoom_text_scaling_ir() -> CircuitIR:
     )
 
 
+def _matching_text_artists(axes: object, text: str) -> list[object]:
+    return [
+        text_artist
+        for text_artist in axes.texts
+        if normalize_rendered_text(text_artist.get_text()) == text
+    ]
+
+
 def _font_size_by_text(axes: object, text: str) -> float:
-    return next(
-        text_artist.get_fontsize() for text_artist in axes.texts if text_artist.get_text() == text
-    )
+    return max(text_artist.get_fontsize() for text_artist in _matching_text_artists(axes, text))
 
 
 def _text_artist_by_text(axes: object, text: str) -> object:
-    return next(text_artist for text_artist in axes.texts if text_artist.get_text() == text)
+    return next(iter(_matching_text_artists(axes, text)))
 
 
 def _expected_box_fitted_font_size(
@@ -119,6 +127,7 @@ def _expected_box_fitted_font_size(
 ) -> float:
     text_artist = _text_artist_by_text(axes, text)
     text_scaling_state = get_text_scaling_state(axes)
+    visible_text = format_visible_label(text, use_mathtext=scene.style.use_mathtext)
 
     assert text_scaling_state is not None
 
@@ -130,7 +139,7 @@ def _expected_box_fitted_font_size(
         context=matplotlib_primitives._build_gate_text_fitting_context(axes, scene),
         width=width,
         height=height,
-        text=text,
+        text=visible_text,
         default_font_size=base_font_size,
         height_fraction=height_fraction,
         max_font_size=base_font_size * current_text_scale(axes, text_scaling_state),
@@ -518,7 +527,7 @@ def test_draw_quantum_circuit_reduces_gate_font_size_for_many_wrapped_pages() ->
         show=False,
     )
 
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    gate_label = _text_artist_by_text(axes, "RX")
 
     assert gate_label.get_fontsize() < 10.0
 
@@ -533,7 +542,7 @@ def test_draw_quantum_circuit_page_slider_keeps_gate_font_readable() -> None:
         show=False,
     )
 
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    gate_label = _text_artist_by_text(axes, "RX")
 
     assert gate_label.get_fontsize() > 10.0
 
@@ -552,10 +561,10 @@ def test_draw_quantum_circuit_page_slider_keeps_text_size_stable_after_redraw() 
     assert page_slider is not None
 
     figure.canvas.draw()
-    initial_font_size = max(text.get_fontsize() for text in axes.texts if text.get_text() == "RX")
+    initial_font_size = _font_size_by_text(axes, "RX")
     page_slider.set_val(page_slider.valmax / 2.0)
     figure.canvas.draw()
-    resized_font_size = max(text.get_fontsize() for text in axes.texts if text.get_text() == "RX")
+    resized_font_size = _font_size_by_text(axes, "RX")
 
     assert initial_font_size < 20.0
     assert resized_font_size < 20.0
@@ -571,7 +580,7 @@ def test_draw_quantum_circuit_page_slider_uses_stable_gate_font_size_before_firs
         show=False,
     )
 
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    gate_label = _text_artist_by_text(axes, "RX")
 
     assert gate_label.get_fontsize() < 20.0
 
@@ -959,7 +968,7 @@ def test_draw_quantum_circuit_rescales_2d_text_when_zooming() -> None:
     )
     figure.canvas.draw()
 
-    gate_label = next(text for text in axes.texts if text.get_text() == "RX")
+    gate_label = _text_artist_by_text(axes, "RX")
     initial_font_size = gate_label.get_fontsize()
 
     axes.set_xlim(0.0, 2.5)
@@ -1106,9 +1115,7 @@ def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_
         auto_paging_state = get_auto_paging_state(axes)
 
         assert auto_paging_state is not None
-        page_to_font_size[len(auto_paging_state.scene.pages)] = next(
-            text.get_fontsize() for text in axes.texts if text.get_text() == "RX"
-        )
+        page_to_font_size[len(auto_paging_state.scene.pages)] = _font_size_by_text(axes, "RX")
         plt.close(figure)
 
     assert page_to_font_size[3] > page_to_font_size[4] > page_to_font_size[8]

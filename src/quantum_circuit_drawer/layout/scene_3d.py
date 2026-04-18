@@ -108,6 +108,7 @@ class SceneText3D:
     ha: str = "center"
     va: str = "center"
     font_size: float | None = None
+    role: str = "label"
 
 
 @dataclass(slots=True)
