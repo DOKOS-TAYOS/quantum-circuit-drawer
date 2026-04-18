@@ -57,6 +57,9 @@ from .matplotlib_primitives import (
 )
 
 logger = logging.getLogger(__name__)
+_WIRE_STUB_FRACTION_OF_GATE_WIDTH = 0.16
+_WIRE_STUB_LABEL_MARGIN_FRACTION = 0.75
+_WIRE_STUB_PAGE_MARGIN_FRACTION = 0.75
 
 _SceneColumnItem = TypeVar(
     "_SceneColumnItem",
@@ -140,14 +143,15 @@ class MatplotlibRenderer(BaseRenderer):
         x_offset = self._page_x_offset(page, scene)
         y_offset = self._page_y_offset(page)
         hover_enabled = scene.hover.enabled
+        wire_x_start, wire_x_end = self._page_wire_span(page, scene)
 
         draw_wires(
             axes,
             scene.wires,
             scene,
             y_offset=y_offset,
-            x_start=scene.style.margin_left,
-            x_end=scene.style.margin_left + page.content_width,
+            x_start=wire_x_start,
+            x_end=wire_x_end,
             text_fit_context=gate_text_context,
             text_fit_cache=gate_text_cache,
         )
@@ -357,6 +361,26 @@ class MatplotlibRenderer(BaseRenderer):
 
     def _page_y_offset(self, page: ScenePage) -> float:
         return page_y_offset(page)
+
+    def _page_wire_span(self, page: ScenePage, scene: LayoutScene) -> tuple[float, float]:
+        lead_in = self._page_wire_stub(scene, for_leading_edge=True)
+        lead_out = self._page_wire_stub(scene, for_leading_edge=False)
+        return (
+            scene.style.margin_left - lead_in,
+            scene.style.margin_left + page.content_width + lead_out,
+        )
+
+    def _page_wire_stub(self, scene: LayoutScene, *, for_leading_edge: bool) -> float:
+        base_stub = scene.style.gate_width * _WIRE_STUB_FRACTION_OF_GATE_WIDTH
+        if for_leading_edge:
+            budget = (
+                scene.style.label_margin * _WIRE_STUB_LABEL_MARGIN_FRACTION
+                if scene.style.show_wire_labels
+                else scene.style.margin_left * _WIRE_STUB_PAGE_MARGIN_FRACTION
+            )
+        else:
+            budget = scene.style.margin_right * _WIRE_STUB_PAGE_MARGIN_FRACTION
+        return max(0.0, min(base_stub, budget))
 
     def _add_gate_hover_target(
         self,

@@ -25,6 +25,7 @@ from tests.support import (
     build_dense_rotation_ir,
     build_sample_ir,
     build_sample_scene,
+    build_wrapped_ir,
     normalize_rendered_text,
 )
 
@@ -624,15 +625,52 @@ def test_matplotlib_renderer_draws_one_horizontal_wire_segment_per_quantum_wire(
 
     assert len(scene.wires) == 3
     assert horizontal_segment_collections
+    first_gate_left = min(gate.x - (gate.width / 2.0) for gate in scene.gates)
+    last_gate_right = max(gate.x + (gate.width / 2.0) for gate in scene.gates)
     for rendered_segment, wire in zip(
         horizontal_segment_collections[0].get_segments(),
         scene.wires,
         strict=True,
     ):
-        assert rendered_segment[0][0] == approx(wire.x_start)
+        assert rendered_segment[0][0] < first_gate_left
         assert rendered_segment[0][1] == approx(wire.y)
-        assert rendered_segment[1][0] == approx(wire.x_end)
+        assert rendered_segment[1][0] > last_gate_right
         assert rendered_segment[1][1] == approx(wire.y)
+
+
+def test_matplotlib_renderer_extends_horizontal_wire_segments_before_and_after_each_page() -> None:
+    scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=4.0))
+    figure, axes = plt.subplots()
+    renderer = MatplotlibRenderer()
+
+    renderer.render(scene, ax=axes)
+
+    horizontal_segment_collections = [
+        collection
+        for collection in axes.collections
+        if hasattr(collection, "get_segments")
+        and len(collection.get_segments()) == len(scene.wires)
+        and all(segment[0][1] == approx(segment[1][1]) for segment in collection.get_segments())
+    ]
+    projected_pages = renderer._project_pages(scene)
+
+    assert len(horizontal_segment_collections) == len(scene.pages)
+    for collection, page, projected_page in zip(
+        horizontal_segment_collections,
+        scene.pages,
+        projected_pages,
+        strict=True,
+    ):
+        x_offset = renderer._page_x_offset(page, scene)
+        first_gate_left = min(
+            gate.x + x_offset - (gate.width / 2.0) for gate in projected_page.gates
+        )
+        last_gate_right = max(
+            gate.x + x_offset + (gate.width / 2.0) for gate in projected_page.gates
+        )
+        for rendered_segment in collection.get_segments():
+            assert rendered_segment[0][0] < first_gate_left
+            assert rendered_segment[1][0] > last_gate_right
 
 
 def test_matplotlib_renderer_buckets_paged_artists_without_membership_rescans(

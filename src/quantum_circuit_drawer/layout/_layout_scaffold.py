@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Protocol
 
 from ..ir.circuit import CircuitIR, LayerIR
@@ -11,6 +11,7 @@ from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR
 from ..style import DrawStyle
+from ..style.defaults import replace_draw_style
 from ._layering import normalize_draw_layers
 from ._operation_text import build_operation_text_metrics
 from .scene import ScenePage
@@ -106,7 +107,11 @@ def _resolve_scene_style(circuit: CircuitIR, style: DrawStyle) -> DrawStyle:
             default=0.0,
         )
         left_margin = max(left_margin, widest_label + style.label_margin + 0.12)
-    return replace(style, margin_left=left_margin, margin_right=max(0.22, style.margin_right))
+    return replace_draw_style(
+        style,
+        margin_left=left_margin,
+        margin_right=max(0.22, style.margin_right),
+    )
 
 
 def _build_operation_metrics_and_column_widths(

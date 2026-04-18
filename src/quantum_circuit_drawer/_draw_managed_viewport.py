@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from dataclasses import replace
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
@@ -11,6 +10,7 @@ from matplotlib.figure import Figure, SubFigure
 from .ir.circuit import CircuitIR
 from .layout.scene import LayoutScene
 from .style import DrawStyle
+from .style.defaults import replace_draw_style
 from .typing import LayoutEngineLike
 
 _VIEWPORT_SEARCH_STEPS = 10
@@ -25,7 +25,7 @@ def build_continuous_slider_scene(
 ) -> LayoutScene:
     """Compute a continuous-width 2D scene for page-slider mode."""
 
-    slider_style = replace(style, max_page_width=float("inf"))
+    slider_style = replace_draw_style(style, max_page_width=float("inf"))
     return _compute_layout_scene(
         circuit,
         layout_engine,
@@ -82,7 +82,7 @@ def viewport_adaptive_paged_scene(
         scene = compute_paged_scene(
             circuit,
             layout_engine,
-            replace(style, max_page_width=page_width),
+            replace_draw_style(style, max_page_width=page_width),
             hover_enabled=hover_enabled,
         )
         scene_cache[page_width] = scene

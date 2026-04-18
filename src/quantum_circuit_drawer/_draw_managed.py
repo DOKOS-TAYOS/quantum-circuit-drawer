@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeGuard, cast
 
@@ -58,6 +59,7 @@ from ._draw_managed_zoom import (
 from ._draw_pipeline import PreparedDrawPipeline
 from .renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
 from .style import DrawStyle
+from .style.defaults import replace_draw_style, uses_default_line_width
 from .typing import LayoutEngineLike, OutputPath
 
 if TYPE_CHECKING:
@@ -70,6 +72,9 @@ if TYPE_CHECKING:
 
 _PAGE_SLIDER_MAIN_AXES_BOTTOM = 0.18
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
+_ADAPTIVE_LINE_WIDTH_REFERENCE_PIXELS_PER_UNIT = 96.0
+_ADAPTIVE_LINE_WIDTH_MIN = 0.75
+_ADAPTIVE_LINE_WIDTH_MAX = 2.4
 logger = logging.getLogger(__name__)
 
 
@@ -155,9 +160,17 @@ def render_managed_draw_pipeline(
                 figure_height=figure_height,
                 use_agg=use_agg_canvas,
             )
+        figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
+        frozen_style = _freeze_default_line_width_for_scene(
+            style=slider_scene.style,
+            scene=slider_scene,
+            axes=axes,
+        )
+        slider_scene.style = frozen_style
+        scene_2d.style = replace_draw_style(scene_2d.style, line_width=frozen_style.line_width)
+        if output is not None:
             pipeline.renderer.render(scene_2d, ax=axes, output=output)
             axes.clear()
-        figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
         viewport_width = slider_viewport_width(axes, slider_scene)
         set_viewport_width(figure, viewport_width=viewport_width)
         pipeline.renderer.render(slider_scene, ax=axes)
@@ -233,6 +246,12 @@ def render_draw_pipeline_on_axes(
         hover_enabled=prepared_scene.hover.enabled,
     )
     scene_2d.hover = prepared_scene.hover
+    frozen_style = _freeze_default_line_width_for_scene(
+        style=scene_2d.style,
+        scene=scene_2d,
+        axes=axes,
+    )
+    scene_2d.style = frozen_style
     axes.clear()
     pipeline.renderer.render(scene_2d, ax=axes, output=output)
     set_viewport_width(axes.figure, viewport_width=scene_2d.width)
@@ -241,7 +260,7 @@ def render_draw_pipeline_on_axes(
         ir=pipeline.ir,
         layout_engine=cast(LayoutEngineLike, pipeline.layout_engine),
         renderer=pipeline.renderer,
-        normalized_style=pipeline.normalized_style,
+        normalized_style=frozen_style,
         scene=scene_2d,
         effective_page_width=effective_page_width,
         hover_enabled=prepared_scene.hover.enabled,
@@ -500,3 +519,52 @@ def is_3d_scene(scene: LayoutScene | LayoutScene3D) -> TypeGuard[LayoutScene3D]:
     """Return whether a prepared scene is a 3D scene."""
 
     return hasattr(scene, "depth")
+
+
+def _freeze_default_line_width_for_scene(
+    *,
+    style: DrawStyle,
+    scene: LayoutScene,
+    axes: Axes,
+) -> DrawStyle:
+    """Resolve and freeze the initial adaptive 2D line width for one scene."""
+
+    if not uses_default_line_width(style):
+        return style
+
+    resolved_line_width = _adaptive_default_line_width(
+        style=style,
+        scene=scene,
+        axes=axes,
+    )
+    return replace_draw_style(style, line_width=resolved_line_width)
+
+
+def _adaptive_default_line_width(
+    *,
+    style: DrawStyle,
+    scene: LayoutScene,
+    axes: Axes,
+) -> float:
+    """Scale the default 2D line width to the scene density visible in the viewport."""
+
+    viewport_width_pixels, viewport_height_pixels = axes_viewport_pixels(axes)
+    if (
+        viewport_width_pixels <= 0.0
+        or viewport_height_pixels <= 0.0
+        or scene.width <= 0.0
+        or scene.height <= 0.0
+    ):
+        return float(style.line_width)
+
+    pixels_per_layout_unit_x = viewport_width_pixels / scene.width
+    pixels_per_layout_unit_y = viewport_height_pixels / scene.height
+    visible_density = math.sqrt(pixels_per_layout_unit_x * pixels_per_layout_unit_y)
+    relative_scale = math.sqrt(
+        max(0.2, visible_density / _ADAPTIVE_LINE_WIDTH_REFERENCE_PIXELS_PER_UNIT)
+    )
+    resolved_line_width = float(style.line_width) * relative_scale
+    return min(
+        _ADAPTIVE_LINE_WIDTH_MAX,
+        max(_ADAPTIVE_LINE_WIDTH_MIN, resolved_line_width),
+    )

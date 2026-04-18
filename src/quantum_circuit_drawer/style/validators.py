@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import fields, replace
+from dataclasses import fields
 
 from ..exceptions import StyleValidationError
-from .defaults import DrawStyle
+from .defaults import DrawStyle, replace_draw_style
 from .theme import resolve_theme
 
-STYLE_KEYS = set(DrawStyle.__dataclass_fields__.keys())
+INTERNAL_STYLE_KEYS = {"_line_width_is_default"}
+STYLE_KEYS = set(DrawStyle.__dataclass_fields__.keys()) - INTERNAL_STYLE_KEYS
 POSITIVE_FIELDS = {
     "font_size",
     "wire_spacing",
@@ -41,7 +42,7 @@ def normalize_style(style: DrawStyle | Mapping[str, object] | None) -> DrawStyle
     if style is None:
         normalized = DrawStyle()
     elif isinstance(style, DrawStyle):
-        normalized = replace(style)
+        normalized = replace_draw_style(style)
     elif isinstance(style, Mapping):
         unknown = set(style) - STYLE_KEYS
         if unknown:
@@ -49,9 +50,13 @@ def normalize_style(style: DrawStyle | Mapping[str, object] | None) -> DrawStyle
             raise StyleValidationError(f"unknown style option(s): {keys}")
         normalized = DrawStyle()
         for field in fields(DrawStyle):
+            if field.name in INTERNAL_STYLE_KEYS:
+                continue
             if field.name not in style:
                 continue
             setattr(normalized, field.name, style[field.name])
+            if field.name == "line_width":
+                normalized._line_width_is_default = False
     else:
         raise StyleValidationError("style must be None, a DrawStyle, or a mapping")
 

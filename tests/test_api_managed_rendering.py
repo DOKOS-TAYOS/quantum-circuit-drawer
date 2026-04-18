@@ -102,6 +102,33 @@ def _zoom_text_scaling_ir() -> CircuitIR:
     )
 
 
+def _long_label_margin_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(
+                id="q0",
+                index=0,
+                kind=WireKind.QUANTUM,
+                label="quantum_register_zero",
+            ),
+            WireIR(
+                id="q1",
+                index=1,
+                kind=WireKind.QUANTUM,
+                label="quantum_register_one",
+            ),
+        ],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q1",))]
+            ),
+        ],
+    )
+
+
 def _matching_text_artists(axes: object, text: str) -> list[object]:
     return [
         text_artist
@@ -1247,6 +1274,115 @@ def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_
 
     assert page_to_font_size[3] > page_to_font_size[4] > page_to_font_size[8]
     assert page_to_font_size[8] < page_to_font_size[3] * 0.85
+
+
+def test_draw_quantum_circuit_uses_thinner_default_line_width_for_denser_initial_scene() -> None:
+    sparse_figure, sparse_axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=6, wire_count=2),
+        style={"max_page_width": 12.0},
+        show=False,
+        figsize=(8.0, 3.0),
+    )
+    dense_figure, dense_axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=10),
+        style={"max_page_width": 4.0},
+        show=False,
+        figsize=(3.2, 12.0),
+    )
+
+    sparse_state = get_auto_paging_state(sparse_axes)
+    dense_state = get_auto_paging_state(dense_axes)
+
+    assert sparse_state is not None
+    assert dense_state is not None
+    assert dense_state.scene.style.line_width < sparse_state.scene.style.line_width
+
+    plt.close(sparse_figure)
+    plt.close(dense_figure)
+
+
+def test_draw_quantum_circuit_uses_thicker_default_line_width_for_larger_initial_figsize() -> None:
+    circuit = build_dense_rotation_ir(layer_count=18, wire_count=8)
+    small_figure, small_axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 6.0},
+        show=False,
+        figsize=(4.0, 3.0),
+    )
+    large_figure, large_axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 6.0},
+        show=False,
+        figsize=(12.0, 6.0),
+    )
+
+    small_state = get_auto_paging_state(small_axes)
+    large_state = get_auto_paging_state(large_axes)
+
+    assert small_state is not None
+    assert large_state is not None
+    assert large_state.scene.style.line_width > small_state.scene.style.line_width
+
+    plt.close(small_figure)
+    plt.close(large_figure)
+
+
+def test_draw_quantum_circuit_keeps_default_line_width_frozen_after_resize() -> None:
+    figure, axes = plt.subplots(figsize=(3.2, 12.0))
+    circuit = build_dense_rotation_ir(layer_count=24, wire_count=8)
+
+    draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 6.0},
+        ax=axes,
+    )
+
+    initial_state = get_auto_paging_state(axes)
+
+    assert initial_state is not None
+    initial_line_width = initial_state.scene.style.line_width
+
+    figure.set_size_inches(12.0, 3.2, forward=True)
+    figure.canvas.draw()
+
+    resized_state = get_auto_paging_state(axes)
+
+    assert resized_state is not None
+    assert resized_state.scene.style.line_width == pytest.approx(initial_line_width)
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_keeps_explicit_default_matching_line_width_unchanged() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=8),
+        style=DrawStyle(max_page_width=6.0, line_width=1.6),
+        show=False,
+        figsize=(3.2, 12.0),
+    )
+
+    state = get_auto_paging_state(axes)
+
+    assert state is not None
+    assert state.scene.style.line_width == pytest.approx(1.6)
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_preserves_scene_margin_left_after_freezing_line_width() -> None:
+    figure, axes = draw_quantum_circuit(
+        _long_label_margin_ir(),
+        style={"max_page_width": 6.0},
+        show=False,
+        figsize=(6.0, 3.0),
+    )
+
+    state = get_auto_paging_state(axes)
+
+    assert state is not None
+    assert state.scene.style.margin_left > DrawStyle().margin_left
+
+    plt.close(figure)
 
 
 def test_slider_viewport_width_falls_back_to_scene_width_for_zero_sized_axes(

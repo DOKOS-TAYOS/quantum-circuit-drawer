@@ -62,6 +62,13 @@ def test_draw_style_enables_mathtext_by_default() -> None:
     assert DrawStyle().use_mathtext is True
 
 
+def test_normalize_style_tracks_default_line_width_provenance() -> None:
+    assert normalize_style(None)._line_width_is_default is True
+    assert normalize_style(DrawStyle())._line_width_is_default is True
+    assert normalize_style({"line_width": 1.6})._line_width_is_default is False
+    assert normalize_style(DrawStyle(line_width=1.6))._line_width_is_default is False
+
+
 def test_resolve_theme_accepts_theme_instances_and_rejects_unknown_names() -> None:
     theme = DrawTheme(
         name="custom",
