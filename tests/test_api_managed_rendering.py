@@ -9,6 +9,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.transforms import Bbox
 
+import quantum_circuit_drawer._draw_managed as managed_module
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
 from quantum_circuit_drawer._draw_managed_zoom import current_text_scale
 from quantum_circuit_drawer.api import (
@@ -182,6 +183,25 @@ def test_draw_quantum_circuit_uses_agg_canvas_for_managed_show_false(
 
     assert isinstance(figure.canvas, FigureCanvasAgg)
     assert axes.figure is figure
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_configures_zoom_text_scaling_once_per_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call_count = 0
+    original_configure_zoom = managed_module.configure_zoom_text_scaling
+
+    def capture_configure_zoom(*args: object, **kwargs: object) -> None:
+        nonlocal call_count
+        call_count += 1
+        original_configure_zoom(*args, **kwargs)
+
+    monkeypatch.setattr(managed_module, "configure_zoom_text_scaling", capture_configure_zoom)
+
+    figure, _ = draw_quantum_circuit(build_sample_ir(), show=False)
+
+    assert call_count == 1
     plt.close(figure)
 
 

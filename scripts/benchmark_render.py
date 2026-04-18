@@ -282,6 +282,12 @@ def _classical_wire_count(circuit: CircuitIR) -> int:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Benchmark synthetic layout and render passes.")
+    parser.add_argument(
+        "--benchmark",
+        choices=("synthetic", "demo", "demo-suite"),
+        default="synthetic",
+        help="Benchmark mode: synthetic pipeline, one demo, or the full demo suite.",
+    )
     parser.add_argument("--wires", type=positive_int, default=16)
     parser.add_argument("--layers", type=positive_int, default=120)
     parser.add_argument("--repeats", type=positive_int, default=3)
@@ -291,6 +297,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=("line", "grid", "star", "star_tree", "honeycomb"),
         default="line",
     )
+    parser.add_argument("--demo-id", type=str, default="qiskit-random")
+    parser.add_argument("--qubits", type=positive_int, default=24)
+    parser.add_argument("--columns", type=positive_int, default=32)
+    parser.add_argument("--mode", choices=("pages", "slider"), default="pages")
     parser.add_argument("--json", action="store_true", dest="emit_json")
     return parser.parse_args(argv)
 
@@ -306,32 +316,105 @@ def positive_int(raw_value: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    results = benchmark_render(
-        wires=args.wires,
-        layers=args.layers,
-        repeats=args.repeats,
-        view=args.view,
-        topology=args.topology,
-    )
-    if args.emit_json:
-        print(json.dumps(results))
+    if args.benchmark == "synthetic":
+        results = benchmark_render(
+            wires=args.wires,
+            layers=args.layers,
+            repeats=args.repeats,
+            view=args.view,
+            topology=args.topology,
+        )
+        if args.emit_json:
+            print(json.dumps(results))
+            return 0
+
+        summary = (
+            "Synthetic benchmark:"
+            f" wires={results['wires']}"
+            f" layers={results['layers']}"
+            f" repeats={results['repeats']}"
+        )
+        if args.view == "3d":
+            summary += f" view={args.view} topology={args.topology}"
+        summary += (
+            f" prepare={results['prepare_seconds']:.6f}s"
+            f" layout={results['layout_seconds']:.6f}s"
+            f" render={results['render_seconds']:.6f}s"
+            f" full_draw={results['full_draw_seconds']:.6f}s"
+        )
+        print(summary)
         return 0
 
-    summary = (
-        "Synthetic benchmark:"
-        f" wires={results['wires']}"
-        f" layers={results['layers']}"
-        f" repeats={results['repeats']}"
-    )
-    if args.view == "3d":
-        summary += f" view={args.view} topology={args.topology}"
-    summary += (
-        f" prepare={results['prepare_seconds']:.6f}s"
-        f" layout={results['layout_seconds']:.6f}s"
-        f" render={results['render_seconds']:.6f}s"
-        f" full_draw={results['full_draw_seconds']:.6f}s"
-    )
-    print(summary)
+    if args.benchmark == "demo":
+        results = benchmark_demo(
+            demo_id=args.demo_id,
+            qubits=args.qubits,
+            columns=args.columns,
+            mode=args.mode,
+            repeats=args.repeats,
+        )
+        if args.emit_json:
+            print(json.dumps(results))
+        else:
+            print(
+                "Demo benchmark:"
+                f" id={results['demo_id']}"
+                f" framework={results['framework']}"
+                f" qubits={results['qubits']}"
+                f" columns={results['columns']}"
+                f" mode={results['mode']}"
+                f" repeats={results['repeats']}"
+                f" import={results['import_seconds']:.6f}s"
+                f" build={results['build_seconds']:.6f}s"
+                f" adapt={results['adapt_seconds']:.6f}s"
+                f" draw={results['draw_seconds']:.6f}s"
+                f" total={results['total_seconds']:.6f}s"
+            )
+        return 0
+
+    suite_results: list[dict[str, float | int | str]] = []
+    for demo_id, qubits, columns, mode in demo_benchmark_scenarios():
+        try:
+            suite_results.append(
+                benchmark_demo(
+                    demo_id=demo_id,
+                    qubits=qubits,
+                    columns=columns,
+                    mode=mode,
+                    repeats=args.repeats,
+                )
+            )
+        except Exception as exc:
+            suite_results.append(
+                {
+                    "demo_id": demo_id,
+                    "qubits": qubits,
+                    "columns": columns,
+                    "mode": mode,
+                    "repeats": args.repeats,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+
+    if args.emit_json:
+        print(json.dumps(suite_results))
+    else:
+        print("Demo-suite benchmark:")
+        for result in suite_results:
+            if "error" in result:
+                print(
+                    f" - {result['demo_id']}: ERROR {result['error']}"
+                    f" (qubits={result['qubits']} columns={result['columns']} mode={result['mode']})"
+                )
+                continue
+            print(
+                f" - {result['demo_id']} ({result['framework']}):"
+                f" import={result['import_seconds']:.6f}s"
+                f" build={result['build_seconds']:.6f}s"
+                f" adapt={result['adapt_seconds']:.6f}s"
+                f" draw={result['draw_seconds']:.6f}s"
+                f" total={result['total_seconds']:.6f}s"
+            )
     return 0
 
 
