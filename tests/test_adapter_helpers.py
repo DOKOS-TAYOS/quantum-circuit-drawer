@@ -12,6 +12,7 @@ from quantum_circuit_drawer._matrix_support import (
     resolved_operation_matrix,
 )
 from quantum_circuit_drawer.adapters._helpers import (
+    _extract_dependency_types_cached,
     append_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
@@ -116,6 +117,41 @@ def test_extract_dependency_types_imports_nested_submodules_when_needed(
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
     assert extract_dependency_types("fake_nested_quantum_dep", ("core.Circuit",)) == (nested_type,)
+
+
+def test_extract_dependency_types_caches_module_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cached_type = type("CachedCircuit", (), {})
+    fake_module = ModuleType("fake_cached_quantum_dep")
+    fake_module.Circuit = cached_type
+    original_import = builtins.__import__
+    import_count = 0
+
+    monkeypatch.setitem(sys.modules, "fake_cached_quantum_dep", fake_module)
+    _extract_dependency_types_cached.cache_clear()
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        nonlocal import_count
+        if name == "fake_cached_quantum_dep":
+            import_count += 1
+            return fake_module
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    first = extract_dependency_types("fake_cached_quantum_dep", ("Circuit",))
+    second = extract_dependency_types("fake_cached_quantum_dep", ("Circuit",))
+
+    assert first == (cached_type,)
+    assert second == (cached_type,)
+    assert import_count == 1
 
 
 def test_sequential_bit_labels_build_expected_labels() -> None:
