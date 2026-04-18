@@ -22,13 +22,13 @@ from ..layout.scene import (
     SceneSwap,
 )
 from ..layout.scene_3d import LayoutScene3D
+from ..style import resolved_line_width
 from ..typing import OutputPath, RenderResult
 from ..utils.formatting import format_parameter_text, format_visible_label
 from ._matplotlib_figure import clear_hover_state, create_managed_figure
 from ._matplotlib_hover import _HoverTarget2D, add_hover_target, attach_hover
 from ._matplotlib_page_projection import (
     _ProjectedPage,
-    is_in_page,
     page_x_offset,
     page_y_offset,
     project_pages,
@@ -353,9 +353,6 @@ class MatplotlibRenderer(BaseRenderer):
             logger.debug("Failed to save rendered circuit to %r: %s", output, exc)
             raise
 
-    def _is_in_page(self, column: int, page: ScenePage) -> bool:
-        return is_in_page(column, page)
-
     def _page_x_offset(self, page: ScenePage, scene: LayoutScene) -> float:
         return page_x_offset(page, scene)
 
@@ -466,7 +463,7 @@ class MatplotlibRenderer(BaseRenderer):
         y_offset: float,
     ) -> None:
         assert connection.hover_data is not None
-        half_width = max(0.08, fabs(scene.style.line_width) * 2.0)
+        half_width = max(0.08, fabs(resolved_line_width(scene.style)) * 2.0)
         add_hover_target(
             hover_targets,
             connection.hover_data,

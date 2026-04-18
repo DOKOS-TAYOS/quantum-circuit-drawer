@@ -116,7 +116,7 @@ def attach_topology_menu(
         for topology_name in _ALL_TOPOLOGIES
         if _supports_topology(topology_name, tuple(pipeline.ir.quantum_wires))
     )
-    active_topology = cast("TopologyName", pipeline.draw_options.topology)
+    active_topology = pipeline.draw_options.topology
     state = TopologyMenuState(
         figure=figure,
         axes=axes,

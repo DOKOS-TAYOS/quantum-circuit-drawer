@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from numbers import Real
+from typing import Any, cast
 
 from .theme import DrawTheme, resolve_theme
 
@@ -51,10 +53,17 @@ class DrawStyle:
 def replace_draw_style(style: DrawStyle, /, **changes: object) -> DrawStyle:
     """Return a ``DrawStyle`` replacement while preserving line-width provenance."""
 
-    replaced_style = replace(style, **changes)
-    replaced_style._line_width_is_default = (
-        False if "line_width" in changes else style._line_width_is_default
-    )
+    line_width_change = changes.get("line_width", style.line_width)
+    if line_width_change is None:
+        changes["line_width"] = DEFAULT_LINE_WIDTH
+        line_width_is_default = True
+    elif not isinstance(line_width_change, Real) or float(line_width_change) <= 0.0:
+        raise ValueError("line_width must be a positive number")
+    else:
+        line_width_is_default = False if "line_width" in changes else style._line_width_is_default
+
+    replaced_style = replace(style, **cast("dict[str, Any]", changes))
+    replaced_style._line_width_is_default = line_width_is_default
     return replaced_style
 
 
@@ -62,3 +71,11 @@ def uses_default_line_width(style: DrawStyle) -> bool:
     """Return whether ``style.line_width`` still comes from the library default."""
 
     return style._line_width_is_default
+
+
+def resolved_line_width(style: DrawStyle) -> float:
+    """Return a non-optional validated line width."""
+
+    line_width = style.line_width
+    assert line_width is not None
+    return float(line_width)

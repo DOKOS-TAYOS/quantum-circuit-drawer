@@ -32,6 +32,7 @@ from ..layout.scene_3d import (
     SceneConnection3D,
     SceneGate3D,
 )
+from ..style import resolved_line_width
 from ..typing import OutputPath, RenderResult
 from ..utils.formatting import format_parameter_text, format_visible_label
 from ._matplotlib_figure import (
@@ -571,7 +572,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                         [wire.start.y, wire.end.y],
                         [wire.start.z, wire.end.z],
                         color=scene.style.theme.classical_wire_color,
-                        linewidth=scene.style.line_width,
+                        linewidth=resolved_line_width(scene.style),
                         zorder=1.0,
                     )
                 if line is not None and wire.hover_text:
@@ -582,7 +583,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 [wire.start.y, wire.end.y],
                 [wire.start.z, wire.end.z],
                 color=_QUANTUM_WIRE_COLOR,
-                linewidth=scene.style.line_width * _QUANTUM_WIRE_WIDTH_SCALE,
+                linewidth=resolved_line_width(scene.style) * _QUANTUM_WIRE_WIDTH_SCALE,
                 zorder=1.1,
             )
             if wire.hover_text:
@@ -669,7 +670,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 standard_segments,
                 colors=scene.style.theme.wire_color,
-                linewidths=scene.style.line_width,
+                linewidths=resolved_line_width(scene.style),
                 linestyles="solid",
             )
             collection.set_zorder(0.8)
@@ -678,7 +679,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 control_segments,
                 colors=_CONTROL_CONNECTION_COLOR,
-                linewidths=scene.style.line_width * _CONTROL_CONNECTION_WIDTH_SCALE,
+                linewidths=resolved_line_width(scene.style) * _CONTROL_CONNECTION_WIDTH_SCALE,
                 linestyles="solid",
             )
             collection.set_zorder(2.4)
@@ -687,7 +688,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 topology_segments,
                 colors=_TOPOLOGY_EDGE_COLOR,
-                linewidths=scene.style.line_width * _TOPOLOGY_EDGE_WIDTH_SCALE,
+                linewidths=resolved_line_width(scene.style) * _TOPOLOGY_EDGE_WIDTH_SCALE,
                 linestyles="solid",
             )
             collection.set_zorder(0.8)
@@ -696,7 +697,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 classical_segments,
                 colors=scene.style.theme.classical_wire_color,
-                linewidths=scene.style.line_width,
+                linewidths=resolved_line_width(scene.style),
                 linestyles="dashed",
             )
             collection.set_zorder(0.8)
@@ -705,7 +706,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 classical_double_segments,
                 colors=scene.style.theme.classical_wire_color,
-                linewidths=scene.style.line_width,
+                linewidths=resolved_line_width(scene.style),
             )
             collection.set_zorder(0.8)
             axes.add_collection3d(collection)
@@ -741,7 +742,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 edgecolors=scene.style.theme.measurement_color
                 if gate.render_style is GateRenderStyle3D.MEASUREMENT
                 else scene.style.theme.gate_edgecolor,
-                linewidths=scene.style.line_width * _GATE_EDGE_WIDTH_SCALE,
+                linewidths=resolved_line_width(scene.style) * _GATE_EDGE_WIDTH_SCALE,
                 alpha=0.96,
             )
             axes.add_collection3d(collection)
@@ -791,7 +792,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 box_faces,
                 facecolors=scene.style.theme.gate_facecolor,
                 edgecolors=scene.style.theme.gate_edgecolor,
-                linewidths=scene.style.line_width * _GATE_EDGE_WIDTH_SCALE,
+                linewidths=resolved_line_width(scene.style) * _GATE_EDGE_WIDTH_SCALE,
                 alpha=0.96,
             )
             axes.add_collection3d(collection)
@@ -800,7 +801,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 measurement_faces,
                 facecolors=scene.style.theme.measurement_facecolor,
                 edgecolors=scene.style.theme.measurement_color,
-                linewidths=scene.style.line_width * _GATE_EDGE_WIDTH_SCALE,
+                linewidths=resolved_line_width(scene.style) * _GATE_EDGE_WIDTH_SCALE,
                 alpha=0.96,
             )
             axes.add_collection3d(collection)
@@ -848,7 +849,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             closed_ring_points[:, 1],
             closed_ring_points[:, 2],
             color=scene.style.theme.wire_color,
-            linewidth=scene.style.line_width,
+            linewidth=resolved_line_width(scene.style),
         )
         cross_collection = Line3DCollection(
             [
@@ -862,7 +863,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 ),
             ],
             colors=scene.style.theme.wire_color,
-            linewidths=scene.style.line_width,
+            linewidths=resolved_line_width(scene.style),
         )
         axes.add_collection3d(cross_collection)
         return [(circle_line, gate.hover_text)] if gate.hover_text else []
@@ -914,14 +915,14 @@ class MatplotlibRenderer3D(BaseRenderer):
         ring_collection = Line3DCollection(
             ring_segments,
             colors=scene.style.theme.wire_color,
-            linewidths=scene.style.line_width,
+            linewidths=resolved_line_width(scene.style),
         )
         ring_collection.set_zorder(3.3)
         axes.add_collection3d(ring_collection)
         cross_collection = Line3DCollection(
             cross_segments,
             colors=scene.style.theme.wire_color,
-            linewidths=scene.style.line_width,
+            linewidths=resolved_line_width(scene.style),
         )
         cross_collection.set_zorder(3.4)
         axes.add_collection3d(cross_collection)
@@ -946,7 +947,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                     s=marker.size * 320.0,
                     facecolors=scene.style.theme.axes_facecolor,
                     edgecolors=_QUANTUM_WIRE_COLOR,
-                    linewidths=max(1.0, scene.style.line_width * 0.82),
+                    linewidths=max(1.0, resolved_line_width(scene.style) * 0.82),
                     depthshade=False,
                     zorder=3.2,
                 )
@@ -976,7 +977,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                     ),
                 ],
                 colors=scene.style.theme.wire_color,
-                linewidths=scene.style.line_width,
+                linewidths=resolved_line_width(scene.style),
             )
             collection.set_zorder(3.1)
             axes.add_collection3d(collection)
@@ -994,7 +995,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 s=[marker.size * 320.0 for marker in topology_nodes],
                 facecolors=scene.style.theme.axes_facecolor,
                 edgecolors=_QUANTUM_WIRE_COLOR,
-                linewidths=max(1.0, scene.style.line_width * 0.82),
+                linewidths=max(1.0, resolved_line_width(scene.style) * 0.82),
                 depthshade=False,
                 zorder=3.2,
             )
@@ -1034,7 +1035,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 swap_segments,
                 colors=scene.style.theme.wire_color,
-                linewidths=scene.style.line_width,
+                linewidths=resolved_line_width(scene.style),
             )
             collection.set_zorder(3.1)
             axes.add_collection3d(collection)
@@ -1079,7 +1080,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             arc_collection = Line3DCollection(
                 arc_segments,
                 colors=scene.style.theme.measurement_color,
-                linewidths=scene.style.line_width,
+                linewidths=resolved_line_width(scene.style),
             )
             arc_collection.set_capstyle("round")
             arc_collection.set_zorder(3.6)
@@ -1088,7 +1089,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             pointer_collection = Line3DCollection(
                 pointer_segments,
                 colors=scene.style.theme.measurement_color,
-                linewidths=scene.style.line_width,
+                linewidths=resolved_line_width(scene.style),
             )
             pointer_collection.set_capstyle("round")
             pointer_collection.set_zorder(3.6)
@@ -1272,12 +1273,12 @@ class MatplotlibRenderer3D(BaseRenderer):
         scene: LayoutScene3D,
     ) -> float:
         if connection.is_classical:
-            return scene.style.line_width
+            return resolved_line_width(scene.style)
         if connection.render_style is ConnectionRenderStyle3D.CONTROL:
-            return scene.style.line_width * _CONTROL_CONNECTION_WIDTH_SCALE
+            return resolved_line_width(scene.style) * _CONTROL_CONNECTION_WIDTH_SCALE
         if connection.render_style is ConnectionRenderStyle3D.TOPOLOGY_EDGE:
-            return scene.style.line_width * _TOPOLOGY_EDGE_WIDTH_SCALE
-        return scene.style.line_width
+            return resolved_line_width(scene.style) * _TOPOLOGY_EDGE_WIDTH_SCALE
+        return resolved_line_width(scene.style)
 
     def _draw_connection_label(
         self,
@@ -1541,21 +1542,6 @@ class MatplotlibRenderer3D(BaseRenderer):
             )
         )
         return np.asarray(context.data_transform.transform(projected_xy), dtype=float)
-
-    def _projected_display_point(
-        self,
-        axes: Axes3D,
-        point: Point3D,
-        *,
-        render_context: _RenderContext3D | None = None,
-    ) -> np.ndarray:
-        context = render_context or self._create_render_context(axes)
-        projected_points = self._projected_display_points(
-            axes,
-            np.array([(point.x, point.y, point.z)], dtype=float),
-            render_context=context,
-        )
-        return projected_points[0]
 
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
         try:

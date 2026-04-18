@@ -580,11 +580,11 @@ def test_matplotlib_renderer_3d_batched_projection_matches_scalar_projection() -
     )
     scalar_points = np.array(
         [
-            renderer._projected_display_point(
+            renderer._projected_display_points(
                 axes,
-                Point3D(x=float(point[0]), y=float(point[1]), z=float(point[2])),
+                np.array([(float(point[0]), float(point[1]), float(point[2]))], dtype=float),
                 render_context=context,
-            )
+            )[0]
             for point in point_array
         ],
         dtype=float,
@@ -1277,28 +1277,19 @@ def test_matplotlib_renderer_3d_uses_batched_projection_when_fitting_scene(
 
     assert hasattr(renderer, "_projected_display_points")
 
-    scalar_projection_calls = 0
     batched_projection_calls = 0
-    original_projected_display_point = renderer._projected_display_point
     original_projected_display_points = renderer._projected_display_points
-
-    def counting_projected_display_point(*args: object, **kwargs: object) -> np.ndarray:
-        nonlocal scalar_projection_calls
-        scalar_projection_calls += 1
-        return original_projected_display_point(*args, **kwargs)
 
     def counting_projected_display_points(*args: object, **kwargs: object) -> np.ndarray:
         nonlocal batched_projection_calls
         batched_projection_calls += 1
         return original_projected_display_points(*args, **kwargs)
 
-    monkeypatch.setattr(renderer, "_projected_display_point", counting_projected_display_point)
     monkeypatch.setattr(renderer, "_projected_display_points", counting_projected_display_points)
 
     renderer._fit_scene_to_shorter_canvas_dimension(axes, scene)
 
     assert batched_projection_calls >= 1
-    assert scalar_projection_calls == 0
     plt.close(figure)
 
 
