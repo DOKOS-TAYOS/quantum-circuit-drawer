@@ -33,6 +33,11 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_text_scaling_state,
     get_topology_menu_state,
 )
+from quantum_circuit_drawer.renderers._render_support import (
+    figure_backend_name,
+    normalize_backend_name,
+    show_figure_if_supported,
+)
 from quantum_circuit_drawer.style import DrawStyle
 from quantum_circuit_drawer.utils import format_visible_label
 from tests.support import (
