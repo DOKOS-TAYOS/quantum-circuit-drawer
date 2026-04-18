@@ -70,3 +70,11 @@ def uses_default_line_width(style: DrawStyle) -> bool:
     """Return whether ``style.line_width`` still comes from the library default."""
 
     return style._line_width_is_default
+
+
+def resolved_line_width(style: DrawStyle) -> float:
+    """Return a non-optional validated line width."""
+
+    line_width = style.line_width
+    assert line_width is not None
+    return float(line_width)

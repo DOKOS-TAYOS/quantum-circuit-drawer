@@ -59,7 +59,7 @@ from ._draw_managed_zoom import (
 from ._draw_pipeline import PreparedDrawPipeline
 from .renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
 from .style import DrawStyle
-from .style.defaults import replace_draw_style, uses_default_line_width
+from .style.defaults import replace_draw_style, resolved_line_width, uses_default_line_width
 from .typing import LayoutEngineLike, OutputPath
 
 if TYPE_CHECKING:
@@ -167,7 +167,9 @@ def render_managed_draw_pipeline(
             axes=axes,
         )
         slider_scene.style = frozen_style
-        scene_2d.style = replace_draw_style(scene_2d.style, line_width=frozen_style.line_width)
+        scene_2d.style = replace_draw_style(
+            scene_2d.style, line_width=resolved_line_width(frozen_style)
+        )
         if output is not None:
             pipeline.renderer.render(scene_2d, ax=axes, output=output)
             axes.clear()
@@ -555,7 +557,7 @@ def _adaptive_default_line_width(
         or scene.width <= 0.0
         or scene.height <= 0.0
     ):
-        return float(style.line_width)
+        return resolved_line_width(style)
 
     pixels_per_layout_unit_x = viewport_width_pixels / scene.width
     pixels_per_layout_unit_y = viewport_height_pixels / scene.height
@@ -563,8 +565,8 @@ def _adaptive_default_line_width(
     relative_scale = math.sqrt(
         max(0.2, visible_density / _ADAPTIVE_LINE_WIDTH_REFERENCE_PIXELS_PER_UNIT)
     )
-    resolved_line_width = float(style.line_width) * relative_scale
+    scaled_line_width = resolved_line_width(style) * relative_scale
     return min(
         _ADAPTIVE_LINE_WIDTH_MAX,
-        max(_ADAPTIVE_LINE_WIDTH_MIN, resolved_line_width),
+        max(_ADAPTIVE_LINE_WIDTH_MIN, scaled_line_width),
     )
