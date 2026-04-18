@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+import sys
+from enum import Enum
 
-__all__ = ["StrEnum"]
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:
+
+    class StrEnum(str, Enum):
+        """Fallback ``StrEnum`` implementation for Python versions < 3.11."""

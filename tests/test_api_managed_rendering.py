@@ -19,6 +19,11 @@ from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
+from quantum_circuit_drawer.renderers._render_support import (
+    figure_backend_name,
+    normalize_backend_name,
+    show_figure_if_supported,
+)
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_auto_paging_state,

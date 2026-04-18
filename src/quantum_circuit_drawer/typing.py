@@ -29,7 +29,6 @@ class LayoutEngineLike(Protocol):
     def compute(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
         """Compute a 2D drawable scene from circuit IR and validated style."""
 
-
 class LayoutEngine3DLike(Protocol):
     """Protocol for custom 3D layout engines accepted by the public API."""
 
