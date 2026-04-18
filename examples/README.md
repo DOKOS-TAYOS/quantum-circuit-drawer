@@ -30,6 +30,7 @@ Every script and `examples/run_demo.py` accepts the same main flags:
 - `--hover-matrix never|auto|always`: control when the tooltip shows a full matrix
 - `--hover-matrix-max-qubits <n>`: maximum gate width for full matrices in hover
 - `--hover-show-size`: also include the visual gate size in the tooltip
+- `--figsize <width> <height>`: override the managed demo window size
 - `--output <path>`: save the figure too
 - `--no-show`: render without opening the Matplotlib window
 
@@ -40,7 +41,9 @@ Notes:
 - `--mode slider` is only available in 2D.
 - Hover is enabled by default in both 2D and 3D when the Matplotlib backend is interactive.
 - By default, hover tooltips show gate name, matrix dimensions, and affected qubits, and they add the full matrix automatically for small gates.
+- The shared demo window now opens at `10 x 5.5` inches by default; use `--figsize` when you want a larger or smaller managed figure.
 - The 3D examples still use routed connections to show the topology engine better.
+- When you open a 3D demo, the topology selector is enabled automatically so you can switch chip layouts without rerunning the command.
 - On native Windows, Cirq and PennyLane demos now avoid eager exact-matrix extraction by default to improve startup. Use `--hover-matrix always` only when you specifically want exact framework matrices, and prefer WSL or Linux if those frameworks are still unstable in your environment.
 
 ## Requirements
@@ -131,7 +134,7 @@ CUDA-Q remains Linux or WSL oriented:
 
 ## 3D topology recipes
 
-Use `--view 3d --mode pages` with the topology that matches the wire count you want to inspect best.
+Use `--view 3d --mode pages` with the topology that matches the wire count you want to inspect best. Once the figure is open, you can switch to any other supported topology from the built-in selector.
 
 ```powershell
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 12 --columns 12 --view 3d --topology line

@@ -123,7 +123,7 @@ def test_demo_style_scales_with_columns_and_clamps() -> None:
     }
     assert demo_style(columns=20)["max_page_width"] > 8.5
     assert demo_style(columns=80)["max_page_width"] == 12.0
-    assert DEFAULT_DEMO_FIGSIZE == (14.0, 8.0)
+    assert DEFAULT_DEMO_FIGSIZE == (10.0, 5.5)
 
 
 def test_build_render_options_enables_hover_in_2d() -> None:
@@ -140,7 +140,7 @@ def test_build_render_options_enables_hover_in_2d() -> None:
         seed=7,
         output=None,
         show=True,
-        figsize=(14.0, 8.0),
+        figsize=(10.0, 5.5),
         hover=True,
         hover_matrix="always",
         hover_matrix_max_qubits=1,
@@ -154,6 +154,41 @@ def test_build_render_options_enables_hover_in_2d() -> None:
             show_matrix="always",
             matrix_max_qubits=1,
         )
+    }
+
+
+def test_build_render_options_enables_topology_menu_in_3d() -> None:
+    from examples._shared import ExampleRequest, build_render_options
+
+    from quantum_circuit_drawer import HoverOptions
+
+    request = ExampleRequest(
+        qubits=8,
+        columns=10,
+        mode="pages",
+        view="3d",
+        topology="grid",
+        seed=7,
+        output=None,
+        show=True,
+        figsize=(10.0, 5.5),
+        hover=True,
+        hover_matrix="always",
+        hover_matrix_max_qubits=1,
+        hover_show_size=True,
+    )
+
+    assert build_render_options(request) == {
+        "hover": HoverOptions(
+            enabled=True,
+            show_size=True,
+            show_matrix="always",
+            matrix_max_qubits=1,
+        ),
+        "view": "3d",
+        "topology": "grid",
+        "topology_menu": True,
+        "direct": False,
     }
 
 
@@ -179,6 +214,7 @@ def test_render_example_draws_and_reports_saved_output(
         page_slider: bool = False,
         view: str = "2d",
         topology: str = "line",
+        topology_menu: bool = False,
         direct: bool = True,
         hover: object = False,
         figsize: tuple[float, float] | None = None,
@@ -194,6 +230,7 @@ def test_render_example_draws_and_reports_saved_output(
                 "page_slider": page_slider,
                 "view": view,
                 "topology": topology,
+                "topology_menu": topology_menu,
                 "direct": direct,
                 "hover": hover,
                 "figsize": figsize,
@@ -241,6 +278,7 @@ def test_render_example_draws_and_reports_saved_output(
             "page_slider": False,
             "view": "3d",
             "topology": "grid",
+            "topology_menu": True,
             "direct": False,
             "hover": HoverOptions(),
             "figsize": (9.0, 3.5),
@@ -296,7 +334,7 @@ def test_render_example_disables_explicit_matrices_for_cirq_on_windows(
         seed=7,
         output=None,
         show=False,
-        figsize=(14.0, 8.0),
+        figsize=(10.0, 5.5),
         hover=True,
         hover_matrix="auto",
         hover_matrix_max_qubits=2,
@@ -354,7 +392,7 @@ def test_render_example_keeps_explicit_matrices_for_windows_hover_matrix_always(
         seed=7,
         output=None,
         show=False,
-        figsize=(14.0, 8.0),
+        figsize=(10.0, 5.5),
         hover=True,
         hover_matrix="always",
         hover_matrix_max_qubits=2,
@@ -383,7 +421,7 @@ def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.Monk
         seed=11,
         output=None,
         show=False,
-        figsize=(14.0, 8.0),
+        figsize=(10.0, 5.5),
         hover=True,
         hover_matrix="auto",
         hover_matrix_max_qubits=2,

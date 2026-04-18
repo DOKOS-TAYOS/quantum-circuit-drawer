@@ -83,7 +83,7 @@ def test_run_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
             seed=7,
             output=None,
             show=False,
-            figsize=(14.0, 8.0),
+            figsize=(10.0, 5.5),
             hover=True,
             hover_matrix="auto",
             hover_matrix_max_qubits=2,
@@ -236,7 +236,7 @@ def test_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         run_demo_module,
         "parse_args",
-        lambda: Namespace(list=False, demo=None, output=None, show=True, figsize=(14.0, 8.0)),
+        lambda: Namespace(list=False, demo=None, output=None, show=True, figsize=(10.0, 5.5)),
     )
 
     with pytest.raises(SystemExit, match="Choose one demo with --demo or use --list"):
@@ -534,7 +534,7 @@ def test_optional_demo_builders_return_real_framework_objects(
         seed=7,
         output=None,
         show=False,
-        figsize=(14.0, 8.0),
+        figsize=(10.0, 5.5),
         hover=True,
         hover_matrix="auto",
         hover_matrix_max_qubits=2,

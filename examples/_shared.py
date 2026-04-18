@@ -30,7 +30,7 @@ SUPPORTED_TOPOLOGIES: tuple[TopologyMode, ...] = (
     "star_tree",
     "honeycomb",
 )
-DEFAULT_DEMO_FIGSIZE = (14.0, 8.0)
+DEFAULT_DEMO_FIGSIZE = (10.0, 5.5)
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,6 +275,7 @@ def build_render_options(request: ExampleRequest) -> dict[str, object]:
         {
             "view": "3d",
             "topology": request.topology,
+            "topology_menu": True,
             "direct": False,
         }
     )
