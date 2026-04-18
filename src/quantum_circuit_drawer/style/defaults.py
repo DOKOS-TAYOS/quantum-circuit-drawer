@@ -4,10 +4,34 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from numbers import Real
+from typing import TypedDict, Unpack
 
 from .theme import DrawTheme, resolve_theme
 
 DEFAULT_LINE_WIDTH = 1.6
+
+
+class DrawStyleChanges(TypedDict, total=False):
+    font_size: float
+    wire_spacing: float
+    layer_spacing: float
+    gate_width: float
+    gate_height: float
+    line_width: float | None
+    control_radius: float
+    show_params: bool
+    show_wire_labels: bool
+    use_mathtext: bool
+    theme: DrawTheme
+    margin_left: float
+    margin_right: float
+    margin_top: float
+    margin_bottom: float
+    label_margin: float
+    classical_wire_gap: float
+    swap_marker_size: float
+    max_page_width: float
+    page_vertical_gap: float
 
 
 @dataclass(slots=True)
@@ -49,10 +73,13 @@ class DrawStyle:
         self._line_width_is_default = False
 
 
-def replace_draw_style(style: DrawStyle, /, **changes: object) -> DrawStyle:
+def replace_draw_style(style: DrawStyle, /, **changes: Unpack[DrawStyleChanges]) -> DrawStyle:
     """Return a ``DrawStyle`` replacement while preserving line-width provenance."""
 
-    line_width_change = changes.get("line_width", style.line_width)
+    if "line_width" in changes:
+        line_width_change = changes["line_width"]
+    else:
+        line_width_change = style.line_width
     if line_width_change is None:
         changes["line_width"] = DEFAULT_LINE_WIDTH
         line_width_is_default = True
