@@ -4,6 +4,7 @@ import pytest
 
 from quantum_circuit_drawer.exceptions import StyleValidationError
 from quantum_circuit_drawer.style import DrawStyle, normalize_style
+from quantum_circuit_drawer.style.defaults import DEFAULT_LINE_WIDTH, replace_draw_style
 from quantum_circuit_drawer.style.theme import DrawTheme, resolve_theme
 
 
@@ -67,6 +68,20 @@ def test_normalize_style_tracks_default_line_width_provenance() -> None:
     assert normalize_style(DrawStyle())._line_width_is_default is True
     assert normalize_style({"line_width": 1.6})._line_width_is_default is False
     assert normalize_style(DrawStyle(line_width=1.6))._line_width_is_default is False
+
+
+def test_replace_draw_style_resets_default_line_width_when_none_is_passed() -> None:
+    style = DrawStyle(line_width=2.0)
+
+    replaced = replace_draw_style(style, line_width=None)
+
+    assert replaced.line_width == pytest.approx(DEFAULT_LINE_WIDTH)
+    assert replaced._line_width_is_default is True
+
+
+def test_replace_draw_style_rejects_non_positive_line_width() -> None:
+    with pytest.raises(ValueError, match="line_width must be a positive number"):
+        replace_draw_style(DrawStyle(), line_width=0.0)
 
 
 def test_resolve_theme_accepts_theme_instances_and_rejects_unknown_names() -> None:
