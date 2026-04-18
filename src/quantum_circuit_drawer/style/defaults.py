@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from numbers import Real
-from typing import Any, cast
 
 from .theme import DrawTheme, resolve_theme
 
@@ -62,7 +61,7 @@ def replace_draw_style(style: DrawStyle, /, **changes: object) -> DrawStyle:
     else:
         line_width_is_default = False if "line_width" in changes else style._line_width_is_default
 
-    replaced_style = replace(style, **cast("dict[str, Any]", changes))
+    replaced_style = replace(style, **changes)
     replaced_style._line_width_is_default = line_width_is_default
     return replaced_style
 
