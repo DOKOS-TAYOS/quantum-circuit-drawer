@@ -3,6 +3,7 @@ from __future__ import annotations
 import warnings
 from pathlib import Path
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -295,7 +296,7 @@ def test_draw_quantum_circuit_3d_keeps_interactive_canvas_for_hidden_hover_rende
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_attaches_topology_menu_state_for_managed_interactive_3d(
+def test_draw_quantum_circuit_attaches_lower_left_dark_topology_radio_panel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
@@ -313,6 +314,21 @@ def test_draw_quantum_circuit_attaches_topology_menu_state_for_managed_interacti
     assert menu_state is not None
     assert menu_state.active_topology == "line"
     assert menu_state.valid_topologies == ("line", "star")
+    assert menu_state.menu_axes is not None
+    assert menu_state.radio is not None
+    assert tuple(menu_state.menu_axes.get_position().bounds) == pytest.approx(
+        (0.035, 0.06, 0.2, 0.24),
+        abs=1e-3,
+    )
+    assert menu_state.menu_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#111827"))
+    assert menu_state.radio.value_selected == "line"
+    assert [label.get_text() for label in menu_state.radio.labels] == [
+        "line",
+        "grid",
+        "star",
+        "star_tree",
+        "honeycomb",
+    ]
     plt.close(figure)
 
 
@@ -377,6 +393,31 @@ def test_topology_menu_keeps_invalid_topologies_visible_but_disabled(
     menu_state.select_topology("grid")
 
     assert menu_state.active_topology == "line"
+    plt.close(figure)
+
+
+def test_topology_menu_reverts_invalid_radio_selection_to_active_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, _ = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+    )
+    menu_state = get_topology_menu_state(figure)
+
+    assert menu_state is not None
+    assert menu_state.radio is not None
+
+    menu_state.select_topology("grid")
+
+    assert menu_state.active_topology == "line"
+    assert menu_state.radio.value_selected == "line"
+    assert menu_state.radio.labels[1].get_color() != menu_state.radio.labels[0].get_color()
     plt.close(figure)
 
 

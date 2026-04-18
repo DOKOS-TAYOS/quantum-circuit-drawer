@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from matplotlib.axes import Axes
-from matplotlib.text import Text
-from matplotlib.widgets import Button
+from matplotlib.widgets import RadioButtons
 
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
 from .layout.topology_3d import TopologyName, build_topology
@@ -29,23 +28,19 @@ _ALL_TOPOLOGIES: tuple[TopologyName, ...] = (
     "star_tree",
     "honeycomb",
 )
-_ACTIVE_BUTTON_COLOR = "#1d4ed8"
+_ACTIVE_ACCENT_COLOR = "#1d4ed8"
 _ACTIVE_BORDER_COLOR = "#bfdbfe"
-_ACTIVE_TEXT_COLOR = "#ffffff"
-_ENABLED_BUTTON_COLOR = "#111827"
-_ENABLED_BORDER_COLOR = "#6b7280"
+_MENU_PANEL_COLOR = "#111827"
+_MENU_PANEL_BORDER_COLOR = "#9ca3af"
+_ENABLED_BORDER_COLOR = "#e5e7eb"
 _ENABLED_TEXT_COLOR = "#f3f4f6"
-_DISABLED_BUTTON_COLOR = "#0f172a"
-_DISABLED_BORDER_COLOR = "#1f2937"
+_DISABLED_BORDER_COLOR = "#4b5563"
 _DISABLED_TEXT_COLOR = "#64748b"
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
-_MENU_MAIN_AXES_BOUNDS = (0.0, 0.0, 0.8, 1.0)
-_MENU_TITLE_POSITION = (0.88, 0.92)
-_MENU_BUTTON_LEFT = 0.82
-_MENU_BUTTON_WIDTH = 0.15
-_MENU_BUTTON_HEIGHT = 0.075
-_MENU_BUTTON_GAP = 0.018
-_MENU_BUTTON_START_BOTTOM = 0.79
+_MENU_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
+_MENU_PANEL_BOUNDS = (0.035, 0.06, 0.2, 0.24)
+_MENU_LABEL_FONT_SIZE = 11.0
+_MENU_RADIO_MARKER_SIZE = 90.0
 
 
 @dataclass(slots=True)
@@ -59,9 +54,8 @@ class TopologyMenuState:
     active_topology: TopologyName
     valid_topologies: tuple[TopologyName, ...]
     topologies: tuple[TopologyName, ...] = _ALL_TOPOLOGIES
-    buttons: dict[TopologyName, Button] = field(default_factory=dict)
-    button_axes: dict[TopologyName, Axes] = field(default_factory=dict)
-    title_artist: Text | None = None
+    menu_axes: Axes | None = None
+    radio: RadioButtons | None = None
 
     def is_enabled(self, topology: TopologyName) -> bool:
         """Return whether the requested topology is available for this circuit."""
@@ -72,7 +66,8 @@ class TopologyMenuState:
         """Switch to a new valid topology and redraw the managed 3D axes."""
 
         if not self.is_enabled(topology) or topology == self.active_topology:
-            _refresh_button_styles(self)
+            _set_radio_selection(self, self.active_topology)
+            _refresh_radio_styles(self)
             canvas = getattr(self.figure, "canvas", None)
             if canvas is not None:
                 canvas.draw_idle()
@@ -89,7 +84,8 @@ class TopologyMenuState:
         self.axes.set_position(_MENU_MAIN_AXES_BOUNDS)
         setattr(self.axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, _MENU_MAIN_AXES_BOUNDS)
         self.pipeline.renderer.render(updated_scene, ax=self.axes)
-        _refresh_button_styles(self)
+        _set_radio_selection(self, topology)
+        _refresh_radio_styles(self)
 
         canvas = getattr(self.figure, "canvas", None)
         if canvas is not None:
@@ -98,14 +94,13 @@ class TopologyMenuState:
     def remove(self) -> None:
         """Remove topology-menu artists from the figure."""
 
-        if self.title_artist is not None:
-            self.title_artist.remove()
-            self.title_artist = None
+        if self.radio is not None:
+            self.radio.disconnect_events()
+            self.radio = None
 
-        for button_axes in self.button_axes.values():
-            button_axes.remove()
-        self.button_axes.clear()
-        self.buttons.clear()
+        if self.menu_axes is not None:
+            self.menu_axes.remove()
+            self.menu_axes = None
 
 
 def attach_topology_menu(
@@ -132,70 +127,89 @@ def attach_topology_menu(
     )
     axes.set_position(_MENU_MAIN_AXES_BOUNDS)
     setattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, _MENU_MAIN_AXES_BOUNDS)
-    state.title_artist = figure.text(
-        _MENU_TITLE_POSITION[0],
-        _MENU_TITLE_POSITION[1],
-        "Topology",
-        ha="center",
-        va="center",
-        color=_ENABLED_TEXT_COLOR,
-        fontsize=10.0,
-        weight="bold",
+    state.menu_axes = figure.add_axes(_MENU_PANEL_BOUNDS)
+    _configure_menu_axes(state.menu_axes)
+    state.radio = RadioButtons(
+        state.menu_axes,
+        _ALL_TOPOLOGIES,
+        active=_ALL_TOPOLOGIES.index(active_topology),
+        activecolor=_ACTIVE_ACCENT_COLOR,
+        useblit=False,
     )
-
-    for index, topology_name in enumerate(_ALL_TOPOLOGIES):
-        button_bottom = _MENU_BUTTON_START_BOTTOM - (
-            index * (_MENU_BUTTON_HEIGHT + _MENU_BUTTON_GAP)
-        )
-        button_axes = figure.add_axes(
-            (
-                _MENU_BUTTON_LEFT,
-                button_bottom,
-                _MENU_BUTTON_WIDTH,
-                _MENU_BUTTON_HEIGHT,
-            )
-        )
-        button = Button(button_axes, topology_name)
-        button.on_clicked(lambda _event, selected=topology_name: state.select_topology(selected))
-        state.button_axes[topology_name] = button_axes
-        state.buttons[topology_name] = button
-
-    _refresh_button_styles(state)
+    state.radio.on_clicked(lambda selected: state.select_topology(cast("TopologyName", selected)))
+    _refresh_radio_styles(state)
     set_topology_menu_state(figure, state)
     return state
 
 
-def _refresh_button_styles(state: TopologyMenuState) -> None:
-    for topology_name, button in state.buttons.items():
+def _configure_menu_axes(menu_axes: Axes) -> None:
+    menu_axes.set_facecolor(_MENU_PANEL_COLOR)
+    menu_axes.set_xticks([])
+    menu_axes.set_yticks([])
+    menu_axes.set_navigate(False)
+    for spine in menu_axes.spines.values():
+        spine.set_visible(True)
+        spine.set_edgecolor(_MENU_PANEL_BORDER_COLOR)
+        spine.set_linewidth(1.0)
+
+
+def _refresh_radio_styles(state: TopologyMenuState) -> None:
+    if state.radio is None:
+        return
+
+    label_colors: list[str] = []
+    font_weights: list[str] = []
+    face_colors: list[str] = []
+    edge_colors: list[str] = []
+    line_widths: list[float] = []
+
+    for topology_name in state.topologies:
         enabled = state.is_enabled(topology_name)
         active = enabled and topology_name == state.active_topology
         if active:
-            facecolor = _ACTIVE_BUTTON_COLOR
-            border_color = _ACTIVE_BORDER_COLOR
-            text_color = _ACTIVE_TEXT_COLOR
-            hovercolor = _ACTIVE_BUTTON_COLOR
+            label_colors.append(_ENABLED_TEXT_COLOR)
+            font_weights.append("bold")
+            face_colors.append(_ACTIVE_ACCENT_COLOR)
+            edge_colors.append(_ACTIVE_BORDER_COLOR)
+            line_widths.append(1.8)
         elif enabled:
-            facecolor = _ENABLED_BUTTON_COLOR
-            border_color = _ENABLED_BORDER_COLOR
-            text_color = _ENABLED_TEXT_COLOR
-            hovercolor = "#1f2937"
+            label_colors.append(_ENABLED_TEXT_COLOR)
+            font_weights.append("normal")
+            face_colors.append("none")
+            edge_colors.append(_ENABLED_BORDER_COLOR)
+            line_widths.append(1.4)
         else:
-            facecolor = _DISABLED_BUTTON_COLOR
-            border_color = _DISABLED_BORDER_COLOR
-            text_color = _DISABLED_TEXT_COLOR
-            hovercolor = _DISABLED_BUTTON_COLOR
+            label_colors.append(_DISABLED_TEXT_COLOR)
+            font_weights.append("normal")
+            face_colors.append("none")
+            edge_colors.append(_DISABLED_BORDER_COLOR)
+            line_widths.append(1.2)
 
-        button.color = facecolor
-        button.hovercolor = hovercolor
-        button.ax.set_facecolor(facecolor)
-        button.label.set_color(text_color)
-        button.label.set_fontsize(9.0)
-        for spine in button.ax.spines.values():
-            spine.set_visible(True)
-            spine.set_edgecolor(border_color)
-            spine.set_linewidth(1.4 if active else 1.0)
-        button.ax.set_xticks([])
-        button.ax.set_yticks([])
+    state.radio.set_label_props(
+        {
+            "color": label_colors,
+            "fontsize": [_MENU_LABEL_FONT_SIZE] * len(label_colors),
+            "fontweight": font_weights,
+        }
+    )
+    state.radio.set_radio_props(
+        {
+            "s": [_MENU_RADIO_MARKER_SIZE] * len(edge_colors),
+            "facecolor": face_colors,
+            "edgecolor": edge_colors,
+            "linewidth": line_widths,
+        }
+    )
+
+
+def _set_radio_selection(state: TopologyMenuState, topology: TopologyName) -> None:
+    if state.radio is None:
+        return
+
+    eventson = state.radio.eventson
+    state.radio.eventson = False
+    state.radio.set_active(state.topologies.index(topology))
+    state.radio.eventson = eventson
 
 
 def _pipeline_for_topology(
