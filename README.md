@@ -1,3 +1,11 @@
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/Quantum_Circuit_Drawer_logo.png"
+    alt="Quantum Circuit Drawer — neon logo with a circuit-style atom icon and glowing typography (transparent background)"
+    width="640"
+  />
+</p>
+
 # quantum-circuit-drawer
 
 [![PyPI version](https://img.shields.io/pypi/v/quantum-circuit-drawer)](https://pypi.org/project/quantum-circuit-drawer/)
@@ -17,6 +25,17 @@ Quantum frameworks do not all expose the same drawing workflow. This project foc
 - save circuit diagrams for reports, notebooks, and documentation
 - draw into your own Matplotlib figures when you need larger layouts
 - use one typed API instead of several framework-specific drawing calls
+
+## Supported inputs
+
+| Input path | Install | Typical object | Notes |
+| --- | --- | --- | --- |
+| Internal IR | `python -m pip install quantum-circuit-drawer` | `CircuitIR` | Included in the base package |
+| Qiskit | `python -m pip install "quantum-circuit-drawer[qiskit]"` | `qiskit.QuantumCircuit` | Good default if you mainly use Qiskit |
+| Cirq | `python -m pip install "quantum-circuit-drawer[cirq]"` | `cirq.Circuit` | Works with explicit or automatic framework detection |
+| PennyLane | `python -m pip install "quantum-circuit-drawer[pennylane]"` | tape-like objects | Supports `QuantumTape`, `QuantumScript`, and wrappers exposing `.qtape` or `.tape` |
+| MyQLM | `python -m pip install "quantum-circuit-drawer[myqlm]"` | `qat.core.Circuit` | Convert from `Program().to_circ()` first |
+| CUDA-Q | `python -m pip install "quantum-circuit-drawer[cudaq]"` | closed CUDA-Q kernels | Linux or WSL2 oriented |
 
 ## Install
 
@@ -38,7 +57,7 @@ For notebooks, install Jupyter tools in the same environment:
 python -m pip install jupyter ipykernel
 ```
 
-See the full [installation guide](docs/installation.md) for Windows PowerShell commands, Linux/WSL commands, optional extras, CUDA-Q notes, and local editable installs.
+See the full [installation guide](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/installation.md) for Windows PowerShell commands, Linux/WSL commands, optional extras, CUDA-Q notes, and local editable installs.
 
 ## Basic usage
 
@@ -65,24 +84,24 @@ draw_quantum_circuit(circuit, output="bell.png", show=False)
 
 ## Documentation
 
-- [Documentation index](docs/index.md): the full map.
-- [Getting started](docs/getting-started.md): the shortest first successful example.
-- [Installation](docs/installation.md): virtual environments, extras, notebooks, and local installs.
-- [API reference](docs/api.md): `draw_quantum_circuit(...)`, style options, return values, and exceptions.
-- [User guide](docs/user-guide.md): workflows, examples, tips, 2D/3D views, sliders, and reports.
-- [Frameworks](docs/frameworks.md): Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR notes.
-- [Recipes](docs/recipes.md): copy-paste solutions for common tasks.
-- [Troubleshooting](docs/troubleshooting.md): common errors and fixes.
-- [Development](docs/development.md): local checks, build commands, and benchmark notes.
+- [Documentation index](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/index.md): the full map.
+- [Getting started](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/getting-started.md): the shortest first successful example.
+- [Installation](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/installation.md): virtual environments, extras, notebooks, and local installs.
+- [API reference](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/api.md): `draw_quantum_circuit(...)`, style options, return values, and exceptions.
+- [User guide](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/user-guide.md): workflows, examples, tips, 2D/3D views, sliders, and reports.
+- [Frameworks](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/frameworks.md): Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR notes.
+- [Recipes](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/recipes.md): copy-paste solutions for common tasks.
+- [Troubleshooting](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/troubleshooting.md): common errors and fixes.
+- [Development](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/docs/development.md): local checks, build commands, and benchmark notes.
 
-Runnable example scripts live in [`examples/`](examples/), with more detail in [`examples/README.md`](examples/README.md).
+Runnable example scripts live in [`examples/`](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/tree/main/examples), with more detail in [`examples/README.md`](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/examples/README.md).
 
 ## Project links
 
 - Repository: [github.com/DOKOS-TAYOS/quantum-circuit-drawer](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
 - Issue tracker: [github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues)
-- Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Changelog: [CHANGELOG.md](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/CHANGELOG.md)
 
 ## License
 
-This project is distributed under the [MIT License](LICENSE).
+This project is distributed under the [MIT License](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/LICENSE).

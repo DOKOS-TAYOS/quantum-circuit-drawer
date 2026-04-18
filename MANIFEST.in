@@ -1,1 +1,3 @@
 include THIRD_PARTY_LICENSES.md
+# README image URL maps to this path locally; setuptools would else add it to the sdist.
+prune docs/images
