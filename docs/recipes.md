@@ -147,7 +147,7 @@ Remember:
 
 - this only works when the library creates the figure
 - do not combine `page_slider=True` with `ax=...`
-- do not combine `page_slider=True` with `view="3d"`
+- in `view="3d"`, `page_slider=True` needs a tight `max_page_width` such as `4.0` or `6.0` if you want an actual column slider
 
 ## Save a wide circuit while keeping slider exploration
 

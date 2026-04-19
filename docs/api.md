@@ -58,7 +58,7 @@ from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 | `ax` | `None` | Existing Matplotlib axes to draw into |
 | `output` | `None` | File path where the rendered figure should be saved |
 | `show` | `True` | Whether to show a managed Matplotlib figure when the backend is interactive |
-| `page_slider` | `False` | Enable a horizontal slider for wide managed 2D figures |
+| `page_slider` | `False` | Enable managed interactive navigation: horizontal and/or vertical sliders in 2D, or a horizontal column slider in 3D |
 | `composite_mode` | `"compact"` | Use `"compact"` for one box, or `"expand"` for supported decompositions |
 | `view` | `"2d"` | Use `"2d"` or `"3d"` |
 | `topology` | `"line"` | 3D topology: `"line"`, `"grid"`, `"star"`, `"star_tree"`, or `"honeycomb"` |
@@ -165,11 +165,27 @@ Use a paper-friendly theme:
 draw_quantum_circuit(circuit, style={"theme": "paper"})
 ```
 
-Use a slider for a wide 2D circuit:
+Use sliders for a dense 2D circuit:
 
 ```python
 draw_quantum_circuit(
     circuit,
+    style={"max_page_width": 4.0},
+    page_slider=True,
+)
+```
+
+In 2D, the library shows only the sliders it needs for the current managed viewport:
+
+- bottom horizontal slider when the circuit is wider than the viewport
+- left vertical slider when the circuit is taller than the viewport
+
+Use a managed 3D column slider:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    view="3d",
     style={"max_page_width": 4.0},
     page_slider=True,
 )

@@ -38,7 +38,7 @@ Most users only need these options regularly:
 - `output="path.png"` to save a file
 - `ax=axes` to draw inside an existing Matplotlib figure
 - `style={...}` to change theme, spacing, labels, or pagination
-- `page_slider=True` for interactive wide 2D circuits
+- `page_slider=True` for managed interactive navigation in 2D or 3D
 - `view="3d"` for topology-aware 3D views
 - `composite_mode="expand"` when you want to inspect supported decompositions
 
@@ -141,7 +141,7 @@ For all accepted style fields, see [API reference](api.md#style-fields).
 
 ## Wide circuits
 
-Wide circuits can either wrap across pages or use an interactive horizontal slider.
+Wide circuits can either wrap across pages or use managed sliders.
 
 Wrapped rendering is controlled mainly by `max_page_width`:
 
@@ -153,7 +153,7 @@ draw_quantum_circuit(
 )
 ```
 
-Interactive scrolling uses `page_slider=True`:
+Interactive 2D navigation uses `page_slider=True`:
 
 ```python
 figure, axes = draw_quantum_circuit(
@@ -166,7 +166,8 @@ figure, axes = draw_quantum_circuit(
 Important rules:
 
 - `page_slider=True` requires a managed figure, so do not combine it with `ax=...`.
-- `page_slider=True` is currently 2D-only.
+- In 2D, the library shows a bottom slider, a left slider, or both, depending on which axis overflows.
+- In 3D, `page_slider=True` moves through circuit columns with a horizontal slider.
 - If you also pass `output=...`, the saved file uses the clean paged layout without the slider UI.
 
 Gate labels and subtitles in 2D also adapt to zoom. When you zoom into dense pages, gate text grows only as far as the visible gate body allows, so labels stay inside the box instead of becoming oversized.
@@ -214,6 +215,19 @@ draw_quantum_circuit(
     topology_menu=True,
     direct=False,
     hover=True,
+)
+```
+
+If the circuit is too deep to inspect comfortably in one view, combine the 3D controls:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    view="3d",
+    topology="grid",
+    topology_menu=True,
+    style={"max_page_width": 4.0},
+    page_slider=True,
 )
 ```
 
@@ -277,7 +291,7 @@ Supported user-facing framework names are covered in [Frameworks](frameworks.md)
 - Start with a small circuit and default settings before changing styles.
 - Use `show=False` in scripts, CI, and notebooks unless you explicitly want an interactive window.
 - Use `theme="paper"` for figures that will go into reports.
-- Use `page_slider=True` for exploration, then save a normal paged image with `output=...`.
+- Use `page_slider=True` for exploration, then save a clean figure with `output=...`.
 - Start 3D work with `topology="line"` before moving to stricter topology shapes.
 - Keep `framework=...` explicit in reusable code if different framework objects may flow through the same function.
 - Use [Recipes](recipes.md) when you need a quick pattern, and [Troubleshooting](troubleshooting.md) when an option combination fails.

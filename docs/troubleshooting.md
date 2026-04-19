@@ -118,7 +118,7 @@ draw_quantum_circuit(circuit, output="circuit.png", show=False)
 
 ## `page_slider=True` raises `ValueError`
 
-`page_slider=True` only works when the library manages a 2D figure.
+`page_slider=True` only works when the library manages the figure.
 
 Do this:
 
@@ -136,7 +136,16 @@ Do not combine it with `ax=...`:
 draw_quantum_circuit(circuit, ax=axes, page_slider=True)
 ```
 
-Also avoid combining it with `view="3d"`. The slider is currently a 2D-only feature.
+If you want a 3D column slider, keep the figure managed and use a smaller `max_page_width`, for example:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    view="3d",
+    style={"max_page_width": 4.0},
+    page_slider=True,
+)
+```
 
 ## `view="3d"` raises an axes error
 

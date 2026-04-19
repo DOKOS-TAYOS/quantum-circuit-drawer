@@ -8,10 +8,16 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.widgets import RadioButtons
 
+from ._draw_managed_slider import (
+    Managed3DPageSliderState,
+    apply_managed_3d_axes_bounds,
+    managed_3d_menu_bounds,
+)
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
 from .layout.topology_3d import TopologyName, build_topology
 from .renderers._matplotlib_figure import (
     clear_hover_state,
+    get_page_slider,
     set_topology_menu_state,
 )
 from .typing import LayoutEngine3DLike
@@ -36,9 +42,6 @@ _ENABLED_BORDER_COLOR = "#e5e7eb"
 _ENABLED_TEXT_COLOR = "#f3f4f6"
 _DISABLED_BORDER_COLOR = "#4b5563"
 _DISABLED_TEXT_COLOR = "#64748b"
-_MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
-_MENU_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
-_MENU_PANEL_BOUNDS = (0.035, 0.06, 0.2, 0.24)
 _MENU_LABEL_FONT_SIZE = 11.0
 _MENU_RADIO_MARKER_SIZE = 90.0
 
@@ -73,17 +76,23 @@ class TopologyMenuState:
                 canvas.draw_idle()
             return
 
-        updated_pipeline = _pipeline_for_topology(self.pipeline, topology)
-        updated_scene = cast("LayoutScene3D", updated_pipeline.paged_scene)
-        self.pipeline = updated_pipeline
-        self.scene = updated_scene
-        self.active_topology = topology
+        page_slider_state = get_page_slider(self.figure)
+        if isinstance(page_slider_state, Managed3DPageSliderState):
+            page_slider_state.select_topology(topology)
+            self.pipeline = page_slider_state.pipeline
+            self.scene = page_slider_state.current_scene
+            self.active_topology = topology
+        else:
+            updated_pipeline = _pipeline_for_topology(self.pipeline, topology)
+            updated_scene = cast("LayoutScene3D", updated_pipeline.paged_scene)
+            self.pipeline = updated_pipeline
+            self.scene = updated_scene
+            self.active_topology = topology
 
-        clear_hover_state(self.axes)
-        self.axes.clear()
-        self.axes.set_position(_MENU_MAIN_AXES_BOUNDS)
-        setattr(self.axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, _MENU_MAIN_AXES_BOUNDS)
-        self.pipeline.renderer.render(updated_scene, ax=self.axes)
+            clear_hover_state(self.axes)
+            self.axes.clear()
+            apply_managed_3d_axes_bounds(self.axes, has_page_slider=False)
+            self.pipeline.renderer.render(updated_scene, ax=self.axes)
         _set_radio_selection(self, topology)
         _refresh_radio_styles(self)
 
@@ -111,6 +120,7 @@ def attach_topology_menu(
 ) -> TopologyMenuState:
     """Attach a topology selector to an interactive managed 3D figure."""
 
+    page_slider_state = get_page_slider(figure)
     valid_topologies = tuple(
         topology_name
         for topology_name in _ALL_TOPOLOGIES
@@ -121,13 +131,23 @@ def attach_topology_menu(
         figure=figure,
         axes=axes,
         pipeline=pipeline,
-        scene=cast("LayoutScene3D", pipeline.paged_scene),
+        scene=(
+            page_slider_state.current_scene
+            if isinstance(page_slider_state, Managed3DPageSliderState)
+            else cast("LayoutScene3D", pipeline.paged_scene)
+        ),
         active_topology=active_topology,
         valid_topologies=valid_topologies,
     )
-    axes.set_position(_MENU_MAIN_AXES_BOUNDS)
-    setattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, _MENU_MAIN_AXES_BOUNDS)
-    state.menu_axes = figure.add_axes(_MENU_PANEL_BOUNDS)
+    apply_managed_3d_axes_bounds(
+        axes,
+        has_page_slider=isinstance(page_slider_state, Managed3DPageSliderState),
+    )
+    state.menu_axes = figure.add_axes(
+        managed_3d_menu_bounds(
+            has_page_slider=isinstance(page_slider_state, Managed3DPageSliderState)
+        )
+    )
     _configure_menu_axes(state.menu_axes)
     state.radio = RadioButtons(
         state.menu_axes,

@@ -1,14 +1,203 @@
-"""Page-slider helpers for managed 2D rendering."""
+"""Managed slider helpers for 2D and 3D rendering."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, cast
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from ._draw_managed_viewport import axes_viewport_pixels
+from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
+from .ir.circuit import CircuitIR
+from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from .layout.scene import LayoutScene
+from .layout.scene_3d import LayoutScene3D
+from .renderers._matplotlib_figure import clear_hover_state
+from .typing import LayoutEngine3DLike
+
+if TYPE_CHECKING:
+    from matplotlib.widgets import Slider
+
+    from .layout.topology_3d import TopologyName
+
+_VIEWPORT_EPSILON = 1e-6
+
+_MANAGED_2D_MAIN_AXES_BOUNDS = (0.02, 0.02, 0.96, 0.96)
+_MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_BOUNDS = (0.02, 0.18, 0.96, 0.8)
+_MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS = (0.12, 0.02, 0.86, 0.96)
+_MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS = (0.12, 0.18, 0.86, 0.8)
+_MANAGED_2D_HORIZONTAL_SLIDER_HEIGHT = 0.055
+_MANAGED_2D_HORIZONTAL_SLIDER_BOTTOM = 0.045
+_MANAGED_2D_VERTICAL_SLIDER_LEFT = 0.035
+_MANAGED_2D_VERTICAL_SLIDER_WIDTH = 0.055
+
+_MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
+_MANAGED_3D_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
+_MANAGED_3D_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.0, 0.14, 1.0, 0.86)
+_MANAGED_3D_SLIDER_BOUNDS = (0.18, 0.045, 0.72, 0.055)
+_MANAGED_3D_MENU_BOUNDS = (0.035, 0.06, 0.2, 0.24)
+_MANAGED_3D_MENU_BOUNDS_WITH_SLIDER = (0.035, 0.18, 0.2, 0.24)
+
+
+@dataclass(frozen=True, slots=True)
+class Managed2DSliderLayout:
+    """Resolved 2D slider layout and viewport geometry."""
+
+    main_axes_bounds: tuple[float, float, float, float]
+    horizontal_axes_bounds: tuple[float, float, float, float] | None
+    vertical_axes_bounds: tuple[float, float, float, float] | None
+    viewport_width: float
+    viewport_height: float
+
+    @property
+    def show_horizontal_slider(self) -> bool:
+        return self.horizontal_axes_bounds is not None
+
+    @property
+    def show_vertical_slider(self) -> bool:
+        return self.vertical_axes_bounds is not None
+
+
+@dataclass(slots=True)
+class Managed2DPageSliderState:
+    """Typed 2D managed-slider state attached to the figure metadata."""
+
+    horizontal_slider: Slider | None
+    vertical_slider: Slider | None
+    horizontal_axes: Axes | None
+    vertical_axes: Axes | None
+    x_offset: float
+    y_offset: float
+    viewport_width: float
+    viewport_height: float
+
+
+@dataclass(slots=True)
+class Managed3DPageSliderState:
+    """Typed 3D managed-slider state attached to the figure metadata."""
+
+    figure: Figure
+    axes: Axes
+    pipeline: PreparedDrawPipeline
+    current_scene: LayoutScene3D
+    horizontal_slider: Slider | None
+    horizontal_axes: Axes | None
+    start_column: int
+    window_size: int
+    max_start_column: int
+    scene_cache: dict[int, LayoutScene3D] = field(default_factory=dict)
+    vertical_slider: Slider | None = None
+    vertical_axes: Axes | None = None
+
+    def show_start_column(self, start_column: int) -> None:
+        """Render the requested 3D column window on the managed axes."""
+
+        resolved_start_column = min(max(0, start_column), self.max_start_column)
+        scene = self._scene_for_start_column(resolved_start_column)
+        self.start_column = resolved_start_column
+        self.current_scene = scene
+
+        clear_hover_state(self.axes)
+        self.axes.clear()
+        apply_managed_3d_axes_bounds(self.axes, has_page_slider=self.horizontal_slider is not None)
+        self.pipeline.renderer.render(scene, ax=self.axes)
+
+        canvas = getattr(self.figure, "canvas", None)
+        if canvas is not None:
+            canvas.draw_idle()
+
+    def select_topology(self, topology: TopologyName) -> None:
+        """Switch topology while keeping the current column window."""
+
+        updated_draw_options = replace(self.pipeline.draw_options, topology=topology)
+        self.pipeline = replace(self.pipeline, draw_options=updated_draw_options)
+        self.scene_cache.clear()
+        self.show_start_column(self.start_column)
+
+    def _scene_for_start_column(self, start_column: int) -> LayoutScene3D:
+        cached_scene = self.scene_cache.get(start_column)
+        if cached_scene is not None:
+            return cached_scene
+
+        windowed_circuit = circuit_window(
+            self.pipeline.ir,
+            start_column=start_column,
+            window_size=self.window_size,
+        )
+        scene = _compute_3d_scene(
+            cast("LayoutEngine3DLike", self.pipeline.layout_engine),
+            windowed_circuit,
+            self.pipeline.normalized_style,
+            topology_name=self.pipeline.draw_options.topology,
+            direct=self.pipeline.draw_options.direct,
+            hover_enabled=self.pipeline.draw_options.hover.enabled,
+        )
+        self.scene_cache[start_column] = scene
+        return scene
+
+
+def prepare_page_slider_layout(axes: Axes, scene: LayoutScene) -> Managed2DSliderLayout:
+    """Resolve the 2D slider viewport and control placement for one axes."""
+
+    candidate_layouts: list[tuple[int, float, Managed2DSliderLayout]] = []
+    for show_horizontal_slider, show_vertical_slider in (
+        (False, False),
+        (True, False),
+        (False, True),
+        (True, True),
+    ):
+        main_axes_bounds = _apply_2d_main_axes_bounds(
+            axes,
+            show_horizontal_slider=show_horizontal_slider,
+            show_vertical_slider=show_vertical_slider,
+        )
+        viewport_width, viewport_height = slider_viewport_size(axes, scene)
+        needs_horizontal_slider = scene.width - viewport_width > _VIEWPORT_EPSILON
+        needs_vertical_slider = scene.height - viewport_height > _VIEWPORT_EPSILON
+        if not show_horizontal_slider and needs_horizontal_slider:
+            continue
+        if not show_vertical_slider and needs_vertical_slider:
+            continue
+        layout = Managed2DSliderLayout(
+            main_axes_bounds=main_axes_bounds,
+            horizontal_axes_bounds=(
+                _horizontal_slider_bounds(main_axes_bounds) if show_horizontal_slider else None
+            ),
+            vertical_axes_bounds=(
+                _vertical_slider_bounds(main_axes_bounds) if show_vertical_slider else None
+            ),
+            viewport_width=viewport_width,
+            viewport_height=viewport_height,
+        )
+        slider_count = int(show_horizontal_slider) + int(show_vertical_slider)
+        visible_area = viewport_width * viewport_height
+        candidate_layouts.append((slider_count, -visible_area, layout))
+
+    if not candidate_layouts:
+        main_axes_bounds = _apply_2d_main_axes_bounds(
+            axes,
+            show_horizontal_slider=True,
+            show_vertical_slider=True,
+        )
+        viewport_width, viewport_height = slider_viewport_size(axes, scene)
+        return Managed2DSliderLayout(
+            main_axes_bounds=main_axes_bounds,
+            horizontal_axes_bounds=_horizontal_slider_bounds(main_axes_bounds),
+            vertical_axes_bounds=_vertical_slider_bounds(main_axes_bounds),
+            viewport_width=viewport_width,
+            viewport_height=viewport_height,
+        )
+
+    _, _, selected_layout = min(candidate_layouts)
+    _apply_2d_main_axes_bounds(
+        axes,
+        show_horizontal_slider=selected_layout.show_horizontal_slider,
+        show_vertical_slider=selected_layout.show_vertical_slider,
+    )
+    return selected_layout
 
 
 def configure_page_slider(
@@ -18,50 +207,113 @@ def configure_page_slider(
     scene: LayoutScene,
     viewport_width: float,
     set_page_slider: Callable[[Figure, object], None],
+    viewport_height: float | None = None,
+    layout: Managed2DSliderLayout | None = None,
 ) -> None:
-    """Attach and wire a slider that scrolls the rendered circuit horizontally."""
+    """Attach and wire sliders that scroll the rendered 2D circuit."""
 
-    max_scroll = max(0.0, scene.width - viewport_width)
-    if max_scroll <= 0.0:
+    resolved_layout = layout or prepare_page_slider_layout(axes, scene)
+    resolved_viewport_width = (
+        resolved_layout.viewport_width if layout is not None else viewport_width
+    )
+    resolved_viewport_height = (
+        resolved_layout.viewport_height
+        if layout is not None
+        else (scene.height if viewport_height is None else viewport_height)
+    )
+    max_scroll_x = max(0.0, scene.width - resolved_viewport_width)
+    max_scroll_y = max(0.0, scene.height - resolved_viewport_height)
+    if max_scroll_x <= 0.0 and max_scroll_y <= 0.0:
         return
 
     from matplotlib.widgets import Slider
 
-    slider_axes = figure.add_axes(
-        (0.12, 0.045, 0.76, 0.055),
-        facecolor=scene.style.theme.axes_facecolor,
+    state = Managed2DPageSliderState(
+        horizontal_slider=None,
+        vertical_slider=None,
+        horizontal_axes=None,
+        vertical_axes=None,
+        x_offset=0.0,
+        y_offset=0.0,
+        viewport_width=resolved_viewport_width,
+        viewport_height=resolved_viewport_height,
     )
-    slider = Slider(
-        ax=slider_axes,
-        label="Scroll",
-        valmin=0.0,
-        valmax=max_scroll,
-        valinit=0.0,
-        color=scene.style.theme.gate_edgecolor,
-        track_color=scene.style.theme.classical_wire_color,
-        handle_style={
-            "facecolor": scene.style.theme.accent_color,
-            "edgecolor": scene.style.theme.text_color,
-            "size": 16,
-        },
+    set_slider_view(
+        axes,
+        scene,
+        x_offset=state.x_offset,
+        y_offset=state.y_offset,
+        viewport_width=state.viewport_width,
+        viewport_height=state.viewport_height,
     )
-    slider.label.set_color(scene.style.theme.text_color)
-    slider.valtext.set_visible(False)
-    slider.track.set_y(0.12)
-    slider.track.set_height(0.76)
-    slider.track.set_alpha(0.45)
-    slider.poly.set_alpha(0.75)
-    slider.vline.set_linewidth(3.0)
 
-    set_slider_view(axes, scene, x_offset=0.0, viewport_width=viewport_width)
-
-    def update_scroll(x_offset: float) -> None:
-        set_slider_view(axes, scene, x_offset=x_offset, viewport_width=viewport_width)
+    def update_scroll(*, x_offset: float | None = None, y_offset: float | None = None) -> None:
+        if x_offset is not None:
+            state.x_offset = float(x_offset)
+        if y_offset is not None:
+            state.y_offset = float(y_offset)
+        set_slider_view(
+            axes,
+            scene,
+            x_offset=state.x_offset,
+            y_offset=state.y_offset,
+            viewport_width=state.viewport_width,
+            viewport_height=state.viewport_height,
+        )
         if figure.canvas is not None:
             figure.canvas.draw_idle()
 
-    slider.on_changed(update_scroll)
-    set_page_slider(figure, slider)
+    if max_scroll_x > 0.0 and resolved_layout.horizontal_axes_bounds is not None:
+        horizontal_axes = figure.add_axes(
+            resolved_layout.horizontal_axes_bounds,
+            facecolor=scene.style.theme.axes_facecolor,
+        )
+        horizontal_slider = Slider(
+            ax=horizontal_axes,
+            label="Scroll",
+            valmin=0.0,
+            valmax=max_scroll_x,
+            valinit=0.0,
+            color=scene.style.theme.gate_edgecolor,
+            track_color=scene.style.theme.classical_wire_color,
+            handle_style={
+                "facecolor": scene.style.theme.accent_color,
+                "edgecolor": scene.style.theme.text_color,
+                "size": 16,
+            },
+        )
+        _style_slider(horizontal_slider, text_color=scene.style.theme.text_color)
+        horizontal_slider.on_changed(lambda value: update_scroll(x_offset=float(value)))
+        state.horizontal_slider = horizontal_slider
+        state.horizontal_axes = horizontal_axes
+
+    if max_scroll_y > 0.0 and resolved_layout.vertical_axes_bounds is not None:
+        vertical_axes = figure.add_axes(
+            resolved_layout.vertical_axes_bounds,
+            facecolor=scene.style.theme.axes_facecolor,
+        )
+        vertical_slider = Slider(
+            ax=vertical_axes,
+            label="Scroll",
+            valmin=0.0,
+            valmax=max_scroll_y,
+            valinit=0.0,
+            valstep=max_scroll_y / max(1, int(round(max_scroll_y / 0.1))),
+            orientation="vertical",
+            color=scene.style.theme.gate_edgecolor,
+            track_color=scene.style.theme.classical_wire_color,
+            handle_style={
+                "facecolor": scene.style.theme.accent_color,
+                "edgecolor": scene.style.theme.text_color,
+                "size": 16,
+            },
+        )
+        _style_slider(vertical_slider, text_color=scene.style.theme.text_color)
+        vertical_slider.on_changed(lambda value: update_scroll(y_offset=float(value)))
+        state.vertical_slider = vertical_slider
+        state.vertical_axes = vertical_axes
+
+    set_page_slider(figure, state)
 
 
 def page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
@@ -72,14 +324,42 @@ def page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[flo
     return width, height
 
 
-def slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
-    """Estimate the visible scene width for the current axes aspect ratio."""
+def slider_viewport_size(axes: Axes, scene: LayoutScene) -> tuple[float, float]:
+    """Estimate the visible 2D viewport using equal X/Y scaling."""
 
     axes_width_pixels, axes_height_pixels = axes_viewport_pixels(axes)
     if axes_width_pixels <= 0.0 or axes_height_pixels <= 0.0:
-        return scene.width
-    viewport_width = scene.height * (axes_width_pixels / axes_height_pixels)
-    return min(scene.width, viewport_width)
+        return scene.width, scene.height
+    axes_ratio = axes_width_pixels / axes_height_pixels
+    full_height_viewport_width = min(scene.width, scene.height * axes_ratio)
+    uncapped_figure_width, uncapped_figure_height = page_slider_figsize(
+        full_height_viewport_width,
+        scene.height,
+    )
+    figure_width_inches, figure_height_inches = _figure_size_inches(axes.figure)
+    compact_scale = min(
+        1.0,
+        figure_width_inches / uncapped_figure_width if uncapped_figure_width > 0.0 else 1.0,
+        figure_height_inches / uncapped_figure_height if uncapped_figure_height > 0.0 else 1.0,
+    )
+    viewport_height = min(scene.height, scene.height * compact_scale)
+    viewport_width = viewport_height * axes_ratio
+    if viewport_width > scene.width:
+        viewport_width = scene.width
+        viewport_height = min(scene.height, viewport_width / axes_ratio)
+    return viewport_width, viewport_height
+
+
+def slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
+    """Estimate the visible scene width for the current slider viewport."""
+
+    return slider_viewport_size(axes, scene)[0]
+
+
+def slider_viewport_height(axes: Axes, scene: LayoutScene) -> float:
+    """Estimate the visible scene height for the current slider viewport."""
+
+    return slider_viewport_size(axes, scene)[1]
 
 
 def set_slider_view(
@@ -88,8 +368,201 @@ def set_slider_view(
     *,
     x_offset: float,
     viewport_width: float,
+    y_offset: float = 0.0,
+    viewport_height: float | None = None,
 ) -> None:
     """Set the 2D axes limits used for the slider viewport."""
 
-    axes.set_xlim(x_offset, x_offset + viewport_width)
-    axes.set_ylim(scene.height, 0.0)
+    resolved_viewport_height = scene.height if viewport_height is None else viewport_height
+    max_x_offset = max(0.0, scene.width - viewport_width)
+    max_y_offset = max(0.0, scene.height - resolved_viewport_height)
+    resolved_x_offset = min(max(0.0, x_offset), max_x_offset)
+    resolved_y_offset = min(max(0.0, y_offset), max_y_offset)
+    axes.set_xlim(resolved_x_offset, resolved_x_offset + viewport_width)
+    axes.set_ylim(resolved_y_offset + resolved_viewport_height, resolved_y_offset)
+
+
+def configure_3d_page_slider(
+    *,
+    figure: Figure,
+    axes: Axes,
+    pipeline: PreparedDrawPipeline,
+    set_page_slider: Callable[[Figure, object], None],
+) -> Managed3DPageSliderState | None:
+    """Attach and wire a managed 3D slider that moves through circuit columns."""
+
+    total_columns = len(pipeline.ir.layers)
+    window_size = page_slider_window_size(pipeline.ir, pipeline.normalized_style)
+    max_start_column = max(0, total_columns - window_size)
+    if max_start_column <= 0:
+        return None
+
+    from matplotlib.widgets import Slider
+
+    apply_managed_3d_axes_bounds(axes, has_page_slider=True)
+    slider_axes = figure.add_axes(_MANAGED_3D_SLIDER_BOUNDS)
+    state = Managed3DPageSliderState(
+        figure=figure,
+        axes=axes,
+        pipeline=pipeline,
+        current_scene=cast("LayoutScene3D", pipeline.paged_scene),
+        horizontal_slider=None,
+        horizontal_axes=slider_axes,
+        start_column=0,
+        window_size=window_size,
+        max_start_column=max_start_column,
+    )
+    initial_scene = state._scene_for_start_column(0)
+    state.current_scene = initial_scene
+
+    slider = Slider(
+        ax=slider_axes,
+        label="Columns",
+        valmin=0.0,
+        valmax=float(max_start_column),
+        valinit=0.0,
+        valstep=1.0,
+        color=initial_scene.style.theme.gate_edgecolor,
+        track_color=initial_scene.style.theme.classical_wire_color,
+        handle_style={
+            "facecolor": initial_scene.style.theme.accent_color,
+            "edgecolor": initial_scene.style.theme.text_color,
+            "size": 16,
+        },
+    )
+    _style_slider(slider, text_color=initial_scene.style.theme.text_color)
+    slider.on_changed(lambda value: state.show_start_column(int(round(float(value)))))
+    state.horizontal_slider = slider
+    set_page_slider(figure, state)
+    return state
+
+
+def page_slider_window_size(circuit: CircuitIR, style: object) -> int:
+    """Return the number of columns that fit in the first 2D page budget."""
+
+    paging_inputs = build_layout_paging_inputs(circuit, cast("object", style))
+    metrics = paged_scene_metrics_for_width(
+        paging_inputs,
+        max_page_width=float(getattr(style, "max_page_width")),
+    )
+    if not metrics.pages:
+        return max(1, len(circuit.layers))
+    first_page = metrics.pages[0]
+    return max(1, first_page.end_column - first_page.start_column + 1)
+
+
+def circuit_window(
+    circuit: CircuitIR,
+    *,
+    start_column: int,
+    window_size: int,
+) -> CircuitIR:
+    """Return a new circuit containing only one contiguous layer window."""
+
+    end_column = min(len(circuit.layers), start_column + window_size)
+    return CircuitIR(
+        quantum_wires=circuit.quantum_wires,
+        classical_wires=circuit.classical_wires,
+        layers=tuple(circuit.layers[start_column:end_column]),
+        name=circuit.name,
+        metadata=dict(circuit.metadata),
+    )
+
+
+def managed_3d_axes_bounds(*, has_page_slider: bool) -> tuple[float, float, float, float]:
+    """Return the managed 3D axes bounds for the active control layout."""
+
+    if has_page_slider:
+        return _MANAGED_3D_MAIN_AXES_WITH_SLIDER_BOUNDS
+    return _MANAGED_3D_MAIN_AXES_BOUNDS
+
+
+def managed_3d_menu_bounds(*, has_page_slider: bool) -> tuple[float, float, float, float]:
+    """Return the managed 3D topology-menu bounds for the active control layout."""
+
+    if has_page_slider:
+        return _MANAGED_3D_MENU_BOUNDS_WITH_SLIDER
+    return _MANAGED_3D_MENU_BOUNDS
+
+
+def apply_managed_3d_axes_bounds(
+    axes: Axes,
+    *,
+    has_page_slider: bool,
+) -> tuple[float, float, float, float]:
+    """Apply the managed 3D main-axes bounds and store the viewport metadata."""
+
+    bounds = managed_3d_axes_bounds(has_page_slider=has_page_slider)
+    axes.set_position(bounds)
+    setattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, bounds)
+    return bounds
+
+
+def _apply_2d_main_axes_bounds(
+    axes: Axes,
+    *,
+    show_horizontal_slider: bool,
+    show_vertical_slider: bool,
+) -> tuple[float, float, float, float]:
+    if show_horizontal_slider and show_vertical_slider:
+        bounds = _MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS
+    elif show_horizontal_slider:
+        bounds = _MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_BOUNDS
+    elif show_vertical_slider:
+        bounds = _MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS
+    else:
+        bounds = _MANAGED_2D_MAIN_AXES_BOUNDS
+    axes.set_position(bounds)
+    return bounds
+
+
+def _horizontal_slider_bounds(
+    main_axes_bounds: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    left, _, width, _ = main_axes_bounds
+    return (
+        max(0.08, left),
+        _MANAGED_2D_HORIZONTAL_SLIDER_BOTTOM,
+        min(width, 0.88 - max(0.08, left) + 0.08),
+        _MANAGED_2D_HORIZONTAL_SLIDER_HEIGHT,
+    )
+
+
+def _vertical_slider_bounds(
+    main_axes_bounds: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    _, bottom, _, height = main_axes_bounds
+    return (
+        _MANAGED_2D_VERTICAL_SLIDER_LEFT,
+        bottom,
+        _MANAGED_2D_VERTICAL_SLIDER_WIDTH,
+        height,
+    )
+
+
+def _style_slider(slider: Slider, *, text_color: str) -> None:
+    slider.label.set_color(text_color)
+    slider.valtext.set_visible(False)
+    if hasattr(slider, "track"):
+        slider.track.set_alpha(0.45)
+        if hasattr(slider.track, "set_y"):
+            slider.track.set_y(0.12)
+        if hasattr(slider.track, "set_height"):
+            slider.track.set_height(0.76)
+        if hasattr(slider.track, "set_x"):
+            slider.track.set_x(0.12)
+        if hasattr(slider.track, "set_width"):
+            slider.track.set_width(0.76)
+    if hasattr(slider, "poly"):
+        slider.poly.set_alpha(0.75)
+    if hasattr(slider, "vline"):
+        slider.vline.set_linewidth(3.0)
+
+
+def _figure_size_inches(figure: object) -> tuple[float, float]:
+    if hasattr(figure, "get_size_inches"):
+        size_inches = getattr(figure, "get_size_inches")()
+        return float(size_inches[0]), float(size_inches[1])
+    parent_figure = getattr(figure, "figure")
+    size_inches = parent_figure.get_size_inches()
+    return float(size_inches[0]), float(size_inches[1])

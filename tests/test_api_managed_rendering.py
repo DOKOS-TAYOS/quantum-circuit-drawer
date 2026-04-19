@@ -490,12 +490,14 @@ def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_fi
     )
 
     page_slider = get_page_slider(figure)
-    slider_axes = figure.axes[1]
+    assert page_slider is not None
+    slider_axes = page_slider.horizontal_axes
+    assert slider_axes is not None
     _, slider_bottom, _, slider_height = slider_axes.get_position().bounds
 
-    assert page_slider is not None
     assert len(figure.axes) == 2
-    assert figure.subplotpars.bottom > 0.17
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.vertical_slider is None
     assert slider_bottom < 0.1
     assert slider_height > 0.05
     assert axes.get_xlim()[0] == pytest.approx(0.0)
@@ -504,7 +506,9 @@ def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_fi
     assert axes.get_ylim() == pytest.approx((long_scene.height, 0.0))
     initial_viewport_width = axes.get_xlim()[1] - axes.get_xlim()[0]
 
-    page_slider.set_val(page_slider.valmax)
+    horizontal_slider = page_slider.horizontal_slider
+    assert horizontal_slider is not None
+    horizontal_slider.set_val(horizontal_slider.valmax)
 
     assert axes.get_xlim() == pytest.approx(
         (long_scene.width - initial_viewport_width, long_scene.width)
@@ -633,9 +637,9 @@ def test_draw_quantum_circuit_page_slider_uses_more_horizontal_space_for_taller_
     left, _, width, _ = axes.get_position().bounds
     right_gap = 1.0 - (left + width)
 
-    assert width > 0.9
-    assert left < 0.04
-    assert right_gap < 0.04
+    assert width > 0.84
+    assert left < 0.13
+    assert right_gap < 0.03
 
     plt.close(figure)
 
@@ -714,10 +718,12 @@ def test_draw_quantum_circuit_page_slider_keeps_text_size_stable_after_redraw() 
     page_slider = get_page_slider(figure)
 
     assert page_slider is not None
+    horizontal_slider = page_slider.horizontal_slider
+    assert horizontal_slider is not None
 
     figure.canvas.draw()
     initial_font_size = _font_size_by_text(axes, "RX\n0.5")
-    page_slider.set_val(page_slider.valmax / 2.0)
+    horizontal_slider.set_val(horizontal_slider.valmax / 2.0)
     figure.canvas.draw()
     resized_font_size = _font_size_by_text(axes, "RX\n0.5")
 
@@ -953,6 +959,127 @@ def test_draw_quantum_circuit_page_slider_skips_auto_paging_state() -> None:
     )
 
     assert get_auto_paging_state(axes) is None
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=2, wire_count=24),
+        style={"max_page_width": 12.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is None
+    assert page_slider.vertical_slider is not None
+    assert page_slider.vertical_axes is not None
+    assert len(figure.axes) == 2
+
+    initial_ylim = axes.get_ylim()
+    vertical_slider = page_slider.vertical_slider
+    assert vertical_slider is not None
+
+    vertical_slider.set_val(vertical_slider.valmax)
+
+    assert axes.get_xlim()[0] == pytest.approx(0.0)
+    assert axes.get_ylim()[0] > initial_ylim[0]
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dense_managed_figures() -> (
+    None
+):
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.vertical_slider is not None
+    assert page_slider.horizontal_axes is not None
+    assert page_slider.vertical_axes is not None
+    assert len(figure.axes) == 3
+
+    initial_xlim = axes.get_xlim()
+    initial_ylim = axes.get_ylim()
+    horizontal_slider = page_slider.horizontal_slider
+    vertical_slider = page_slider.vertical_slider
+    assert horizontal_slider is not None
+    assert vertical_slider is not None
+
+    horizontal_slider.set_val(horizontal_slider.valmax)
+    vertical_slider.set_val(vertical_slider.valmax)
+
+    assert axes.get_xlim()[0] > initial_xlim[0]
+    assert axes.get_ylim()[0] > initial_ylim[0]
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_adds_managed_3d_page_slider_for_column_navigation() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=12, wire_count=4),
+        view="3d",
+        topology="line",
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert axes.figure is figure
+    assert page_slider is not None
+    assert page_slider.window_size < 12
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.vertical_slider is None
+    assert page_slider.start_column == 0
+
+    horizontal_slider = page_slider.horizontal_slider
+    assert horizontal_slider is not None
+    horizontal_slider.set_val(horizontal_slider.valmax)
+
+    assert page_slider.start_column == page_slider.max_start_column
+    assert page_slider.start_column in page_slider.scene_cache
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_3d_page_slider_keeps_window_when_switching_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=12, wire_count=4),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        style={"max_page_width": 4.0},
+        page_slider=True,
+    )
+    page_slider = get_page_slider(figure)
+    menu_state = get_topology_menu_state(figure)
+
+    assert page_slider is not None
+    assert menu_state is not None
+    horizontal_slider = page_slider.horizontal_slider
+    assert horizontal_slider is not None
+
+    horizontal_slider.set_val(min(horizontal_slider.valmax, 2.0))
+    preserved_start_column = page_slider.start_column
+    menu_state.select_topology("grid")
+
+    assert menu_state.axes is axes
+    assert page_slider.start_column == preserved_start_column
+    assert page_slider.current_scene.topology.name == "grid"
     plt.close(figure)
 
 

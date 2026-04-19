@@ -59,7 +59,9 @@ def draw_quantum_circuit(
         the caller-provided axes when ``ax=...`` is used.
 
     Notes:
-        ``page_slider=True`` requires a managed 2D figure.
+        ``page_slider=True`` requires a managed Matplotlib figure.
+        In 2D it adds horizontal and/or vertical sliders when the viewport
+        overflows. In 3D it moves through circuit columns.
         ``view="3d"`` requires a 3D Matplotlib axes when ``ax`` is provided.
     """
 

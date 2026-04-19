@@ -221,8 +221,6 @@ def validate_draw_request(request: DrawRequest) -> None:
         )
     if request.pipeline_options.view != "3d" and request.pipeline_options.topology_menu:
         raise ValueError("topology_menu=True is only supported for view='3d'")
-    if request.pipeline_options.view == "3d" and request.page_slider:
-        raise ValueError("page_slider=True is only supported for view='2d'")
 
 
 def resolve_effective_hover(

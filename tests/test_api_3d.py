@@ -33,15 +33,17 @@ def test_draw_quantum_circuit_renders_3d_axes_for_line_topology() -> None:
     assert axes.name == "3d"
 
 
-def test_draw_quantum_circuit_rejects_page_slider_in_3d_view() -> None:
-    with pytest.raises(ValueError, match="page_slider=True is only supported for view='2d'"):
-        draw_quantum_circuit(
-            build_sample_ir(),
-            view="3d",
-            topology="line",
-            page_slider=True,
-            show=False,
-        )
+def test_draw_quantum_circuit_accepts_page_slider_in_managed_3d_view() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        page_slider=True,
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert axes.name == "3d"
 
 
 def test_draw_quantum_circuit_rejects_topology_menu_in_2d_view() -> None:

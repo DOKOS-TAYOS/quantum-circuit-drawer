@@ -8,13 +8,25 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeGuard, cast
 
 from ._draw_managed_slider import (
+    apply_managed_3d_axes_bounds as _apply_managed_3d_axes_bounds_impl,
+)
+from ._draw_managed_slider import (
+    configure_3d_page_slider as _configure_3d_page_slider_impl,
+)
+from ._draw_managed_slider import (
     configure_page_slider as _configure_page_slider_impl,
 )
 from ._draw_managed_slider import (
     page_slider_figsize as _page_slider_figsize_impl,
 )
 from ._draw_managed_slider import (
+    prepare_page_slider_layout as _prepare_page_slider_layout_impl,
+)
+from ._draw_managed_slider import (
     set_slider_view as _set_slider_view_impl,
+)
+from ._draw_managed_slider import (
+    slider_viewport_height as _slider_viewport_height_impl,
 )
 from ._draw_managed_slider import (
     slider_viewport_width as _slider_viewport_width_impl,
@@ -70,7 +82,6 @@ if TYPE_CHECKING:
     from .layout.scene import LayoutScene
     from .layout.scene_3d import LayoutScene3D
 
-_PAGE_SLIDER_MAIN_AXES_BOTTOM = 0.18
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _ADAPTIVE_LINE_WIDTH_REFERENCE_PIXELS_PER_UNIT = 96.0
 _ADAPTIVE_LINE_WIDTH_MIN = 0.75
@@ -120,12 +131,31 @@ def render_managed_draw_pipeline(
             projection="3d",
         )
         clear_topology_menu_state(figure)
+        if output is not None and page_slider:
+            pipeline.renderer.render(scene_3d, ax=axes, output=output)
+            axes.clear()
+            output = None
+
+        page_slider_state = None
+        if page_slider:
+            page_slider_state = configure_3d_page_slider(
+                figure=figure,
+                axes=axes,
+                pipeline=pipeline,
+                set_page_slider=set_page_slider,
+            )
+
         if pipeline.draw_options.topology_menu and output is None and not use_agg_canvas:
             attach_topology_menu(figure=figure, axes=axes, pipeline=pipeline)
         else:
-            setattr(axes, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, (0.0, 0.0, 1.0, 1.0))
-        pipeline.renderer.render(scene_3d, ax=axes, output=output)
-        logger.debug("Rendered managed 3D figure without page slider")
+            apply_managed_3d_axes_bounds(axes, has_page_slider=page_slider_state is not None)
+
+        scene_to_render = scene_3d if page_slider_state is None else page_slider_state.current_scene
+        pipeline.renderer.render(scene_to_render, ax=axes, output=output)
+        logger.debug(
+            "Rendered managed 3D figure%s",
+            " with page slider" if page_slider_state is not None else " without page slider",
+        )
         show_figure_if_supported(figure, show=show)
         return figure, axes
 
@@ -146,6 +176,9 @@ def render_managed_draw_pipeline(
         )
         if figsize is not None:
             figure_width, figure_height = figsize
+        else:
+            figure_width = min(11.0, figure_width)
+            figure_height = min(7.0, figure_height)
         if output is None:
             figure, axes = create_managed_figure(
                 slider_scene,
@@ -160,7 +193,7 @@ def render_managed_draw_pipeline(
                 figure_height=figure_height,
                 use_agg=use_agg_canvas,
             )
-        figure.subplots_adjust(bottom=_PAGE_SLIDER_MAIN_AXES_BOTTOM)
+        slider_layout = prepare_page_slider_layout(axes, slider_scene)
         frozen_style = _freeze_default_line_width_for_scene(
             style=slider_scene.style,
             scene=slider_scene,
@@ -173,19 +206,29 @@ def render_managed_draw_pipeline(
         if output is not None:
             pipeline.renderer.render(scene_2d, ax=axes, output=output)
             axes.clear()
-        viewport_width = slider_viewport_width(axes, slider_scene)
-        set_viewport_width(figure, viewport_width=viewport_width)
+        set_viewport_width(figure, viewport_width=slider_layout.viewport_width)
         pipeline.renderer.render(slider_scene, ax=axes)
+        set_slider_view(
+            axes,
+            slider_scene,
+            x_offset=0.0,
+            y_offset=0.0,
+            viewport_width=slider_layout.viewport_width,
+            viewport_height=slider_layout.viewport_height,
+        )
         configure_page_slider(
             figure=figure,
             axes=axes,
             scene=slider_scene,
-            viewport_width=viewport_width,
+            viewport_width=slider_layout.viewport_width,
+            viewport_height=slider_layout.viewport_height,
+            layout=slider_layout,
             set_page_slider=set_page_slider,
         )
         logger.debug(
-            "Rendered managed figure with page slider viewport_width=%.2f pages=%d",
-            viewport_width,
+            "Rendered managed figure with page slider viewport_width=%.2f viewport_height=%.2f pages=%d",
+            slider_layout.viewport_width,
+            slider_layout.viewport_height,
             len(scene_2d.pages),
         )
     else:
@@ -478,6 +521,8 @@ def configure_page_slider(
     scene: LayoutScene,
     viewport_width: float,
     set_page_slider: Callable[[Figure, object], None],
+    viewport_height: float | None = None,
+    layout: object | None = None,
 ) -> None:
     """Attach and wire a slider that scrolls the rendered circuit horizontally."""
 
@@ -487,6 +532,8 @@ def configure_page_slider(
         scene=scene,
         viewport_width=viewport_width,
         set_page_slider=set_page_slider,
+        viewport_height=viewport_height,
+        layout=cast("object", layout),
     )
 
 
@@ -502,16 +549,62 @@ def slider_viewport_width(axes: Axes, scene: LayoutScene) -> float:
     return _slider_viewport_width_impl(axes, scene)
 
 
+def slider_viewport_height(axes: Axes, scene: LayoutScene) -> float:
+    """Estimate the visible scene height for the current axes aspect ratio."""
+
+    return _slider_viewport_height_impl(axes, scene)
+
+
 def set_slider_view(
     axes: Axes,
     scene: LayoutScene,
     *,
     x_offset: float,
     viewport_width: float,
+    y_offset: float = 0.0,
+    viewport_height: float | None = None,
 ) -> None:
     """Set the 2D axes limits used for the slider viewport."""
 
-    _set_slider_view_impl(axes, scene, x_offset=x_offset, viewport_width=viewport_width)
+    _set_slider_view_impl(
+        axes,
+        scene,
+        x_offset=x_offset,
+        y_offset=y_offset,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
+    )
+
+
+def configure_3d_page_slider(
+    *,
+    figure: Figure,
+    axes: Axes,
+    pipeline: PreparedDrawPipeline,
+    set_page_slider: Callable[[Figure, object], None],
+) -> object | None:
+    """Attach and wire a 3D page slider that moves through circuit columns."""
+
+    return _configure_3d_page_slider_impl(
+        figure=figure,
+        axes=axes,
+        pipeline=pipeline,
+        set_page_slider=set_page_slider,
+    )
+
+
+def prepare_page_slider_layout(axes: Axes, scene: LayoutScene) -> object:
+    """Resolve the 2D slider layout and viewport before rendering."""
+
+    return _prepare_page_slider_layout_impl(axes, scene)
+
+
+def apply_managed_3d_axes_bounds(
+    axes: Axes, *, has_page_slider: bool
+) -> tuple[float, float, float, float]:
+    """Apply managed 3D viewport bounds for the active control layout."""
+
+    return _apply_managed_3d_axes_bounds_impl(axes, has_page_slider=has_page_slider)
 
 
 def is_3d_axes(ax: Axes) -> bool:
