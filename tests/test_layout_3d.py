@@ -494,6 +494,21 @@ def test_layout_engine_3d_uses_smaller_swap_x_larger_controls_and_cubic_single_g
     assert measurement_gate.size_x == measurement_gate.size_y == measurement_gate.size_z
 
 
+def test_layout_engine_3d_uses_compact_column_spacing() -> None:
+    scene = LayoutEngine3D().compute(
+        _multi_single_gate_ir(layers=4),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+    gate_depths = [gate.center.z for gate in scene.gates]
+    spacing = [right - left for left, right in zip(gate_depths, gate_depths[1:], strict=False)]
+
+    assert spacing
+    assert spacing == pytest.approx([0.625, 0.625, 0.625])
+
+
 def test_layout_engine_3d_marks_measurement_connection_with_arrow_to_classical_register() -> None:
     scene = LayoutEngine3D().compute(
         _marker_and_measurement_ir(),

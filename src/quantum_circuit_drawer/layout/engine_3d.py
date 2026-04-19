@@ -31,7 +31,7 @@ from .topology_3d import Topology3D, TopologyName, build_topology
 logger = logging.getLogger(__name__)
 
 _WIRE_DEPTH_MARGIN = 0.8
-_Z_STEP = 1.6
+_Z_STEP = 0.625
 _CLASSICAL_PLANE_GAP = 2.2
 _CLASSICAL_WIRE_SPACING = 1.05
 _GATE_SIZE = 0.72

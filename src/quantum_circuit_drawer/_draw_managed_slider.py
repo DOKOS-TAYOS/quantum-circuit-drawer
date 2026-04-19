@@ -541,7 +541,7 @@ def _attach_2d_controls(
         _style_control_axes(vertical_axes, palette=palette)
         vertical_slider = Slider(
             ax=vertical_axes,
-            label="Rows",
+            label="",
             valmin=0.0,
             valmax=float(state.max_start_row),
             valinit=_vertical_slider_value_for_start_row(state, state.start_row),

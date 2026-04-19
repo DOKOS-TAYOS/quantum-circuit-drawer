@@ -1463,6 +1463,7 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert page_slider.visible_qubits_axes.get_facecolor() == pytest.approx(
         mcolors.to_rgba("#161d26")
     )
+    assert page_slider.vertical_slider.label.get_text() == ""
     assert page_slider.start_row == 0
     assert len(figure.axes) == 5
 
