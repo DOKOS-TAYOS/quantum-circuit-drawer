@@ -131,6 +131,41 @@ def _long_label_margin_ir() -> CircuitIR:
     )
 
 
+def _tall_measured_ir(*, quantum_wire_count: int, layer_count: int = 2) -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(quantum_wire_count)
+        ],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c")],
+        layers=[
+            *[
+                LayerIR(
+                    operations=[
+                        OperationIR(
+                            kind=OperationKind.GATE,
+                            name="RX",
+                            target_wires=(f"q{layer_index % quantum_wire_count}",),
+                            parameters=(0.5,),
+                        )
+                    ]
+                )
+                for layer_index in range(layer_count)
+            ],
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=(f"q{quantum_wire_count - 1}",),
+                        classical_target="c0",
+                    )
+                ]
+            ),
+        ],
+    )
+
+
 def _matching_text_artists(axes: object, text: str) -> list[object]:
     return [
         text_artist
@@ -979,16 +1014,25 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert page_slider.visible_qubits_box is not None
     assert page_slider.visible_qubits_axes is not None
     assert page_slider.visible_qubits == 15
-    assert (
-        page_slider.vertical_axes.get_position().width
-        < page_slider.visible_qubits_axes.get_position().width
-    )
+    assert page_slider.vertical_axes.get_position().width < 0.025
+    assert page_slider.visible_qubits_axes.get_position().width < 0.06
+    assert page_slider.visible_qubits_axes.get_position().height < 0.05
+    assert page_slider.visible_qubits_axes.get_title() == ""
     assert len(figure.axes) == 3
+
+    visible_qubits_box = page_slider.visible_qubits_box
+    assert visible_qubits_box is not None
+    assert mcolors.to_rgba(visible_qubits_box.cursor.get_color()) == pytest.approx(
+        mcolors.to_rgba(visible_qubits_box.text_disp.get_color())
+    )
 
     initial_ylim = axes.get_ylim()
     vertical_slider = page_slider.vertical_slider
     assert vertical_slider is not None
 
+    vertical_track_bounds = vertical_slider.track.get_bbox().bounds
+    assert vertical_track_bounds[1] == pytest.approx(0.0, abs=0.02)
+    assert vertical_track_bounds[3] == pytest.approx(1.0, abs=0.02)
     vertical_slider.set_val(vertical_slider.valmax)
 
     assert axes.get_xlim()[0] == pytest.approx(0.0)
@@ -1029,6 +1073,13 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     initial_horizontal_max = horizontal_slider.valmax
     initial_vertical_max = vertical_slider.valmax
 
+    horizontal_track_bounds = horizontal_slider.track.get_bbox().bounds
+    vertical_track_bounds = vertical_slider.track.get_bbox().bounds
+    assert horizontal_track_bounds[0] == pytest.approx(0.0, abs=0.02)
+    assert horizontal_track_bounds[2] == pytest.approx(1.0, abs=0.02)
+    assert vertical_track_bounds[1] == pytest.approx(0.0, abs=0.02)
+    assert vertical_track_bounds[3] == pytest.approx(1.0, abs=0.02)
+
     visible_qubits_box.set_val("8")
 
     assert page_slider.visible_qubits == 8
@@ -1048,6 +1099,30 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     visible_qubits_box.set_val("24")
 
     assert page_slider.visible_qubits == 24
+    assert page_slider.vertical_slider is None
+    assert page_slider.vertical_axes is None
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_visible_qubits_box_counts_classical_register_row() -> None:
+    figure, _ = draw_quantum_circuit(
+        _tall_measured_ir(quantum_wire_count=18),
+        style={"max_page_width": 12.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.vertical_slider is not None
+    assert page_slider.visible_qubits_box is not None
+    assert page_slider.visible_qubits == 15
+
+    page_slider.visible_qubits_box.set_val("19")
+
+    assert page_slider.visible_qubits == 19
     assert page_slider.vertical_slider is None
     assert page_slider.vertical_axes is None
 

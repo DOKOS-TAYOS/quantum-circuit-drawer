@@ -12,7 +12,6 @@ from matplotlib.figure import Figure
 from ._draw_managed_viewport import axes_viewport_pixels
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
 from .ir.circuit import CircuitIR
-from .ir.wires import WireKind
 from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from .layout.scene import LayoutScene
 from .layout.scene_3d import LayoutScene3D
@@ -30,14 +29,15 @@ _MANAGED_2D_MAIN_AXES_BOUNDS = (0.02, 0.02, 0.96, 0.96)
 _MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_BOUNDS = (0.02, 0.18, 0.96, 0.8)
 _MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS = (0.12, 0.02, 0.86, 0.96)
 _MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS = (0.12, 0.18, 0.86, 0.8)
-_MANAGED_2D_MAIN_AXES_WITH_LEFT_CONTROLS_BOUNDS = (0.135, 0.02, 0.845, 0.96)
-_MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_AND_BOX_BOUNDS = (0.135, 0.18, 0.845, 0.8)
+_MANAGED_2D_MAIN_AXES_WITH_LEFT_CONTROLS_BOUNDS = (0.12, 0.02, 0.86, 0.96)
+_MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_AND_BOX_BOUNDS = (0.12, 0.18, 0.86, 0.8)
 _MANAGED_2D_HORIZONTAL_SLIDER_HEIGHT = 0.055
 _MANAGED_2D_HORIZONTAL_SLIDER_BOTTOM = 0.045
 _MANAGED_2D_LEFT_CONTROL_LEFT = 0.04
-_MANAGED_2D_LEFT_CONTROL_WIDTH = 0.07
-_MANAGED_2D_VERTICAL_SLIDER_WIDTH = 0.042
-_MANAGED_2D_VISIBLE_QUBITS_HEIGHT = 0.055
+_MANAGED_2D_LEFT_CONTROL_WIDTH = 0.055
+_MANAGED_2D_VERTICAL_SLIDER_WIDTH = 0.021
+_MANAGED_2D_VISIBLE_QUBITS_WIDTH = 0.055
+_MANAGED_2D_VISIBLE_QUBITS_HEIGHT = 0.045
 _MANAGED_2D_VISIBLE_QUBITS_BOTTOM = 0.045
 _MANAGED_2D_VISIBLE_QUBITS_BOTTOM_WITH_HORIZONTAL = 0.115
 _MANAGED_2D_VISIBLE_QUBITS_GAP = 0.02
@@ -93,7 +93,7 @@ class Managed2DPageSliderState:
     viewport_width: float
     viewport_height: float
     viewport_aspect_ratio: float
-    total_quantum_wires: int
+    total_visible_rows: int
     visible_qubits: int
     allow_figure_resize: bool
     show_visible_qubits_box: bool
@@ -239,8 +239,9 @@ def configure_page_slider(
     if max_scroll_x <= 0.0 and max_scroll_y <= 0.0:
         return
 
-    resolved_quantum_wire_count = (
-        _quantum_wire_count(scene) if quantum_wire_count is None else quantum_wire_count
+    resolved_visible_row_count = max(
+        _scene_visible_row_count(scene),
+        1 if quantum_wire_count is None else quantum_wire_count,
     )
     state = Managed2DPageSliderState(
         figure=figure,
@@ -261,14 +262,14 @@ def configure_page_slider(
             if resolved_viewport_height > 0.0
             else 1.0
         ),
-        total_quantum_wires=resolved_quantum_wire_count,
+        total_visible_rows=resolved_visible_row_count,
         visible_qubits=_clamp_visible_qubits(
             initial_visible_qubits,
-            resolved_quantum_wire_count,
+            resolved_visible_row_count,
         ),
         allow_figure_resize=allow_figure_resize,
         show_visible_qubits_box=(
-            max_scroll_y > 0.0 and resolved_quantum_wire_count > _DEFAULT_VISIBLE_QUBITS
+            max_scroll_y > 0.0 and resolved_visible_row_count > _DEFAULT_VISIBLE_QUBITS
         ),
     )
     set_page_slider(figure, state)
@@ -424,7 +425,7 @@ def _attach_2d_controls(
             handle_style={
                 "facecolor": theme.accent_color,
                 "edgecolor": theme.text_color,
-                "size": 16,
+                "size": 12,
             },
         )
         _style_slider(vertical_slider, text_color=theme.text_color)
@@ -521,7 +522,7 @@ def _set_visible_qubits(
 ) -> None:
     resolved_visible_qubits = _clamp_visible_qubits(
         requested_visible_qubits,
-        state.total_quantum_wires,
+        state.total_visible_rows,
     )
     state.visible_qubits = resolved_visible_qubits
     state.viewport_height = _visible_qubits_viewport_height(
@@ -564,25 +565,28 @@ def _visible_qubits_viewport_height(
     visible_qubits: int,
 ) -> float:
     resolved_visible_qubits = max(1, visible_qubits)
-    style = scene.style
-    return min(
-        scene.height,
-        style.margin_top
-        + style.margin_bottom
-        + max(0, resolved_visible_qubits - 1) * style.wire_spacing,
+    wire_positions = sorted(wire.y for wire in scene.wires)
+    if not wire_positions or resolved_visible_qubits >= len(wire_positions):
+        return scene.height
+
+    largest_window_span = max(
+        wire_positions[index + resolved_visible_qubits - 1] - wire_positions[index]
+        for index in range(len(wire_positions) - resolved_visible_qubits + 1)
     )
+    style = scene.style
+    return min(scene.height, style.margin_top + style.margin_bottom + largest_window_span)
 
 
 def _clamp_visible_qubits(
     visible_qubits: int,
-    total_quantum_wires: int | None,
+    total_visible_rows: int | None,
 ) -> int:
-    resolved_total_quantum_wires = max(1, 1 if total_quantum_wires is None else total_quantum_wires)
-    return min(max(1, visible_qubits), resolved_total_quantum_wires)
+    resolved_total_visible_rows = max(1, 1 if total_visible_rows is None else total_visible_rows)
+    return min(max(1, visible_qubits), resolved_total_visible_rows)
 
 
-def _quantum_wire_count(scene: LayoutScene) -> int:
-    return max(1, sum(1 for wire in scene.wires if wire.kind == WireKind.QUANTUM))
+def _scene_visible_row_count(scene: LayoutScene) -> int:
+    return max(1, len(scene.wires))
 
 
 def configure_3d_page_slider(
@@ -814,7 +818,7 @@ def _visible_qubits_box_bounds(
     return (
         _MANAGED_2D_LEFT_CONTROL_LEFT,
         bottom,
-        _MANAGED_2D_LEFT_CONTROL_WIDTH,
+        _MANAGED_2D_VISIBLE_QUBITS_WIDTH,
         _MANAGED_2D_VISIBLE_QUBITS_HEIGHT,
     )
 
@@ -824,14 +828,6 @@ def _style_slider(slider: Slider, *, text_color: str) -> None:
     slider.valtext.set_visible(False)
     if hasattr(slider, "track"):
         slider.track.set_alpha(0.45)
-        if hasattr(slider.track, "set_y"):
-            slider.track.set_y(0.12)
-        if hasattr(slider.track, "set_height"):
-            slider.track.set_height(0.76)
-        if hasattr(slider.track, "set_x"):
-            slider.track.set_x(0.12)
-        if hasattr(slider.track, "set_width"):
-            slider.track.set_width(0.76)
     if hasattr(slider, "poly"):
         slider.poly.set_alpha(0.75)
     if hasattr(slider, "vline"):
@@ -842,7 +838,11 @@ def _style_text_box(text_box: TextBox, *, text_color: str) -> None:
     text_box.label.set_visible(False)
     if hasattr(text_box, "text_disp"):
         text_box.text_disp.set_color(text_color)
-    text_box.ax.set_title("Qubits", color=text_color, fontsize=8.5, pad=1.5)
+        text_box.text_disp.set_fontsize(9.5)
+    if hasattr(text_box, "cursor"):
+        text_box.cursor.set_color(text_color)
+        text_box.cursor.set_linewidth(1.6)
+    text_box.ax.set_title("")
     text_box.ax.tick_params(
         left=False,
         bottom=False,
