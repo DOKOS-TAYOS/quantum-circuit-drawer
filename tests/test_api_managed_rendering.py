@@ -533,10 +533,16 @@ def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging(
     assert page_window is not None
     assert page_window.page_box is not None
     assert page_window.visible_pages_box is not None
+    assert page_window.previous_page_button is not None
+    assert page_window.next_page_button is not None
     assert page_window.total_pages > 1
     assert page_window.start_page == 0
     assert page_window.visible_page_count == 1
     assert len(page_window.page_cache) == 1
+    assert page_window.page_axes is not None
+    assert page_window.visible_pages_axes is not None
+    assert page_window.page_axes.get_position().width < 0.08
+    assert page_window.visible_pages_axes.get_position().width < 0.08
     assert get_auto_paging_state(axes) is None
     plt.close(figure)
 
@@ -597,6 +603,30 @@ def test_draw_quantum_circuit_page_window_keeps_initial_page_width_after_resize(
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_window_navigation_buttons_step_between_pages() -> None:
+    figure, _ = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.previous_page_button is not None
+    assert page_window.next_page_button is not None
+
+    page_window.next_page_button._observers.process("clicked", None)
+
+    assert page_window.start_page == 1
+
+    page_window.previous_page_button._observers.process("clicked", None)
+
+    assert page_window.start_page == 0
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_window_renders_requested_page_inside_viewport() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
@@ -611,12 +641,14 @@ def test_draw_quantum_circuit_page_window_renders_requested_page_inside_viewport
     assert page_window.page_box is not None
     assert page_window.total_pages >= 2
 
+    initial_x_max = axes.get_xlim()[1]
     page_window.page_box.set_val("2")
 
     x_min, x_max = axes.get_xlim()
     z_label = _text_artist_by_text(axes, "Z")
     y_label = _text_artist_by_text(axes, "Y")
 
+    assert x_max < initial_x_max
     assert x_min <= z_label.get_position()[0] <= x_max
     assert x_min <= y_label.get_position()[0] <= x_max
     plt.close(figure)

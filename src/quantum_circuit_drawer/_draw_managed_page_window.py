@@ -29,17 +29,19 @@ from .typing import LayoutEngineLike
 
 if TYPE_CHECKING:
     from matplotlib.text import Text
-    from matplotlib.widgets import TextBox
+    from matplotlib.widgets import Button, TextBox
 
     from .ir.circuit import CircuitIR
 
 _MAIN_AXES_BOUNDS = (0.02, 0.18, 0.96, 0.8)
-_PAGE_BOX_BOUNDS = (0.18, 0.045, 0.09, 0.055)
-_VISIBLE_PAGES_BOX_BOUNDS = (0.54, 0.045, 0.09, 0.055)
+_PREVIOUS_PAGE_BUTTON_BOUNDS = (0.15, 0.045, 0.032, 0.055)
+_PAGE_BOX_BOUNDS = (0.188, 0.045, 0.05, 0.055)
+_NEXT_PAGE_BUTTON_BOUNDS = (0.244, 0.045, 0.032, 0.055)
+_VISIBLE_PAGES_BOX_BOUNDS = (0.53, 0.045, 0.05, 0.055)
 _PAGE_LABEL_POSITION = (0.08, 0.072)
-_PAGE_SUFFIX_POSITION = (0.285, 0.072)
+_PAGE_SUFFIX_POSITION = (0.282, 0.072)
 _VISIBLE_LABEL_POSITION = (0.39, 0.072)
-_VISIBLE_SUFFIX_POSITION = (0.645, 0.072)
+_VISIBLE_SUFFIX_POSITION = (0.586, 0.072)
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,8 +67,12 @@ class Managed2DPageWindowState:
     page_cache: dict[int, _PageWindowCacheEntry] = field(default_factory=dict)
     page_box: TextBox | None = None
     visible_pages_box: TextBox | None = None
+    previous_page_button: Button | None = None
+    next_page_button: Button | None = None
     page_axes: Axes | None = None
     visible_pages_axes: Axes | None = None
+    previous_page_button_axes: Axes | None = None
+    next_page_button_axes: Axes | None = None
     page_suffix_text: Text | None = None
     visible_suffix_text: Text | None = None
     is_syncing_inputs: bool = False
@@ -106,10 +112,23 @@ def configure_page_window(
 
 
 def _attach_controls(state: Managed2DPageWindowState) -> None:
-    from matplotlib.widgets import TextBox
+    from matplotlib.widgets import Button, TextBox
 
     theme = state.scene.style.theme
     state.axes.set_position(_MAIN_AXES_BOUNDS)
+
+    previous_page_button_axes = state.figure.add_axes(
+        _PREVIOUS_PAGE_BUTTON_BOUNDS,
+        facecolor=theme.axes_facecolor,
+    )
+    previous_page_button = Button(
+        previous_page_button_axes,
+        "<",
+        color=theme.axes_facecolor,
+        hovercolor=theme.figure_facecolor,
+    )
+    _style_button(previous_page_button, text_color=theme.text_color)
+    previous_page_button.on_clicked(lambda _: _step_page(state, delta=-1))
 
     page_axes = state.figure.add_axes(_PAGE_BOX_BOUNDS, facecolor=theme.axes_facecolor)
     page_box = TextBox(
@@ -122,6 +141,19 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     )
     _style_text_box(page_box, text_color=theme.text_color)
     page_box.on_submit(lambda text: _handle_page_submit(state, text))
+
+    next_page_button_axes = state.figure.add_axes(
+        _NEXT_PAGE_BUTTON_BOUNDS,
+        facecolor=theme.axes_facecolor,
+    )
+    next_page_button = Button(
+        next_page_button_axes,
+        ">",
+        color=theme.axes_facecolor,
+        hovercolor=theme.figure_facecolor,
+    )
+    _style_button(next_page_button, text_color=theme.text_color)
+    next_page_button.on_clicked(lambda _: _step_page(state, delta=1))
 
     visible_pages_axes = state.figure.add_axes(
         _VISIBLE_PAGES_BOX_BOUNDS,
@@ -140,8 +172,12 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
 
     state.page_box = page_box
     state.visible_pages_box = visible_pages_box
+    state.previous_page_button = previous_page_button
+    state.next_page_button = next_page_button
     state.page_axes = page_axes
     state.visible_pages_axes = visible_pages_axes
+    state.previous_page_button_axes = previous_page_button_axes
+    state.next_page_button_axes = next_page_button_axes
     state.page_suffix_text = state.figure.text(
         _PAGE_SUFFIX_POSITION[0],
         _PAGE_SUFFIX_POSITION[1],
@@ -180,6 +216,16 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     )
 
 
+def _style_button(button: Button, *, text_color: str) -> None:
+    button.label.set_color(text_color)
+    button.ax.tick_params(
+        left=False,
+        bottom=False,
+        labelleft=False,
+        labelbottom=False,
+    )
+
+
 def _handle_page_submit(state: Managed2DPageWindowState, text: str) -> None:
     if state.is_syncing_inputs:
         return
@@ -190,14 +236,11 @@ def _handle_page_submit(state: Managed2DPageWindowState, text: str) -> None:
         _sync_inputs(state)
         return
 
-    state.start_page = _clamp_page_index(requested_page, state.total_pages)
-    state.visible_page_count = _clamp_visible_page_count(
-        state.visible_page_count,
-        total_pages=state.total_pages,
-        start_page=state.start_page,
+    _show_page_window(
+        state,
+        requested_page=requested_page,
+        requested_visible_pages=state.visible_page_count,
     )
-    _render_current_window(state)
-    _sync_inputs(state)
 
 
 def _handle_visible_pages_submit(state: Managed2DPageWindowState, text: str) -> None:
@@ -210,6 +253,28 @@ def _handle_visible_pages_submit(state: Managed2DPageWindowState, text: str) -> 
         _sync_inputs(state)
         return
 
+    _show_page_window(
+        state,
+        requested_page=state.start_page + 1,
+        requested_visible_pages=requested_visible_pages,
+    )
+
+
+def _step_page(state: Managed2DPageWindowState, *, delta: int) -> None:
+    _show_page_window(
+        state,
+        requested_page=(state.start_page + 1) + delta,
+        requested_visible_pages=state.visible_page_count,
+    )
+
+
+def _show_page_window(
+    state: Managed2DPageWindowState,
+    *,
+    requested_page: int,
+    requested_visible_pages: int,
+) -> None:
+    state.start_page = _clamp_page_index(requested_page, state.total_pages)
     state.visible_page_count = _clamp_visible_page_count(
         requested_visible_pages,
         total_pages=state.total_pages,
@@ -286,7 +351,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
 def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
     visible_pages = tuple(_window_pages(state))
     return LayoutScene(
-        width=state.scene.width,
+        width=_visible_page_width(state),
         height=state.scene.page_height
         + (
             (len(visible_pages) - 1)
@@ -319,6 +384,16 @@ def _window_pages(state: Managed2DPageWindowState) -> tuple[ScenePage, ...]:
 
 def _visible_page_indexes(state: Managed2DPageWindowState) -> range:
     return range(state.start_page, state.start_page + state.visible_page_count)
+
+
+def _visible_page_width(state: Managed2DPageWindowState) -> float:
+    return max(
+        (
+            _cache_entry_for_page(state, page_index).scene.width
+            for page_index in _visible_page_indexes(state)
+        ),
+        default=state.scene.width,
+    )
 
 
 def _window_page(
