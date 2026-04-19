@@ -36,7 +36,14 @@ from ..layout.scene_3d import (
     SceneConnection3D,
     SceneGate3D,
 )
-from ..style import resolved_line_width
+from ..style import (
+    resolved_classical_wire_line_width,
+    resolved_connection_line_width,
+    resolved_gate_edge_line_width,
+    resolved_measurement_line_width,
+    resolved_topology_edge_line_width,
+    resolved_wire_line_width,
+)
 from ..typing import OutputPath, RenderResult
 from ..utils.formatting import format_gate_text_block, format_parameter_text, format_visible_label
 from ._matplotlib_figure import (
@@ -57,13 +64,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_QUANTUM_WIRE_COLOR = "#ffffff"
-_CONTROL_CONNECTION_COLOR = "#22c55e"
-_TOPOLOGY_EDGE_COLOR = "#facc15"
-_QUANTUM_WIRE_WIDTH_SCALE = 0.68
-_CONTROL_CONNECTION_WIDTH_SCALE = 1.55
-_TOPOLOGY_EDGE_WIDTH_SCALE = 0.6
-_GATE_EDGE_WIDTH_SCALE = 0.56
 _HOVER_ZORDER = 10_000.0
 _CUBIC_GATE_SIZE_TOLERANCE = 1e-6
 _X_TARGET_RING_SEGMENTS = 40
@@ -236,7 +236,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             managed_render=managed_figure is not None,
         )
         if scene.hover_enabled:
-            self._attach_hover(axes_3d, hover_targets)
+            self._attach_hover(axes_3d, scene, hover_targets)
 
         self._save_output(figure, output)
         if ax is None:
@@ -683,7 +683,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                         [wire.start.y, wire.end.y],
                         [wire.start.z, wire.end.z],
                         color=scene.style.theme.classical_wire_color,
-                        linewidth=resolved_line_width(scene.style),
+                        linewidth=resolved_classical_wire_line_width(scene.style),
                         zorder=1.0,
                     )
                 if line is not None and wire.hover_text:
@@ -693,8 +693,8 @@ class MatplotlibRenderer3D(BaseRenderer):
                 [wire.start.x, wire.end.x],
                 [wire.start.y, wire.end.y],
                 [wire.start.z, wire.end.z],
-                color=_QUANTUM_WIRE_COLOR,
-                linewidth=resolved_line_width(scene.style) * _QUANTUM_WIRE_WIDTH_SCALE,
+                color=scene.style.theme.wire_color,
+                linewidth=resolved_wire_line_width(scene.style),
                 zorder=1.1,
             )
             if wire.hover_text:
@@ -781,7 +781,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 standard_segments,
                 colors=scene.style.theme.wire_color,
-                linewidths=resolved_line_width(scene.style),
+                linewidths=resolved_connection_line_width(scene.style),
                 linestyles="solid",
             )
             collection.set_zorder(0.8)
@@ -789,8 +789,8 @@ class MatplotlibRenderer3D(BaseRenderer):
         if control_segments:
             collection = Line3DCollection(
                 control_segments,
-                colors=_CONTROL_CONNECTION_COLOR,
-                linewidths=resolved_line_width(scene.style) * _CONTROL_CONNECTION_WIDTH_SCALE,
+                colors=scene.style.theme.control_connection_color or scene.style.theme.accent_color,
+                linewidths=resolved_connection_line_width(scene.style),
                 linestyles="solid",
             )
             collection.set_zorder(2.4)
@@ -798,8 +798,8 @@ class MatplotlibRenderer3D(BaseRenderer):
         if topology_segments:
             collection = Line3DCollection(
                 topology_segments,
-                colors=_TOPOLOGY_EDGE_COLOR,
-                linewidths=resolved_line_width(scene.style) * _TOPOLOGY_EDGE_WIDTH_SCALE,
+                colors=scene.style.theme.topology_edge_color or scene.style.theme.accent_color,
+                linewidths=resolved_topology_edge_line_width(scene.style),
                 linestyles="solid",
             )
             collection.set_zorder(0.8)
@@ -808,7 +808,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 classical_segments,
                 colors=scene.style.theme.classical_wire_color,
-                linewidths=resolved_line_width(scene.style),
+                linewidths=resolved_classical_wire_line_width(scene.style),
                 linestyles="dashed",
             )
             collection.set_zorder(0.8)
@@ -817,7 +817,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 classical_double_segments,
                 colors=scene.style.theme.classical_wire_color,
-                linewidths=resolved_line_width(scene.style),
+                linewidths=resolved_classical_wire_line_width(scene.style),
             )
             collection.set_zorder(0.8)
             axes.add_collection3d(collection)
@@ -853,7 +853,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 edgecolors=scene.style.theme.measurement_color
                 if gate.render_style is GateRenderStyle3D.MEASUREMENT
                 else scene.style.theme.gate_edgecolor,
-                linewidths=resolved_line_width(scene.style) * _GATE_EDGE_WIDTH_SCALE,
+                linewidths=resolved_gate_edge_line_width(scene.style),
                 alpha=0.96,
             )
             axes.add_collection3d(collection)
@@ -903,7 +903,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 box_faces,
                 facecolors=scene.style.theme.gate_facecolor,
                 edgecolors=scene.style.theme.gate_edgecolor,
-                linewidths=resolved_line_width(scene.style) * _GATE_EDGE_WIDTH_SCALE,
+                linewidths=resolved_gate_edge_line_width(scene.style),
                 alpha=0.96,
             )
             axes.add_collection3d(collection)
@@ -912,7 +912,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 measurement_faces,
                 facecolors=scene.style.theme.measurement_facecolor,
                 edgecolors=scene.style.theme.measurement_color,
-                linewidths=resolved_line_width(scene.style) * _GATE_EDGE_WIDTH_SCALE,
+                linewidths=resolved_gate_edge_line_width(scene.style),
                 alpha=0.96,
             )
             axes.add_collection3d(collection)
@@ -960,7 +960,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             closed_ring_points[:, 1],
             closed_ring_points[:, 2],
             color=scene.style.theme.wire_color,
-            linewidth=resolved_line_width(scene.style),
+            linewidth=resolved_wire_line_width(scene.style),
         )
         cross_collection = Line3DCollection(
             [
@@ -974,7 +974,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 ),
             ],
             colors=scene.style.theme.wire_color,
-            linewidths=resolved_line_width(scene.style),
+            linewidths=resolved_wire_line_width(scene.style),
         )
         axes.add_collection3d(cross_collection)
         return [(circle_line, gate.hover_text)] if gate.hover_text else []
@@ -1026,14 +1026,14 @@ class MatplotlibRenderer3D(BaseRenderer):
         ring_collection = Line3DCollection(
             ring_segments,
             colors=scene.style.theme.wire_color,
-            linewidths=resolved_line_width(scene.style),
+            linewidths=resolved_wire_line_width(scene.style),
         )
         ring_collection.set_zorder(3.3)
         axes.add_collection3d(ring_collection)
         cross_collection = Line3DCollection(
             cross_segments,
             colors=scene.style.theme.wire_color,
-            linewidths=resolved_line_width(scene.style),
+            linewidths=resolved_wire_line_width(scene.style),
         )
         cross_collection.set_zorder(3.4)
         axes.add_collection3d(cross_collection)
@@ -1057,8 +1057,9 @@ class MatplotlibRenderer3D(BaseRenderer):
                     [marker.center.z],
                     s=marker.size * 320.0,
                     facecolors=scene.style.theme.axes_facecolor,
-                    edgecolors=_QUANTUM_WIRE_COLOR,
-                    linewidths=max(1.0, resolved_line_width(scene.style) * 0.82),
+                    edgecolors=scene.style.theme.topology_edge_color
+                    or scene.style.theme.wire_color,
+                    linewidths=max(1.0, resolved_topology_edge_line_width(scene.style)),
                     depthshade=False,
                     zorder=3.2,
                 )
@@ -1069,7 +1070,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                     [marker.center.y],
                     [marker.center.z],
                     s=marker.size * 18.0,
-                    c=_CONTROL_CONNECTION_COLOR,
+                    c=scene.style.theme.control_color or scene.style.theme.control_connection_color,
                     depthshade=False,
                     zorder=3.4,
                 )
@@ -1088,7 +1089,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                     ),
                 ],
                 colors=scene.style.theme.wire_color,
-                linewidths=resolved_line_width(scene.style),
+                linewidths=resolved_connection_line_width(scene.style),
             )
             collection.set_zorder(3.1)
             axes.add_collection3d(collection)
@@ -1105,8 +1106,8 @@ class MatplotlibRenderer3D(BaseRenderer):
                 [marker.center.z for marker in topology_nodes],
                 s=[marker.size * 320.0 for marker in topology_nodes],
                 facecolors=scene.style.theme.axes_facecolor,
-                edgecolors=_QUANTUM_WIRE_COLOR,
-                linewidths=max(1.0, resolved_line_width(scene.style) * 0.82),
+                edgecolors=scene.style.theme.topology_edge_color or scene.style.theme.wire_color,
+                linewidths=max(1.0, resolved_topology_edge_line_width(scene.style)),
                 depthshade=False,
                 zorder=3.2,
             )
@@ -1120,7 +1121,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 [marker.center.y for marker in control_markers],
                 [marker.center.z for marker in control_markers],
                 s=[marker.size * 18.0 for marker in control_markers],
-                c=_CONTROL_CONNECTION_COLOR,
+                c=scene.style.theme.control_color or scene.style.theme.control_connection_color,
                 depthshade=False,
                 zorder=3.4,
             )
@@ -1146,7 +1147,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             collection = Line3DCollection(
                 swap_segments,
                 colors=scene.style.theme.wire_color,
-                linewidths=resolved_line_width(scene.style),
+                linewidths=resolved_connection_line_width(scene.style),
             )
             collection.set_zorder(3.1)
             axes.add_collection3d(collection)
@@ -1191,7 +1192,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             arc_collection = Line3DCollection(
                 arc_segments,
                 colors=scene.style.theme.measurement_color,
-                linewidths=resolved_line_width(scene.style),
+                linewidths=resolved_measurement_line_width(scene.style),
             )
             arc_collection.set_capstyle("round")
             arc_collection.set_zorder(3.6)
@@ -1200,7 +1201,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             pointer_collection = Line3DCollection(
                 pointer_segments,
                 colors=scene.style.theme.measurement_color,
-                linewidths=resolved_line_width(scene.style),
+                linewidths=resolved_measurement_line_width(scene.style),
             )
             pointer_collection.set_capstyle("round")
             pointer_collection.set_zorder(3.6)
@@ -1325,7 +1326,12 @@ class MatplotlibRenderer3D(BaseRenderer):
                 continue
         setattr(axes, _BATCHED_3D_TEXT_ARTISTS_ATTR, ())
 
-    def _attach_hover(self, axes: Axes3D, hover_targets: list[tuple[Artist, str]]) -> None:
+    def _attach_hover(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        hover_targets: list[tuple[Artist, str]],
+    ) -> None:
         figure = axes.figure
         annotation = axes.annotate(
             "",
@@ -1334,8 +1340,13 @@ class MatplotlibRenderer3D(BaseRenderer):
             xycoords="figure pixels",
             textcoords="offset points",
             visible=False,
-            bbox={"boxstyle": "round,pad=0.18", "fc": "#222222", "ec": "#cccccc", "alpha": 0.9},
-            color="#ffffff",
+            bbox={
+                "boxstyle": "round,pad=0.18",
+                "fc": scene.style.theme.hover_facecolor,
+                "ec": scene.style.theme.hover_edgecolor,
+                "alpha": 0.9,
+            },
+            color=scene.style.theme.hover_text_color,
             annotation_clip=False,
         )
         annotation.set_zorder(_HOVER_ZORDER)
@@ -1374,9 +1385,9 @@ class MatplotlibRenderer3D(BaseRenderer):
         if connection.is_classical:
             return scene.style.theme.classical_wire_color
         if connection.render_style is ConnectionRenderStyle3D.CONTROL:
-            return _CONTROL_CONNECTION_COLOR
+            return scene.style.theme.control_connection_color or scene.style.theme.accent_color
         if connection.render_style is ConnectionRenderStyle3D.TOPOLOGY_EDGE:
-            return _TOPOLOGY_EDGE_COLOR
+            return scene.style.theme.topology_edge_color or scene.style.theme.accent_color
         return scene.style.theme.wire_color
 
     def _connection_line_width(
@@ -1385,12 +1396,12 @@ class MatplotlibRenderer3D(BaseRenderer):
         scene: LayoutScene3D,
     ) -> float:
         if connection.is_classical:
-            return resolved_line_width(scene.style)
+            return resolved_classical_wire_line_width(scene.style)
         if connection.render_style is ConnectionRenderStyle3D.CONTROL:
-            return resolved_line_width(scene.style) * _CONTROL_CONNECTION_WIDTH_SCALE
+            return resolved_connection_line_width(scene.style)
         if connection.render_style is ConnectionRenderStyle3D.TOPOLOGY_EDGE:
-            return resolved_line_width(scene.style) * _TOPOLOGY_EDGE_WIDTH_SCALE
-        return resolved_line_width(scene.style)
+            return resolved_topology_edge_line_width(scene.style)
+        return resolved_connection_line_width(scene.style)
 
     def _draw_connection_label(
         self,

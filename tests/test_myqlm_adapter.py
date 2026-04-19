@@ -8,7 +8,6 @@ from types import ModuleType
 
 import pytest
 
-from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 from tests.support import (
@@ -21,6 +20,9 @@ from tests.support import (
     assert_figure_has_visible_content,
     install_fake_myqlm,
     normalize_rendered_text,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 pytestmark = pytest.mark.optional

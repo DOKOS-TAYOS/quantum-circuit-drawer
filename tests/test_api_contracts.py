@@ -9,7 +9,7 @@ from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 
 import quantum_circuit_drawer
-from quantum_circuit_drawer.api import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, DrawMode
 from quantum_circuit_drawer.exceptions import (
     RenderingError,
     StyleValidationError,
@@ -25,6 +25,9 @@ from tests.support import (
     build_sample_myqlm_circuit,
     install_fake_cudaq,
     install_fake_myqlm,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 
@@ -200,41 +203,19 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
-    expected_result = (object(), object())
+    expected_result = object()
 
     def fake_draw_quantum_circuit(
         circuit: object,
-        framework: str | None = None,
         *,
-        style: object = None,
-        layout: object = None,
-        backend: str = "matplotlib",
+        config: object = None,
         ax: object = None,
-        output: object = None,
-        show: bool = True,
-        figsize: tuple[float, float] | None = None,
-        page_slider: bool = False,
-        page_window: bool = False,
-        composite_mode: str = "compact",
-        topology_menu: bool = False,
-        **options: object,
-    ) -> tuple[object, object]:
+    ) -> object:
         captured.update(
             {
                 "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "layout": layout,
-                "backend": backend,
+                "config": config,
                 "ax": ax,
-                "output": output,
-                "show": show,
-                "figsize": figsize,
-                "page_slider": page_slider,
-                "page_window": page_window,
-                "composite_mode": composite_mode,
-                "topology_menu": topology_menu,
-                "options": options,
             }
         )
         return expected_result
@@ -242,24 +223,22 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
     monkeypatch.setattr(
         "quantum_circuit_drawer.api.draw_quantum_circuit", fake_draw_quantum_circuit
     )
-
-    result = quantum_circuit_drawer.draw_quantum_circuit(
-        build_sample_ir(),
+    config = DrawConfig(
         show=False,
         figsize=(8.0, 3.0),
-        page_window=True,
+        mode=DrawMode.PAGES_CONTROLS,
         composite_mode="expand",
         topology_menu=True,
     )
 
+    result = quantum_circuit_drawer.draw_quantum_circuit(
+        build_sample_ir(),
+        config=config,
+    )
+
     assert result is expected_result
-    assert captured["show"] is False
-    assert captured["figsize"] == (8.0, 3.0)
-    assert captured["backend"] == "matplotlib"
-    assert captured["page_window"] is True
-    assert captured["composite_mode"] == "expand"
-    assert captured["topology_menu"] is True
-    assert captured["framework"] is None
+    assert captured["config"] is config
+    assert captured["ax"] is None
 
 
 def test_draw_quantum_circuit_exposes_version() -> None:

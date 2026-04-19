@@ -6,11 +6,13 @@ from pathlib import Path
 import pytest
 
 from quantum_circuit_drawer.adapters.cudaq_adapter import CudaqAdapter
-from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.ir.operations import OperationKind
 from tests.support import (
     assert_axes_contains_circuit_artists,
     assert_saved_image_has_visible_content,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 pytestmark = [

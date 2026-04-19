@@ -117,7 +117,7 @@ class MatplotlibRenderer(BaseRenderer):
             )
 
         if scene.hover.enabled and hover_targets:
-            attach_hover(axes, scene.hover, hover_targets)
+            attach_hover(axes, scene.hover, hover_targets, theme=scene.style.theme)
 
         finalize_axes(axes, scene)
         from .._draw_managed import configure_zoom_text_scaling

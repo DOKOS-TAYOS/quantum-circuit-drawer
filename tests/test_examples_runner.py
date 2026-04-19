@@ -278,7 +278,7 @@ def test_run_demo_with_args_accepts_3d_slider_and_loads_demo(
     ]
 
 
-def test_run_demo_with_args_accepts_2d_window_mode(
+def test_run_demo_with_args_accepts_2d_pages_controls_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     built_subject = {"kind": "2d-window-demo"}
@@ -300,7 +300,7 @@ def test_run_demo_with_args_accepts_2d_window_mode(
         demo="custom-demo",
         qubits=14,
         columns=28,
-        mode="window",
+        mode="pages_controls",
         view="2d",
         topology="grid",
         seed=23,
@@ -342,7 +342,7 @@ def test_run_demo_with_args_accepts_2d_window_mode(
         ExampleRequest(
             qubits=14,
             columns=28,
-            mode="window",
+            mode="pages_controls",
             view="2d",
             topology="grid",
             seed=23,
@@ -561,7 +561,7 @@ def test_examples_runner_can_render_window_demo_for_random_qiskit(sandbox_tmp_pa
             "--columns",
             "24",
             "--mode",
-            "window",
+            "pages_controls",
             "--no-show",
             "--output",
             str(output_path),

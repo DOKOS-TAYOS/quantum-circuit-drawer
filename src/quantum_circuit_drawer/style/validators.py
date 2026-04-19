@@ -29,6 +29,15 @@ POSITIVE_FIELDS = {
     "max_page_width",
     "page_vertical_gap",
 }
+OPTIONAL_POSITIVE_FIELDS = {
+    "wire_line_width",
+    "classical_wire_line_width",
+    "gate_edge_line_width",
+    "barrier_line_width",
+    "measurement_line_width",
+    "connection_line_width",
+    "topology_edge_line_width",
+}
 BOOLEAN_FIELDS = {"show_params", "show_wire_labels", "use_mathtext"}
 
 
@@ -72,6 +81,12 @@ def _validate_style_values(style: DrawStyle) -> None:
         value = getattr(style, field_name)
         if not isinstance(value, (int, float)) or value <= 0:
             raise StyleValidationError(f"{field_name} must be a positive number")
+    for field_name in OPTIONAL_POSITIVE_FIELDS:
+        value = getattr(style, field_name)
+        if value is None:
+            continue
+        if not isinstance(value, (int, float)) or value <= 0:
+            raise StyleValidationError(f"{field_name} must be a positive number or None")
     for field_name in BOOLEAN_FIELDS:
         value = getattr(style, field_name)
         if not isinstance(value, bool):

@@ -3,7 +3,6 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import pytest
 
-from quantum_circuit_drawer import draw_quantum_circuit
 from quantum_circuit_drawer._draw_managed_slider import Managed3DPageSliderState
 from quantum_circuit_drawer._managed_3d_view_state import (
     _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
@@ -13,7 +12,13 @@ from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.renderers._matplotlib_figure import get_page_slider
-from tests.support import build_dense_rotation_ir, build_sample_ir
+from tests.support import (
+    build_dense_rotation_ir,
+    build_sample_ir,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
+)
 
 
 def _single_qubit_ir() -> CircuitIR:

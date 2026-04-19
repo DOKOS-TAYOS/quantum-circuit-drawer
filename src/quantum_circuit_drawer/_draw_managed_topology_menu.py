@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.widgets import RadioButtons
 
+from ._draw_managed_page_window_3d import Managed3DPageWindowState
 from ._draw_managed_slider import (
     Managed3DPageSliderState,
     apply_managed_3d_axes_bounds,
@@ -19,6 +20,7 @@ from .layout.topology_3d import TopologyName, build_topology
 from .renderers._matplotlib_figure import (
     clear_hover_state,
     get_page_slider,
+    get_page_window,
     set_topology_menu_state,
 )
 from .typing import LayoutEngine3DLike
@@ -37,6 +39,7 @@ _ALL_TOPOLOGIES: tuple[TopologyName, ...] = (
 )
 _MENU_LABEL_FONT_SIZE = 11.0
 _MENU_RADIO_MARKER_SIZE = 90.0
+_PAGE_WINDOW_MENU_BOUNDS = (0.76, 0.22, 0.2, 0.34)
 
 
 @dataclass(slots=True)
@@ -71,10 +74,17 @@ class TopologyMenuState:
             return
 
         page_slider_state = get_page_slider(self.figure)
+        page_window_state = get_page_window(self.figure)
         if isinstance(page_slider_state, Managed3DPageSliderState):
             page_slider_state.select_topology(topology)
             self.pipeline = page_slider_state.pipeline
             self.scene = page_slider_state.current_scene
+            self.active_topology = topology
+        elif isinstance(page_window_state, Managed3DPageWindowState):
+            page_window_state.select_topology(topology)
+            self.pipeline = page_window_state.pipeline
+            self.scene = page_window_state.current_scene
+            self.axes = page_window_state.display_axes[0]
             self.active_topology = topology
         else:
             updated_pipeline = _pipeline_for_topology(self.pipeline, topology)
@@ -115,10 +125,15 @@ def attach_topology_menu(
     """Attach a topology selector to an interactive managed 3D figure."""
 
     page_slider_state = get_page_slider(figure)
+    page_window_state = get_page_window(figure)
     scene = (
         page_slider_state.current_scene
         if isinstance(page_slider_state, Managed3DPageSliderState)
-        else cast("LayoutScene3D", pipeline.paged_scene)
+        else (
+            page_window_state.current_scene
+            if isinstance(page_window_state, Managed3DPageWindowState)
+            else cast("LayoutScene3D", pipeline.paged_scene)
+        )
     )
     valid_topologies = tuple(
         topology_name
@@ -135,12 +150,15 @@ def attach_topology_menu(
         valid_topologies=valid_topologies,
         ui_palette=managed_ui_palette(scene.style.theme),
     )
-    apply_managed_3d_axes_bounds(
-        axes,
-        has_page_slider=isinstance(page_slider_state, Managed3DPageSliderState),
-    )
+    if not isinstance(page_window_state, Managed3DPageWindowState):
+        apply_managed_3d_axes_bounds(
+            axes,
+            has_page_slider=isinstance(page_slider_state, Managed3DPageSliderState),
+        )
     state.menu_axes = figure.add_axes(
-        managed_3d_menu_bounds(
+        _PAGE_WINDOW_MENU_BOUNDS
+        if isinstance(page_window_state, Managed3DPageWindowState)
+        else managed_3d_menu_bounds(
             has_page_slider=isinstance(page_slider_state, Managed3DPageSliderState)
         )
     )

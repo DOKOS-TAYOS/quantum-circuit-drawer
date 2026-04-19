@@ -16,7 +16,7 @@ circuit.h(0)
 circuit.cx(0, 1)
 circuit.measure(1, 0)
 
-figure, axes = draw_quantum_circuit(circuit)
+result = draw_quantum_circuit(circuit)
 ```
 
 By default:
@@ -26,23 +26,23 @@ By default:
 - a managed Matplotlib figure is created for you
 - the built-in `dark` theme is used
 - the figure is shown when the active Matplotlib backend is interactive
+- the function returns a `DrawResult` with the primary figure and axes plus any extra page figures
 
 ## Save an image without opening a window
 
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
 circuit.cx(0, 1)
 circuit.measure(1, 0)
 
-figure, axes = draw_quantum_circuit(
+result = draw_quantum_circuit(
     circuit,
-    output="bell.png",
-    show=False,
+    config=DrawConfig(output_path="bell.png", show=False),
 )
 ```
 
@@ -56,7 +56,7 @@ Use `ax=...` when the circuit is one part of a larger Matplotlib figure.
 import matplotlib.pyplot as plt
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
@@ -64,10 +64,14 @@ circuit.cx(0, 1)
 circuit.measure(1, 0)
 
 figure, axes = plt.subplots(figsize=(7, 3))
-returned_axes = draw_quantum_circuit(circuit, ax=axes)
+result = draw_quantum_circuit(
+    circuit,
+    ax=axes,
+    config=DrawConfig(mode=DrawMode.PAGES),
+)
 ```
 
-In this mode, the function returns the same axes object instead of a `(figure, axes)` tuple.
+In this mode, `result.primary_axes` is the same axes object you passed in.
 
 ## What to read next
 

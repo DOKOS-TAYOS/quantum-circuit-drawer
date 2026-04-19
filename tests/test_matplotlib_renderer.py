@@ -11,7 +11,7 @@ from pytest import approx
 
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
 import quantum_circuit_drawer.renderers.matplotlib_renderer as matplotlib_renderer_module
-from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
+from quantum_circuit_drawer import HoverOptions
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -29,6 +29,9 @@ from tests.support import (
     build_sample_scene,
     build_wrapped_ir,
     normalize_rendered_text,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 pytestmark = pytest.mark.renderer

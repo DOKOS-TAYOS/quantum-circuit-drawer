@@ -99,7 +99,7 @@ def test_request_from_namespace_accepts_2d_window() -> None:
     args = Namespace(
         qubits=6,
         columns=8,
-        mode="window",
+        mode="pages_controls",
         view="2d",
         topology="line",
         seed=7,
@@ -114,18 +114,18 @@ def test_request_from_namespace_accepts_2d_window() -> None:
 
     request = request_from_namespace(args, default_qubits=4, default_columns=5)
 
-    assert request.mode == "window"
+    assert request.mode == "pages_controls"
     assert request.view == "2d"
     assert request.topology == "line"
 
 
-def test_request_from_namespace_rejects_3d_window() -> None:
+def test_request_from_namespace_accepts_3d_pages_controls() -> None:
     from examples._shared import request_from_namespace
 
     args = Namespace(
         qubits=6,
         columns=8,
-        mode="window",
+        mode="pages_controls",
         view="3d",
         topology="grid",
         seed=7,
@@ -138,8 +138,11 @@ def test_request_from_namespace_rejects_3d_window() -> None:
         hover_show_size=False,
     )
 
-    with pytest.raises(SystemExit, match="--mode window is only available in 2D"):
-        request_from_namespace(args, default_qubits=4, default_columns=5)
+    request = request_from_namespace(args, default_qubits=4, default_columns=5)
+
+    assert request.mode == "pages_controls"
+    assert request.view == "3d"
+    assert request.topology == "grid"
 
 
 def test_request_from_namespace_rejects_non_positive_hover_matrix_max_qubits() -> None:
@@ -178,10 +181,10 @@ def test_demo_style_scales_with_columns_and_clamps() -> None:
     assert DEFAULT_DEMO_FIGSIZE == (10.0, 5.5)
 
 
-def test_build_render_options_enables_hover_in_2d() -> None:
-    from examples._shared import ExampleRequest, build_render_options
+def test_build_draw_config_enables_hover_in_2d() -> None:
+    from examples._shared import ExampleRequest, build_draw_config, demo_style
 
-    from quantum_circuit_drawer import HoverOptions
+    from quantum_circuit_drawer import DrawMode, HoverOptions
 
     request = ExampleRequest(
         qubits=8,
@@ -199,25 +202,37 @@ def test_build_render_options_enables_hover_in_2d() -> None:
         hover_show_size=True,
     )
 
-    assert build_render_options(request) == {
-        "hover": HoverOptions(
-            enabled=True,
-            show_size=True,
-            show_matrix="always",
-            matrix_max_qubits=1,
-        )
-    }
+    config = build_draw_config(request, framework="qiskit")
+
+    assert config.framework == "qiskit"
+    assert config.mode is DrawMode.PAGES
+    assert config.view == "2d"
+    assert config.topology == "grid"
+    assert config.topology_menu is False
+    assert config.direct is True
+    assert config.show is True
+    assert config.output_path is None
+    assert config.figsize == (10.0, 5.5)
+    assert config.style.font_size == demo_style(columns=10)["font_size"]
+    assert config.style.show_params is demo_style(columns=10)["show_params"]
+    assert config.style.max_page_width == pytest.approx(demo_style(columns=10)["max_page_width"])
+    assert config.hover == HoverOptions(
+        enabled=True,
+        show_size=True,
+        show_matrix="always",
+        matrix_max_qubits=1,
+    )
 
 
-def test_build_render_options_enables_topology_menu_in_3d() -> None:
-    from examples._shared import ExampleRequest, build_render_options
+def test_build_draw_config_enables_topology_menu_in_3d_interactive_modes() -> None:
+    from examples._shared import ExampleRequest, build_draw_config
 
-    from quantum_circuit_drawer import HoverOptions
+    from quantum_circuit_drawer import DrawMode, HoverOptions
 
     request = ExampleRequest(
         qubits=8,
         columns=10,
-        mode="pages",
+        mode="pages_controls",
         view="3d",
         topology="grid",
         seed=7,
@@ -230,18 +245,20 @@ def test_build_render_options_enables_topology_menu_in_3d() -> None:
         hover_show_size=True,
     )
 
-    assert build_render_options(request) == {
-        "hover": HoverOptions(
-            enabled=True,
-            show_size=True,
-            show_matrix="always",
-            matrix_max_qubits=1,
-        ),
-        "view": "3d",
-        "topology": "grid",
-        "topology_menu": True,
-        "direct": False,
-    }
+    config = build_draw_config(request, framework=None)
+
+    assert config.framework is None
+    assert config.mode is DrawMode.PAGES_CONTROLS
+    assert config.view == "3d"
+    assert config.topology == "grid"
+    assert config.topology_menu is True
+    assert config.direct is False
+    assert config.hover == HoverOptions(
+        enabled=True,
+        show_size=True,
+        show_matrix="always",
+        matrix_max_qubits=1,
+    )
 
 
 def test_render_example_draws_and_reports_saved_output(
@@ -251,44 +268,22 @@ def test_render_example_draws_and_reports_saved_output(
 ) -> None:
     from examples._shared import ExampleRequest, render_example
 
-    from quantum_circuit_drawer import HoverOptions
+    from quantum_circuit_drawer import DrawConfig, DrawMode, HoverOptions
 
     output = sandbox_tmp_path / "render-demo.png"
     draw_calls: list[dict[str, object]] = []
 
     def fake_draw_quantum_circuit(
         circuit: object,
-        framework: str | None = None,
         *,
-        style: dict[str, object],
-        output: Path | None = None,
-        show: bool = True,
-        page_slider: bool = False,
-        page_window: bool = False,
-        view: str = "2d",
-        topology: str = "line",
-        topology_menu: bool = False,
-        direct: bool = True,
-        hover: object = False,
-        figsize: tuple[float, float] | None = None,
-        **options: object,
+        config: DrawConfig | None = None,
+        ax: object = None,
     ) -> None:
         draw_calls.append(
             {
                 "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "show": show,
-                "page_slider": page_slider,
-                "page_window": page_window,
-                "view": view,
-                "topology": topology,
-                "topology_menu": topology_menu,
-                "direct": direct,
-                "hover": hover,
-                "figsize": figsize,
-                "options": options,
+                "config": config,
+                "ax": ax,
             }
         )
 
@@ -318,28 +313,22 @@ def test_render_example_draws_and_reports_saved_output(
 
     captured = capsys.readouterr()
 
-    assert draw_calls == [
-        {
-            "circuit": {"kind": "demo"},
-            "framework": "qiskit",
-            "style": {
-                "font_size": 12.0,
-                "show_params": True,
-                "max_page_width": 8.9,
-            },
-            "output": output,
-            "show": False,
-            "page_slider": False,
-            "page_window": False,
-            "view": "3d",
-            "topology": "grid",
-            "topology_menu": True,
-            "direct": False,
-            "hover": HoverOptions(),
-            "figsize": (9.0, 3.5),
-            "options": {},
-        }
-    ]
+    assert len(draw_calls) == 1
+    assert draw_calls[0]["circuit"] == {"kind": "demo"}
+    assert draw_calls[0]["ax"] is None
+    config = draw_calls[0]["config"]
+    assert isinstance(config, DrawConfig)
+    assert config.framework == "qiskit"
+    assert config.mode is DrawMode.PAGES
+    assert config.view == "3d"
+    assert config.topology == "grid"
+    assert config.topology_menu is False
+    assert config.direct is False
+    assert config.show is False
+    assert config.output_path == output
+    assert config.figsize == (9.0, 3.5)
+    assert config.style.max_page_width == pytest.approx(8.9)
+    assert config.hover == HoverOptions()
     assert f"Saved qiskit-random to {output}" in captured.out
 
 
@@ -348,43 +337,21 @@ def test_render_example_forwards_page_slider_in_3d_slider_mode(
 ) -> None:
     from examples._shared import ExampleRequest, render_example
 
-    from quantum_circuit_drawer import HoverOptions
+    from quantum_circuit_drawer import DrawConfig, DrawMode, HoverOptions
 
     draw_calls: list[dict[str, object]] = []
 
     def fake_draw_quantum_circuit(
         circuit: object,
-        framework: str | None = None,
         *,
-        style: dict[str, object],
-        output: Path | None = None,
-        show: bool = True,
-        page_slider: bool = False,
-        page_window: bool = False,
-        view: str = "2d",
-        topology: str = "line",
-        topology_menu: bool = False,
-        direct: bool = True,
-        hover: object = False,
-        figsize: tuple[float, float] | None = None,
-        **options: object,
+        config: DrawConfig | None = None,
+        ax: object = None,
     ) -> None:
         draw_calls.append(
             {
                 "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "show": show,
-                "page_slider": page_slider,
-                "page_window": page_window,
-                "view": view,
-                "topology": topology,
-                "topology_menu": topology_menu,
-                "direct": direct,
-                "hover": hover,
-                "figsize": figsize,
-                "options": options,
+                "config": config,
+                "ax": ax,
             }
         )
 
@@ -413,72 +380,44 @@ def test_render_example_forwards_page_slider_in_3d_slider_mode(
         saved_label="qiskit-random",
     )
 
-    assert draw_calls == [
-        {
-            "circuit": {"kind": "demo"},
-            "framework": "qiskit",
-            "style": {
-                "font_size": 12.0,
-                "show_params": True,
-                "max_page_width": 8.9,
-            },
-            "output": None,
-            "show": False,
-            "page_slider": True,
-            "page_window": False,
-            "view": "3d",
-            "topology": "grid",
-            "topology_menu": True,
-            "direct": False,
-            "hover": HoverOptions(),
-            "figsize": (10.0, 5.5),
-            "options": {},
-        }
-    ]
+    assert len(draw_calls) == 1
+    assert draw_calls[0]["circuit"] == {"kind": "demo"}
+    assert draw_calls[0]["ax"] is None
+    config = draw_calls[0]["config"]
+    assert isinstance(config, DrawConfig)
+    assert config.framework == "qiskit"
+    assert config.mode is DrawMode.SLIDER
+    assert config.view == "3d"
+    assert config.topology == "grid"
+    assert config.topology_menu is True
+    assert config.direct is False
+    assert config.show is False
+    assert config.output_path is None
+    assert config.figsize == (10.0, 5.5)
+    assert config.style.max_page_width == pytest.approx(8.9)
+    assert config.hover == HoverOptions()
 
 
-def test_render_example_forwards_page_window_in_2d_window_mode(
+def test_render_example_forwards_pages_controls_in_2d_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from examples._shared import ExampleRequest, render_example
 
-    from quantum_circuit_drawer import HoverOptions
+    from quantum_circuit_drawer import DrawConfig, DrawMode, HoverOptions
 
     draw_calls: list[dict[str, object]] = []
 
     def fake_draw_quantum_circuit(
         circuit: object,
-        framework: str | None = None,
         *,
-        style: dict[str, object],
-        output: Path | None = None,
-        show: bool = True,
-        page_slider: bool = False,
-        page_window: bool = False,
-        view: str = "2d",
-        topology: str = "line",
-        topology_menu: bool = False,
-        direct: bool = True,
-        hover: object = False,
-        figsize: tuple[float, float] | None = None,
-        **options: object,
+        config: DrawConfig | None = None,
+        ax: object = None,
     ) -> None:
         draw_calls.append(
             {
                 "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "show": show,
-                "page_slider": page_slider,
-                "page_window": page_window,
-                "view": view,
-                "topology": topology,
-                "topology_menu": topology_menu,
-                "direct": direct,
-                "hover": hover,
-                "figsize": figsize,
-                "options": options,
+                "config": config,
+                "ax": ax,
             }
         )
 
@@ -487,7 +426,7 @@ def test_render_example_forwards_page_window_in_2d_window_mode(
     request = ExampleRequest(
         qubits=12,
         columns=24,
-        mode="window",
+        mode="pages_controls",
         view="2d",
         topology="line",
         seed=7,
@@ -504,70 +443,33 @@ def test_render_example_forwards_page_window_in_2d_window_mode(
         {"kind": "demo"},
         request=request,
         framework="qiskit",
-        saved_label="qiskit-random-window",
+        saved_label="qiskit-random-pages-controls",
     )
 
-    assert draw_calls == [
-        {
-            "circuit": {"kind": "demo"},
-            "framework": "qiskit",
-            "style": {
-                "font_size": 12.0,
-                "show_params": True,
-                "max_page_width": 9.780000000000001,
-            },
-            "output": None,
-            "show": False,
-            "page_slider": False,
-            "page_window": True,
-            "view": "2d",
-            "topology": "line",
-            "topology_menu": False,
-            "direct": True,
-            "hover": HoverOptions(),
-            "figsize": (10.0, 5.5),
-            "options": {},
-        }
-    ]
+    assert len(draw_calls) == 1
+    assert draw_calls[0]["circuit"] == {"kind": "demo"}
+    assert draw_calls[0]["ax"] is None
+    config = draw_calls[0]["config"]
+    assert isinstance(config, DrawConfig)
+    assert config.framework == "qiskit"
+    assert config.mode is DrawMode.PAGES_CONTROLS
+    assert config.view == "2d"
+    assert config.topology == "line"
+    assert config.topology_menu is False
+    assert config.direct is True
+    assert config.show is False
+    assert config.output_path is None
+    assert config.figsize == (10.0, 5.5)
+    assert config.style.max_page_width == pytest.approx(9.78)
+    assert config.hover == HoverOptions()
 
 
-def test_render_example_disables_explicit_matrices_for_cirq_on_windows(
+def test_demo_adapter_options_disables_explicit_matrices_for_cirq_on_windows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import examples._shared as shared_module
-    from examples._shared import ExampleRequest, render_example
+    from examples._shared import ExampleRequest, demo_adapter_options
 
-    draw_calls: list[dict[str, object]] = []
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        framework: str | None = None,
-        *,
-        style: dict[str, object],
-        output: Path | None = None,
-        show: bool = True,
-        page_slider: bool = False,
-        page_window: bool = False,
-        hover: object = False,
-        figsize: tuple[float, float] | None = None,
-        **options: object,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "show": show,
-                "page_slider": page_slider,
-                "page_window": page_window,
-                "hover": hover,
-                "figsize": figsize,
-                "options": options,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
     monkeypatch.setattr(shared_module.sys, "platform", "win32")
 
     request = ExampleRequest(
@@ -586,48 +488,15 @@ def test_render_example_disables_explicit_matrices_for_cirq_on_windows(
         hover_show_size=False,
     )
 
-    render_example({"kind": "demo"}, request=request, framework="cirq", saved_label="cirq-random")
-
-    assert draw_calls[0]["options"]["explicit_matrices"] is False
+    assert demo_adapter_options(request, framework="cirq") == {"explicit_matrices": False}
 
 
-def test_render_example_keeps_explicit_matrices_for_windows_hover_matrix_always(
+def test_demo_adapter_options_keeps_explicit_matrices_for_windows_hover_matrix_always(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import examples._shared as shared_module
-    from examples._shared import ExampleRequest, render_example
+    from examples._shared import ExampleRequest, demo_adapter_options
 
-    draw_calls: list[dict[str, object]] = []
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        framework: str | None = None,
-        *,
-        style: dict[str, object],
-        output: Path | None = None,
-        show: bool = True,
-        page_slider: bool = False,
-        page_window: bool = False,
-        hover: object = False,
-        figsize: tuple[float, float] | None = None,
-        **options: object,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "framework": framework,
-                "style": style,
-                "output": output,
-                "show": show,
-                "page_slider": page_slider,
-                "page_window": page_window,
-                "hover": hover,
-                "figsize": figsize,
-                "options": options,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
     monkeypatch.setattr(shared_module.sys, "platform", "win32")
 
     request = ExampleRequest(
@@ -646,14 +515,7 @@ def test_render_example_keeps_explicit_matrices_for_windows_hover_matrix_always(
         hover_show_size=False,
     )
 
-    render_example(
-        {"kind": "demo"},
-        request=request,
-        framework="pennylane",
-        saved_label="pennylane-random",
-    )
-
-    assert draw_calls[0]["options"]["explicit_matrices"] is True
+    assert demo_adapter_options(request, framework="pennylane") == {"explicit_matrices": True}
 
 
 def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -10,7 +10,7 @@ from quantum_circuit_drawer import draw_quantum_circuit
 draw_quantum_circuit(circuit)
 ```
 
-Use `framework=...` when you want to be explicit or when a wrapper object makes autodetection unclear.
+Use `DrawConfig(framework=...)` when you want to be explicit or when a wrapper object makes autodetection unclear.
 
 ## Contents
 
@@ -70,7 +70,9 @@ Current support includes common gates, controlled gates, classical `if` conditio
 Use this when you want a clear framework check:
 
 ```python
-draw_quantum_circuit(circuit, framework="qiskit")
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
+draw_quantum_circuit(circuit, config=DrawConfig(framework="qiskit"))
 ```
 
 If the object is not a Qiskit circuit, the call raises `UnsupportedFrameworkError`.
@@ -92,7 +94,7 @@ Example:
 ```python
 import cirq
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
 q0, q1 = cirq.LineQubit.range(2)
 circuit = cirq.Circuit(
@@ -101,12 +103,12 @@ circuit = cirq.Circuit(
     cirq.measure(q1, key="m"),
 )
 
-draw_quantum_circuit(circuit, framework="cirq")
+draw_quantum_circuit(circuit, config=DrawConfig(framework="cirq"))
 ```
 
 Current support includes common gates, controlled gates, classically controlled operations, `CircuitOperation`, swap, and measurements.
 
-Use `composite_mode="expand"` when you want supported `CircuitOperation` contents to appear as separate operations.
+Use `DrawConfig(composite_mode="expand")` when you want supported `CircuitOperation` contents to appear as separate operations.
 
 On native Windows, Cirq imports and teardown can still be limited by upstream SciPy/HiGHS behavior. The bundled demos reduce exact-matrix work by default there, but WSL or Linux remains the more reliable option for repeated demo runs.
 
@@ -129,14 +131,14 @@ Example:
 ```python
 import pennylane as qml
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
 with qml.tape.QuantumTape() as tape:
     qml.Hadamard(wires=0)
     qml.CNOT(wires=[0, 1])
     qml.probs(wires=[1])
 
-draw_quantum_circuit(tape, framework="pennylane")
+draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
 ```
 
 Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
@@ -166,7 +168,7 @@ Example:
 ```python
 from qat.lang.AQASM import CNOT, H, Program
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
 program = Program()
 qbits = program.qalloc(2)
@@ -175,7 +177,7 @@ H(qbits[0])
 CNOT(qbits[0], qbits[1])
 
 circuit = program.to_circ()
-draw_quantum_circuit(circuit, framework="myqlm")
+draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 ```
 
 Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, simple single-bit classical control, and compact or expanded composite gates backed by `gateDic`.
@@ -205,7 +207,7 @@ Example:
 ```python
 import cudaq
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
 
 @cudaq.kernel
@@ -302,7 +304,7 @@ ir = CircuitIR(
     name="bell_pair_ir",
 )
 
-draw_quantum_circuit(ir, show=False)
+draw_quantum_circuit(ir, config=DrawConfig(show=False))
 ```
 
 Useful IR rules:
@@ -312,7 +314,7 @@ Useful IR rules:
 - Measurements require a `classical_target`.
 - Non-barrier operations need at least one target wire.
 
-If you already built a `CircuitIR`, autodetection is enough. You can also pass `framework="ir"` when you want the intent to be explicit.
+If you already built a `CircuitIR`, autodetection is enough. You can also pass `DrawConfig(framework="ir")` when you want the intent to be explicit.
 
 ## Choosing the IR path
 

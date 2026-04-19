@@ -16,10 +16,15 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer import (  # noqa: E402
+    DrawConfig,
+    DrawMode,
+    HoverOptions,
+    draw_quantum_circuit,
+)
 
 ViewMode = Literal["2d", "3d"]
-RenderMode = Literal["pages", "slider", "window"]
+RenderMode = Literal["pages", "pages_controls", "slider", "full"]
 TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
 HoverMatrixMode = Literal["never", "auto", "always"]
 
@@ -85,11 +90,11 @@ def add_render_arguments(
     )
     parser.add_argument(
         "--mode",
-        choices=("pages", "slider", "window"),
+        choices=("pages", "pages_controls", "slider", "full"),
         default="pages",
         help=(
-            "Render in wrapped pages, slider mode, or a fixed 2D page window. "
-            "In 2D, slider mode redraws discrete windows. In 3D, it moves through columns."
+            "Render page figures, a managed page viewer, a slider, or the full unpaged scene. "
+            "In 3D, pages_controls stacks the visible pages vertically."
         ),
     )
     parser.add_argument(
@@ -209,11 +214,20 @@ def request_from_namespace(
     mode = str(args.mode)
     view = str(args.view)
     topology = str(args.topology)
+    valid_modes = {"pages", "pages_controls", "slider", "full"}
+    valid_views = {"2d", "3d"}
 
     if qubits < 1:
         raise SystemExit("--qubits must be at least 1.")
     if columns < 1:
         raise SystemExit("--columns must be at least 1.")
+    if mode not in valid_modes:
+        raise SystemExit("--mode must be one of: pages, pages_controls, slider, full.")
+    if view not in valid_views:
+        raise SystemExit("--view must be one of: 2d, 3d.")
+    if topology not in SUPPORTED_TOPOLOGIES:
+        allowed_topologies = ", ".join(SUPPORTED_TOPOLOGIES)
+        raise SystemExit(f"--topology must be one of: {allowed_topologies}.")
     figure_width, figure_height = _normalize_figsize(args.figsize)
     hover_matrix_max_qubits = int(getattr(args, "hover_matrix_max_qubits", 2))
     if hover_matrix_max_qubits < 1:
@@ -221,15 +235,12 @@ def request_from_namespace(
     hover_matrix = str(getattr(args, "hover_matrix", "auto"))
     if hover_matrix not in {"never", "auto", "always"}:
         hover_matrix = "auto"
-    if mode == "window" and view != "2d":
-        raise SystemExit("--mode window is only available in 2D. Use --view 2d.")
-
     return ExampleRequest(
         qubits=qubits,
         columns=columns,
-        mode=mode if mode in {"pages", "slider", "window"} else "pages",
-        view=view if view in {"2d", "3d"} else "2d",
-        topology=topology if topology in SUPPORTED_TOPOLOGIES else "line",
+        mode=mode,
+        view=view,
+        topology=topology,
         seed=int(args.seed),
         output=args.output,
         show=bool(args.show),
@@ -268,23 +279,6 @@ def recommended_page_width(columns: int) -> float:
     return min(12.0, max(6.5, 4.5 + (0.22 * float(columns))))
 
 
-def build_render_options(request: ExampleRequest) -> dict[str, object]:
-    """Return draw options derived from the shared example request."""
-
-    render_options: dict[str, object] = {"hover": demo_hover_options(request)}
-    if request.view == "2d":
-        return render_options
-    render_options.update(
-        {
-            "view": "3d",
-            "topology": request.topology,
-            "topology_menu": True,
-            "direct": False,
-        }
-    )
-    return render_options
-
-
 def demo_adapter_options(
     request: ExampleRequest,
     *,
@@ -310,6 +304,28 @@ def demo_hover_options(request: ExampleRequest) -> HoverOptions:
     )
 
 
+def build_draw_config(
+    request: ExampleRequest,
+    *,
+    framework: str | None,
+) -> DrawConfig:
+    """Build the public draw configuration for one example render."""
+
+    return DrawConfig(
+        framework=framework,
+        view=request.view,
+        mode=DrawMode(request.mode),
+        topology=request.topology,
+        topology_menu=request.view == "3d" and request.mode in {"pages_controls", "slider"},
+        direct=False if request.view == "3d" else True,
+        show=request.show,
+        output_path=request.output,
+        figsize=request.figsize,
+        style=demo_style(columns=request.columns),
+        hover=demo_hover_options(request),
+    )
+
+
 def render_example(
     subject: object,
     *,
@@ -319,17 +335,10 @@ def render_example(
 ) -> None:
     """Draw one built example subject and optionally report the saved file."""
 
+    config = build_draw_config(request, framework=framework)
     draw_quantum_circuit(
         subject,
-        framework=framework,
-        style=demo_style(columns=request.columns),
-        output=request.output,
-        show=request.show,
-        figsize=request.figsize,
-        page_slider=request.mode == "slider",
-        page_window=request.mode == "window",
-        **demo_adapter_options(request, framework=framework),
-        **build_render_options(request),
+        config=config,
     )
 
     if request.output is not None:

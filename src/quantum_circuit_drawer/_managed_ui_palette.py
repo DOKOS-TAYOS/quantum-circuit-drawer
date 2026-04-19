@@ -29,35 +29,18 @@ class ManagedUiPalette:
 def managed_ui_palette(theme: DrawTheme) -> ManagedUiPalette:
     """Return the interactive-control palette for the provided draw theme."""
 
-    if theme.name == "dark":
-        return ManagedUiPalette(
-            surface_facecolor="#161d26",
-            surface_hover_facecolor="#1b2530",
-            surface_facecolor_disabled="#11161d",
-            surface_edgecolor="#2a3441",
-            surface_edgecolor_active="#6cb6ff",
-            surface_edgecolor_disabled="#2a3441",
-            text_color="#e6edf3",
-            secondary_text_color="#9aa7b7",
-            disabled_text_color="#9aa7b7",
-            accent_color="#6cb6ff",
-            accent_edgecolor="#e6edf3",
-            slider_track_color="#2a3441",
-            slider_fill_color="#6cb6ff",
-        )
-
     return ManagedUiPalette(
-        surface_facecolor=theme.gate_facecolor,
-        surface_hover_facecolor=theme.measurement_facecolor,
-        surface_facecolor_disabled=theme.axes_facecolor,
-        surface_edgecolor=theme.barrier_color,
-        surface_edgecolor_active=theme.accent_color,
-        surface_edgecolor_disabled=theme.barrier_color,
-        text_color=theme.text_color,
-        secondary_text_color=theme.classical_wire_color,
-        disabled_text_color=theme.classical_wire_color,
-        accent_color=theme.accent_color,
-        accent_edgecolor=theme.text_color,
-        slider_track_color=theme.classical_wire_color,
-        slider_fill_color=theme.accent_color,
+        surface_facecolor=theme.ui_surface_facecolor or theme.gate_facecolor,
+        surface_hover_facecolor=theme.ui_surface_hover_facecolor or theme.measurement_facecolor,
+        surface_facecolor_disabled=theme.ui_surface_facecolor_disabled or theme.axes_facecolor,
+        surface_edgecolor=theme.ui_surface_edgecolor or theme.barrier_color,
+        surface_edgecolor_active=theme.ui_surface_edgecolor_active or theme.accent_color,
+        surface_edgecolor_disabled=theme.ui_surface_edgecolor_disabled or theme.barrier_color,
+        text_color=theme.ui_text_color or theme.text_color,
+        secondary_text_color=theme.ui_secondary_text_color or theme.classical_wire_color,
+        disabled_text_color=theme.ui_disabled_text_color or theme.classical_wire_color,
+        accent_color=theme.ui_accent_color or theme.accent_color,
+        accent_edgecolor=theme.ui_accent_edgecolor or theme.text_color,
+        slider_track_color=theme.ui_slider_track_color or theme.classical_wire_color,
+        slider_fill_color=theme.ui_slider_fill_color or theme.accent_color,
     )

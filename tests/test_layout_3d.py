@@ -19,7 +19,6 @@ from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
     Poly3DCollection,
 )
 
-from quantum_circuit_drawer import draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.classical_conditions import ClassicalConditionIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -39,7 +38,12 @@ from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import (
     MatplotlibRenderer3D,
     _RenderContext3D,
 )
-from quantum_circuit_drawer.style import DrawStyle
+from quantum_circuit_drawer.style import (
+    DrawStyle,
+    resolved_connection_line_width,
+    resolved_topology_edge_line_width,
+    resolved_wire_line_width,
+)
 from tests.support import (
     assert_axes_contains_circuit_artists,
     assert_figure_has_visible_content,
@@ -47,6 +51,9 @@ from tests.support import (
     build_dense_rotation_ir,
     build_sample_ir,
     normalize_rendered_text,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 pytestmark = pytest.mark.renderer
@@ -1273,11 +1280,15 @@ def test_matplotlib_renderer_3d_prioritizes_gate_hover_targets_over_wire_hover_t
     def capture_hover_targets(
         renderer: MatplotlibRenderer3D,
         managed_axes: Axes3D,
+        rendered_scene: object,
         hover_targets: list[tuple[object, str]],
     ) -> None:
         captured_hover_texts.extend(text for _, text in hover_targets)
         original_attach_hover(
-            renderer, managed_axes, cast("list[tuple[Artist, str]]", hover_targets)
+            renderer,
+            managed_axes,
+            rendered_scene,
+            cast("list[tuple[Artist, str]]", hover_targets),
         )
 
     monkeypatch.setattr(MatplotlibRenderer3D, "_attach_hover", capture_hover_targets)
@@ -1569,28 +1580,35 @@ def test_draw_quantum_circuit_uses_distinct_quantum_control_and_topology_line_st
         if isinstance(collection, Line3DCollection) and len(collection.get_colors()) > 0
     }
     wire_colors = {to_hex(line.get_color(), keep_alpha=False) for line in axes.lines}
+    theme = DrawStyle().theme
+    expected_wire_color = to_hex(theme.wire_color, keep_alpha=False)
+    expected_control_color = to_hex(theme.control_connection_color, keep_alpha=False)
+    expected_topology_color = to_hex(theme.topology_edge_color, keep_alpha=False)
     wire_widths = [
-        line.get_linewidth() for line in axes.lines if to_hex(line.get_color()) == "#ffffff"
+        line.get_linewidth()
+        for line in axes.lines
+        if to_hex(line.get_color(), keep_alpha=False) == expected_wire_color
     ]
     control_widths = [
         collection.get_linewidths()[0]
         for color, collection in line_collection_colors.items()
-        if color == "#22c55e"
+        if color == expected_control_color
     ]
     topology_widths = [
         collection.get_linewidths()[0]
         for color, collection in line_collection_colors.items()
-        if color == "#facc15"
+        if color == expected_topology_color
     ]
 
-    assert "#ffffff" in wire_colors
-    assert "#22c55e" in line_collection_colors
-    assert "#facc15" in line_collection_colors
+    assert expected_wire_color in wire_colors
+    assert expected_control_color in line_collection_colors
+    assert expected_topology_color in line_collection_colors
     assert wire_widths
     assert control_widths
     assert topology_widths
-    assert min(control_widths) > max(wire_widths)
-    assert max(topology_widths) < min(control_widths)
+    assert wire_widths == pytest.approx([resolved_wire_line_width(DrawStyle())] * len(wire_widths))
+    assert control_widths == pytest.approx([resolved_connection_line_width(DrawStyle())])
+    assert topology_widths == pytest.approx([resolved_topology_edge_line_width(DrawStyle())])
 
 
 def test_draw_quantum_circuit_renders_topology_plane_gate_borders_measurement_symbol_and_arrow() -> (

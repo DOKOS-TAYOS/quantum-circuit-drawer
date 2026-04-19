@@ -9,6 +9,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from quantum_circuit_drawer import DrawResult
 from quantum_circuit_drawer.ir.operations import OperationKind
 
 
@@ -237,7 +238,14 @@ def test_benchmark_demo_returns_phase_breakdown(
     monkeypatch.setattr(
         benchmark_module,
         "draw_quantum_circuit",
-        lambda *args, **kwargs: (SimpleNamespace(clear=lambda: None), object()),
+        lambda *args, **kwargs: DrawResult(
+            primary_figure=SimpleNamespace(clear=lambda: None),
+            primary_axes=object(),
+            figures=(SimpleNamespace(clear=lambda: None),),
+            axes=(object(),),
+            mode="pages",  # type: ignore[arg-type]
+            page_count=1,
+        ),
     )
 
     time_points = iter((0.0, 0.2, 0.5, 0.9, 1.4))
@@ -308,7 +316,14 @@ def test_benchmark_demo_disables_explicit_matrices_for_windows_cirq(
     monkeypatch.setattr(
         benchmark_module,
         "draw_quantum_circuit",
-        lambda *args, **kwargs: (SimpleNamespace(clear=lambda: None), object()),
+        lambda *args, **kwargs: DrawResult(
+            primary_figure=SimpleNamespace(clear=lambda: None),
+            primary_axes=object(),
+            figures=(SimpleNamespace(clear=lambda: None),),
+            axes=(object(),),
+            mode="pages",  # type: ignore[arg-type]
+            page_count=1,
+        ),
     )
     monkeypatch.setattr(shared_module.sys, "platform", "win32")
 

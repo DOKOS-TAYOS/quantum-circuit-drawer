@@ -1,338 +1,186 @@
 # API reference
 
-This page describes the public API that most users are expected to call.
-
-Most code only needs `draw_quantum_circuit(...)`. Advanced users may also use `DrawStyle`, `DrawTheme`, and the internal IR types from `quantum_circuit_drawer.ir`.
-
-## Contents
-
-- [Main entry point](#main-entry-point)
-- [Parameters](#parameters)
-- [Hover options](#hover-options)
-- [Return values](#return-values)
-- [Common combinations](#common-combinations)
-- [Styles and themes](#styles-and-themes)
-- [Exceptions](#exceptions)
-- [Advanced layout hook](#advanced-layout-hook)
-- [Public exports](#public-exports)
-
-## Main entry point
+## Main function
 
 ```python
 draw_quantum_circuit(
-    circuit,
-    framework=None,
+    circuit: object,
     *,
-    style=None,
-    layout=None,
+    config: DrawConfig | None = None,
+    ax: Axes | None = None,
+) -> DrawResult
+```
+
+This is the only public entry point for drawing.
+
+## `DrawConfig`
+
+`DrawConfig` groups the public options in one stable object:
+
+```python
+DrawConfig(
+    framework=None,
     backend="matplotlib",
-    ax=None,
-    output=None,
-    show=True,
-    page_slider=False,
-    page_window=False,
-    composite_mode="compact",
+    layout=None,
     view="2d",
+    mode=DrawMode.AUTO,
+    composite_mode="compact",
     topology="line",
     topology_menu=False,
     direct=True,
+    show=True,
+    output_path=None,
+    figsize=None,
+    style=None,
     hover=False,
-    **options,
 )
 ```
 
-Import it from the package root:
+### Field order
+
+The fields are ordered by responsibility:
+
+1. framework and backend
+2. layout and view
+3. mode selection
+4. 3D topology options
+5. display and saving
+6. style and hover
+
+### Important fields
+
+- `view`: `"2d"` or `"3d"`
+- `mode`: `DrawMode.AUTO`, `PAGES`, `PAGES_CONTROLS`, `SLIDER`, or `FULL`
+- `topology`: only used in 3D
+- `topology_menu`: managed interactive 3D topology selector
+- `show`: whether the library should show the figure
+- `output_path`: optional file path for saving
+- `figsize`: managed figure size in inches
+- `style`: `DrawStyle`, mapping, or `None`
+- `hover`: `bool`, `HoverOptions`, mapping, or `None`
+
+## `DrawMode`
+
+- `AUTO`
+  - notebook: `pages`
+  - normal script: `pages_controls`
+- `PAGES`
+  - 2D: one managed figure per page
+  - 3D: one managed figure per page window
+- `PAGES_CONTROLS`
+  - 2D: managed `Page` / `Visible` controls
+  - 3D: managed `Page` / `Visible` controls with vertically stacked 3D pages
+- `SLIDER`
+  - 2D: discrete horizontal / vertical slider navigation
+  - 3D: horizontal slider navigation
+- `FULL`
+  - full unpaged render
+
+## `DrawResult`
+
+`draw_quantum_circuit(...)` always returns `DrawResult`.
+
+Fields:
+
+- `primary_figure`
+- `primary_axes`
+- `figures`
+- `axes`
+- `mode`
+- `page_count`
+
+Examples:
+
+- simple managed render: one figure and one axes
+- `pages` in a notebook: several figures, one per page
+- caller-managed `ax=...`: one figure and one axes, wrapped in `DrawResult`
+
+## `ax`
+
+`ax` is reserved for static rendering paths:
+
+- allowed with `pages` and `full`
+- not allowed with `pages_controls` or `slider`
+
+When `ax` is provided:
+
+- 2D `pages` draws the static paged composition in that axes
+- 3D requires a 3D Matplotlib axes
+
+## Style and theme
+
+`DrawStyle` controls geometry and line widths. The main stroke families are:
+
+- `wire_line_width`
+- `classical_wire_line_width`
+- `gate_edge_line_width`
+- `barrier_line_width`
+- `measurement_line_width`
+- `connection_line_width`
+- `topology_edge_line_width`
+
+`DrawTheme` controls colors for:
+
+- figure and axes backgrounds
+- text
+- quantum and classical wires
+- gates and measurements
+- controls and control connections
+- topology edges and topology planes
+- hover labels
+- managed UI widgets
+
+## Hover
+
+`HoverOptions` stays public and is always nested under `DrawConfig.hover`.
 
 ```python
-from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
+DrawConfig(
+    hover={
+        "enabled": True,
+        "show_size": True,
+        "show_matrix": "auto",
+        "matrix_max_qubits": 2,
+    }
+)
 ```
 
-## Parameters
+## Examples
 
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `circuit` | required | A supported framework object or a `CircuitIR` object |
-| `framework` | `None` | Optional explicit framework name such as `"qiskit"`, `"cirq"`, `"pennylane"`, `"myqlm"`, `"cudaq"`, or `"ir"` |
-| `style` | `None` | A style mapping or `DrawStyle` instance |
-| `layout` | `None` | Advanced custom layout engine; most users should leave this unset |
-| `backend` | `"matplotlib"` | Rendering backend; currently only `"matplotlib"` is supported |
-| `ax` | `None` | Existing Matplotlib axes to draw into |
-| `output` | `None` | File path where the rendered figure should be saved |
-| `show` | `True` | Whether to show a managed Matplotlib figure when the backend is interactive |
-| `page_slider` | `False` | Enable managed interactive navigation: discrete column/row window sliders in 2D, or a horizontal column slider in 3D |
-| `page_window` | `False` | Enable a managed 2D fixed page window with `Page` and `Visible` input boxes; the paging is frozen when the figure is created and navigation reuses cached pages |
-| `composite_mode` | `"compact"` | Use `"compact"` for one box, or `"expand"` for supported decompositions |
-| `view` | `"2d"` | Use `"2d"` or `"3d"` |
-| `topology` | `"line"` | 3D topology: `"line"`, `"grid"`, `"star"`, `"star_tree"`, or `"honeycomb"` |
-| `topology_menu` | `False` | In managed interactive 3D figures, show a topology selector that redraws the same view when you switch to another valid topology |
-| `direct` | `True` | In 3D, draw direct control connections when `True`; route through topology paths when `False` |
-| `hover` | `False` | `False`, `True`, a `HoverOptions` object, or a mapping with hover fields; enables interactive gate hover where supported |
-| `**options` | none | Reserved for forward-compatible options used by the draw pipeline |
-
-2D layout behavior in this release:
-
-- The 2D layout adapts to the active viewport once, when the figure is rendered.
-- Resizing the window later does not repaginate or recompute the circuit.
-- Explicit 2D controls such as `page_window=True` navigation and `page_slider=True` visible-row changes still trigger their own redraws.
-
-## Hover options
-
-`hover=True` is a shorthand for the default `HoverOptions()`:
+### Minimal managed draw
 
 ```python
-from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
+result = draw_quantum_circuit(circuit, config=DrawConfig(show=False))
+```
 
-draw_quantum_circuit(
+### 2D managed page viewer
+
+```python
+result = draw_quantum_circuit(
     circuit,
-    hover=HoverOptions(
-        show_name=True,
-        show_matrix_dimensions=True,
-        show_qubits=True,
-        show_matrix="auto",
-        matrix_max_qubits=2,
+    config=DrawConfig(mode=DrawMode.PAGES_CONTROLS),
+)
+```
+
+### 3D slider
+
+```python
+result = draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(
+        view="3d",
+        mode=DrawMode.SLIDER,
+        topology="grid",
+        show=False,
     ),
 )
 ```
 
-You can also pass a plain mapping with the same keys:
+### Full unpaged render
 
 ```python
-draw_quantum_circuit(
+result = draw_quantum_circuit(
     circuit,
-    hover={"show_matrix": "always", "matrix_max_qubits": 1},
+    config=DrawConfig(mode=DrawMode.FULL, show=False),
 )
 ```
-
-Hover behavior in this release:
-
-- In interactive 2D figures, hover can show the gate name, matrix dimensions, affected qubits, and an optional matrix.
-- When a framework provides an exact matrix, hover uses it. Otherwise, supported canonical 1- and 2-qubit gates fall back to an internal matrix resolver.
-- In interactive 3D figures, `hover` still enables the existing compact tooltip behavior.
-- The `use_mathtext` style flag only changes the visible circuit labels. Hover text stays plain.
-- Saved figures and non-interactive backends keep static labels and do not create tooltips.
-- Managed figures created with `show=False` keep hover active on interactive backends, including notebook backends such as `nbagg`, `ipympl`, and `widget`.
-- 2D text rescales on zoom while the underlying layout stays fixed.
-
-`HoverOptions` fields:
-
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `enabled` | `True` | Turn hover on or off after the object is created |
-| `show_name` | `True` | Show the gate name |
-| `show_size` | `False` | Show the visible gate body size in screen pixels |
-| `show_matrix_dimensions` | `True` | Show the matrix dimensions such as `2 x 2` or `4 x 4` |
-| `show_qubits` | `True` | Show the affected quantum wires in stable order |
-| `show_matrix` | `"auto"` | Use `"never"`, `"auto"`, or `"always"` |
-| `matrix_max_qubits` | `2` | Do not show matrices larger than this many qubits |
-
-When `show_matrix="auto"`, the matrix is shown only when the visible gate body is small on screen. This is useful for dense circuits where the label would otherwise be hard to read.
-
-## Return values
-
-The return value depends on who owns the Matplotlib axes.
-
-If `ax` is not provided, the library creates the figure and returns `(figure, axes)`:
-
-```python
-figure, axes = draw_quantum_circuit(circuit, show=False)
-```
-
-If `ax` is provided, the library draws into that axes and returns the same axes object:
-
-```python
-import matplotlib.pyplot as plt
-
-figure, axes = plt.subplots(figsize=(8, 3))
-returned_axes = draw_quantum_circuit(circuit, ax=axes)
-```
-
-The same rule applies in 3D. Managed 3D rendering returns `(figure, axes)`, while caller-managed 3D rendering returns the 3D axes you passed in.
-
-When the active backend is interactive, `show=False` only skips the automatic `pyplot.show()` call. The returned managed figure still keeps interactive hover available.
-
-## Common combinations
-
-Save without opening a window:
-
-```python
-draw_quantum_circuit(circuit, output="circuit.png", show=False)
-```
-
-Draw into your own Matplotlib layout:
-
-```python
-import matplotlib.pyplot as plt
-
-figure, axes = plt.subplots(figsize=(8, 3))
-draw_quantum_circuit(circuit, ax=axes)
-```
-
-Use a paper-friendly theme:
-
-```python
-draw_quantum_circuit(circuit, style={"theme": "paper"})
-```
-
-Use sliders for a dense 2D circuit:
-
-```python
-draw_quantum_circuit(
-    circuit,
-    style={"max_page_width": 4.0},
-    page_slider=True,
-)
-```
-
-Use a fixed page window for a wrapped 2D circuit:
-
-```python
-draw_quantum_circuit(
-    circuit,
-    style={"max_page_width": 4.0},
-    page_window=True,
-)
-```
-
-In this mode the library keeps the wrapped page width fixed after the initial render. The controls let you choose the first visible page and how many consecutive pages to show at once.
-
-In 2D, the library redraws only the current managed window and shows only the sliders it needs:
-
-- bottom horizontal slider when more columns remain outside the current window
-- left vertical slider when more wire rows remain outside the current window
-
-Use a managed 3D column slider:
-
-```python
-draw_quantum_circuit(
-    circuit,
-    view="3d",
-    style={"max_page_width": 4.0},
-    page_slider=True,
-)
-```
-
-Use richer hover details in 2D:
-
-```python
-draw_quantum_circuit(
-    circuit,
-    hover={"show_matrix": "auto", "matrix_max_qubits": 2},
-)
-```
-
-Render a topology-aware 3D view:
-
-```python
-draw_quantum_circuit(
-    circuit,
-    view="3d",
-    topology="grid",
-    topology_menu=True,
-    direct=False,
-    hover=True,
-)
-```
-
-Expand supported composite operations:
-
-```python
-draw_quantum_circuit(circuit, composite_mode="expand")
-```
-
-## Styles and themes
-
-You can pass style settings as a mapping:
-
-```python
-draw_quantum_circuit(
-    circuit,
-    style={
-        "theme": "paper",
-        "show_params": False,
-        "use_mathtext": True,
-        "max_page_width": 6.0,
-    },
-)
-```
-
-You can also pass a typed `DrawStyle` instance:
-
-```python
-from quantum_circuit_drawer import DrawStyle, draw_quantum_circuit
-
-style = DrawStyle(show_params=False, use_mathtext=True, max_page_width=6.0)
-draw_quantum_circuit(circuit, style=style)
-```
-
-Unknown style keys and invalid values raise `StyleValidationError`.
-
-### Built-in themes
-
-| Theme | Use it when |
-| --- | --- |
-| `dark` | You want the default high-contrast black-background style |
-| `light` | You want a bright neutral style |
-| `paper` | You want a softer publication or documentation style |
-
-### Style fields
-
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `font_size` | `12.0` | Base text size |
-| `wire_spacing` | `1.2` | Vertical distance between wires |
-| `layer_spacing` | `0.45` | Horizontal distance between layers |
-| `gate_width` | `0.72` | Gate box width |
-| `gate_height` | `0.72` | Gate box height |
-| `line_width` | `1.6` | Main line thickness |
-| `control_radius` | `0.08` | Controlled-gate dot radius |
-| `show_params` | `True` | Show gate parameters |
-| `show_wire_labels` | `True` | Show labels next to wires |
-| `use_mathtext` | `True` | Render visible circuit text with Matplotlib MathText for paper-friendly labels; hover text stays plain |
-| `theme` | `dark` | Built-in theme name or a `DrawTheme` |
-| `margin_left` | `0.85` | Left outer margin |
-| `margin_right` | `0.35` | Right outer margin |
-| `margin_top` | `0.8` | Top outer margin |
-| `margin_bottom` | `0.8` | Bottom outer margin |
-| `label_margin` | `0.18` | Space between wires and labels |
-| `classical_wire_gap` | `0.75` | Separation inside classical-wire rendering |
-| `swap_marker_size` | `0.14` | Size of swap markers |
-| `max_page_width` | `20.0` | Page width before wrapping |
-| `page_vertical_gap` | `1.8` | Vertical gap between wrapped pages |
-
-## Exceptions
-
-| Exception | Typical cause |
-| --- | --- |
-| `UnsupportedFrameworkError` | The object cannot be matched to a supported adapter, or `framework=...` does not match the object |
-| `UnsupportedBackendError` | `backend` is not `"matplotlib"` |
-| `UnsupportedOperationError` | An adapter found an operation that cannot be represented meaningfully |
-| `StyleValidationError` | The style mapping contains an unknown key or invalid value |
-| `RenderingError` | Saving the figure to `output` failed |
-| `LayoutError` | Layout computation failed |
-| `ValueError` | Runtime options are incompatible, such as `page_slider=True` or `page_window=True` with `ax=...` |
-
-See [Troubleshooting](troubleshooting.md) for fixes for the most common cases.
-
-## Advanced layout hook
-
-Most users should ignore `layout`.
-
-It exists for advanced integrations that want to provide a custom layout engine after the input circuit has been adapted to `CircuitIR`.
-
-- For `view="2d"`, the object must provide `compute(circuit_ir, style)` and return a 2D `LayoutScene`.
-- For `view="3d"`, the object must provide `compute(circuit_ir, style, *, topology_name, direct, hover_enabled)` and return a 3D `LayoutScene3D`.
-
-If you only want to draw circuits, use the default layout engine.
-
-## Public exports
-
-The package root intentionally stays small:
-
-- `draw_quantum_circuit`
-- `HoverOptions`
-- `DrawStyle`
-- `DrawTheme`
-- `__version__`
-- exception classes such as `UnsupportedFrameworkError`, `StyleValidationError`, and `RenderingError`
-
-IR types are exported from `quantum_circuit_drawer.ir`; see [Frameworks](frameworks.md#internal-ir) for an example.

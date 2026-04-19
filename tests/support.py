@@ -13,6 +13,13 @@ import pytest
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+from quantum_circuit_drawer._draw_managed import (
+    is_3d_axes,
+    render_draw_pipeline_on_axes,
+    render_managed_draw_pipeline,
+)
+from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline
+from quantum_circuit_drawer._draw_request import build_draw_request, validate_draw_request
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
@@ -379,3 +386,82 @@ def install_fake_myqlm(monkeypatch: pytest.MonkeyPatch) -> type[FakeMyQLMCircuit
     fake_module.core = SimpleNamespace(Circuit=FakeMyQLMCircuit)
     monkeypatch.setitem(sys.modules, "qat", fake_module)
     return FakeMyQLMCircuit
+
+
+def draw_quantum_circuit_legacy(
+    circuit: object,
+    framework: str | None = None,
+    *,
+    style: DrawStyle | dict[str, object] | None = None,
+    layout: object = None,
+    backend: str = "matplotlib",
+    ax: Axes | None = None,
+    output: Path | str | None = None,
+    show: bool = True,
+    figsize: tuple[float, float] | None = None,
+    page_slider: bool = False,
+    page_window: bool = False,
+    composite_mode: str = "compact",
+    view: str = "2d",
+    topology: str = "line",
+    topology_menu: bool = False,
+    direct: bool = True,
+    hover: object = False,
+    **options: object,
+) -> tuple[Figure, Axes] | Axes:
+    """Provide the pre-v2 draw contract for legacy behavioral tests.
+
+    The current public API intentionally returns ``DrawResult`` and uses
+    ``DrawConfig``. A large part of the older renderer suite still wants
+    the historical tuple-or-axes contract while validating rendering
+    behavior rather than public argument plumbing, so the suite routes
+    those calls through this helper instead of the public entrypoint.
+    """
+
+    request = build_draw_request(
+        circuit=circuit,
+        framework=framework,
+        style=style,
+        layout=layout,
+        backend=backend,
+        ax=ax,
+        output=output,
+        show=show,
+        figsize=figsize,
+        page_slider=page_slider,
+        page_window=page_window,
+        composite_mode=composite_mode,
+        view=view,  # type: ignore[arg-type]
+        topology=topology,  # type: ignore[arg-type]
+        topology_menu=topology_menu,
+        direct=direct,
+        hover=hover,
+        **options,
+    )
+    validate_draw_request(request)
+    pipeline = prepare_draw_pipeline(
+        circuit=request.circuit,
+        framework=request.framework,
+        style=request.style,
+        layout=request.layout,
+        options=request.pipeline_options,
+    )
+
+    if request.ax is None:
+        return render_managed_draw_pipeline(
+            pipeline,
+            output=request.output,
+            show=request.show,
+            figsize=request.figsize,
+            page_slider=request.page_slider,
+            page_window=request.page_window,
+        )
+
+    if request.pipeline_options.view == "3d" and not is_3d_axes(request.ax):
+        raise ValueError("view='3d' requires a 3D Matplotlib axes")
+
+    return render_draw_pipeline_on_axes(
+        pipeline,
+        axes=request.ax,
+        output=request.output,
+    )

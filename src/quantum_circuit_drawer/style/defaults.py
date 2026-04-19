@@ -18,6 +18,13 @@ class DrawStyleChanges(TypedDict, total=False):
     gate_width: float
     gate_height: float
     line_width: float | None
+    wire_line_width: float | None
+    classical_wire_line_width: float | None
+    gate_edge_line_width: float | None
+    barrier_line_width: float | None
+    measurement_line_width: float | None
+    connection_line_width: float | None
+    topology_edge_line_width: float | None
     control_radius: float
     show_params: bool
     show_wire_labels: bool
@@ -49,6 +56,13 @@ class DrawStyle:
     gate_width: float = 0.72
     gate_height: float = 0.72
     line_width: float | None = None
+    wire_line_width: float | None = None
+    classical_wire_line_width: float | None = None
+    gate_edge_line_width: float | None = None
+    barrier_line_width: float | None = None
+    measurement_line_width: float | None = None
+    connection_line_width: float | None = None
+    topology_edge_line_width: float | None = None
     control_radius: float = 0.08
     show_params: bool = True
     show_wire_labels: bool = True
@@ -88,6 +102,23 @@ def replace_draw_style(style: DrawStyle, /, **changes: Unpack[DrawStyleChanges])
     else:
         line_width_is_default = False if "line_width" in changes else style._line_width_is_default
 
+    for field_name in (
+        "wire_line_width",
+        "classical_wire_line_width",
+        "gate_edge_line_width",
+        "barrier_line_width",
+        "measurement_line_width",
+        "connection_line_width",
+        "topology_edge_line_width",
+    ):
+        if field_name not in changes:
+            continue
+        line_width_value = changes[field_name]
+        if line_width_value is None:
+            continue
+        if not isinstance(line_width_value, Real) or float(line_width_value) <= 0.0:
+            raise ValueError(f"{field_name} must be a positive number or None")
+
     replaced_style = replace(style, **changes)
     replaced_style._line_width_is_default = line_width_is_default
     return replaced_style
@@ -105,3 +136,67 @@ def resolved_line_width(style: DrawStyle) -> float:
     line_width = style.line_width
     assert line_width is not None
     return float(line_width)
+
+
+def resolved_wire_line_width(style: DrawStyle) -> float:
+    """Return the resolved quantum-wire stroke width."""
+
+    return _resolved_family_line_width(style.wire_line_width, fallback=resolved_line_width(style))
+
+
+def resolved_classical_wire_line_width(style: DrawStyle) -> float:
+    """Return the resolved classical-wire stroke width."""
+
+    return _resolved_family_line_width(
+        style.classical_wire_line_width,
+        fallback=resolved_line_width(style) * 0.9,
+    )
+
+
+def resolved_gate_edge_line_width(style: DrawStyle) -> float:
+    """Return the resolved gate-edge stroke width."""
+
+    return _resolved_family_line_width(
+        style.gate_edge_line_width, fallback=resolved_line_width(style)
+    )
+
+
+def resolved_barrier_line_width(style: DrawStyle) -> float:
+    """Return the resolved barrier stroke width."""
+
+    return _resolved_family_line_width(
+        style.barrier_line_width, fallback=resolved_line_width(style)
+    )
+
+
+def resolved_measurement_line_width(style: DrawStyle) -> float:
+    """Return the resolved measurement stroke width."""
+
+    return _resolved_family_line_width(
+        style.measurement_line_width,
+        fallback=resolved_line_width(style),
+    )
+
+
+def resolved_connection_line_width(style: DrawStyle) -> float:
+    """Return the resolved connection stroke width."""
+
+    return _resolved_family_line_width(
+        style.connection_line_width,
+        fallback=resolved_line_width(style),
+    )
+
+
+def resolved_topology_edge_line_width(style: DrawStyle) -> float:
+    """Return the resolved topology-edge stroke width."""
+
+    return _resolved_family_line_width(
+        style.topology_edge_line_width,
+        fallback=resolved_line_width(style) * 0.6,
+    )
+
+
+def _resolved_family_line_width(value: float | None, *, fallback: float) -> float:
+    if value is None:
+        return float(fallback)
+    return float(value)

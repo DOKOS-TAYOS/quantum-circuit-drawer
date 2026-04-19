@@ -18,16 +18,15 @@ if str(SRC) not in sys.path:
 
 from examples._shared import (  # noqa: E402
     DEFAULT_DEMO_FIGSIZE,
-    build_render_options,
+    build_draw_config,
     demo_adapter_options,
-    demo_style,
     request_from_namespace,
 )
 from examples.demo_catalog import DemoSpec, catalog_by_id  # noqa: E402
 
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline  # noqa: E402
 from quantum_circuit_drawer.adapters.registry import get_adapter  # noqa: E402
-from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind  # noqa: E402
@@ -124,17 +123,23 @@ def benchmark_render(
 
         full_draw_start = perf_counter()
         if view == "3d":
-            full_figure, _ = draw_quantum_circuit(
+            full_result = draw_quantum_circuit(
                 circuit,
-                framework="ir",
-                view="3d",
-                topology=topology,
-                show=False,
+                config=DrawConfig(
+                    framework="ir",
+                    view="3d",
+                    topology=topology,
+                    show=False,
+                ),
             )
         else:
-            full_figure, _ = draw_quantum_circuit(circuit, framework="ir", show=False)
+            full_result = draw_quantum_circuit(
+                circuit,
+                config=DrawConfig(framework="ir", show=False),
+            )
         full_draw_seconds += perf_counter() - full_draw_start
-        full_figure.clear()
+        for figure in full_result.figures:
+            figure.clear()
 
     results: dict[str, float | int | str] = {
         "wires": wires,
@@ -192,17 +197,13 @@ def benchmark_demo(
         built_at = perf_counter()
         ir = _build_ir(subject, framework=spec.framework, request=request)
         adapted_at = perf_counter()
-        figure, _ = draw_quantum_circuit(
+        draw_result = draw_quantum_circuit(
             ir,
-            framework="ir",
-            style=demo_style(columns=request.columns),
-            show=False,
-            figsize=request.figsize,
-            page_slider=request.mode == "slider",
-            **build_render_options(request),
+            config=build_draw_config(request, framework="ir"),
         )
         draw_completed_at = perf_counter()
-        figure.clear()
+        for figure in draw_result.figures:
+            figure.clear()
 
         import_seconds += imported_at - started_at
         build_seconds += built_at - imported_at
@@ -312,7 +313,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--demo-id", type=str, default="qiskit-random")
     parser.add_argument("--qubits", type=positive_int, default=24)
     parser.add_argument("--columns", type=positive_int, default=32)
-    parser.add_argument("--mode", choices=("pages", "slider"), default="pages")
+    parser.add_argument(
+        "--mode",
+        choices=("pages", "pages_controls", "slider", "full"),
+        default="pages",
+    )
     parser.add_argument("--json", action="store_true", dest="emit_json")
     return parser.parse_args(argv)
 

@@ -4,6 +4,12 @@
 
 ### Changed
 
+- Reworked the public drawing API around `DrawConfig`, `DrawMode`, and `DrawResult`, replacing the old flag-heavy call shape with a single ordered configuration object and a stable normalized return object
+- Added the public draw modes `auto`, `pages`, `pages_controls`, `slider`, and `full`, with context-sensitive `auto` defaults for notebooks and scripts
+- Added managed 3D support for `pages`, `pages_controls`, and `full`, including vertically stacked visible pages and shared-view preservation in the 3D page viewer
+- Clean paged saving now follows the selected public mode and keeps widget chrome out of saved output
+- Expanded public style and theme coverage so color and stroke customization now includes managed UI colors, hover colors, controls, control connections, topology colors, and explicit stroke families
+- Updated the README, API reference, user guide, recipes, and examples to use the new `DrawConfig` / `DrawMode` API
 - Removed dynamic 2D layout recomposition on window resize; 2D figures now choose their base layout when rendered and keep it fixed until an explicit navigation action or rerender
 - Simplified managed 2D rendering by dropping the old resize-driven auto-paging state and callbacks, which reduces post-render work while keeping zoom-based text fitting
 - Visible circuit labels now use Matplotlib MathText by default through `DrawStyle(use_mathtext=True)`, giving paper-friendly gate names and parameters while keeping hover text plain

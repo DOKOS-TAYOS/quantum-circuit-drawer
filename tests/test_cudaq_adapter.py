@@ -6,13 +6,15 @@ from types import ModuleType
 
 import pytest
 
-from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import OperationKind
 from tests.support import (
     assert_axes_contains_circuit_artists,
     assert_figure_has_visible_content,
     normalize_rendered_text,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 pytestmark = pytest.mark.optional

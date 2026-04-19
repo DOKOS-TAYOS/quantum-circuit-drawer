@@ -9,7 +9,7 @@ This page lists common problems and the quickest fix to try first.
 - [CUDA-Q does not install on Windows](#cuda-q-does-not-install-on-windows)
 - [No Matplotlib window opens](#no-matplotlib-window-opens)
 - [Saving output fails](#saving-output-fails)
-- [`page_slider=True` raises `ValueError`](#page_slidertrue-raises-valueerror)
+- [`mode=DrawMode.SLIDER` raises `ValueError`](#modedrawmodeslider-raises-valueerror)
 - [`view="3d"` raises an axes error](#view3d-raises-an-axes-error)
 - [A 3D topology rejects the qubit count](#a-3d-topology-rejects-the-qubit-count)
 - [MyQLM `Program` objects do not draw directly](#myqlm-program-objects-do-not-draw-directly)
@@ -70,14 +70,18 @@ If `show=True` does not open a window, the active Matplotlib backend may be non-
 For scripts and automated exports, use:
 
 ```python
-draw_quantum_circuit(circuit, show=False)
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
+draw_quantum_circuit(circuit, config=DrawConfig(show=False))
 ```
 
 For notebooks, let the notebook display the returned figure:
 
 ```python
-figure, axes = draw_quantum_circuit(circuit, show=False)
-figure
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
+result = draw_quantum_circuit(circuit, config=DrawConfig(show=False))
+result.primary_figure
 ```
 
 If the backend is interactive, `show=False` only skips the automatic `pyplot.show()` call. The returned figure can still keep hover and other Matplotlib interactivity.
@@ -89,11 +93,16 @@ Hover only works on interactive Matplotlib backends. In a notebook, the safest s
 ```python
 %matplotlib widget
 
-figure, axes = draw_quantum_circuit(circuit, hover=True, show=False)
-figure
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
+result = draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(hover=True, show=False),
+)
+result.primary_figure
 ```
 
-If you are saving to `output=...` or running on a non-interactive backend such as `Agg`, the figure stays static and tooltips are intentionally disabled.
+If you are saving to `output_path=...` or running on a non-interactive backend such as `Agg`, the figure stays static and tooltips are intentionally disabled.
 
 ## Saving output fails
 
@@ -113,37 +122,56 @@ Common causes:
 Try saving to a simple local path first:
 
 ```python
-draw_quantum_circuit(circuit, output="circuit.png", show=False)
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
+draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(output_path="circuit.png", show=False),
+)
 ```
 
-## `page_slider=True` raises `ValueError`
+## `mode=DrawMode.SLIDER` raises `ValueError`
 
-`page_slider=True` only works when the library manages the figure.
+`DrawMode.SLIDER` only works when the library manages the figure.
 
 Do this:
 
 ```python
-figure, axes = draw_quantum_circuit(
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
+result = draw_quantum_circuit(
     circuit,
-    style={"max_page_width": 4.0},
-    page_slider=True,
+    config=DrawConfig(
+        mode=DrawMode.SLIDER,
+        style={"max_page_width": 4.0},
+    ),
 )
 ```
 
 Do not combine it with `ax=...`:
 
 ```python
-draw_quantum_circuit(circuit, ax=axes, page_slider=True)
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
+draw_quantum_circuit(
+    circuit,
+    ax=axes,
+    config=DrawConfig(mode=DrawMode.SLIDER),
+)
 ```
 
 If you want a 3D column slider, keep the figure managed and use a smaller `max_page_width`, for example:
 
 ```python
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
 draw_quantum_circuit(
     circuit,
-    view="3d",
-    style={"max_page_width": 4.0},
-    page_slider=True,
+    config=DrawConfig(
+        view="3d",
+        mode=DrawMode.SLIDER,
+        style={"max_page_width": 4.0},
+    ),
 )
 ```
 
@@ -154,7 +182,9 @@ If you pass `ax=...` with `view="3d"`, the axes must already be a 3D Matplotlib 
 Managed 3D path:
 
 ```python
-figure, axes = draw_quantum_circuit(circuit, view="3d")
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
+result = draw_quantum_circuit(circuit, config=DrawConfig(view="3d"))
 ```
 
 Caller-managed 3D path:
@@ -164,7 +194,11 @@ import matplotlib.pyplot as plt
 
 figure = plt.figure(figsize=(8, 5))
 axes = figure.add_subplot(111, projection="3d")
-draw_quantum_circuit(circuit, ax=axes, view="3d")
+draw_quantum_circuit(
+    circuit,
+    ax=axes,
+    config=DrawConfig(view="3d"),
+)
 ```
 
 ## A 3D topology rejects the qubit count
@@ -182,7 +216,12 @@ Some 3D topologies have shape constraints:
 If a topology does not fit your circuit, start with:
 
 ```python
-draw_quantum_circuit(circuit, view="3d", topology="line")
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
+draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(view="3d", topology="line"),
+)
 ```
 
 ## MyQLM `Program` objects do not draw directly
@@ -194,7 +233,7 @@ Use the usual MyQLM flow:
 ```python
 from qat.lang.AQASM import CNOT, H, Program
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
 program = Program()
 qbits = program.qalloc(2)
@@ -203,7 +242,7 @@ H(qbits[0])
 CNOT(qbits[0], qbits[1])
 
 circuit = program.to_circ()
-draw_quantum_circuit(circuit, framework="myqlm")
+draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 ```
 
 ## CUDA-Q kernels with arguments do not draw
@@ -246,9 +285,11 @@ Common causes:
 Example:
 
 ```python
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+
 draw_quantum_circuit(
     circuit,
-    style={"theme": "paper", "show_params": False},
+    config=DrawConfig(style={"theme": "paper", "show_params": False}),
 )
 ```
 
@@ -266,7 +307,7 @@ This means the adapter found a framework operation that the renderer cannot repr
 
 Useful first checks:
 
-- Try `composite_mode="compact"` if expansion exposes unsupported internals.
-- Try `composite_mode="expand"` if a composite operation can be decomposed.
+- Try `DrawConfig(composite_mode="compact")` if expansion exposes unsupported internals.
+- Try `DrawConfig(composite_mode="expand")` if a composite operation can be decomposed.
 - Check [Frameworks](frameworks.md) for the supported subset of your framework.
 - If the operation is essential, consider building a `CircuitIR` representation for that case.

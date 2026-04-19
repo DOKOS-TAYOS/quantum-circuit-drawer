@@ -11,6 +11,7 @@ from matplotlib.backend_bases import Event, MouseEvent
 from .._matrix_support import matrix_qubit_count, square_matrix
 from ..hover import HoverOptions
 from ..layout.scene import SceneHoverData
+from ..style.theme import DrawTheme
 from ._matplotlib_figure import HoverState, set_hover_state
 
 _HOVER_ZORDER = 10_000
@@ -65,6 +66,8 @@ def attach_hover(
     axes: Axes,
     hover_options: HoverOptions,
     hover_targets: list[_HoverTarget2D],
+    *,
+    theme: DrawTheme,
 ) -> None:
     """Attach a hover annotation overlay to the provided axes."""
 
@@ -77,13 +80,13 @@ def attach_hover(
         ha="left",
         va="bottom",
         fontsize=max(8.0, axes.figure.dpi / 12.0),
-        color="#ffffff",
+        color=theme.hover_text_color,
         zorder=_HOVER_ZORDER,
         annotation_clip=False,
         bbox={
             "boxstyle": "round,pad=0.18",
-            "fc": "#222222",
-            "ec": "#cccccc",
+            "fc": theme.hover_facecolor,
+            "ec": theme.hover_edgecolor,
             "alpha": 0.9,
         },
     )

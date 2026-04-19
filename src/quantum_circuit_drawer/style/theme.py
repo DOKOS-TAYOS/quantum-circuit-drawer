@@ -23,6 +23,26 @@ class DrawTheme:
     barrier_color: str
     measurement_color: str
     accent_color: str
+    control_color: str = ""
+    control_connection_color: str = ""
+    topology_edge_color: str = ""
+    topology_plane_color: str = ""
+    hover_text_color: str = "#ffffff"
+    hover_facecolor: str = "#222222"
+    hover_edgecolor: str = "#cccccc"
+    ui_surface_facecolor: str = ""
+    ui_surface_hover_facecolor: str = ""
+    ui_surface_facecolor_disabled: str = ""
+    ui_surface_edgecolor: str = ""
+    ui_surface_edgecolor_active: str = ""
+    ui_surface_edgecolor_disabled: str = ""
+    ui_text_color: str = ""
+    ui_secondary_text_color: str = ""
+    ui_disabled_text_color: str = ""
+    ui_accent_color: str = ""
+    ui_accent_edgecolor: str = ""
+    ui_slider_track_color: str = ""
+    ui_slider_fill_color: str = ""
 
 
 THEMES: dict[str, DrawTheme] = {
@@ -39,6 +59,26 @@ THEMES: dict[str, DrawTheme] = {
         barrier_color="#94a3b8",
         measurement_color="#0f172a",
         accent_color="#0f766e",
+        control_color="#0f172a",
+        control_connection_color="#0f766e",
+        topology_edge_color="#b45309",
+        topology_plane_color="#0f766e",
+        hover_text_color="#ffffff",
+        hover_facecolor="#222222",
+        hover_edgecolor="#cccccc",
+        ui_surface_facecolor="#f8fafc",
+        ui_surface_hover_facecolor="#e2eef9",
+        ui_surface_facecolor_disabled="#ffffff",
+        ui_surface_edgecolor="#94a3b8",
+        ui_surface_edgecolor_active="#0f766e",
+        ui_surface_edgecolor_disabled="#94a3b8",
+        ui_text_color="#0f172a",
+        ui_secondary_text_color="#52606d",
+        ui_disabled_text_color="#52606d",
+        ui_accent_color="#0f766e",
+        ui_accent_edgecolor="#0f172a",
+        ui_slider_track_color="#52606d",
+        ui_slider_fill_color="#0f766e",
     ),
     "paper": DrawTheme(
         name="paper",
@@ -53,6 +93,26 @@ THEMES: dict[str, DrawTheme] = {
         barrier_color="#b59b7a",
         measurement_color="#5b4636",
         accent_color="#b45309",
+        control_color="#5b4636",
+        control_connection_color="#b45309",
+        topology_edge_color="#b45309",
+        topology_plane_color="#b45309",
+        hover_text_color="#ffffff",
+        hover_facecolor="#222222",
+        hover_edgecolor="#cccccc",
+        ui_surface_facecolor="#fff7e8",
+        ui_surface_hover_facecolor="#f6eddc",
+        ui_surface_facecolor_disabled="#fffdf7",
+        ui_surface_edgecolor="#b59b7a",
+        ui_surface_edgecolor_active="#b45309",
+        ui_surface_edgecolor_disabled="#b59b7a",
+        ui_text_color="#2d2a26",
+        ui_secondary_text_color="#6b5e52",
+        ui_disabled_text_color="#6b5e52",
+        ui_accent_color="#b45309",
+        ui_accent_edgecolor="#2d2a26",
+        ui_slider_track_color="#6b5e52",
+        ui_slider_fill_color="#b45309",
     ),
     "dark": DrawTheme(
         name="dark",
@@ -67,6 +127,26 @@ THEMES: dict[str, DrawTheme] = {
         barrier_color="#4d5b6a",
         measurement_color="#6cb6ff",
         accent_color="#6cb6ff",
+        control_color="#c5d1de",
+        control_connection_color="#22c55e",
+        topology_edge_color="#facc15",
+        topology_plane_color="#22c55e",
+        hover_text_color="#ffffff",
+        hover_facecolor="#222222",
+        hover_edgecolor="#cccccc",
+        ui_surface_facecolor="#161d26",
+        ui_surface_hover_facecolor="#1b2530",
+        ui_surface_facecolor_disabled="#11161d",
+        ui_surface_edgecolor="#2a3441",
+        ui_surface_edgecolor_active="#6cb6ff",
+        ui_surface_edgecolor_disabled="#2a3441",
+        ui_text_color="#e6edf3",
+        ui_secondary_text_color="#9aa7b7",
+        ui_disabled_text_color="#9aa7b7",
+        ui_accent_color="#6cb6ff",
+        ui_accent_edgecolor="#e6edf3",
+        ui_slider_track_color="#2a3441",
+        ui_slider_fill_color="#6cb6ff",
     ),
 }
 

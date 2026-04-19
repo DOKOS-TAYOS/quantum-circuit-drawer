@@ -21,7 +21,6 @@ from quantum_circuit_drawer._draw_managed_slider import (
     _horizontal_scene_for_start_column,
 )
 from quantum_circuit_drawer._draw_managed_zoom import current_text_scale
-from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
@@ -52,6 +51,9 @@ from tests.support import (
     build_sample_scene,
     build_wrapped_ir,
     normalize_rendered_text,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 pytestmark = pytest.mark.renderer

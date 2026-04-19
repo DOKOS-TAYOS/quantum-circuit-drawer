@@ -37,7 +37,6 @@ _CLASSICAL_WIRE_SPACING = 1.05
 _GATE_SIZE = 0.72
 _GATE_DEPTH = 0.72
 _TOPOLOGY_NODE_SIZE = 1.65
-_TOPOLOGY_PLANE_COLOR = "#22c55e"
 _TOPOLOGY_PLANE_ALPHA = 0.105
 _TOPOLOGY_PLANE_PADDING = 0.55
 _CONTROL_MARKER_SCALE = 7.4
@@ -121,7 +120,10 @@ class LayoutEngine3D:
             topology=topology,
             quantum_wire_positions=quantum_wire_positions,
         )
-        topology_planes = self._build_topology_planes(quantum_wire_positions)
+        topology_planes = self._build_topology_planes(
+            quantum_wire_positions,
+            draw_style=draw_style,
+        )
         texts = self._build_wire_texts(
             circuit=circuit,
             quantum_wire_positions=quantum_wire_positions,
@@ -274,6 +276,8 @@ class LayoutEngine3D:
     def _build_topology_planes(
         self,
         quantum_wire_positions: dict[str, Point3D],
+        *,
+        draw_style: DrawStyle,
     ) -> tuple[SceneTopologyPlane3D, ...]:
         x_values = [point.x for point in quantum_wire_positions.values()]
         y_values = [point.y for point in quantum_wire_positions.values()]
@@ -285,7 +289,7 @@ class LayoutEngine3D:
                 y_min=min(y_values) - _TOPOLOGY_PLANE_PADDING,
                 y_max=max(y_values) + _TOPOLOGY_PLANE_PADDING,
                 z=z_start,
-                color=_TOPOLOGY_PLANE_COLOR,
+                color=draw_style.theme.topology_plane_color or draw_style.theme.accent_color,
                 alpha=_TOPOLOGY_PLANE_ALPHA,
             ),
         )

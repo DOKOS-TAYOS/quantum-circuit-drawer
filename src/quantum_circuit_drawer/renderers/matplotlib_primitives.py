@@ -30,7 +30,14 @@ from ..layout.scene import (
     SceneText,
     SceneWire,
 )
-from ..style import resolved_line_width
+from ..style import (
+    resolved_barrier_line_width,
+    resolved_classical_wire_line_width,
+    resolved_connection_line_width,
+    resolved_gate_edge_line_width,
+    resolved_measurement_line_width,
+    resolved_wire_line_width,
+)
 from ..utils.formatting import format_gate_text_block, format_parameter_text, format_visible_label
 from ._matplotlib_figure import get_viewport_width, set_gate_text_metadata
 
@@ -409,7 +416,7 @@ def draw_wires(
         wire_x_start = x_start if x_start is not None else wire.x_start
         wire_x_end = x_end if x_end is not None else wire.x_end
         if wire.kind.value == "classical":
-            offset = max(0.025, resolved_line_width(scene.style) * 0.01)
+            offset = max(0.025, resolved_classical_wire_line_width(scene.style) * 0.01)
             classical_segments.extend(
                 (
                     ((wire_x_start, wire_y - offset), (wire_x_end, wire_y - offset)),
@@ -465,14 +472,14 @@ def draw_wires(
         ax,
         quantum_segments,
         color=scene.style.theme.wire_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_wire_line_width(scene.style),
         zorder=BASE_LAYER_ZORDER,
     )
     _add_line_collection(
         ax,
         classical_segments,
         color=scene.style.theme.classical_wire_color,
-        linewidth=resolved_line_width(scene.style) * 0.9,
+        linewidth=resolved_classical_wire_line_width(scene.style),
         zorder=BASE_LAYER_ZORDER,
         capstyle="butt",
     )
@@ -480,7 +487,7 @@ def draw_wires(
         ax,
         classical_marker_segments,
         color=scene.style.theme.classical_wire_color,
-        linewidth=resolved_line_width(scene.style) * 0.9,
+        linewidth=resolved_classical_wire_line_width(scene.style),
         zorder=SYMBOL_LAYER_ZORDER,
     )
 
@@ -510,7 +517,7 @@ def draw_connections(
             line_end_y = connection_y_end - (direction * arrow_length)
 
         if connection.is_classical and connection.double_line:
-            offset = max(0.02, resolved_line_width(scene.style) * 0.008)
+            offset = max(0.02, resolved_classical_wire_line_width(scene.style) * 0.008)
             classical_segments = classical_segments_by_style.setdefault(connection.linestyle, [])
             classical_segments.extend(
                 (
@@ -545,7 +552,7 @@ def draw_connections(
                 (connection_x, connection_y_end),
                 arrowstyle="-|>",
                 mutation_scale=10 + (scene.style.font_size * 0.45),
-                linewidth=resolved_line_width(scene.style) * 0.9,
+                linewidth=resolved_connection_line_width(scene.style),
                 color=color,
                 linestyle="solid",
                 zorder=SYMBOL_LAYER_ZORDER,
@@ -597,7 +604,7 @@ def draw_connections(
         ax,
         quantum_segments,
         color=scene.style.theme.wire_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_connection_line_width(scene.style),
         zorder=CONNECTION_LAYER_ZORDER,
         capstyle="butt",
     )
@@ -608,7 +615,7 @@ def draw_connections(
             ax,
             classical_segments,
             color=scene.style.theme.classical_wire_color,
-            linewidth=resolved_line_width(scene.style),
+            linewidth=resolved_classical_wire_line_width(scene.style),
             zorder=CONNECTION_LAYER_ZORDER,
             linestyle=linestyle,
             capstyle="butt",
@@ -636,7 +643,7 @@ def draw_gate_box(
         boxstyle="round,pad=0.02,rounding_size=0.05",
         facecolor=scene.style.theme.gate_facecolor,
         edgecolor=scene.style.theme.gate_edgecolor,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_gate_edge_line_width(scene.style),
         zorder=OCCLUSION_LAYER_ZORDER,
     )
     return _add_patch_artist(ax, patch)
@@ -665,7 +672,7 @@ def draw_x_target_circles(
         offsets=offsets,
         facecolor=scene.style.theme.axes_facecolor,
         edgecolor=scene.style.theme.wire_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_gate_edge_line_width(scene.style),
         zorder=OCCLUSION_LAYER_ZORDER,
     )
 
@@ -700,7 +707,7 @@ def draw_x_target_segments(
         ax,
         segments,
         color=scene.style.theme.wire_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_gate_edge_line_width(scene.style),
         zorder=SYMBOL_LAYER_ZORDER,
     )
 
@@ -807,9 +814,9 @@ def draw_controls(
         widths=[diameter] * len(offsets),
         heights=[diameter] * len(offsets),
         offsets=offsets,
-        facecolor=scene.style.theme.wire_color,
-        edgecolor=scene.style.theme.wire_color,
-        linewidth=resolved_line_width(scene.style),
+        facecolor=scene.style.theme.control_color or scene.style.theme.wire_color,
+        edgecolor=scene.style.theme.control_color or scene.style.theme.wire_color,
+        linewidth=resolved_connection_line_width(scene.style),
         zorder=SYMBOL_LAYER_ZORDER,
     )
 
@@ -837,7 +844,7 @@ def draw_swaps(
         ax,
         segments,
         color=scene.style.theme.wire_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_connection_line_width(scene.style),
         zorder=SYMBOL_LAYER_ZORDER,
     )
 
@@ -860,7 +867,7 @@ def draw_barriers(
             for barrier in barriers
         ],
         color=scene.style.theme.barrier_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_barrier_line_width(scene.style),
         zorder=BASE_LAYER_ZORDER,
         linestyle=(0, (4, 2)),
         capstyle="butt",
@@ -885,7 +892,7 @@ def draw_measurement_box(
         boxstyle="round,pad=0.01,rounding_size=0.05",
         facecolor=scene.style.theme.measurement_facecolor,
         edgecolor=scene.style.theme.measurement_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_measurement_line_width(scene.style),
         zorder=OCCLUSION_LAYER_ZORDER,
     )
     return _add_patch_artist(ax, patch)
@@ -915,7 +922,7 @@ def draw_measurement_symbol(
         theta1=180,
         theta2=360,
         color=scene.style.theme.measurement_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_measurement_line_width(scene.style),
         zorder=SYMBOL_LAYER_ZORDER,
     )
     _add_patch_artist(ax, arc)
@@ -926,7 +933,7 @@ def draw_measurement_symbol(
             measurement_y + measurement.height * 0.14,
         ],
         color=scene.style.theme.measurement_color,
-        linewidth=resolved_line_width(scene.style),
+        linewidth=resolved_measurement_line_width(scene.style),
         solid_capstyle="round",
         zorder=SYMBOL_LAYER_ZORDER,
         clip_on=_axes_should_clip_artists(ax),

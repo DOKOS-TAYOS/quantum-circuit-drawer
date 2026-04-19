@@ -459,7 +459,12 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
         )
 
     if window_scene.hover.enabled and hover_targets:
-        attach_hover(state.axes, window_scene.hover, hover_targets)
+        attach_hover(
+            state.axes,
+            window_scene.hover,
+            hover_targets,
+            theme=window_scene.style.theme,
+        )
 
     finalize_axes(state.axes, window_scene)
     from ._draw_managed import configure_zoom_text_scaling
