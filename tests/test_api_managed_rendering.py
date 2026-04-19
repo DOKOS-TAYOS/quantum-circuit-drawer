@@ -597,6 +597,59 @@ def test_draw_quantum_circuit_page_window_keeps_initial_page_width_after_resize(
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_window_renders_requested_page_inside_viewport() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+    assert page_window.total_pages >= 2
+
+    page_window.page_box.set_val("2")
+
+    x_min, x_max = axes.get_xlim()
+    z_label = _text_artist_by_text(axes, "Z")
+    y_label = _text_artist_by_text(axes, "Y")
+
+    assert x_min <= z_label.get_position()[0] <= x_max
+    assert x_min <= y_label.get_position()[0] <= x_max
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_renders_all_requested_pages_inside_viewport() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=12, wire_count=2),
+        style={"max_page_width": 4.0},
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+    assert page_window.visible_pages_box is not None
+    assert page_window.total_pages >= 4
+
+    page_window.page_box.set_val("2")
+    page_window.visible_pages_box.set_val("2")
+
+    x_min, x_max = axes.get_xlim()
+    gate_positions = [
+        text_artist.get_position()[0] for text_artist in _matching_text_artists(axes, "RX\n0.5")
+    ]
+
+    assert len(gate_positions) == 6
+    assert all(x_min <= x_position <= x_max for x_position in gate_positions)
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_figures() -> None:
     paged_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=4.0))
     long_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=100.0))

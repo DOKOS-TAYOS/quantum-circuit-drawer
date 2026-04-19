@@ -259,17 +259,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
 
     for window_index, page_index in enumerate(_visible_page_indexes(state)):
         cache_entry = _cache_entry_for_page(state, page_index)
-        source_page = state.scene.pages[page_index]
-        window_page = ScenePage(
-            index=window_index,
-            start_column=source_page.start_column,
-            end_column=source_page.end_column,
-            content_x_start=source_page.content_x_start,
-            content_x_end=source_page.content_x_end,
-            content_width=source_page.content_width,
-            y_offset=window_index
-            * (window_scene.page_height + window_scene.style.page_vertical_gap),
-        )
+        window_page = _window_page(state, page_index=page_index, window_index=window_index)
         state.renderer._draw_page(
             state.axes,
             window_scene,
@@ -323,24 +313,31 @@ def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
 def _window_pages(state: Managed2DPageWindowState) -> tuple[ScenePage, ...]:
     visible_pages: list[ScenePage] = []
     for window_index, page_index in enumerate(_visible_page_indexes(state)):
-        source_page = state.scene.pages[page_index]
-        visible_pages.append(
-            ScenePage(
-                index=window_index,
-                start_column=source_page.start_column,
-                end_column=source_page.end_column,
-                content_x_start=source_page.content_x_start,
-                content_x_end=source_page.content_x_end,
-                content_width=source_page.content_width,
-                y_offset=window_index
-                * (state.scene.page_height + state.scene.style.page_vertical_gap),
-            )
-        )
+        visible_pages.append(_window_page(state, page_index=page_index, window_index=window_index))
     return tuple(visible_pages)
 
 
 def _visible_page_indexes(state: Managed2DPageWindowState) -> range:
     return range(state.start_page, state.start_page + state.visible_page_count)
+
+
+def _window_page(
+    state: Managed2DPageWindowState,
+    *,
+    page_index: int,
+    window_index: int,
+) -> ScenePage:
+    source_page = state.scene.pages[page_index]
+    cached_page = _cache_entry_for_page(state, page_index).scene.pages[0]
+    return ScenePage(
+        index=window_index,
+        start_column=source_page.start_column,
+        end_column=source_page.end_column,
+        content_x_start=cached_page.content_x_start,
+        content_x_end=cached_page.content_x_end,
+        content_width=cached_page.content_width,
+        y_offset=window_index * (state.scene.page_height + state.scene.style.page_vertical_gap),
+    )
 
 
 def _cache_entry_for_page(
