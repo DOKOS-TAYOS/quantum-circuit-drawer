@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from ._draw_managed_viewport import axes_viewport_pixels, compute_paged_scene
+from ._draw_managed_viewport import (
+    axes_viewport_pixels,
+    build_continuous_slider_scene,
+)
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
 from .ir.circuit import CircuitIR
 from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
@@ -28,7 +31,6 @@ from .layout.scene import (
 from .layout.scene_3d import LayoutScene3D
 from .renderers._matplotlib_figure import clear_hover_state, set_viewport_width
 from .style import DrawStyle
-from .style.defaults import replace_draw_style
 from .typing import LayoutEngine3DLike, LayoutEngineLike
 
 if TYPE_CHECKING:
@@ -744,20 +746,73 @@ def _horizontal_scene_for_start_column(
         start_column=resolved_start_column,
         max_scene_width=state.viewport_width,
     )
-    windowed_circuit = circuit_window(
-        state.circuit,
+    window_scene = _width_budgeted_horizontal_scene(
+        state,
         start_column=resolved_start_column,
-        window_size=max(1, end_column - resolved_start_column + 1),
-    )
-    window_scene = compute_paged_scene(
-        windowed_circuit,
-        state.layout_engine,
-        replace_draw_style(state.style, max_page_width=state.viewport_width),
-        hover_enabled=state.full_scene.hover.enabled,
+        estimated_end_column=end_column,
     )
     window_scene.hover = state.full_scene.hover
     state.horizontal_scene_cache[resolved_start_column] = window_scene
     return window_scene
+
+
+def _width_budgeted_horizontal_scene(
+    state: Managed2DPageSliderState,
+    *,
+    start_column: int,
+    estimated_end_column: int,
+) -> LayoutScene:
+    max_end_column = max(0, state.total_column_count - 1)
+    resolved_end_column = min(max(start_column, estimated_end_column), max_end_column)
+    window_scene = _continuous_horizontal_scene(
+        state,
+        start_column=start_column,
+        end_column=resolved_end_column,
+    )
+
+    while (
+        window_scene.width > state.viewport_width + _VIEWPORT_EPSILON
+        and resolved_end_column > start_column
+    ):
+        resolved_end_column -= 1
+        window_scene = _continuous_horizontal_scene(
+            state,
+            start_column=start_column,
+            end_column=resolved_end_column,
+        )
+
+    candidate_end_column = resolved_end_column + 1
+    while candidate_end_column <= max_end_column:
+        candidate_scene = _continuous_horizontal_scene(
+            state,
+            start_column=start_column,
+            end_column=candidate_end_column,
+        )
+        if candidate_scene.width > state.viewport_width + _VIEWPORT_EPSILON:
+            break
+        window_scene = candidate_scene
+        candidate_end_column += 1
+
+    return window_scene
+
+
+def _continuous_horizontal_scene(
+    state: Managed2DPageSliderState,
+    *,
+    start_column: int,
+    end_column: int,
+) -> LayoutScene:
+    windowed_circuit = circuit_window(
+        state.circuit,
+        start_column=start_column,
+        window_size=max(1, end_column - start_column + 1),
+    )
+    return build_continuous_slider_scene(
+        windowed_circuit,
+        state.layout_engine,
+        state.style,
+        hover_enabled=state.full_scene.hover.enabled,
+    )
 
 
 def _window_end_column(

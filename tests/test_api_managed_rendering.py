@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+from importlib.util import find_spec
 from pathlib import Path
 from typing import cast
 
@@ -13,7 +14,10 @@ from matplotlib.transforms import Bbox
 
 import quantum_circuit_drawer._draw_managed as managed_module
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
-from quantum_circuit_drawer._draw_managed_slider import Managed2DPageSliderState
+from quantum_circuit_drawer._draw_managed_slider import (
+    Managed2DPageSliderState,
+    _horizontal_scene_for_start_column,
+)
 from quantum_circuit_drawer._draw_managed_zoom import current_text_scale
 from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
@@ -1604,6 +1608,57 @@ def test_draw_quantum_circuit_page_slider_clips_windowed_multiqubit_text() -> No
     assert "q0" not in visible_labels
     assert "q1" in visible_labels
     assert all(text_artist.get_clip_on() for text_artist in axes.texts)
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_keeps_qiskit_measurement_tail_in_one_window() -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the QAOA slider regression test")
+
+    from examples._shared import ExampleRequest
+    from examples.qiskit_qaoa import build_circuit
+
+    figure, _ = draw_quantum_circuit(
+        build_circuit(
+            ExampleRequest(
+                qubits=18,
+                columns=12,
+                mode="slider",
+                view="2d",
+                topology="line",
+                seed=7,
+                output=None,
+                show=False,
+                figsize=(10.0, 5.5),
+                hover=False,
+                hover_matrix="auto",
+                hover_matrix_max_qubits=6,
+                hover_show_size=True,
+            )
+        ),
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+
+    split_window_starts = [
+        start_column
+        for start_column in range(page_slider.max_start_column + 1)
+        if len(_horizontal_scene_for_start_column(page_slider, start_column).pages) > 1
+    ]
+
+    assert split_window_starts == []
+
+    for start_column in range(
+        max(0, page_slider.max_start_column - 50), page_slider.max_start_column + 1
+    ):
+        page_slider.horizontal_slider.set_val(float(start_column))
+        assert len(page_slider.scene.pages) == 1
 
     plt.close(figure)
 
