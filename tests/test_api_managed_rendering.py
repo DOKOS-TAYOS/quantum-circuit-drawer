@@ -8,8 +8,10 @@ from typing import cast
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.patches import FancyBboxPatch
 from matplotlib.transforms import Bbox
 
 import quantum_circuit_drawer._draw_managed as managed_module
@@ -28,13 +30,13 @@ from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
-    get_auto_paging_state,
     get_base_font_size,
     get_hover_state,
     get_page_slider,
     get_page_window,
     get_text_scaling_state,
     get_topology_menu_state,
+    get_viewport_width,
 )
 from quantum_circuit_drawer.renderers._render_support import (
     figure_backend_name,
@@ -305,6 +307,30 @@ def _expected_box_fitted_font_size(
         max_font_size=base_font_size * current_text_scale(axes, text_scaling_state),
         cache={},
     )
+
+
+def _adapted_scene_for_axes(
+    circuit: CircuitIR,
+    axes: object,
+    *,
+    style: DrawStyle,
+    hover_enabled: bool = False,
+) -> tuple[LayoutScene, float]:
+    layout_engine = LayoutEngine()
+    initial_scene = layout_engine.compute(circuit, style)
+    return managed_module.viewport_adaptive_paged_scene(
+        circuit,
+        layout_engine,
+        style,
+        axes,
+        hover_enabled=hover_enabled,
+        initial_scene=initial_scene,
+    )
+
+
+def _gate_box_line_width(axes: object) -> float:
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    return float(gate_patch.get_linewidth())
 
 
 def test_draw_quantum_circuit_shows_managed_figures_by_default(
@@ -656,7 +682,6 @@ def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging(
     page_window.visible_pages_decrement_button._observers.process("clicked", None)
 
     assert page_window.visible_page_count == 1
-    assert get_auto_paging_state(axes) is None
     plt.close(figure)
 
 
@@ -713,7 +738,6 @@ def test_draw_quantum_circuit_page_window_keeps_initial_page_width_after_resize(
 
     assert page_window.effective_page_width == pytest.approx(initial_page_width)
     assert page_window.total_pages == initial_total_pages
-    assert get_auto_paging_state(axes) is None
     plt.close(figure)
 
 
@@ -1223,50 +1247,66 @@ def test_draw_quantum_circuit_page_slider_uses_stable_gate_font_size_before_firs
 
 
 def test_draw_quantum_circuit_uses_wider_pages_on_wide_axes_without_slider() -> None:
+    circuit = build_dense_rotation_ir(layer_count=24)
+    style = DrawStyle(max_page_width=12.0)
     narrow_figure, narrow_axes = plt.subplots(figsize=(3.2, 12.0))
     wide_figure, wide_axes = plt.subplots(figsize=(12.0, 3.2))
 
     draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=24),
-        style={"max_page_width": 12.0},
+        circuit,
+        style=style,
         ax=narrow_axes,
     )
     draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=24),
-        style={"max_page_width": 12.0},
+        circuit,
+        style=style,
         ax=wide_axes,
     )
 
-    narrow_state = get_auto_paging_state(narrow_axes)
-    wide_state = get_auto_paging_state(wide_axes)
+    narrow_scene, narrow_page_width = _adapted_scene_for_axes(
+        circuit,
+        narrow_axes,
+        style=style,
+    )
+    wide_scene, wide_page_width = _adapted_scene_for_axes(
+        circuit,
+        wide_axes,
+        style=style,
+    )
 
-    assert narrow_state is not None
-    assert wide_state is not None
-    assert len(wide_state.scene.pages) < len(narrow_state.scene.pages)
-    assert wide_state.effective_page_width > narrow_state.effective_page_width
+    assert len(wide_scene.pages) < len(narrow_scene.pages)
+    assert wide_page_width > narrow_page_width
+    assert get_viewport_width(wide_figure, default=0.0) > get_viewport_width(
+        narrow_figure,
+        default=0.0,
+    )
 
     plt.close(narrow_figure)
     plt.close(wide_figure)
 
 
-def test_draw_quantum_circuit_auto_paging_expands_past_initial_page_width_on_wide_axes() -> None:
+def test_draw_quantum_circuit_initial_2d_layout_expands_past_initial_page_width_on_wide_axes() -> (
+    None
+):
+    circuit = build_dense_rotation_ir(layer_count=24)
+    style = DrawStyle(max_page_width=4.0)
     figure, axes = plt.subplots(figsize=(18.0, 3.0))
 
     draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=24),
-        style={"max_page_width": 4.0},
+        circuit,
+        style=style,
         ax=axes,
     )
 
-    auto_paging_state = get_auto_paging_state(axes)
+    _, effective_page_width = _adapted_scene_for_axes(circuit, axes, style=style)
 
-    assert auto_paging_state is not None
-    assert auto_paging_state.effective_page_width > 4.0
+    assert effective_page_width > 4.0
+    assert get_viewport_width(figure, default=0.0) > 4.0
 
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_repages_when_axes_resize_without_slider() -> None:
+def test_draw_quantum_circuit_keeps_caller_owned_2d_layout_frozen_after_resize() -> None:
     figure, axes = plt.subplots(figsize=(3.2, 12.0))
 
     draw_quantum_circuit(
@@ -1275,25 +1315,21 @@ def test_draw_quantum_circuit_repages_when_axes_resize_without_slider() -> None:
         ax=axes,
     )
 
-    initial_state = get_auto_paging_state(axes)
-
-    assert initial_state is not None
-    initial_page_count = len(initial_state.scene.pages)
-    initial_page_width = initial_state.effective_page_width
+    initial_xlim = axes.get_xlim()
+    initial_ylim = axes.get_ylim()
+    initial_viewport_width = get_viewport_width(figure, default=0.0)
 
     figure.set_size_inches(12.0, 3.2, forward=True)
     figure.canvas.draw()
 
-    resized_state = get_auto_paging_state(axes)
-
-    assert resized_state is not None
-    assert len(resized_state.scene.pages) < initial_page_count
-    assert resized_state.effective_page_width > initial_page_width
+    assert axes.get_xlim() == pytest.approx(initial_xlim)
+    assert axes.get_ylim() == pytest.approx(initial_ylim)
+    assert get_viewport_width(figure, default=0.0) == pytest.approx(initial_viewport_width)
 
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_auto_paging_skips_hover_metadata_when_hover_is_disabled() -> None:
+def test_draw_quantum_circuit_resize_keeps_hover_disabled_when_hover_is_disabled() -> None:
     figure, axes = plt.subplots(figsize=(3.2, 12.0))
 
     draw_quantum_circuit(
@@ -1303,18 +1339,12 @@ def test_draw_quantum_circuit_auto_paging_skips_hover_metadata_when_hover_is_dis
         show=False,
     )
 
-    initial_state = get_auto_paging_state(axes)
-
-    assert initial_state is not None
-    assert _hover_payload_count(initial_state.scene) == 0
+    assert get_hover_state(axes) is None
 
     figure.set_size_inches(12.0, 3.2, forward=True)
     figure.canvas.draw()
 
-    resized_state = get_auto_paging_state(axes)
-
-    assert resized_state is not None
-    assert _hover_payload_count(resized_state.scene) == 0
+    assert get_hover_state(axes) is None
 
     plt.close(figure)
 
@@ -1333,10 +1363,6 @@ def test_draw_quantum_circuit_hidden_hover_render_skips_hover_metadata_even_when
         figsize=(3.2, 12.0),
     )
 
-    state = get_auto_paging_state(axes)
-
-    assert state is not None
-    assert _hover_payload_count(state.scene) == 0
     assert get_hover_state(axes) is None
 
     plt.close(figure)
@@ -1354,11 +1380,7 @@ def test_draw_quantum_circuit_hidden_output_hover_render_skips_hover_metadata() 
             output=output,
         )
 
-        state = get_auto_paging_state(axes)
-
         assert_saved_image_has_visible_content(output)
-        assert state is not None
-        assert _hover_payload_count(state.scene) == 0
         assert get_hover_state(axes) is None
     finally:
         if figure is not None:
@@ -1368,42 +1390,44 @@ def test_draw_quantum_circuit_hidden_output_hover_render_skips_hover_metadata() 
 
 def test_draw_quantum_circuit_managed_figure_uses_viewport_adaptive_paging_without_slider() -> None:
     circuit = build_dense_rotation_ir(layer_count=24)
-    strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
-    figure, axes = draw_quantum_circuit(circuit, style={"max_page_width": 4.0}, show=False)
-
-    auto_paging_state = get_auto_paging_state(axes)
+    style = DrawStyle(max_page_width=4.0)
+    strict_scene = LayoutEngine().compute(circuit, style)
+    figure, axes = draw_quantum_circuit(circuit, style=style, show=False)
+    adapted_scene, adapted_page_width = _adapted_scene_for_axes(circuit, axes, style=style)
     _, figure_height = figure.get_size_inches()
 
-    assert auto_paging_state is not None
     assert figure_height == pytest.approx(max(2.1, strict_scene.page_height * 0.72))
-    assert len(auto_paging_state.scene.pages) <= len(strict_scene.pages) // 2
-    assert auto_paging_state.effective_page_width > strict_scene.pages[0].content_width * 2.0
+    assert len(adapted_scene.pages) <= len(strict_scene.pages) // 2
+    assert adapted_page_width > strict_scene.pages[0].content_width * 2.0
+    assert get_viewport_width(figure, default=0.0) == pytest.approx(adapted_scene.width)
 
     plt.close(figure)
 
 
 def test_draw_quantum_circuit_managed_figure_adapts_paging_to_explicit_figsize() -> None:
     circuit = build_dense_rotation_ir(layer_count=24)
+    style = DrawStyle(max_page_width=12.0)
     narrow_figure, narrow_axes = draw_quantum_circuit(
         circuit,
-        style={"max_page_width": 12.0},
+        style=style,
         show=False,
         figsize=(3.2, 12.0),
     )
     wide_figure, wide_axes = draw_quantum_circuit(
         circuit,
-        style={"max_page_width": 12.0},
+        style=style,
         show=False,
         figsize=(12.0, 3.2),
     )
 
-    narrow_state = get_auto_paging_state(narrow_axes)
-    wide_state = get_auto_paging_state(wide_axes)
+    _, narrow_page_width = _adapted_scene_for_axes(circuit, narrow_axes, style=style)
+    _, wide_page_width = _adapted_scene_for_axes(circuit, wide_axes, style=style)
 
-    assert narrow_state is not None
-    assert wide_state is not None
-    assert len(wide_state.scene.pages) < len(narrow_state.scene.pages)
-    assert wide_state.effective_page_width > narrow_state.effective_page_width
+    assert wide_page_width > narrow_page_width
+    assert get_viewport_width(wide_figure, default=0.0) > get_viewport_width(
+        narrow_figure,
+        default=0.0,
+    )
 
     plt.close(narrow_figure)
     plt.close(wide_figure)
@@ -1419,12 +1443,12 @@ def test_draw_quantum_circuit_uses_explicit_figsize_for_managed_figures() -> Non
     )
 
     assert figure.get_size_inches() == pytest.approx((7.5, 2.75))
-    assert get_auto_paging_state(axes) is not None
+    assert get_viewport_width(figure, default=0.0) > 0.0
 
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_page_slider_skips_auto_paging_state() -> None:
+def test_draw_quantum_circuit_page_slider_keeps_viewport_width_attached_to_figure() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24),
         style={"max_page_width": 4.0},
@@ -1432,7 +1456,10 @@ def test_draw_quantum_circuit_page_slider_skips_auto_paging_state() -> None:
         show=False,
     )
 
-    assert get_auto_paging_state(axes) is None
+    assert get_page_slider(figure) is not None
+    assert get_viewport_width(figure, default=0.0) == pytest.approx(
+        axes.get_xlim()[1] - axes.get_xlim()[0]
+    )
     plt.close(figure)
 
 
@@ -1794,29 +1821,24 @@ def test_draw_quantum_circuit_3d_page_slider_keeps_window_when_switching_topolog
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_managed_figure_expands_beyond_initial_page_width_when_resized() -> (
-    None
-):
+def test_draw_quantum_circuit_keeps_managed_2d_layout_frozen_after_resize() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24),
         style={"max_page_width": 4.0},
         show=False,
+        figsize=(3.2, 12.0),
     )
 
-    initial_state = get_auto_paging_state(axes)
-
-    assert initial_state is not None
-    initial_page_count = len(initial_state.scene.pages)
-    initial_page_width = initial_state.effective_page_width
+    initial_xlim = axes.get_xlim()
+    initial_ylim = axes.get_ylim()
+    initial_viewport_width = get_viewport_width(figure, default=0.0)
 
     figure.set_size_inches(12.0, 3.2, forward=True)
     figure.canvas.draw()
 
-    resized_state = get_auto_paging_state(axes)
-
-    assert resized_state is not None
-    assert len(resized_state.scene.pages) < initial_page_count
-    assert resized_state.effective_page_width > initial_page_width
+    assert axes.get_xlim() == pytest.approx(initial_xlim)
+    assert axes.get_ylim() == pytest.approx(initial_ylim)
+    assert get_viewport_width(figure, default=0.0) == pytest.approx(initial_viewport_width)
 
     plt.close(figure)
 
@@ -1834,76 +1856,21 @@ def test_draw_quantum_circuit_managed_figure_resize_keeps_hover_cleanup_stable(
         figsize=(3.2, 12.0),
     )
 
-    initial_state = get_auto_paging_state(axes)
     initial_hover_state = get_hover_state(axes)
 
-    assert initial_state is not None
     assert initial_hover_state is not None
 
     figure.set_size_inches(12.0, 3.2, forward=True)
     figure.canvas.draw()
 
-    resized_state = get_auto_paging_state(axes)
     resized_hover_state = get_hover_state(axes)
 
-    assert resized_state is not None
     assert resized_hover_state is not None
 
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_managed_figure_reconciles_auto_paging_on_first_draw(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import quantum_circuit_drawer._draw_managed as draw_managed
-
-    circuit = build_dense_rotation_ir(layer_count=24)
-    initial_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
-    reconciled_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=12.0))
-    viewport_calls = 0
-
-    def fake_viewport_adaptive_paged_scene(
-        _circuit: object,
-        _layout_engine: object,
-        _style: object,
-        _axes: object,
-        *,
-        hover_enabled: bool = True,
-        initial_scene: object | None = None,
-    ) -> tuple[object, float]:
-        nonlocal viewport_calls
-        viewport_calls += 1
-        assert hover_enabled is False
-        if viewport_calls == 1:
-            assert initial_scene is not None
-            return initial_scene, 4.0
-        return reconciled_scene, 12.0
-
-    monkeypatch.setattr(
-        draw_managed,
-        "viewport_adaptive_paged_scene",
-        fake_viewport_adaptive_paged_scene,
-    )
-
-    figure, axes = draw_quantum_circuit(circuit, style={"max_page_width": 4.0}, show=False)
-    initial_state = get_auto_paging_state(axes)
-
-    assert initial_state is not None
-    assert len(initial_state.scene.pages) == len(initial_scene.pages)
-
-    figure.canvas.draw()
-
-    reconciled_state = get_auto_paging_state(axes)
-
-    assert reconciled_state is not None
-    assert viewport_calls >= 2
-    assert len(reconciled_state.scene.pages) == len(reconciled_scene.pages)
-    assert reconciled_state.effective_page_width == pytest.approx(12.0)
-
-    plt.close(figure)
-
-
-def test_draw_quantum_circuit_hidden_explicit_figsize_skips_initial_auto_paging_reconcile(
+def test_draw_quantum_circuit_managed_figure_computes_adaptive_layout_once_even_after_resize(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import quantum_circuit_drawer._draw_managed as draw_managed
@@ -1913,23 +1880,23 @@ def test_draw_quantum_circuit_hidden_explicit_figsize_skips_initial_auto_paging_
     original_viewport_adaptive_paged_scene = draw_managed.viewport_adaptive_paged_scene
 
     def count_viewport_adaptive_paged_scene(
-        _circuit: object,
+        _circuit: CircuitIR,
         _layout_engine: object,
-        _style: object,
+        _style: DrawStyle,
         _axes: object,
         *,
         hover_enabled: bool = True,
         initial_scene: LayoutScene | None = None,
-    ) -> tuple[object, float]:
+    ) -> tuple[LayoutScene, float]:
         nonlocal viewport_calls
         viewport_calls += 1
         return original_viewport_adaptive_paged_scene(
             _circuit,
-            _layout_engine,
+            cast("LayoutEngine", _layout_engine),
             _style,
-            _axes,
+            cast("Axes", _axes),
             hover_enabled=hover_enabled,
-            initial_scene=cast("LayoutScene | None", initial_scene),
+            initial_scene=initial_scene,
         )
 
     monkeypatch.setattr(
@@ -1938,67 +1905,20 @@ def test_draw_quantum_circuit_hidden_explicit_figsize_skips_initial_auto_paging_
         count_viewport_adaptive_paged_scene,
     )
 
-    figure, axes = draw_quantum_circuit(
+    figure, _ = draw_quantum_circuit(
         circuit,
         style={"max_page_width": 4.0},
         show=False,
         figsize=(3.2, 12.0),
     )
 
-    assert get_auto_paging_state(axes) is not None
     assert viewport_calls == 1
 
     figure.canvas.draw()
+    figure.set_size_inches(12.0, 3.2, forward=True)
+    figure.canvas.draw()
 
     assert viewport_calls == 1
-
-    plt.close(figure)
-
-
-def test_draw_quantum_circuit_hidden_auto_paging_avoids_full_layout_for_each_candidate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import quantum_circuit_drawer.layout.engine as layout_engine_module
-
-    circuit = build_dense_rotation_ir(layer_count=24)
-    strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
-    compute_calls = 0
-    original_compute = layout_engine_module.LayoutEngine._compute_with_normalized_style
-
-    def count_compute(
-        self: LayoutEngine,
-        circuit: CircuitIR,
-        style: DrawStyle,
-        *,
-        hover_enabled: bool = True,
-    ) -> object:
-        nonlocal compute_calls
-        compute_calls += 1
-        return original_compute(
-            self,
-            circuit,
-            style,
-            hover_enabled=hover_enabled,
-        )
-
-    monkeypatch.setattr(
-        layout_engine_module.LayoutEngine,
-        "_compute_with_normalized_style",
-        count_compute,
-    )
-
-    figure, axes = draw_quantum_circuit(
-        circuit,
-        style={"max_page_width": 4.0},
-        show=False,
-        figsize=(3.2, 12.0),
-    )
-    auto_paging_state = get_auto_paging_state(axes)
-
-    assert auto_paging_state is not None
-    assert auto_paging_state.effective_page_width > 4.0
-    assert len(auto_paging_state.scene.pages) <= len(strict_scene.pages)
-    assert compute_calls <= 3
 
     plt.close(figure)
 
@@ -2156,11 +2076,11 @@ def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_
     for layer_count in (5, 8, 29):
         circuit = build_dense_rotation_ir(layer_count=layer_count, wire_count=1)
         figure, axes = plt.subplots(figsize=(3.2, 12.0))
-        draw_quantum_circuit(circuit, style={"max_page_width": 4.0}, ax=axes)
-        auto_paging_state = get_auto_paging_state(axes)
+        style = DrawStyle(max_page_width=4.0)
+        draw_quantum_circuit(circuit, style=style, ax=axes)
+        adapted_scene, _ = _adapted_scene_for_axes(circuit, axes, style=style)
 
-        assert auto_paging_state is not None
-        page_to_font_size[len(auto_paging_state.scene.pages)] = _font_size_by_text(axes, "RX\n0.5")
+        page_to_font_size[len(adapted_scene.pages)] = _font_size_by_text(axes, "RX\n0.5")
         plt.close(figure)
 
     assert page_to_font_size[3] > page_to_font_size[4] > page_to_font_size[8]
@@ -2181,12 +2101,7 @@ def test_draw_quantum_circuit_uses_thinner_default_line_width_for_denser_initial
         figsize=(3.2, 12.0),
     )
 
-    sparse_state = get_auto_paging_state(sparse_axes)
-    dense_state = get_auto_paging_state(dense_axes)
-
-    assert sparse_state is not None
-    assert dense_state is not None
-    assert dense_state.scene.style.line_width < sparse_state.scene.style.line_width
+    assert _gate_box_line_width(dense_axes) < _gate_box_line_width(sparse_axes)
 
     plt.close(sparse_figure)
     plt.close(dense_figure)
@@ -2207,12 +2122,7 @@ def test_draw_quantum_circuit_uses_thicker_default_line_width_for_larger_initial
         figsize=(12.0, 6.0),
     )
 
-    small_state = get_auto_paging_state(small_axes)
-    large_state = get_auto_paging_state(large_axes)
-
-    assert small_state is not None
-    assert large_state is not None
-    assert large_state.scene.style.line_width > small_state.scene.style.line_width
+    assert _gate_box_line_width(large_axes) > _gate_box_line_width(small_axes)
 
     plt.close(small_figure)
     plt.close(large_figure)
@@ -2228,18 +2138,12 @@ def test_draw_quantum_circuit_keeps_default_line_width_frozen_after_resize() -> 
         ax=axes,
     )
 
-    initial_state = get_auto_paging_state(axes)
-
-    assert initial_state is not None
-    initial_line_width = initial_state.scene.style.line_width
+    initial_line_width = _gate_box_line_width(axes)
 
     figure.set_size_inches(12.0, 3.2, forward=True)
     figure.canvas.draw()
 
-    resized_state = get_auto_paging_state(axes)
-
-    assert resized_state is not None
-    assert resized_state.scene.style.line_width == pytest.approx(initial_line_width)
+    assert _gate_box_line_width(axes) == pytest.approx(initial_line_width)
 
     plt.close(figure)
 
@@ -2252,26 +2156,23 @@ def test_draw_quantum_circuit_keeps_explicit_default_matching_line_width_unchang
         figsize=(3.2, 12.0),
     )
 
-    state = get_auto_paging_state(axes)
-
-    assert state is not None
-    assert state.scene.style.line_width == pytest.approx(1.6)
+    assert _gate_box_line_width(axes) == pytest.approx(1.6)
 
     plt.close(figure)
 
 
 def test_draw_quantum_circuit_preserves_scene_margin_left_after_freezing_line_width() -> None:
+    style = DrawStyle(max_page_width=6.0)
     figure, axes = draw_quantum_circuit(
         _long_label_margin_ir(),
-        style={"max_page_width": 6.0},
+        style=style,
         show=False,
         figsize=(6.0, 3.0),
     )
 
-    state = get_auto_paging_state(axes)
+    adapted_scene, _ = _adapted_scene_for_axes(_long_label_margin_ir(), axes, style=style)
 
-    assert state is not None
-    assert state.scene.style.margin_left > DrawStyle().margin_left
+    assert adapted_scene.style.margin_left > DrawStyle().margin_left
 
     plt.close(figure)
 

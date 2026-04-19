@@ -43,9 +43,6 @@ from ._draw_managed_slider import (
 )
 from ._draw_managed_topology_menu import attach_topology_menu
 from ._draw_managed_viewport import (
-    auto_paging_matches as _auto_paging_matches_impl,
-)
-from ._draw_managed_viewport import (
     axes_viewport_pixels as _axes_viewport_pixels_impl,
 )
 from ._draw_managed_viewport import (
@@ -68,9 +65,6 @@ from ._draw_managed_viewport import (
 )
 from ._draw_managed_viewport import (
     viewport_scene_score as _viewport_scene_score_impl,
-)
-from ._draw_managed_viewport import (
-    viewport_signature as _viewport_signature_impl,
 )
 from ._draw_managed_zoom import (
     configure_zoom_text_scaling as _configure_zoom_text_scaling_impl,
@@ -303,8 +297,6 @@ def render_managed_draw_pipeline(
             pipeline,
             axes=axes,
             output=output,
-            enable_auto_paging=True,
-            reconcile_on_first_draw=not (use_agg_canvas and figsize is not None),
         )
         logger.debug("Rendered managed figure without page slider")
 
@@ -317,23 +309,14 @@ def render_draw_pipeline_on_axes(
     *,
     axes: Axes,
     output: OutputPath | None,
-    enable_auto_paging: bool,
-    reconcile_on_first_draw: bool = False,
 ) -> Axes:
-    """Render a prepared pipeline on existing 2D axes, with optional auto paging."""
+    """Render a prepared pipeline on existing axes using one-shot 2D composition."""
 
-    from .renderers._matplotlib_figure import (
-        AutoPagingState,
-        clear_auto_paging_state,
-        clear_text_scaling_state,
-        set_auto_paging_state,
-        set_viewport_width,
-    )
+    from .renderers._matplotlib_figure import clear_text_scaling_state, set_viewport_width
 
-    clear_auto_paging_state(axes)
     clear_text_scaling_state(axes)
 
-    if is_3d_scene(pipeline.paged_scene) or not enable_auto_paging:
+    if is_3d_scene(pipeline.paged_scene):
         axes.clear()
         pipeline.renderer.render(pipeline.paged_scene, ax=axes, output=output)
         return axes
@@ -357,20 +340,6 @@ def render_draw_pipeline_on_axes(
     axes.clear()
     pipeline.renderer.render(scene_2d, ax=axes, output=output)
     set_viewport_width(axes.figure, viewport_width=scene_2d.width)
-
-    auto_paging_state = AutoPagingState(
-        ir=pipeline.ir,
-        layout_engine=cast(LayoutEngineLike, pipeline.layout_engine),
-        renderer=pipeline.renderer,
-        normalized_style=frozen_style,
-        scene=scene_2d,
-        effective_page_width=effective_page_width,
-        hover_enabled=prepared_scene.hover.enabled,
-        last_viewport_signature=viewport_signature(axes),
-        needs_initial_draw_reconcile=reconcile_on_first_draw,
-    )
-    set_auto_paging_state(axes, auto_paging_state)
-    configure_auto_paging(axes, auto_paging_state)
     return axes
 
 
@@ -450,105 +419,6 @@ def compute_paged_scene(
         style,
         hover_enabled=hover_enabled,
     )
-
-
-def configure_auto_paging(axes: Axes, state: object) -> None:
-    """Attach resize-aware paging callbacks to the provided axes."""
-
-    from matplotlib.backend_bases import Event
-
-    from .renderers._matplotlib_figure import (
-        AutoPagingState,
-        get_auto_paging_state,
-        set_viewport_width,
-    )
-
-    if not isinstance(state, AutoPagingState):
-        return
-
-    canvas = axes.figure.canvas
-    if canvas is None:
-        return
-
-    def request_redraw(_event: Event) -> None:
-        if state.is_updating or state.redraw_queued:
-            return
-        state.redraw_queued = True
-        canvas.draw_idle()
-
-    def redraw_if_needed(_event: Event) -> None:
-        current_state = get_auto_paging_state(axes)
-        if current_state is None or current_state is not state or state.is_updating:
-            return
-        state.redraw_queued = False
-
-        current_signature = viewport_signature(axes)
-        if current_signature is None:
-            return
-        if (
-            not state.needs_initial_draw_reconcile
-            and current_signature == state.last_viewport_signature
-        ):
-            return
-
-        cached_candidate = state.viewport_scene_cache.get(current_signature)
-        if cached_candidate is None:
-            candidate_scene, candidate_page_width = viewport_adaptive_paged_scene(
-                state.ir,
-                state.layout_engine,
-                state.normalized_style,
-                axes,
-                hover_enabled=state.hover_enabled,
-            )
-            state.viewport_scene_cache[current_signature] = (candidate_scene, candidate_page_width)
-            if len(state.viewport_scene_cache) > 6:
-                state.viewport_scene_cache.pop(next(iter(state.viewport_scene_cache)))
-        else:
-            candidate_scene, candidate_page_width = cached_candidate
-        candidate_scene.hover = state.scene.hover
-        state.last_viewport_signature = current_signature
-        state.needs_initial_draw_reconcile = False
-        if auto_paging_matches(
-            current_state=state,
-            candidate_scene=candidate_scene,
-            candidate_page_width=candidate_page_width,
-        ):
-            return
-
-        state.is_updating = True
-        try:
-            axes.clear()
-            state.renderer.render(candidate_scene, ax=axes)
-            set_viewport_width(axes.figure, viewport_width=candidate_scene.width)
-            state.scene = candidate_scene
-            state.effective_page_width = candidate_page_width
-        finally:
-            state.is_updating = False
-        canvas.draw_idle()
-
-    state.resize_callback_id = canvas.mpl_connect("resize_event", request_redraw)
-    state.draw_callback_id = canvas.mpl_connect("draw_event", redraw_if_needed)
-
-
-def auto_paging_matches(
-    *,
-    current_state: object,
-    candidate_scene: LayoutScene,
-    candidate_page_width: float,
-) -> bool:
-    """Return whether a candidate scene would keep the current paging unchanged."""
-
-    return _auto_paging_matches_impl(
-        current_state=current_state,
-        candidate_scene=candidate_scene,
-        candidate_page_width=candidate_page_width,
-    )
-
-
-def viewport_signature(axes: Axes) -> tuple[int, int] | None:
-    """Return an integer pixel signature for the current visible axes viewport."""
-
-    return _viewport_signature_impl(axes)
 
 
 def axes_viewport_ratio(axes: Axes) -> float:

@@ -2,27 +2,22 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol, cast
 
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure, SubFigure
 
 if TYPE_CHECKING:
-    from ..ir.circuit import CircuitIR
     from ..layout.scene import LayoutScene
     from ..layout.scene_3d import LayoutScene3D
-    from ..style import DrawStyle
-    from ..typing import LayoutEngineLike
-    from .base import BaseRenderer
 
 _MANAGED_SUBPLOT_LEFT = 0.02
 _MANAGED_SUBPLOT_RIGHT = 0.98
 _MANAGED_SUBPLOT_TOP = 0.98
 _MANAGED_SUBPLOT_BOTTOM = 0.02
 _METADATA_ATTR = "_quantum_circuit_drawer_metadata"
-_AUTO_PAGING_ATTR = "_quantum_circuit_drawer_auto_paging_state"
 _TEXT_SCALING_ATTR = "_quantum_circuit_drawer_text_scaling_state"
 _BASE_FONT_SIZE_ATTR = "_quantum_circuit_drawer_base_font_size"
 _GATE_TEXT_METADATA_ATTR = "_quantum_circuit_drawer_gate_text_metadata"
@@ -35,26 +30,6 @@ class _ManagedFigureMetadata:
     page_slider: object | None = None
     page_window: object | None = None
     topology_menu_state: object | None = None
-
-
-@dataclass(slots=True)
-class AutoPagingState:
-    ir: CircuitIR
-    layout_engine: LayoutEngineLike
-    renderer: BaseRenderer
-    normalized_style: DrawStyle
-    scene: LayoutScene
-    effective_page_width: float
-    hover_enabled: bool = True
-    last_viewport_signature: tuple[int, int] | None = None
-    needs_initial_draw_reconcile: bool = False
-    is_updating: bool = False
-    redraw_queued: bool = False
-    viewport_scene_cache: dict[tuple[int, int], tuple[LayoutScene, float]] = field(
-        default_factory=dict
-    )
-    draw_callback_id: int | None = None
-    resize_callback_id: int | None = None
 
 
 @dataclass(slots=True)
@@ -84,6 +59,10 @@ class GateTextMetadata:
 class HoverState:
     annotation: object
     callback_id: int | None = None
+
+
+class _SupportsRemove(Protocol):
+    def remove(self) -> object: ...
 
 
 def create_managed_figure(
@@ -178,37 +157,8 @@ def clear_topology_menu_state(figure: Figure | SubFigure) -> None:
         return
 
     if hasattr(state, "remove"):
-        state.remove()
+        cast(_SupportsRemove, state).remove()
     _metadata_for(figure).topology_menu_state = None
-
-
-def set_auto_paging_state(axes: Axes, state: AutoPagingState) -> None:
-    """Store viewport-adaptive paging state on the provided axes."""
-
-    setattr(axes, _AUTO_PAGING_ATTR, state)
-
-
-def get_auto_paging_state(axes: Axes) -> AutoPagingState | None:
-    """Return viewport-adaptive paging state attached to the axes, if any."""
-
-    state = getattr(axes, _AUTO_PAGING_ATTR, None)
-    return state if isinstance(state, AutoPagingState) else None
-
-
-def clear_auto_paging_state(axes: Axes) -> None:
-    """Detach viewport-adaptive paging state and disconnect its callbacks."""
-
-    state = get_auto_paging_state(axes)
-    if state is None:
-        return
-
-    canvas = axes.figure.canvas
-    if canvas is not None:
-        if state.draw_callback_id is not None:
-            canvas.mpl_disconnect(state.draw_callback_id)
-        if state.resize_callback_id is not None:
-            canvas.mpl_disconnect(state.resize_callback_id)
-    delattr(axes, _AUTO_PAGING_ATTR)
 
 
 def set_text_scaling_state(axes: Axes, state: TextScalingState) -> None:
@@ -311,7 +261,7 @@ def clear_hover_state(axes: Axes) -> None:
     annotation = state.annotation
     if hasattr(annotation, "remove"):
         try:
-            annotation.remove()
+            cast(_SupportsRemove, annotation).remove()
         except NotImplementedError:
             # ``axes.clear()`` can detach the annotation before hover cleanup runs.
             pass

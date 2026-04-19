@@ -45,7 +45,8 @@ Notes:
 - Hover is enabled by default in both 2D and 3D when the Matplotlib backend is interactive.
 - By default, hover tooltips show gate name, matrix dimensions, and affected qubits, and they add the full matrix automatically for small gates.
 - The shared demo window now opens at `10 x 5.5` inches by default; use `--figsize` when you want a larger or smaller managed figure.
-- In `--mode window`, the page wrapping is frozen when the figure opens; if you resize later, the current page layout stays as-is.
+- In 2D, the base layout is frozen when the figure opens; if you resize later, the circuit is not recomputed automatically.
+- In `--mode window`, the current wrapped page layout also stays as-is after resize.
 - The 3D examples still use routed connections to show the topology engine better.
 - When you open a 3D demo, the topology selector is enabled automatically so you can switch chip layouts without rerunning the command.
 - On native Windows, Cirq and PennyLane demos now avoid eager exact-matrix extraction by default to improve startup. Use `--hover-matrix always` only when you specifically want exact framework matrices, and prefer WSL or Linux if those frameworks are still unstable in your environment.

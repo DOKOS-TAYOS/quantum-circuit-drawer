@@ -176,6 +176,7 @@ figure, axes = draw_quantum_circuit(
 
 Important rules:
 
+- In 2D, the base layout is chosen when the figure is rendered. Resizing the window later does not repaginate or recompute the circuit; rerender if you want a different base layout.
 - `page_window=True` requires a managed 2D figure, so do not combine it with `ax=...`.
 - `page_window=True` freezes the wrapped page width chosen at creation time; resizing the window does not repaginate the circuit.
 - In `page_window=True`, the `Page` and `Visible` boxes clamp values into the valid range and reuse already loaded pages from an in-memory cache.
@@ -184,7 +185,7 @@ Important rules:
 - In 3D, `page_slider=True` moves through circuit columns with a horizontal slider.
 - If you also pass `output=...`, the saved file uses the clean paged layout without the `page_window` or `page_slider` UI.
 
-Gate labels and subtitles in 2D also adapt to zoom. When you zoom into dense pages, gate text grows only as far as the visible gate body allows, so labels stay inside the box instead of becoming oversized.
+2D text also adapts to zoom without recomputing the layout. When you zoom into dense pages, labels grow only as far as the visible gate body allows, so text stays inside the box instead of becoming oversized.
 
 ## Interactive hover
 

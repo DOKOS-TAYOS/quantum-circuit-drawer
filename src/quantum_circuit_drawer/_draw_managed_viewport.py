@@ -115,41 +115,6 @@ def page_window_adaptive_paged_scene(
     )
 
 
-def auto_paging_matches(
-    *,
-    current_state: object,
-    candidate_scene: LayoutScene,
-    candidate_page_width: float,
-) -> bool:
-    """Return whether a candidate scene would keep the current paging unchanged."""
-
-    from .renderers._matplotlib_figure import AutoPagingState
-
-    if not isinstance(current_state, AutoPagingState):
-        return False
-    if not math.isclose(
-        current_state.effective_page_width,
-        candidate_page_width,
-        rel_tol=1e-6,
-        abs_tol=1e-6,
-    ):
-        return False
-    return (
-        len(current_state.scene.pages) == len(candidate_scene.pages)
-        and math.isclose(current_state.scene.width, candidate_scene.width, rel_tol=1e-6)
-        and math.isclose(current_state.scene.height, candidate_scene.height, rel_tol=1e-6)
-    )
-
-
-def viewport_signature(axes: Axes) -> tuple[int, int] | None:
-    """Return an integer pixel signature for the current visible axes viewport."""
-
-    viewport_width, viewport_height = axes_viewport_pixels(axes)
-    if viewport_width <= 0.0 or viewport_height <= 0.0:
-        return None
-    return int(round(viewport_width)), int(round(viewport_height))
-
-
 def axes_viewport_ratio(axes: Axes) -> float:
     """Return the current visible axes aspect ratio in pixels."""
 

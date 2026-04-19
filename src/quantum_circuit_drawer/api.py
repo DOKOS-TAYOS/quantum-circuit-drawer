@@ -116,7 +116,6 @@ def draw_quantum_circuit(
         pipeline,
         axes=request.ax,
         output=request.output,
-        enable_auto_paging=request.pipeline_options.view == "2d",
     )
 
 
@@ -146,7 +145,6 @@ def _render_draw_pipeline_on_axes(
     *,
     axes: Axes,
     output: OutputPath | None,
-    enable_auto_paging: bool,
 ) -> Axes:
     from ._draw_managed import render_draw_pipeline_on_axes
 
@@ -154,7 +152,6 @@ def _render_draw_pipeline_on_axes(
         pipeline,
         axes=axes,
         output=output,
-        enable_auto_paging=enable_auto_paging,
     )
 
 

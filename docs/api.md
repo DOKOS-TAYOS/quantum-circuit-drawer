@@ -69,6 +69,12 @@ from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 | `hover` | `False` | `False`, `True`, a `HoverOptions` object, or a mapping with hover fields; enables interactive gate hover where supported |
 | `**options` | none | Reserved for forward-compatible options used by the draw pipeline |
 
+2D layout behavior in this release:
+
+- The 2D layout adapts to the active viewport once, when the figure is rendered.
+- Resizing the window later does not repaginate or recompute the circuit.
+- Explicit 2D controls such as `page_window=True` navigation and `page_slider=True` visible-row changes still trigger their own redraws.
+
 ## Hover options
 
 `hover=True` is a shorthand for the default `HoverOptions()`:
@@ -105,7 +111,7 @@ Hover behavior in this release:
 - The `use_mathtext` style flag only changes the visible circuit labels. Hover text stays plain.
 - Saved figures and non-interactive backends keep static labels and do not create tooltips.
 - Managed figures created with `show=False` keep hover active on interactive backends, including notebook backends such as `nbagg`, `ipympl`, and `widget`.
-- Gate text in 2D rescales on zoom, but wire labels and other annotations keep their base size.
+- 2D text rescales on zoom while the underlying layout stays fixed.
 
 `HoverOptions` fields:
 
