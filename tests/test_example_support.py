@@ -93,6 +93,55 @@ def test_request_from_namespace_accepts_3d_slider() -> None:
     assert request.topology == "line"
 
 
+def test_request_from_namespace_accepts_2d_window() -> None:
+    from examples._shared import request_from_namespace
+
+    args = Namespace(
+        qubits=6,
+        columns=8,
+        mode="window",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=True,
+        figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    request = request_from_namespace(args, default_qubits=4, default_columns=5)
+
+    assert request.mode == "window"
+    assert request.view == "2d"
+    assert request.topology == "line"
+
+
+def test_request_from_namespace_rejects_3d_window() -> None:
+    from examples._shared import request_from_namespace
+
+    args = Namespace(
+        qubits=6,
+        columns=8,
+        mode="window",
+        view="3d",
+        topology="grid",
+        seed=7,
+        output=None,
+        show=True,
+        figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    with pytest.raises(SystemExit, match="--mode window is only available in 2D"):
+        request_from_namespace(args, default_qubits=4, default_columns=5)
+
+
 def test_request_from_namespace_rejects_non_positive_hover_matrix_max_qubits() -> None:
     from examples._shared import request_from_namespace
 
@@ -215,6 +264,7 @@ def test_render_example_draws_and_reports_saved_output(
         output: Path | None = None,
         show: bool = True,
         page_slider: bool = False,
+        page_window: bool = False,
         view: str = "2d",
         topology: str = "line",
         topology_menu: bool = False,
@@ -231,6 +281,7 @@ def test_render_example_draws_and_reports_saved_output(
                 "output": output,
                 "show": show,
                 "page_slider": page_slider,
+                "page_window": page_window,
                 "view": view,
                 "topology": topology,
                 "topology_menu": topology_menu,
@@ -279,6 +330,7 @@ def test_render_example_draws_and_reports_saved_output(
             "output": output,
             "show": False,
             "page_slider": False,
+            "page_window": False,
             "view": "3d",
             "topology": "grid",
             "topology_menu": True,
@@ -308,6 +360,7 @@ def test_render_example_forwards_page_slider_in_3d_slider_mode(
         output: Path | None = None,
         show: bool = True,
         page_slider: bool = False,
+        page_window: bool = False,
         view: str = "2d",
         topology: str = "line",
         topology_menu: bool = False,
@@ -324,6 +377,7 @@ def test_render_example_forwards_page_slider_in_3d_slider_mode(
                 "output": output,
                 "show": show,
                 "page_slider": page_slider,
+                "page_window": page_window,
                 "view": view,
                 "topology": topology,
                 "topology_menu": topology_menu,
@@ -371,10 +425,105 @@ def test_render_example_forwards_page_slider_in_3d_slider_mode(
             "output": None,
             "show": False,
             "page_slider": True,
+            "page_window": False,
             "view": "3d",
             "topology": "grid",
             "topology_menu": True,
             "direct": False,
+            "hover": HoverOptions(),
+            "figsize": (10.0, 5.5),
+            "options": {},
+        }
+    ]
+
+
+def test_render_example_forwards_page_window_in_2d_window_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._shared import ExampleRequest, render_example
+
+    from quantum_circuit_drawer import HoverOptions
+
+    draw_calls: list[dict[str, object]] = []
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        framework: str | None = None,
+        *,
+        style: dict[str, object],
+        output: Path | None = None,
+        show: bool = True,
+        page_slider: bool = False,
+        page_window: bool = False,
+        view: str = "2d",
+        topology: str = "line",
+        topology_menu: bool = False,
+        direct: bool = True,
+        hover: object = False,
+        figsize: tuple[float, float] | None = None,
+        **options: object,
+    ) -> None:
+        draw_calls.append(
+            {
+                "circuit": circuit,
+                "framework": framework,
+                "style": style,
+                "output": output,
+                "show": show,
+                "page_slider": page_slider,
+                "page_window": page_window,
+                "view": view,
+                "topology": topology,
+                "topology_menu": topology_menu,
+                "direct": direct,
+                "hover": hover,
+                "figsize": figsize,
+                "options": options,
+            }
+        )
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    request = ExampleRequest(
+        qubits=12,
+        columns=24,
+        mode="window",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(10.0, 5.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    render_example(
+        {"kind": "demo"},
+        request=request,
+        framework="qiskit",
+        saved_label="qiskit-random-window",
+    )
+
+    assert draw_calls == [
+        {
+            "circuit": {"kind": "demo"},
+            "framework": "qiskit",
+            "style": {
+                "font_size": 12.0,
+                "show_params": True,
+                "max_page_width": 9.780000000000001,
+            },
+            "output": None,
+            "show": False,
+            "page_slider": False,
+            "page_window": True,
+            "view": "2d",
+            "topology": "line",
+            "topology_menu": False,
+            "direct": True,
             "hover": HoverOptions(),
             "figsize": (10.0, 5.5),
             "options": {},
@@ -398,6 +547,7 @@ def test_render_example_disables_explicit_matrices_for_cirq_on_windows(
         output: Path | None = None,
         show: bool = True,
         page_slider: bool = False,
+        page_window: bool = False,
         hover: object = False,
         figsize: tuple[float, float] | None = None,
         **options: object,
@@ -410,6 +560,7 @@ def test_render_example_disables_explicit_matrices_for_cirq_on_windows(
                 "output": output,
                 "show": show,
                 "page_slider": page_slider,
+                "page_window": page_window,
                 "hover": hover,
                 "figsize": figsize,
                 "options": options,
@@ -456,6 +607,7 @@ def test_render_example_keeps_explicit_matrices_for_windows_hover_matrix_always(
         output: Path | None = None,
         show: bool = True,
         page_slider: bool = False,
+        page_window: bool = False,
         hover: object = False,
         figsize: tuple[float, float] | None = None,
         **options: object,
@@ -468,6 +620,7 @@ def test_render_example_keeps_explicit_matrices_for_windows_hover_matrix_always(
                 "output": output,
                 "show": show,
                 "page_slider": page_slider,
+                "page_window": page_window,
                 "hover": hover,
                 "figsize": figsize,
                 "options": options,

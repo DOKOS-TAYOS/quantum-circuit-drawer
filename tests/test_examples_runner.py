@@ -278,6 +278,93 @@ def test_run_demo_with_args_accepts_3d_slider_and_loads_demo(
     ]
 
 
+def test_run_demo_with_args_accepts_2d_window_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built_subject = {"kind": "2d-window-demo"}
+    builder_calls: list[ExampleRequest] = []
+    render_calls: list[dict[str, object]] = []
+    spec = DemoSpec(
+        demo_id="custom-demo",
+        description="Custom demo",
+        module_name="examples.qiskit_random",
+        builder_name="build_circuit",
+        framework="qiskit",
+        default_qubits=8,
+        default_columns=6,
+        columns_help="Random circuit columns to generate",
+        dependency_module="qiskit",
+    )
+    args = Namespace(
+        list=False,
+        demo="custom-demo",
+        qubits=14,
+        columns=28,
+        mode="window",
+        view="2d",
+        topology="grid",
+        seed=23,
+        output=None,
+        show=False,
+        figsize=(10.0, 5.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    def fake_builder(request: ExampleRequest) -> object:
+        builder_calls.append(request)
+        return built_subject
+
+    def fake_render_example(
+        subject: object,
+        *,
+        request: ExampleRequest,
+        framework: str | None,
+        saved_label: str,
+    ) -> None:
+        render_calls.append(
+            {
+                "subject": subject,
+                "request": request,
+                "framework": framework,
+                "saved_label": saved_label,
+            }
+        )
+
+    monkeypatch.setattr(run_demo_module, "load_demo_builder", lambda demo_spec: fake_builder)
+    monkeypatch.setattr(run_demo_module, "render_example", fake_render_example)
+
+    run_demo_module.run_demo_with_args(spec, args)
+
+    assert builder_calls == [
+        ExampleRequest(
+            qubits=14,
+            columns=28,
+            mode="window",
+            view="2d",
+            topology="grid",
+            seed=23,
+            output=None,
+            show=False,
+            figsize=(10.0, 5.5),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        )
+    ]
+    assert render_calls == [
+        {
+            "subject": built_subject,
+            "request": builder_calls[0],
+            "framework": "qiskit",
+            "saved_label": "custom-demo",
+        }
+    ]
+
+
 def test_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         run_demo_module,
@@ -441,6 +528,40 @@ def test_examples_runner_can_render_slider_demo_for_random_qiskit(sandbox_tmp_pa
             "18",
             "--mode",
             "slider",
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_examples_runner_can_render_window_demo_for_random_qiskit(sandbox_tmp_path: Path) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the page-window smoke test")
+
+    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    output_path = sandbox_tmp_path / "qiskit-window.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--demo",
+            "qiskit-random",
+            "--qubits",
+            "8",
+            "--columns",
+            "24",
+            "--mode",
+            "window",
             "--no-show",
             "--output",
             str(output_path),

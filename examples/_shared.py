@@ -19,7 +19,7 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit  # noqa: E402
 
 ViewMode = Literal["2d", "3d"]
-RenderMode = Literal["pages", "slider"]
+RenderMode = Literal["pages", "slider", "window"]
 TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
 HoverMatrixMode = Literal["never", "auto", "always"]
 
@@ -85,9 +85,12 @@ def add_render_arguments(
     )
     parser.add_argument(
         "--mode",
-        choices=("pages", "slider"),
+        choices=("pages", "slider", "window"),
         default="pages",
-        help="Render in wrapped pages or slider mode. In 3D, slider mode moves through columns.",
+        help=(
+            "Render in wrapped pages, slider mode, or a fixed 2D page window. "
+            "In 3D, slider mode moves through columns."
+        ),
     )
     parser.add_argument(
         "--view",
@@ -218,11 +221,13 @@ def request_from_namespace(
     hover_matrix = str(getattr(args, "hover_matrix", "auto"))
     if hover_matrix not in {"never", "auto", "always"}:
         hover_matrix = "auto"
+    if mode == "window" and view != "2d":
+        raise SystemExit("--mode window is only available in 2D. Use --view 2d.")
 
     return ExampleRequest(
         qubits=qubits,
         columns=columns,
-        mode=mode if mode in {"pages", "slider"} else "pages",
+        mode=mode if mode in {"pages", "slider", "window"} else "pages",
         view=view if view in {"2d", "3d"} else "2d",
         topology=topology if topology in SUPPORTED_TOPOLOGIES else "line",
         seed=int(args.seed),
@@ -322,6 +327,7 @@ def render_example(
         show=request.show,
         figsize=request.figsize,
         page_slider=request.mode == "slider",
+        page_window=request.mode == "window",
         **demo_adapter_options(request, framework=framework),
         **build_render_options(request),
     )
