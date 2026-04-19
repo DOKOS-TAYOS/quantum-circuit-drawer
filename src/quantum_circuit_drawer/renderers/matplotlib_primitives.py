@@ -44,9 +44,6 @@ _GateTextCacheKey = tuple[object, float, float]
 _GateTextCache = dict[_GateTextCacheKey, float]
 _SINGLE_LINE_HEIGHT_FRACTION = 0.62
 _STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
-_STACKED_LABEL_SHARE = 0.6
-_STACKED_SUBTITLE_SHARE = 0.4
-_STACKED_GAP_FRACTION = 0.08
 _MULTILINE_TEXT_LINE_SPACING = 1.2
 _MIN_GATE_TEXT_FONT_SIZE = 0.7
 _MATHTEXT_WIDTH_PADDING_FACTOR = 1.25
@@ -1048,21 +1045,6 @@ def draw_gate_annotation(
         gate_height=scene.style.gate_height * 0.5,
         height_fraction=1.0,
     )
-
-
-def _gate_text_layout(gate: SceneGate) -> tuple[float, float | None, float, float]:
-    if not gate.subtitle:
-        return gate.y, None, _SINGLE_LINE_HEIGHT_FRACTION, 0.0
-
-    usable_height = gate.height * _STACKED_TEXT_USABLE_HEIGHT_FRACTION
-    gap = min(gate.height * _STACKED_GAP_FRACTION, usable_height * 0.18)
-    stack_height = max(0.0, usable_height - gap)
-    label_height = stack_height * _STACKED_LABEL_SHARE
-    subtitle_height = stack_height * _STACKED_SUBTITLE_SHARE
-    center_offset = (usable_height / 2.0) - ((label_height + subtitle_height) / 4.0)
-    label_y = gate.y - center_offset
-    subtitle_y = gate.y + center_offset
-    return label_y, subtitle_y, label_height / gate.height, subtitle_height / gate.height
 
 
 def _fit_gate_text_font_size(

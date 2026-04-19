@@ -5,6 +5,10 @@ import pytest
 
 from quantum_circuit_drawer import draw_quantum_circuit
 from quantum_circuit_drawer._draw_managed_slider import Managed3DPageSliderState
+from quantum_circuit_drawer._managed_3d_view_state import (
+    _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
+    Managed3DFixedViewState,
+)
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
@@ -102,8 +106,17 @@ def test_draw_quantum_circuit_3d_page_slider_preserves_view_and_limits_between_s
 
     page_slider.horizontal_slider.set_val(1.0)
 
+    fixed_view_state = getattr(axes, _MANAGED_3D_FIXED_VIEW_STATE_ATTR, None)
+
     assert axes.elev == pytest.approx(31.0)
     assert axes.azim == pytest.approx(-22.0)
+    assert isinstance(fixed_view_state, Managed3DFixedViewState)
+    assert fixed_view_state.elev == pytest.approx(31.0)
+    assert fixed_view_state.azim == pytest.approx(-22.0)
+    assert fixed_view_state.x_limits == pytest.approx(adjusted_x_limits)
+    assert fixed_view_state.y_limits == pytest.approx(adjusted_y_limits)
+    assert fixed_view_state.z_limits == pytest.approx(adjusted_z_limits)
+    assert fixed_view_state.raw_box_aspect == pytest.approx(initial_box_aspect)
     assert tuple(float(value) for value in axes.get_xlim3d()) == pytest.approx(adjusted_x_limits)
     assert tuple(float(value) for value in axes.get_ylim3d()) == pytest.approx(adjusted_y_limits)
     assert tuple(float(value) for value in axes.get_zlim3d()) == pytest.approx(adjusted_z_limits)

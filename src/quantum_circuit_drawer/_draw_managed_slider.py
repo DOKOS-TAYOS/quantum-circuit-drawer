@@ -14,6 +14,10 @@ from ._draw_managed_viewport import (
     build_continuous_slider_scene,
 )
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
+from ._managed_3d_view_state import (
+    _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
+    capture_managed_3d_view_state,
+)
 from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from .ir.circuit import CircuitIR
 from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
@@ -36,6 +40,7 @@ from .typing import LayoutEngine3DLike, LayoutEngineLike
 
 if TYPE_CHECKING:
     from matplotlib.widgets import Button, Slider, TextBox
+    from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
 
     from .layout.topology_3d import TopologyName
     from .renderers.matplotlib_renderer import MatplotlibRenderer
@@ -65,7 +70,6 @@ _MANAGED_2D_STEPPER_BUTTON_GAP = 0.006
 _DEFAULT_VISIBLE_QUBITS = 15
 
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
-_MANAGED_3D_FIXED_VIEW_STATE_ATTR = "_quantum_circuit_drawer_managed_3d_fixed_view_state"
 _MANAGED_3D_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
 _MANAGED_3D_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.0, 0.14, 1.0, 0.86)
 _MANAGED_3D_SLIDER_BOUNDS = (0.18, 0.05, 0.72, 0.06)
@@ -158,7 +162,7 @@ class Managed3DPageSliderState:
     """Typed 3D managed-slider state attached to the figure metadata."""
 
     figure: Figure
-    axes: Axes
+    axes: Axes3D
     pipeline: PreparedDrawPipeline
     current_scene: LayoutScene3D
     horizontal_slider: Slider | None
@@ -178,7 +182,7 @@ class Managed3DPageSliderState:
         self.start_column = resolved_start_column
         self.current_scene = scene
 
-        fixed_view_state = _capture_managed_3d_view_state(self.axes)
+        fixed_view_state = capture_managed_3d_view_state(self.axes)
         clear_hover_state(self.axes)
         self.axes.clear()
         setattr(self.axes, _MANAGED_3D_FIXED_VIEW_STATE_ATTR, fixed_view_state)
@@ -1201,13 +1205,14 @@ def configure_3d_page_slider(
 
     from matplotlib.widgets import Slider
 
+    axes_3d = cast("Axes3D", axes)
     apply_managed_3d_axes_bounds(axes, has_page_slider=True)
     slider_axes = figure.add_axes(_MANAGED_3D_SLIDER_BOUNDS)
     palette = managed_ui_palette(cast("LayoutScene3D", pipeline.paged_scene).style.theme)
     _style_control_axes(slider_axes, palette=palette)
     state = Managed3DPageSliderState(
         figure=figure,
-        axes=axes,
+        axes=axes_3d,
         pipeline=pipeline,
         current_scene=cast("LayoutScene3D", pipeline.paged_scene),
         horizontal_slider=None,
@@ -1271,22 +1276,6 @@ def circuit_window(
         name=circuit.name,
         metadata=dict(circuit.metadata),
     )
-
-
-def _capture_managed_3d_view_state(axes: Axes) -> dict[str, object]:
-    roll = getattr(axes, "roll", None)
-    raw_box_aspect = getattr(axes, "_box_aspect", None)
-    return {
-        "elev": float(getattr(axes, "elev", 18.0)),
-        "azim": float(getattr(axes, "azim", -55.0)),
-        "roll": None if roll is None else float(roll),
-        "x_limits": tuple(float(value) for value in axes.get_xlim3d()),
-        "y_limits": tuple(float(value) for value in axes.get_ylim3d()),
-        "z_limits": tuple(float(value) for value in axes.get_zlim3d()),
-        "raw_box_aspect": (
-            None if raw_box_aspect is None else tuple(float(value) for value in raw_box_aspect)
-        ),
-    }
 
 
 def managed_3d_axes_bounds(*, has_page_slider: bool) -> tuple[float, float, float, float]:

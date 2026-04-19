@@ -21,6 +21,10 @@ from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
     Poly3DCollection,
 )
 
+from .._managed_3d_view_state import (
+    _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
+    Managed3DFixedViewState,
+)
 from ..exceptions import RenderingError
 from ..layout.scene import LayoutScene
 from ..layout.scene_3d import (
@@ -65,7 +69,6 @@ _CUBIC_GATE_SIZE_TOLERANCE = 1e-6
 _X_TARGET_RING_SEGMENTS = 40
 _SCENE_FIT_FILL_FRACTION = 0.92
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
-_MANAGED_3D_FIXED_VIEW_STATE_ATTR = "_quantum_circuit_drawer_managed_3d_fixed_view_state"
 _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR = "_quantum_circuit_drawer_managed_3d_full_viewport_aspect"
 _BATCHED_3D_TEXT_ARTISTS_ATTR = "_quantum_circuit_drawer_batched_3d_text_artists"
 _BATCHED_3D_TEXT_ARTIST_GID = "quantum-circuit-drawer-3d-batched-text"
@@ -246,7 +249,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         axes: Axes3D,
         scene: LayoutScene3D,
         *,
-        fixed_view_state: dict[str, object] | None = None,
+        fixed_view_state: Managed3DFixedViewState | None = None,
     ) -> None:
         min_x = min(point.x for point in scene.quantum_wire_positions.values())
         max_x = max(point.x for point in scene.quantum_wire_positions.values())
@@ -336,64 +339,47 @@ class MatplotlibRenderer3D(BaseRenderer):
             return (float(left), float(bottom), float(width), float(height))
         return None
 
-    def _managed_fixed_view_state(self, axes: Axes3D) -> dict[str, object] | None:
+    def _managed_fixed_view_state(self, axes: Axes3D) -> Managed3DFixedViewState | None:
         fixed_view_state = getattr(axes, _MANAGED_3D_FIXED_VIEW_STATE_ATTR, None)
-        return fixed_view_state if isinstance(fixed_view_state, dict) else None
+        return fixed_view_state if isinstance(fixed_view_state, Managed3DFixedViewState) else None
 
-    def _apply_fixed_view_state(self, axes: Axes3D, fixed_view_state: dict[str, object]) -> None:
-        x_limits = self._limit_pair(fixed_view_state.get("x_limits"))
-        y_limits = self._limit_pair(fixed_view_state.get("y_limits"))
-        z_limits = self._limit_pair(fixed_view_state.get("z_limits"))
-        raw_box_aspect = self._axis_triplet(fixed_view_state.get("raw_box_aspect"))
-        elev = float(fixed_view_state.get("elev", 18.0))
-        azim = float(fixed_view_state.get("azim", -55.0))
-        roll_value = fixed_view_state.get("roll")
-
-        if x_limits is not None:
-            axes.set_xlim(*x_limits)
-        if y_limits is not None:
-            axes.set_ylim(*y_limits)
-        if z_limits is not None:
-            axes.set_zlim(*z_limits)
-        if raw_box_aspect is not None:
-            axes._box_aspect = np.asarray(raw_box_aspect, dtype=float)
+    def _apply_fixed_view_state(
+        self,
+        axes: Axes3D,
+        fixed_view_state: Managed3DFixedViewState,
+    ) -> None:
+        axes.set_xlim(*fixed_view_state.x_limits)
+        axes.set_ylim(*fixed_view_state.y_limits)
+        axes.set_zlim(*fixed_view_state.z_limits)
+        if fixed_view_state.raw_box_aspect is not None:
+            axes._box_aspect = np.asarray(fixed_view_state.raw_box_aspect, dtype=float)
 
         try:
-            if isinstance(roll_value, int | float):
+            if fixed_view_state.roll is not None:
                 axes.view_init(
-                    elev=elev,
-                    azim=azim,
-                    roll=float(roll_value),
+                    elev=fixed_view_state.elev,
+                    azim=fixed_view_state.azim,
+                    roll=fixed_view_state.roll,
                     vertical_axis="y",
                 )
             else:
-                axes.view_init(elev=elev, azim=azim, vertical_axis="y")
+                axes.view_init(
+                    elev=fixed_view_state.elev,
+                    azim=fixed_view_state.azim,
+                    vertical_axis="y",
+                )
         except TypeError:
-            if isinstance(roll_value, int | float):
+            if fixed_view_state.roll is not None:
                 try:
-                    axes.view_init(elev=elev, azim=azim, roll=float(roll_value))
+                    axes.view_init(
+                        elev=fixed_view_state.elev,
+                        azim=fixed_view_state.azim,
+                        roll=fixed_view_state.roll,
+                    )
                 except TypeError:
-                    axes.view_init(elev=elev, azim=azim)
+                    axes.view_init(elev=fixed_view_state.elev, azim=fixed_view_state.azim)
             else:
-                axes.view_init(elev=elev, azim=azim)
-
-    def _limit_pair(self, values: object) -> tuple[float, float] | None:
-        if (
-            isinstance(values, tuple)
-            and len(values) == 2
-            and all(isinstance(value, int | float) for value in values)
-        ):
-            return (float(values[0]), float(values[1]))
-        return None
-
-    def _axis_triplet(self, values: object) -> tuple[float, float, float] | None:
-        if (
-            isinstance(values, tuple)
-            and len(values) == 3
-            and all(isinstance(value, int | float) for value in values)
-        ):
-            return (float(values[0]), float(values[1]), float(values[2]))
-        return None
+                axes.view_init(elev=fixed_view_state.elev, azim=fixed_view_state.azim)
 
     def _fit_scene_to_shorter_canvas_dimension(
         self,

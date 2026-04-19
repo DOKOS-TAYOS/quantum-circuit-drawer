@@ -10,7 +10,9 @@
 - Refreshed the default dark theme and managed interactive controls with a softer IDE-like night palette, elevated control surfaces, clearer button states, and a more consistent 3D topology selector
 - Refined managed paging controls with reversed vertical scrolling, compact increment/decrement steppers on numeric inputs, cleaner horizontal slider labeling, and more polished page-navigation buttons
 - Managed 3D slider navigation now preserves the current camera view and stable object sizing across steps, hides residual axes chrome, and prioritizes gate hover over qubit and bit lines
+- Internal managed 3D redraw state now uses a typed shared camera container, which removes stale `dict`-based plumbing and keeps the view-restoration path explicit for static type checking
 - Removed the remaining `Rows` chrome from the vertical managed slider and halved 3D temporal column spacing so layouts read much more compactly
+- Removed an unused stacked gate-text layout helper from the Matplotlib primitives module
 
 ## [0.2.1] - 2026-04-18
 
