@@ -312,8 +312,7 @@ def test_matplotlib_renderer_renders_gate_parameters_with_mathtext_by_default() 
 
     MatplotlibRenderer().render(scene, ax=axes)
 
-    assert r"$\mathrm{RX}$" in {text.get_text() for text in axes.texts}
-    assert r"$0.5$" in {text.get_text() for text in axes.texts}
+    assert r"$\mathrm{RX}$" + "\n" + r"$0.5$" in {text.get_text() for text in axes.texts}
 
 
 def test_matplotlib_renderer_keeps_visible_text_plain_when_mathtext_is_disabled() -> None:
@@ -742,7 +741,7 @@ def test_matplotlib_renderer_renders_large_wrapped_scene_without_errors() -> Non
     assert sum(normalize_rendered_text(text.get_text()) == "q0" for text in axes.texts) == len(
         scene.pages
     )
-    assert any(normalize_rendered_text(text.get_text()) == "RX" for text in axes.texts)
+    assert any(normalize_rendered_text(text.get_text()) == "RX\n0.5" for text in axes.texts)
     assert any(normalize_rendered_text(text.get_text()) == "H" for text in axes.texts)
     assert axes.get_xlim() == approx((0.0, scene.width))
 
@@ -1003,64 +1002,51 @@ def test_matplotlib_renderer_keeps_tiny_dense_label_and_subtitle_inside_box() ->
     figure.canvas.draw()
 
     gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    gate_label = _find_axis_text(axes, "RX")
-    gate_subtitle = _find_axis_text(axes, "0.5")
+    gate_text = _find_axis_text(axes, "RX\n0.5")
     patch_x, patch_y, patch_width, patch_height = _display_bounds(figure, gate_patch)
+    text_x, text_y, text_width, text_height = _display_bounds(figure, gate_text)
 
-    for text_artist in (gate_label, gate_subtitle):
-        text_x, text_y, text_width, text_height = _display_bounds(figure, text_artist)
-        assert text_width <= patch_width
-        assert text_height <= patch_height
-        assert text_x >= patch_x
-        assert text_x + text_width <= patch_x + patch_width
-        assert text_y >= patch_y
-        assert text_y + text_height <= patch_y + patch_height
+    assert text_width <= patch_width
+    assert text_height <= patch_height
+    assert text_x >= patch_x
+    assert text_x + text_width <= patch_x + patch_width
+    assert text_y >= patch_y
+    assert text_y + text_height <= patch_y + patch_height
 
 
-def test_gate_text_fitting_context_matches_existing_font_fit_for_wrapped_subtitles() -> None:
+def test_gate_text_fitting_context_matches_existing_font_fit_for_wrapped_gate_text() -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=24),
-        DrawStyle(max_page_width=4.0, show_params=True),
+        DrawStyle(max_page_width=4.0, show_params=True, use_mathtext=False),
     )
     figure, axes = plt.subplots(figsize=(2.1, 18.0))
     gate = next(gate for gate in scene.gates if gate.subtitle == "0.5")
+    gate_text = f"{gate.label}\n{gate.subtitle}"
 
     matplotlib_primitives.prepare_axes(axes, scene)
     context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
     cache: dict[tuple[str, float, float], float] = {}
 
-    label_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
+    multiline_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
         context=context,
         width=gate.width,
-        text=gate.label,
+        height=gate.height,
+        text=gate_text,
         default_font_size=scene.style.font_size,
-        cache=cache,
-    )
-    subtitle_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
-        context=context,
-        width=gate.width,
-        text=gate.subtitle or "",
-        default_font_size=scene.style.font_size * 0.78,
+        height_fraction=matplotlib_primitives._STACKED_TEXT_USABLE_HEIGHT_FRACTION,
         cache=cache,
     )
 
     assert len(scene.pages) > 1
-    assert label_size == approx(
+    assert multiline_size == approx(
         matplotlib_primitives._fit_gate_text_font_size(
             ax=axes,
             scene=scene,
             width=gate.width,
-            text=gate.label,
+            height=gate.height,
+            text=gate_text,
             default_font_size=scene.style.font_size,
-        )
-    )
-    assert subtitle_size == approx(
-        matplotlib_primitives._fit_gate_text_font_size(
-            ax=axes,
-            scene=scene,
-            width=gate.width,
-            text=gate.subtitle or "",
-            default_font_size=scene.style.font_size * 0.78,
+            height_fraction=matplotlib_primitives._STACKED_TEXT_USABLE_HEIGHT_FRACTION,
         )
     )
 
@@ -1206,10 +1192,9 @@ def test_draw_gate_label_centers_label_and_subtitle_block() -> None:
     MatplotlibRenderer().render(scene, ax=axes)
 
     gate = scene.gates[0]
-    gate_label = _find_axis_text(axes, "RX")
-    gate_subtitle = _find_axis_text(axes, "0.5")
+    gate_label = _find_axis_text(axes, "RX\n0.5")
 
-    assert ((gate_label.get_position()[1] + gate_subtitle.get_position()[1]) / 2.0) == approx(
+    assert gate_label.get_position()[1] == approx(
         gate.y,
         abs=0.02,
     )
@@ -1535,7 +1520,7 @@ def test_matplotlib_renderer_rescales_gate_and_wire_text_when_zooming() -> None:
     MatplotlibRenderer().render(scene, ax=axes)
     figure.canvas.draw()
 
-    gate_label = _find_axis_text(axes, "RX")
+    gate_label = _find_axis_text(axes, "RX\n0.5")
     wire_label = _find_axis_text(axes, "0")
     initial_gate_font_size = gate_label.get_fontsize()
     initial_wire_font_size = wire_label.get_fontsize()

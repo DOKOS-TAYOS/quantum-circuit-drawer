@@ -24,7 +24,7 @@ from ..layout.scene import (
 from ..layout.scene_3d import LayoutScene3D
 from ..style import resolved_line_width
 from ..typing import OutputPath, RenderResult
-from ..utils.formatting import format_parameter_text, format_visible_label
+from ..utils.formatting import format_gate_text_block, format_visible_label
 from ._matplotlib_figure import clear_hover_state, create_managed_figure
 from ._matplotlib_hover import _HoverTarget2D, add_hover_target, attach_hover
 from ._matplotlib_page_projection import (
@@ -36,9 +36,10 @@ from ._matplotlib_page_projection import (
 from ._render_support import save_rendered_figure
 from .base import BaseRenderer
 from .matplotlib_primitives import (
+    _SINGLE_LINE_HEIGHT_FRACTION,
+    _STACKED_TEXT_USABLE_HEIGHT_FRACTION,
     _build_gate_text_fitting_context,
     _fit_gate_text_font_size_with_context,
-    _gate_text_layout,
     draw_barriers,
     draw_connections,
     draw_controls,
@@ -213,38 +214,37 @@ class MatplotlibRenderer(BaseRenderer):
 
         for gate in projected_page.gates:
             if gate.render_style.value != "x_target":
-                label_y, subtitle_y, label_height_fraction, subtitle_height_fraction = (
-                    _gate_text_layout(gate)
-                )
-                visible_label = format_visible_label(
-                    gate.label,
-                    use_mathtext=scene.style.use_mathtext,
-                )
-                label_font_size = _fit_gate_text_font_size_with_context(
-                    context=gate_text_context,
-                    width=gate.width,
-                    height=gate.height,
-                    text=visible_label,
-                    default_font_size=scene.style.font_size,
-                    height_fraction=label_height_fraction,
-                    cache=gate_text_cache,
-                )
-                subtitle_font_size = (
-                    _fit_gate_text_font_size_with_context(
+                if gate.subtitle:
+                    visible_label = format_gate_text_block(
+                        gate.label,
+                        gate.subtitle,
+                        use_mathtext=scene.style.use_mathtext,
+                    )
+                    label_font_size = _fit_gate_text_font_size_with_context(
                         context=gate_text_context,
                         width=gate.width,
                         height=gate.height,
-                        text=format_parameter_text(
-                            gate.subtitle,
-                            use_mathtext=scene.style.use_mathtext,
-                        ),
-                        default_font_size=scene.style.font_size * 0.78,
-                        height_fraction=subtitle_height_fraction,
+                        text=visible_label,
+                        default_font_size=scene.style.font_size,
+                        height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
                         cache=gate_text_cache,
                     )
-                    if gate.subtitle and subtitle_y is not None
-                    else None
-                )
+                    subtitle_font_size = None
+                else:
+                    visible_label = format_visible_label(
+                        gate.label,
+                        use_mathtext=scene.style.use_mathtext,
+                    )
+                    label_font_size = _fit_gate_text_font_size_with_context(
+                        context=gate_text_context,
+                        width=gate.width,
+                        height=gate.height,
+                        text=visible_label,
+                        default_font_size=scene.style.font_size,
+                        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+                        cache=gate_text_cache,
+                    )
+                    subtitle_font_size = None
                 draw_gate_label(
                     axes,
                     gate,

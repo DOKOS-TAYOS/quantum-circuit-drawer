@@ -31,7 +31,7 @@ from ..layout.scene import (
     SceneWire,
 )
 from ..style import resolved_line_width
-from ..utils.formatting import format_parameter_text, format_visible_label
+from ..utils.formatting import format_gate_text_block, format_parameter_text, format_visible_label
 from ._matplotlib_figure import get_viewport_width, set_gate_text_metadata
 
 BASE_LAYER_ZORDER = 1
@@ -47,6 +47,7 @@ _STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
 _STACKED_LABEL_SHARE = 0.6
 _STACKED_SUBTITLE_SHARE = 0.4
 _STACKED_GAP_FRACTION = 0.08
+_MULTILINE_TEXT_LINE_SPACING = 1.2
 _MIN_GATE_TEXT_FONT_SIZE = 0.7
 _MATHTEXT_WIDTH_PADDING_FACTOR = 1.25
 _MATHTEXT_HEIGHT_PADDING_FACTOR = 1.1
@@ -696,7 +697,44 @@ def draw_gate_label(
     if gate.render_style is GateRenderStyle.X_TARGET:
         return None
 
-    label_y, subtitle_y, label_height_fraction, subtitle_height_fraction = _gate_text_layout(gate)
+    if gate.subtitle:
+        visible_text = format_gate_text_block(
+            gate.label,
+            gate.subtitle,
+            use_mathtext=scene.style.use_mathtext,
+        )
+        resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
+            ax=ax,
+            scene=scene,
+            width=gate.width,
+            height=gate.height,
+            text=visible_text,
+            default_font_size=scene.style.font_size,
+            height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
+            context=text_fit_context,
+            cache=text_fit_cache,
+        )
+        label_artist = _add_text_artist(
+            ax,
+            gate.x + x_offset,
+            gate.y + y_offset,
+            visible_text,
+            ha="center",
+            va="center",
+            multialignment="center",
+            fontsize=resolved_label_font_size,
+            color=scene.style.theme.text_color,
+            zorder=TEXT_LAYER_ZORDER,
+        )
+        set_gate_text_metadata(
+            label_artist,
+            role="gate_label",
+            gate_width=gate.width,
+            gate_height=gate.height,
+            height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
+        )
+        return label_artist, None
+
     visible_label = format_visible_label(gate.label, use_mathtext=scene.style.use_mathtext)
 
     resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
@@ -706,14 +744,14 @@ def draw_gate_label(
         height=gate.height,
         text=visible_label,
         default_font_size=scene.style.font_size,
-        height_fraction=label_height_fraction,
+        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
         context=text_fit_context,
         cache=text_fit_cache,
     )
     label_artist = _add_text_artist(
         ax,
         gate.x + x_offset,
-        label_y + y_offset,
+        gate.y + y_offset,
         visible_label,
         ha="center",
         va="center",
@@ -726,44 +764,9 @@ def draw_gate_label(
         role="gate_label",
         gate_width=gate.width,
         gate_height=gate.height,
-        height_fraction=label_height_fraction,
+        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
     )
-    subtitle_artist: Text | None = None
-    if gate.subtitle and subtitle_y is not None:
-        visible_subtitle = format_parameter_text(
-            gate.subtitle,
-            use_mathtext=scene.style.use_mathtext,
-        )
-        resolved_subtitle_font_size = subtitle_font_size or _fit_gate_text_font_size(
-            ax=ax,
-            scene=scene,
-            width=gate.width,
-            height=gate.height,
-            text=visible_subtitle,
-            default_font_size=scene.style.font_size * 0.78,
-            height_fraction=subtitle_height_fraction,
-            context=text_fit_context,
-            cache=text_fit_cache,
-        )
-        subtitle_artist = _add_text_artist(
-            ax,
-            gate.x + x_offset,
-            subtitle_y + y_offset,
-            visible_subtitle,
-            ha="center",
-            va="center",
-            fontsize=resolved_subtitle_font_size,
-            color=scene.style.theme.text_color,
-            zorder=TEXT_LAYER_ZORDER,
-        )
-        set_gate_text_metadata(
-            subtitle_artist,
-            role="gate_subtitle",
-            gate_width=gate.width,
-            gate_height=gate.height,
-            height_fraction=subtitle_height_fraction,
-        )
-    return label_artist, subtitle_artist
+    return label_artist, None
 
 
 def draw_controls(
@@ -1192,6 +1195,9 @@ def _gate_text_fit_cache_token(text: str) -> object:
 
 
 def _is_mathtext_string(text: str) -> bool:
+    if "\n" in text:
+        text_lines = [line for line in text.split("\n") if line]
+        return bool(text_lines) and all(_is_mathtext_string(line) for line in text_lines)
     return len(text) >= 2 and text.startswith("$") and text.endswith("$")
 
 
@@ -1224,6 +1230,8 @@ def _text_shape_metrics_in_points(shape_key: tuple[str, str]) -> tuple[float, fl
 
 @lru_cache(maxsize=128)
 def _text_width_in_points(text: str) -> float:
+    if "\n" in text:
+        return max((_text_width_in_points(line) for line in text.split("\n")), default=0.0)
     shape_key = _text_shape_key(text)
     if shape_key is not None:
         return _text_shape_metrics_in_points(shape_key)[0]
@@ -1232,6 +1240,13 @@ def _text_width_in_points(text: str) -> float:
 
 @lru_cache(maxsize=128)
 def _text_height_in_points(text: str) -> float:
+    if "\n" in text:
+        line_heights = [_text_height_in_points(line) for line in text.split("\n")]
+        if not line_heights:
+            return 0.0
+        max_line_height = max(line_heights)
+        extra_line_spacing = max(0.0, _MULTILINE_TEXT_LINE_SPACING - 1.0)
+        return sum(line_heights) + (max_line_height * (len(line_heights) - 1) * extra_line_spacing)
     shape_key = _text_shape_key(text)
     if shape_key is not None:
         return _text_shape_metrics_in_points(shape_key)[1]

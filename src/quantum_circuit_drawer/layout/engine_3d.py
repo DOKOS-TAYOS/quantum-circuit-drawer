@@ -402,8 +402,9 @@ class LayoutEngine3D:
         if gate is not None:
             gates.append(gate)
             if not hover_enabled and gate.label:
+                gate_text = gate.label if not gate.subtitle else f"{gate.label}\n{gate.subtitle}"
                 label_font_size = self._fit_gate_text_size(
-                    text=gate.label,
+                    text=gate_text,
                     gate_size=gate.size_x,
                     default_font_size=draw_style.font_size,
                 )
@@ -412,31 +413,13 @@ class LayoutEngine3D:
                         position=Point3D(
                             x=gate.center.x,
                             y=gate.center.y,
-                            z=gate.center.z + (gate.size_z * 0.56),
+                            z=gate.center.z + (gate.size_z * 0.5),
                         ),
-                        text=gate.label,
+                        text=gate_text,
                         font_size=label_font_size,
-                        role="label",
+                        role="gate_label_block" if gate.subtitle else "label",
                     )
                 )
-                if gate.subtitle:
-                    subtitle_font_size = self._fit_gate_text_size(
-                        text=gate.subtitle,
-                        gate_size=gate.size_x,
-                        default_font_size=draw_style.font_size * 0.78,
-                    )
-                    texts.append(
-                        SceneText3D(
-                            position=Point3D(
-                                x=gate.center.x,
-                                y=gate.center.y - 0.16,
-                                z=gate.center.z + (gate.size_z * 0.4),
-                            ),
-                            text=gate.subtitle,
-                            font_size=subtitle_font_size,
-                            role="parameter",
-                        )
-                    )
 
         if operation.kind is OperationKind.CONTROLLED_GATE:
             anchor_wire_ids = operation.target_wires
@@ -744,6 +727,10 @@ class LayoutEngine3D:
         if not text:
             return default_font_size
 
+        text_lines = text.split("\n")
+        longest_line_length = max((len(line) for line in text_lines), default=1)
+        line_count = len(text_lines)
         available_character_units = gate_size * 4.2
-        scale = min(1.0, available_character_units / len(text))
-        return max(3.5, default_font_size * scale)
+        width_scale = min(1.0, available_character_units / longest_line_length)
+        height_scale = min(1.0, 1.7 / max(1, line_count))
+        return max(3.5, default_font_size * min(width_scale, height_scale))

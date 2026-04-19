@@ -682,7 +682,7 @@ def test_draw_quantum_circuit_reduces_gate_font_size_for_many_wrapped_pages() ->
         show=False,
     )
 
-    gate_label = _text_artist_by_text(axes, "RX")
+    gate_label = _text_artist_by_text(axes, "RX\n0.5")
 
     assert gate_label.get_fontsize() < 10.0
 
@@ -697,7 +697,7 @@ def test_draw_quantum_circuit_page_slider_keeps_gate_font_readable() -> None:
         show=False,
     )
 
-    gate_label = _text_artist_by_text(axes, "RX")
+    gate_label = _text_artist_by_text(axes, "RX\n0.5")
 
     assert gate_label.get_fontsize() > 10.0
 
@@ -716,10 +716,10 @@ def test_draw_quantum_circuit_page_slider_keeps_text_size_stable_after_redraw() 
     assert page_slider is not None
 
     figure.canvas.draw()
-    initial_font_size = _font_size_by_text(axes, "RX")
+    initial_font_size = _font_size_by_text(axes, "RX\n0.5")
     page_slider.set_val(page_slider.valmax / 2.0)
     figure.canvas.draw()
-    resized_font_size = _font_size_by_text(axes, "RX")
+    resized_font_size = _font_size_by_text(axes, "RX\n0.5")
 
     assert initial_font_size < 20.0
     assert resized_font_size < 20.0
@@ -735,7 +735,7 @@ def test_draw_quantum_circuit_page_slider_uses_stable_gate_font_size_before_firs
         show=False,
     )
 
-    gate_label = _text_artist_by_text(axes, "RX")
+    gate_label = _text_artist_by_text(axes, "RX\n0.5")
 
     assert gate_label.get_fontsize() < 20.0
 
@@ -1175,7 +1175,7 @@ def test_draw_quantum_circuit_rescales_2d_text_when_zooming() -> None:
     )
     figure.canvas.draw()
 
-    gate_label = _text_artist_by_text(axes, "RX")
+    gate_label = _text_artist_by_text(axes, "RX\n0.5")
     initial_font_size = gate_label.get_fontsize()
 
     axes.set_xlim(0.0, 2.5)
@@ -1197,7 +1197,7 @@ def test_draw_quantum_circuit_rescales_all_2d_text_when_zooming() -> None:
     )
     figure.canvas.draw()
 
-    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest", "23")
+    tracked_labels = ("RZZ\n0.7", "M", "q0", "q1", "c", "0", "1", "dest", "23")
     initial_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
 
     axes.set_xlim(0.0, 2.5)
@@ -1220,7 +1220,7 @@ def test_draw_quantum_circuit_updates_gate_text_immediately_when_zoom_changes() 
     )
     figure.canvas.draw()
 
-    tracked_labels = ("RZZ", "0.7", "M", "q0", "q1", "c", "0", "1", "dest", "23")
+    tracked_labels = ("RZZ\n0.7", "M", "q0", "q1", "c", "0", "1", "dest", "23")
     initial_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
 
     axes.set_xlim(0.0, 2.5)
@@ -1322,7 +1322,7 @@ def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_
         auto_paging_state = get_auto_paging_state(axes)
 
         assert auto_paging_state is not None
-        page_to_font_size[len(auto_paging_state.scene.pages)] = _font_size_by_text(axes, "RX")
+        page_to_font_size[len(auto_paging_state.scene.pages)] = _font_size_by_text(axes, "RX\n0.5")
         plt.close(figure)
 
     assert page_to_font_size[3] > page_to_font_size[4] > page_to_font_size[8]

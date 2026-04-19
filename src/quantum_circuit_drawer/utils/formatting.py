@@ -124,6 +124,21 @@ def format_parameter_text(text: str, *, use_mathtext: bool) -> str:
     return format_parameter_text_mathtext(text)
 
 
+def format_gate_text_block(
+    label: str,
+    subtitle: str | None,
+    *,
+    use_mathtext: bool,
+) -> str:
+    """Return gate text as a single centered block, multiline when needed."""
+
+    visible_label = format_visible_label(label, use_mathtext=use_mathtext)
+    if not subtitle:
+        return visible_label
+    visible_subtitle = format_parameter_text(subtitle, use_mathtext=use_mathtext)
+    return f"{visible_label}\n{visible_subtitle}"
+
+
 def _replace_parameter_identifier(match: re.Match[str]) -> str:
     identifier = match.group(0)
     return _GREEK_IDENTIFIER_TO_MATHTEXT.get(identifier.lower(), identifier)

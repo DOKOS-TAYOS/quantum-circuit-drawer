@@ -1393,8 +1393,7 @@ def test_draw_quantum_circuit_3d_uses_mathtext_for_visible_labels_by_default() -
     )
 
     assert r"$\mathrm{0}$" in {text.get_text() for text in axes.texts}
-    assert r"$\mathrm{RX}$" in {text.get_text() for text in axes.texts}
-    assert r"$0.5$" in {text.get_text() for text in axes.texts}
+    assert r"$\mathrm{RX}$" + "\n" + r"$0.5$" in {text.get_text() for text in axes.texts}
 
 
 def test_draw_quantum_circuit_interactive_hover_draws_without_annotation_crash(

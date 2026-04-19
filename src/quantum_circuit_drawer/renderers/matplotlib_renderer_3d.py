@@ -34,7 +34,7 @@ from ..layout.scene_3d import (
 )
 from ..style import resolved_line_width
 from ..typing import OutputPath, RenderResult
-from ..utils.formatting import format_parameter_text, format_visible_label
+from ..utils.formatting import format_gate_text_block, format_parameter_text, format_visible_label
 from ._matplotlib_figure import (
     HoverState,
     clear_hover_state,
@@ -69,6 +69,7 @@ _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR = "_quantum_circuit_drawer_managed_3d_full
 _BATCHED_3D_TEXT_ARTISTS_ATTR = "_quantum_circuit_drawer_batched_3d_text_artists"
 _BATCHED_3D_TEXT_ARTIST_GID = "quantum-circuit-drawer-3d-batched-text"
 _TEXT_LAYER_ZORDER = 6.0
+_MULTILINE_TEXT_LINE_SPACING = 1.2
 Segment3D = tuple[tuple[float, float, float], tuple[float, float, float]]
 _TextPathCacheKey = tuple[str, float, str, str]
 
@@ -95,11 +96,41 @@ class _RenderContext3D:
 @lru_cache(maxsize=256)
 def _aligned_text_path(key: _TextPathCacheKey) -> Path:
     text, font_size, ha, va = key
-    text_path = TextPath((0.0, 0.0), text, size=font_size, prop=_default_font_properties())
+    if "\n" in text:
+        text_path = _multiline_text_path(text, font_size)
+    else:
+        text_path = TextPath((0.0, 0.0), text, size=font_size, prop=_default_font_properties())
     extents = text_path.get_extents()
     x_anchor = _text_horizontal_anchor(extents, ha)
     y_anchor = _text_vertical_anchor(extents, va)
     return Affine2D().translate(-x_anchor, -y_anchor).transform_path(text_path)
+
+
+def _multiline_text_path(text: str, font_size: float) -> Path:
+    line_paths: list[Path] = []
+    line_height = 0.0
+    for line in text.split("\n"):
+        current_path = TextPath((0.0, 0.0), line, size=font_size, prop=_default_font_properties())
+        current_extents = current_path.get_extents()
+        line_height = max(line_height, float(current_extents.height))
+        line_paths.append(current_path)
+
+    if not line_paths:
+        return Path(np.empty((0, 2), dtype=float), np.empty((0,), dtype=np.uint8))
+
+    positioned_paths: list[Path] = []
+    line_count = len(line_paths)
+    for index, line_path in enumerate(line_paths):
+        extents = line_path.get_extents()
+        center_x = float(extents.x0 + (extents.width / 2.0))
+        center_y = float(extents.y0 + (extents.height / 2.0))
+        target_center_y = (
+            ((line_count - 1) / 2.0 - index) * line_height * _MULTILINE_TEXT_LINE_SPACING
+        )
+        positioned_paths.append(
+            Affine2D().translate(-center_x, target_center_y - center_y).transform_path(line_path)
+        )
+    return Path.make_compound_path(*positioned_paths)
 
 
 def _text_horizontal_anchor(extents: Bbox, ha: str) -> float:
@@ -123,6 +154,13 @@ def _text_vertical_anchor(extents: Bbox, va: str) -> float:
 
 
 def _visible_3d_text_value(text: str, *, role: str, scene: LayoutScene3D) -> str:
+    if role == "gate_label_block":
+        label, _, subtitle = text.partition("\n")
+        return format_gate_text_block(
+            label,
+            subtitle or None,
+            use_mathtext=scene.style.use_mathtext,
+        )
     if role == "parameter":
         return format_parameter_text(text, use_mathtext=scene.style.use_mathtext)
     return format_visible_label(text, use_mathtext=scene.style.use_mathtext)
@@ -1126,6 +1164,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 visible_text,
                 ha=text.ha,
                 va=text.va,
+                multialignment=text.ha,
                 fontsize=text.font_size or scene.style.font_size,
                 color=scene.style.theme.text_color,
             )

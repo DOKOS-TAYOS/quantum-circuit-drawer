@@ -246,6 +246,9 @@ def assert_saved_image_has_visible_content(
 def normalize_rendered_text(text: str) -> str:
     """Normalize plain text and MathText strings into a comparable plain form."""
 
+    if "\n" in text:
+        return "\n".join(normalize_rendered_text(line) for line in text.split("\n"))
+
     match = _MATHTEXT_WRAPPER_PATTERN.match(text)
     if match is None:
         return text
