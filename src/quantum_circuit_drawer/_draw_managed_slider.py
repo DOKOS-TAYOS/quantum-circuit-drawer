@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from ._draw_managed_viewport import (
     axes_viewport_pixels,
     build_continuous_slider_scene,
 )
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
+from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from .ir.circuit import CircuitIR
 from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from .layout.scene import (
@@ -35,7 +35,7 @@ from .style import DrawStyle
 from .typing import LayoutEngine3DLike, LayoutEngineLike
 
 if TYPE_CHECKING:
-    from matplotlib.widgets import Slider, TextBox
+    from matplotlib.widgets import Button, Slider, TextBox
 
     from .layout.topology_3d import TopologyName
     from .renderers.matplotlib_renderer import MatplotlibRenderer
@@ -44,23 +44,28 @@ _VIEWPORT_EPSILON = 1e-6
 
 _MANAGED_2D_MAIN_AXES_BOUNDS = (0.02, 0.02, 0.96, 0.96)
 _MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_BOUNDS = (0.02, 0.18, 0.96, 0.8)
-_MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS = (0.12, 0.02, 0.86, 0.96)
-_MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS = (0.12, 0.18, 0.86, 0.8)
-_MANAGED_2D_MAIN_AXES_WITH_LEFT_CONTROLS_BOUNDS = (0.12, 0.02, 0.86, 0.96)
-_MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_AND_BOX_BOUNDS = (0.12, 0.18, 0.86, 0.8)
+_MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS = (0.14, 0.02, 0.84, 0.96)
+_MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS = (0.14, 0.18, 0.84, 0.8)
+_MANAGED_2D_MAIN_AXES_WITH_LEFT_CONTROLS_BOUNDS = (0.14, 0.02, 0.84, 0.96)
+_MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_AND_BOX_BOUNDS = (0.14, 0.18, 0.84, 0.8)
 _MANAGED_2D_HORIZONTAL_SLIDER_HEIGHT = 0.06
 _MANAGED_2D_HORIZONTAL_SLIDER_BOTTOM = 0.05
 _MANAGED_2D_LEFT_CONTROL_LEFT = 0.04
-_MANAGED_2D_LEFT_CONTROL_WIDTH = 0.055
+_MANAGED_2D_LEFT_CONTROL_WIDTH = 0.09
 _MANAGED_2D_VERTICAL_SLIDER_WIDTH = 0.021
 _MANAGED_2D_VISIBLE_QUBITS_WIDTH = 0.055
 _MANAGED_2D_VISIBLE_QUBITS_HEIGHT = 0.045
 _MANAGED_2D_VISIBLE_QUBITS_BOTTOM = 0.05
 _MANAGED_2D_VISIBLE_QUBITS_BOTTOM_WITH_HORIZONTAL = 0.12
 _MANAGED_2D_VISIBLE_QUBITS_GAP = 0.02
+_MANAGED_2D_VERTICAL_SLIDER_TOP_INSET = 0.035
+_MANAGED_2D_VERTICAL_SLIDER_BOTTOM_INSET = 0.02
+_MANAGED_2D_STEPPER_BUTTON_WIDTH = 0.024
+_MANAGED_2D_STEPPER_BUTTON_GAP = 0.006
 _DEFAULT_VISIBLE_QUBITS = 15
 
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
+_MANAGED_3D_FIXED_VIEW_STATE_ATTR = "_quantum_circuit_drawer_managed_3d_fixed_view_state"
 _MANAGED_3D_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
 _MANAGED_3D_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.0, 0.14, 1.0, 0.86)
 _MANAGED_3D_SLIDER_BOUNDS = (0.18, 0.05, 0.72, 0.06)
@@ -76,6 +81,8 @@ class Managed2DSliderLayout:
     horizontal_axes_bounds: tuple[float, float, float, float] | None
     vertical_axes_bounds: tuple[float, float, float, float] | None
     visible_qubits_axes_bounds: tuple[float, float, float, float] | None
+    visible_qubits_decrement_axes_bounds: tuple[float, float, float, float] | None
+    visible_qubits_increment_axes_bounds: tuple[float, float, float, float] | None
     viewport_width: float
     viewport_height: float
 
@@ -110,9 +117,13 @@ class Managed2DPageSliderState:
     horizontal_slider: Slider | None
     vertical_slider: Slider | None
     visible_qubits_box: TextBox | None
+    visible_qubits_decrement_button: Button | None
+    visible_qubits_increment_button: Button | None
     horizontal_axes: Axes | None
     vertical_axes: Axes | None
     visible_qubits_axes: Axes | None
+    visible_qubits_decrement_axes: Axes | None
+    visible_qubits_increment_axes: Axes | None
     start_column: int
     max_start_column: int
     start_row: int
@@ -167,8 +178,10 @@ class Managed3DPageSliderState:
         self.start_column = resolved_start_column
         self.current_scene = scene
 
+        fixed_view_state = _capture_managed_3d_view_state(self.axes)
         clear_hover_state(self.axes)
         self.axes.clear()
+        setattr(self.axes, _MANAGED_3D_FIXED_VIEW_STATE_ATTR, fixed_view_state)
         apply_managed_3d_axes_bounds(self.axes, has_page_slider=self.horizontal_slider is not None)
         self.pipeline.renderer.render(scene, ax=self.axes)
 
@@ -347,9 +360,13 @@ def configure_page_slider(
         horizontal_slider=None,
         vertical_slider=None,
         visible_qubits_box=None,
+        visible_qubits_decrement_button=None,
+        visible_qubits_increment_button=None,
         horizontal_axes=None,
         vertical_axes=None,
         visible_qubits_axes=None,
+        visible_qubits_decrement_axes=None,
+        visible_qubits_increment_axes=None,
         start_column=0,
         max_start_column=0,
         start_row=0,
@@ -471,6 +488,8 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     if rebuild_controls:
         _attach_2d_controls(state, layout)
     state.layout = layout
+    _sync_horizontal_slider(state)
+    _sync_vertical_slider(state)
     _sync_visible_qubits_box(state, state.visible_qubits)
     canvas = getattr(state.figure, "canvas", None)
     if canvas is not None:
@@ -481,7 +500,7 @@ def _attach_2d_controls(
     state: Managed2DPageSliderState,
     layout: Managed2DSliderLayout,
 ) -> None:
-    from matplotlib.widgets import Slider, TextBox
+    from matplotlib.widgets import Button, Slider, TextBox
 
     theme = state.style.theme
     palette = managed_ui_palette(theme)
@@ -494,7 +513,7 @@ def _attach_2d_controls(
         _style_control_axes(horizontal_axes, palette=palette)
         horizontal_slider = Slider(
             ax=horizontal_axes,
-            label="Columns",
+            label="",
             valmin=0.0,
             valmax=float(state.max_start_column),
             valinit=float(state.start_column),
@@ -525,7 +544,7 @@ def _attach_2d_controls(
             label="Rows",
             valmin=0.0,
             valmax=float(state.max_start_row),
-            valinit=float(state.start_row),
+            valinit=_vertical_slider_value_for_start_row(state, state.start_row),
             valstep=1.0,
             orientation="vertical",
             color=palette.slider_fill_color,
@@ -537,7 +556,9 @@ def _attach_2d_controls(
             },
         )
         _style_slider(vertical_slider, palette=palette)
-        vertical_slider.on_changed(lambda value: state.show_start_row(int(round(float(value)))))
+        vertical_slider.on_changed(
+            lambda value: state.show_start_row(_start_row_for_vertical_slider_value(state, value))
+        )
         state.vertical_slider = vertical_slider
         state.vertical_axes = vertical_axes
 
@@ -564,6 +585,42 @@ def _attach_2d_controls(
         visible_qubits_box.on_submit(lambda text: _handle_visible_qubits_submit(state, text))
         state.visible_qubits_box = visible_qubits_box
         state.visible_qubits_axes = visible_qubits_axes
+        if layout.visible_qubits_increment_axes_bounds is not None:
+            visible_qubits_increment_axes = state.figure.add_axes(
+                layout.visible_qubits_increment_axes_bounds,
+                facecolor=palette.surface_facecolor,
+            )
+            _style_control_axes(visible_qubits_increment_axes, palette=palette)
+            visible_qubits_increment_button = Button(
+                visible_qubits_increment_axes,
+                "\u25b4",
+                color=palette.surface_facecolor,
+                hovercolor=palette.surface_hover_facecolor,
+            )
+            _style_stepper_button(visible_qubits_increment_button, palette=palette)
+            visible_qubits_increment_button.on_clicked(
+                lambda _: _set_visible_qubits(state, state.visible_qubits + 1)
+            )
+            state.visible_qubits_increment_button = visible_qubits_increment_button
+            state.visible_qubits_increment_axes = visible_qubits_increment_axes
+        if layout.visible_qubits_decrement_axes_bounds is not None:
+            visible_qubits_decrement_axes = state.figure.add_axes(
+                layout.visible_qubits_decrement_axes_bounds,
+                facecolor=palette.surface_facecolor,
+            )
+            _style_control_axes(visible_qubits_decrement_axes, palette=palette)
+            visible_qubits_decrement_button = Button(
+                visible_qubits_decrement_axes,
+                "\u25be",
+                color=palette.surface_facecolor,
+                hovercolor=palette.surface_hover_facecolor,
+            )
+            _style_stepper_button(visible_qubits_decrement_button, palette=palette)
+            visible_qubits_decrement_button.on_clicked(
+                lambda _: _set_visible_qubits(state, state.visible_qubits - 1)
+            )
+            state.visible_qubits_decrement_button = visible_qubits_decrement_button
+            state.visible_qubits_decrement_axes = visible_qubits_decrement_axes
 
 
 def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
@@ -571,6 +628,8 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
         state.horizontal_slider,
         state.vertical_slider,
         state.visible_qubits_box,
+        state.visible_qubits_decrement_button,
+        state.visible_qubits_increment_button,
     ):
         if widget is not None and hasattr(widget, "disconnect_events"):
             widget.disconnect_events()
@@ -579,6 +638,8 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
         state.horizontal_axes,
         state.vertical_axes,
         state.visible_qubits_axes,
+        state.visible_qubits_decrement_axes,
+        state.visible_qubits_increment_axes,
     ):
         if axes is not None:
             axes.remove()
@@ -586,9 +647,13 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
     state.horizontal_slider = None
     state.vertical_slider = None
     state.visible_qubits_box = None
+    state.visible_qubits_decrement_button = None
+    state.visible_qubits_increment_button = None
     state.horizontal_axes = None
     state.vertical_axes = None
     state.visible_qubits_axes = None
+    state.visible_qubits_decrement_axes = None
+    state.visible_qubits_increment_axes = None
     state.layout = None
 
 
@@ -654,6 +719,48 @@ def _sync_visible_qubits_box(
         state.is_syncing_visible_qubits = False
 
 
+def _sync_horizontal_slider(state: Managed2DPageSliderState) -> None:
+    if state.horizontal_slider is None:
+        return
+    _set_slider_value_silently(state.horizontal_slider, float(state.start_column))
+
+
+def _sync_vertical_slider(state: Managed2DPageSliderState) -> None:
+    if state.vertical_slider is None:
+        return
+    _set_slider_value_silently(
+        state.vertical_slider,
+        _vertical_slider_value_for_start_row(state, state.start_row),
+    )
+
+
+def _set_slider_value_silently(slider: Slider, value: float) -> None:
+    if float(slider.val) == float(value):
+        return
+
+    previous_event_state = slider.eventson
+    slider.eventson = False
+    try:
+        slider.set_val(float(value))
+    finally:
+        slider.eventson = previous_event_state
+
+
+def _vertical_slider_value_for_start_row(
+    state: Managed2DPageSliderState,
+    start_row: int,
+) -> float:
+    return float(state.max_start_row - min(max(0, start_row), state.max_start_row))
+
+
+def _start_row_for_vertical_slider_value(
+    state: Managed2DPageSliderState,
+    value: float,
+) -> int:
+    resolved_value = int(round(float(value)))
+    return min(max(0, state.max_start_row - resolved_value), state.max_start_row)
+
+
 def _visible_qubits_viewport_height(
     scene: LayoutScene,
     *,
@@ -697,12 +804,30 @@ def _needs_2d_control_rebuild(
         return True
     if state.layout.visible_qubits_axes_bounds != layout.visible_qubits_axes_bounds:
         return True
+    if (
+        state.layout.visible_qubits_decrement_axes_bounds
+        != layout.visible_qubits_decrement_axes_bounds
+    ):
+        return True
+    if (
+        state.layout.visible_qubits_increment_axes_bounds
+        != layout.visible_qubits_increment_axes_bounds
+    ):
+        return True
 
     if (state.horizontal_slider is None) != (layout.horizontal_axes_bounds is None):
         return True
     if (state.vertical_slider is None) != (layout.vertical_axes_bounds is None):
         return True
     if (state.visible_qubits_box is None) != (layout.visible_qubits_axes_bounds is None):
+        return True
+    if (state.visible_qubits_decrement_button is None) != (
+        layout.visible_qubits_decrement_axes_bounds is None
+    ):
+        return True
+    if (state.visible_qubits_increment_button is None) != (
+        layout.visible_qubits_increment_axes_bounds is None
+    ):
         return True
 
     if state.horizontal_slider is not None and state.horizontal_slider.valmax != float(
@@ -1096,7 +1221,7 @@ def configure_3d_page_slider(
 
     slider = Slider(
         ax=slider_axes,
-        label="Columns",
+        label="",
         valmin=0.0,
         valmax=float(max_start_column),
         valinit=0.0,
@@ -1146,6 +1271,22 @@ def circuit_window(
         name=circuit.name,
         metadata=dict(circuit.metadata),
     )
+
+
+def _capture_managed_3d_view_state(axes: Axes) -> dict[str, object]:
+    roll = getattr(axes, "roll", None)
+    raw_box_aspect = getattr(axes, "_box_aspect", None)
+    return {
+        "elev": float(getattr(axes, "elev", 18.0)),
+        "azim": float(getattr(axes, "azim", -55.0)),
+        "roll": None if roll is None else float(roll),
+        "x_limits": tuple(float(value) for value in axes.get_xlim3d()),
+        "y_limits": tuple(float(value) for value in axes.get_ylim3d()),
+        "z_limits": tuple(float(value) for value in axes.get_zlim3d()),
+        "raw_box_aspect": (
+            None if raw_box_aspect is None else tuple(float(value) for value in raw_box_aspect)
+        ),
+    }
 
 
 def managed_3d_axes_bounds(*, has_page_slider: bool) -> tuple[float, float, float, float]:
@@ -1233,6 +1374,22 @@ def _resolve_2d_slider_layout(
             if show_visible_qubits_box
             else None
         ),
+        visible_qubits_decrement_axes_bounds=(
+            _visible_qubits_stepper_bounds(
+                show_horizontal_slider=show_horizontal_slider,
+                increasing=False,
+            )
+            if show_visible_qubits_box
+            else None
+        ),
+        visible_qubits_increment_axes_bounds=(
+            _visible_qubits_stepper_bounds(
+                show_horizontal_slider=show_horizontal_slider,
+                increasing=True,
+            )
+            if show_visible_qubits_box
+            else None
+        ),
         viewport_width=0.0,
         viewport_height=0.0,
     )
@@ -1264,9 +1421,13 @@ def _vertical_slider_bounds(
         )
         slider_bottom = max(
             slider_bottom,
-            box_bottom + box_height + _MANAGED_2D_VISIBLE_QUBITS_GAP,
+            box_bottom
+            + box_height
+            + _MANAGED_2D_VISIBLE_QUBITS_GAP
+            + _MANAGED_2D_VERTICAL_SLIDER_BOTTOM_INSET,
         )
-    slider_height = max(_VIEWPORT_EPSILON, bottom + height - slider_bottom)
+    slider_top = bottom + height - _MANAGED_2D_VERTICAL_SLIDER_TOP_INSET
+    slider_height = max(_VIEWPORT_EPSILON, slider_top - slider_bottom)
     slider_left = _MANAGED_2D_LEFT_CONTROL_LEFT + (
         (_MANAGED_2D_LEFT_CONTROL_WIDTH - _MANAGED_2D_VERTICAL_SLIDER_WIDTH) / 2.0
     )
@@ -1292,6 +1453,25 @@ def _visible_qubits_box_bounds(
         bottom,
         _MANAGED_2D_VISIBLE_QUBITS_WIDTH,
         _MANAGED_2D_VISIBLE_QUBITS_HEIGHT,
+    )
+
+
+def _visible_qubits_stepper_bounds(
+    *,
+    show_horizontal_slider: bool,
+    increasing: bool,
+) -> tuple[float, float, float, float]:
+    box_left, box_bottom, box_width, box_height = _visible_qubits_box_bounds(
+        show_horizontal_slider=show_horizontal_slider
+    )
+    button_height = (box_height - 0.004) / 2.0
+    button_left = box_left + box_width + _MANAGED_2D_STEPPER_BUTTON_GAP
+    button_bottom = box_bottom + box_height - button_height if increasing else box_bottom
+    return (
+        button_left,
+        button_bottom,
+        _MANAGED_2D_STEPPER_BUTTON_WIDTH,
+        button_height,
     )
 
 
@@ -1333,6 +1513,18 @@ def _style_slider(slider: Slider, *, palette: ManagedUiPalette) -> None:
         handle.set_markerfacecolor(palette.accent_color)
         handle.set_markeredgecolor(palette.accent_edgecolor)
         handle.set_markeredgewidth(1.2)
+
+
+def _style_stepper_button(button: Button, *, palette: ManagedUiPalette) -> None:
+    button.ax.set_facecolor(palette.surface_facecolor)
+    button.color = palette.surface_facecolor
+    button.hovercolor = palette.surface_hover_facecolor
+    button.label.set_color(palette.text_color)
+    button.label.set_fontsize(8.5)
+    button.label.set_fontweight("bold")
+    for spine in button.ax.spines.values():
+        spine.set_color(palette.surface_edgecolor)
+        spine.set_linewidth(1.0)
 
 
 def _style_text_box(

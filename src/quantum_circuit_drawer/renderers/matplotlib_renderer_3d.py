@@ -65,6 +65,7 @@ _CUBIC_GATE_SIZE_TOLERANCE = 1e-6
 _X_TARGET_RING_SEGMENTS = 40
 _SCENE_FIT_FILL_FRACTION = 0.92
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
+_MANAGED_3D_FIXED_VIEW_STATE_ATTR = "_quantum_circuit_drawer_managed_3d_fixed_view_state"
 _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR = "_quantum_circuit_drawer_managed_3d_full_viewport_aspect"
 _BATCHED_3D_TEXT_ARTISTS_ATTR = "_quantum_circuit_drawer_batched_3d_text_artists"
 _BATCHED_3D_TEXT_ARTIST_GID = "quantum-circuit-drawer-3d-batched-text"
@@ -193,29 +194,38 @@ class MatplotlibRenderer3D(BaseRenderer):
             viewport_bounds = (0.0, 0.0, 1.0, 1.0)
             setattr(axes_3d, _MANAGED_3D_VIEWPORT_BOUNDS_ATTR, viewport_bounds)
         figure = axes_3d.figure
+        fixed_view_state = self._managed_fixed_view_state(axes_3d)
         self._clear_batched_text_artists(axes_3d)
         clear_hover_state(axes_3d)
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
-        self._prepare_axes(axes_3d, scene)
+        self._prepare_axes(axes_3d, scene, fixed_view_state=fixed_view_state)
         if viewport_bounds is not None:
             self._expand_axes_to_fill_viewport(axes_3d, viewport_bounds)
         self._synchronize_axes_geometry(axes_3d)
-        fit_render_context = self._create_render_context(axes_3d)
-        self._fit_scene_to_shorter_canvas_dimension(
-            axes_3d,
-            scene,
-            viewport_bounds=viewport_bounds,
-            render_context=fit_render_context,
-        )
-        render_context = self._create_render_context(axes_3d)
-        render_context.prepared_gate_geometry = fit_render_context.prepared_gate_geometry
+        if fixed_view_state is None:
+            fit_render_context = self._create_render_context(axes_3d)
+            self._fit_scene_to_shorter_canvas_dimension(
+                axes_3d,
+                scene,
+                viewport_bounds=viewport_bounds,
+                render_context=fit_render_context,
+            )
+            render_context = self._create_render_context(axes_3d)
+            render_context.prepared_gate_geometry = fit_render_context.prepared_gate_geometry
+        else:
+            render_context = self._create_render_context(axes_3d)
 
-        hover_targets: list[tuple[Artist, str]] = []
         self._draw_topology_planes(axes_3d, scene)
-        hover_targets.extend(self._draw_wires(axes_3d, scene))
-        hover_targets.extend(self._draw_connections(axes_3d, scene))
-        hover_targets.extend(self._draw_gates(axes_3d, scene, render_context))
-        hover_targets.extend(self._draw_markers(axes_3d, scene))
+        wire_hover_targets = self._draw_wires(axes_3d, scene)
+        connection_hover_targets = self._draw_connections(axes_3d, scene)
+        gate_hover_targets = self._draw_gates(axes_3d, scene, render_context)
+        marker_hover_targets = self._draw_markers(axes_3d, scene)
+        hover_targets = [
+            *gate_hover_targets,
+            *marker_hover_targets,
+            *connection_hover_targets,
+            *wire_hover_targets,
+        ]
         self._draw_texts(
             axes_3d,
             scene,
@@ -231,7 +241,13 @@ class MatplotlibRenderer3D(BaseRenderer):
             return managed_figure, axes_3d
         return axes_3d
 
-    def _prepare_axes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
+    def _prepare_axes(
+        self,
+        axes: Axes3D,
+        scene: LayoutScene3D,
+        *,
+        fixed_view_state: dict[str, object] | None = None,
+    ) -> None:
         min_x = min(point.x for point in scene.quantum_wire_positions.values())
         max_x = max(point.x for point in scene.quantum_wire_positions.values())
         max_y = max(point.y for point in scene.quantum_wire_positions.values())
@@ -239,16 +255,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         y_limits = (scene.classical_plane_y - 1.4, max_y + 1.8)
         z_limits = (0.0, scene.depth)
         axes.set_facecolor(scene.style.theme.axes_facecolor)
-        axes.set_xlim(*x_limits)
-        axes.set_ylim(*y_limits)
-        axes.set_zlim(*z_limits)
-        axes.set_box_aspect(
-            (
-                x_limits[1] - x_limits[0],
-                y_limits[1] - y_limits[0],
-                z_limits[1] - z_limits[0],
-            )
-        )
+        axes.patch.set_visible(False)
         axes.grid(False)
         axes.set_xticks([])
         axes.set_yticks([])
@@ -260,10 +267,31 @@ class MatplotlibRenderer3D(BaseRenderer):
         axes.yaxis.set_pane_color((0.0, 0.0, 0.0, 0.0))
         axes.zaxis.set_pane_color((0.0, 0.0, 0.0, 0.0))
         axes.set_proj_type("persp")
-        try:
-            axes.view_init(elev=18.0, azim=-55.0, vertical_axis="y")
-        except TypeError:
-            axes.view_init(elev=18.0, azim=-55.0)
+        axes.set_axis_off()
+        for axis in (axes.xaxis, axes.yaxis, axes.zaxis):
+            line = getattr(axis, "line", None)
+            if line is not None:
+                line.set_visible(False)
+            pane = getattr(axis, "pane", None)
+            if pane is not None:
+                pane.set_visible(False)
+        if fixed_view_state is None:
+            axes.set_xlim(*x_limits)
+            axes.set_ylim(*y_limits)
+            axes.set_zlim(*z_limits)
+            axes.set_box_aspect(
+                (
+                    x_limits[1] - x_limits[0],
+                    y_limits[1] - y_limits[0],
+                    z_limits[1] - z_limits[0],
+                )
+            )
+            try:
+                axes.view_init(elev=18.0, azim=-55.0, vertical_axis="y")
+            except TypeError:
+                axes.view_init(elev=18.0, azim=-55.0)
+            return
+        self._apply_fixed_view_state(axes, fixed_view_state)
 
     def _synchronize_axes_geometry(self, axes: Axes3D) -> None:
         """Apply the current 3D box geometry before projecting gate sizes."""
@@ -306,6 +334,65 @@ class MatplotlibRenderer3D(BaseRenderer):
         ):
             left, bottom, width, height = bounds
             return (float(left), float(bottom), float(width), float(height))
+        return None
+
+    def _managed_fixed_view_state(self, axes: Axes3D) -> dict[str, object] | None:
+        fixed_view_state = getattr(axes, _MANAGED_3D_FIXED_VIEW_STATE_ATTR, None)
+        return fixed_view_state if isinstance(fixed_view_state, dict) else None
+
+    def _apply_fixed_view_state(self, axes: Axes3D, fixed_view_state: dict[str, object]) -> None:
+        x_limits = self._limit_pair(fixed_view_state.get("x_limits"))
+        y_limits = self._limit_pair(fixed_view_state.get("y_limits"))
+        z_limits = self._limit_pair(fixed_view_state.get("z_limits"))
+        raw_box_aspect = self._axis_triplet(fixed_view_state.get("raw_box_aspect"))
+        elev = float(fixed_view_state.get("elev", 18.0))
+        azim = float(fixed_view_state.get("azim", -55.0))
+        roll_value = fixed_view_state.get("roll")
+
+        if x_limits is not None:
+            axes.set_xlim(*x_limits)
+        if y_limits is not None:
+            axes.set_ylim(*y_limits)
+        if z_limits is not None:
+            axes.set_zlim(*z_limits)
+        if raw_box_aspect is not None:
+            axes._box_aspect = np.asarray(raw_box_aspect, dtype=float)
+
+        try:
+            if isinstance(roll_value, int | float):
+                axes.view_init(
+                    elev=elev,
+                    azim=azim,
+                    roll=float(roll_value),
+                    vertical_axis="y",
+                )
+            else:
+                axes.view_init(elev=elev, azim=azim, vertical_axis="y")
+        except TypeError:
+            if isinstance(roll_value, int | float):
+                try:
+                    axes.view_init(elev=elev, azim=azim, roll=float(roll_value))
+                except TypeError:
+                    axes.view_init(elev=elev, azim=azim)
+            else:
+                axes.view_init(elev=elev, azim=azim)
+
+    def _limit_pair(self, values: object) -> tuple[float, float] | None:
+        if (
+            isinstance(values, tuple)
+            and len(values) == 2
+            and all(isinstance(value, int | float) for value in values)
+        ):
+            return (float(values[0]), float(values[1]))
+        return None
+
+    def _axis_triplet(self, values: object) -> tuple[float, float, float] | None:
+        if (
+            isinstance(values, tuple)
+            and len(values) == 3
+            and all(isinstance(value, int | float) for value in values)
+        ):
+            return (float(values[0]), float(values[1]), float(values[2]))
         return None
 
     def _fit_scene_to_shorter_canvas_dimension(

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.artist import Artist
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.collections import PathCollection
 from matplotlib.colors import to_hex
@@ -1236,6 +1237,46 @@ def test_matplotlib_renderer_3d_hides_hover_annotation_when_pointer_leaves_axes(
     )
 
     assert annotation.get_visible() is False
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_3d_prioritizes_gate_hover_targets_over_wire_hover_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine3D().compute(
+        _single_gate_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    figure = plt.figure()
+    axes = figure.add_subplot(111, projection="3d")
+    captured_hover_texts: list[str] = []
+    original_attach_hover = MatplotlibRenderer3D._attach_hover
+
+    def capture_hover_targets(
+        renderer: MatplotlibRenderer3D,
+        managed_axes: Axes3D,
+        hover_targets: list[tuple[object, str]],
+    ) -> None:
+        captured_hover_texts.extend(text for _, text in hover_targets)
+        original_attach_hover(
+            renderer, managed_axes, cast("list[tuple[Artist, str]]", hover_targets)
+        )
+
+    monkeypatch.setattr(MatplotlibRenderer3D, "_attach_hover", capture_hover_targets)
+
+    MatplotlibRenderer3D().render(scene, ax=axes)
+
+    gate_hover_texts = [gate.hover_text for gate in scene.gates if gate.hover_text]
+    wire_hover_texts = [wire.hover_text for wire in scene.wires if wire.hover_text]
+
+    assert gate_hover_texts
+    assert wire_hover_texts
+    assert min(captured_hover_texts.index(text) for text in gate_hover_texts) < min(
+        captured_hover_texts.index(text) for text in wire_hover_texts
+    )
     plt.close(figure)
 
 

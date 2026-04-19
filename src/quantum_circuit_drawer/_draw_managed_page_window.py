@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Protocol, TypeVar
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from ._draw_managed_slider import _style_control_axes, _style_text_box
+from ._draw_managed_slider import _style_control_axes, _style_stepper_button, _style_text_box
 from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from .layout.scene import LayoutScene, ScenePage
 from .renderers._matplotlib_figure import (
@@ -34,14 +34,16 @@ if TYPE_CHECKING:
     from .ir.circuit import CircuitIR
 
 _MAIN_AXES_BOUNDS = (0.02, 0.18, 0.96, 0.8)
-_PREVIOUS_PAGE_BUTTON_BOUNDS = (0.135, 0.05, 0.04, 0.055)
-_PAGE_BOX_BOUNDS = (0.182, 0.05, 0.068, 0.055)
-_NEXT_PAGE_BUTTON_BOUNDS = (0.257, 0.05, 0.04, 0.055)
-_VISIBLE_PAGES_BOX_BOUNDS = (0.515, 0.05, 0.068, 0.055)
+_PREVIOUS_PAGE_BUTTON_BOUNDS = (0.132, 0.05, 0.048, 0.06)
+_PAGE_BOX_BOUNDS = (0.188, 0.05, 0.078, 0.06)
+_NEXT_PAGE_BUTTON_BOUNDS = (0.274, 0.05, 0.048, 0.06)
+_VISIBLE_PAGES_BOX_BOUNDS = (0.505, 0.05, 0.078, 0.06)
+_VISIBLE_PAGES_DECREMENT_BOUNDS = (0.591, 0.05, 0.03, 0.028)
+_VISIBLE_PAGES_INCREMENT_BOUNDS = (0.591, 0.082, 0.03, 0.028)
 _PAGE_LABEL_POSITION = (0.075, 0.079)
-_PAGE_SUFFIX_POSITION = (0.304, 0.079)
+_PAGE_SUFFIX_POSITION = (0.33, 0.079)
 _VISIBLE_LABEL_POSITION = (0.392, 0.079)
-_VISIBLE_SUFFIX_POSITION = (0.592, 0.079)
+_VISIBLE_SUFFIX_POSITION = (0.628, 0.079)
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,10 +75,14 @@ class Managed2DPageWindowState:
     page_cache: dict[int, _PageWindowCacheEntry] = field(default_factory=dict)
     page_box: TextBox | None = None
     visible_pages_box: TextBox | None = None
+    visible_pages_decrement_button: Button | None = None
+    visible_pages_increment_button: Button | None = None
     previous_page_button: Button | None = None
     next_page_button: Button | None = None
     page_axes: Axes | None = None
     visible_pages_axes: Axes | None = None
+    visible_pages_decrement_axes: Axes | None = None
+    visible_pages_increment_axes: Axes | None = None
     previous_page_button_axes: Axes | None = None
     next_page_button_axes: Axes | None = None
     page_suffix_text: Text | None = None
@@ -140,7 +146,7 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     _style_control_axes(previous_page_button_axes, palette=palette)
     previous_page_button = Button(
         previous_page_button_axes,
-        "<",
+        "\u2039",
         color=palette.surface_facecolor,
         hovercolor=palette.surface_hover_facecolor,
     )
@@ -172,7 +178,7 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     _style_control_axes(next_page_button_axes, palette=palette)
     next_page_button = Button(
         next_page_button_axes,
-        ">",
+        "\u203a",
         color=palette.surface_facecolor,
         hovercolor=palette.surface_hover_facecolor,
     )
@@ -200,12 +206,44 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     )
     visible_pages_box.on_submit(lambda text: _handle_visible_pages_submit(state, text))
 
+    visible_pages_increment_axes = state.figure.add_axes(
+        _VISIBLE_PAGES_INCREMENT_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(visible_pages_increment_axes, palette=palette)
+    visible_pages_increment_button = Button(
+        visible_pages_increment_axes,
+        "\u25b4",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(visible_pages_increment_button, palette=palette)
+    visible_pages_increment_button.on_clicked(lambda _: _step_visible_pages(state, delta=1))
+
+    visible_pages_decrement_axes = state.figure.add_axes(
+        _VISIBLE_PAGES_DECREMENT_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(visible_pages_decrement_axes, palette=palette)
+    visible_pages_decrement_button = Button(
+        visible_pages_decrement_axes,
+        "\u25be",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(visible_pages_decrement_button, palette=palette)
+    visible_pages_decrement_button.on_clicked(lambda _: _step_visible_pages(state, delta=-1))
+
     state.page_box = page_box
     state.visible_pages_box = visible_pages_box
+    state.visible_pages_decrement_button = visible_pages_decrement_button
+    state.visible_pages_increment_button = visible_pages_increment_button
     state.previous_page_button = previous_page_button
     state.next_page_button = next_page_button
     state.page_axes = page_axes
     state.visible_pages_axes = visible_pages_axes
+    state.visible_pages_decrement_axes = visible_pages_decrement_axes
+    state.visible_pages_increment_axes = visible_pages_increment_axes
     state.previous_page_button_axes = previous_page_button_axes
     state.next_page_button_axes = next_page_button_axes
     state.page_suffix_text = state.figure.text(
@@ -250,7 +288,8 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
 def _style_button(button: Button, *, palette: ManagedUiPalette) -> None:
     button.ax.set_facecolor(palette.surface_facecolor)
     button.label.set_color(palette.text_color)
-    button.label.set_fontsize(10.0)
+    button.label.set_fontsize(12.0)
+    button.label.set_fontweight("bold")
     button.ax.tick_params(
         left=False,
         bottom=False,
@@ -258,8 +297,8 @@ def _style_button(button: Button, *, palette: ManagedUiPalette) -> None:
         labelbottom=False,
     )
     for spine in button.ax.spines.values():
-        spine.set_color(palette.surface_edgecolor)
-        spine.set_linewidth(1.0)
+        spine.set_color(palette.surface_edgecolor_active)
+        spine.set_linewidth(1.1)
 
 
 def _set_button_enabled(
@@ -269,7 +308,7 @@ def _set_button_enabled(
     palette: ManagedUiPalette,
 ) -> None:
     facecolor = palette.surface_facecolor if enabled else palette.surface_facecolor_disabled
-    edgecolor = palette.surface_edgecolor if enabled else palette.surface_edgecolor_disabled
+    edgecolor = palette.surface_edgecolor_active if enabled else palette.surface_edgecolor_disabled
     text_color = palette.text_color if enabled else palette.disabled_text_color
     button.ax.set_facecolor(facecolor)
     button.color = facecolor
@@ -340,6 +379,14 @@ def _step_page(state: Managed2DPageWindowState, *, delta: int) -> None:
         state,
         requested_page=(state.start_page + 1) + delta,
         requested_visible_pages=state.visible_page_count,
+    )
+
+
+def _step_visible_pages(state: Managed2DPageWindowState, *, delta: int) -> None:
+    _show_page_window(
+        state,
+        requested_page=state.start_page + 1,
+        requested_visible_pages=state.visible_page_count + delta,
     )
 
 

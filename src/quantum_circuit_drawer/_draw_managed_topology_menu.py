@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.widgets import RadioButtons
 
-from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from ._draw_managed_slider import (
     Managed3DPageSliderState,
     apply_managed_3d_axes_bounds,
     managed_3d_menu_bounds,
 )
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
+from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from .layout.topology_3d import TopologyName, build_topology
 from .renderers._matplotlib_figure import (
     clear_hover_state,
