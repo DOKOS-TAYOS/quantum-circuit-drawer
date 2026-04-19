@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.widgets import RadioButtons
 
+from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from ._draw_managed_slider import (
     Managed3DPageSliderState,
     apply_managed_3d_axes_bounds,
@@ -34,14 +35,6 @@ _ALL_TOPOLOGIES: tuple[TopologyName, ...] = (
     "star_tree",
     "honeycomb",
 )
-_ACTIVE_ACCENT_COLOR = "#1d4ed8"
-_ACTIVE_BORDER_COLOR = "#bfdbfe"
-_MENU_PANEL_COLOR = "#111827"
-_MENU_PANEL_BORDER_COLOR = "#9ca3af"
-_ENABLED_BORDER_COLOR = "#e5e7eb"
-_ENABLED_TEXT_COLOR = "#f3f4f6"
-_DISABLED_BORDER_COLOR = "#4b5563"
-_DISABLED_TEXT_COLOR = "#64748b"
 _MENU_LABEL_FONT_SIZE = 11.0
 _MENU_RADIO_MARKER_SIZE = 90.0
 
@@ -57,6 +50,7 @@ class TopologyMenuState:
     active_topology: TopologyName
     valid_topologies: tuple[TopologyName, ...]
     topologies: tuple[TopologyName, ...] = _ALL_TOPOLOGIES
+    ui_palette: ManagedUiPalette | None = None
     menu_axes: Axes | None = None
     radio: RadioButtons | None = None
 
@@ -121,6 +115,11 @@ def attach_topology_menu(
     """Attach a topology selector to an interactive managed 3D figure."""
 
     page_slider_state = get_page_slider(figure)
+    scene = (
+        page_slider_state.current_scene
+        if isinstance(page_slider_state, Managed3DPageSliderState)
+        else cast("LayoutScene3D", pipeline.paged_scene)
+    )
     valid_topologies = tuple(
         topology_name
         for topology_name in _ALL_TOPOLOGIES
@@ -131,13 +130,10 @@ def attach_topology_menu(
         figure=figure,
         axes=axes,
         pipeline=pipeline,
-        scene=(
-            page_slider_state.current_scene
-            if isinstance(page_slider_state, Managed3DPageSliderState)
-            else cast("LayoutScene3D", pipeline.paged_scene)
-        ),
+        scene=scene,
         active_topology=active_topology,
         valid_topologies=valid_topologies,
+        ui_palette=managed_ui_palette(scene.style.theme),
     )
     apply_managed_3d_axes_bounds(
         axes,
@@ -148,12 +144,13 @@ def attach_topology_menu(
             has_page_slider=isinstance(page_slider_state, Managed3DPageSliderState)
         )
     )
-    _configure_menu_axes(state.menu_axes)
+    assert state.ui_palette is not None
+    _configure_menu_axes(state.menu_axes, palette=state.ui_palette)
     state.radio = RadioButtons(
         state.menu_axes,
         _ALL_TOPOLOGIES,
         active=_ALL_TOPOLOGIES.index(active_topology),
-        activecolor=_ACTIVE_ACCENT_COLOR,
+        activecolor=state.ui_palette.accent_color,
         useblit=False,
     )
     state.radio.on_clicked(lambda selected: state.select_topology(cast("TopologyName", selected)))
@@ -162,19 +159,19 @@ def attach_topology_menu(
     return state
 
 
-def _configure_menu_axes(menu_axes: Axes) -> None:
-    menu_axes.set_facecolor(_MENU_PANEL_COLOR)
+def _configure_menu_axes(menu_axes: Axes, *, palette: ManagedUiPalette) -> None:
+    menu_axes.set_facecolor(palette.surface_facecolor)
     menu_axes.set_xticks([])
     menu_axes.set_yticks([])
     menu_axes.set_navigate(False)
     for spine in menu_axes.spines.values():
         spine.set_visible(True)
-        spine.set_edgecolor(_MENU_PANEL_BORDER_COLOR)
+        spine.set_edgecolor(palette.surface_edgecolor)
         spine.set_linewidth(1.0)
 
 
 def _refresh_radio_styles(state: TopologyMenuState) -> None:
-    if state.radio is None:
+    if state.radio is None or state.ui_palette is None:
         return
 
     label_colors: list[str] = []
@@ -187,22 +184,22 @@ def _refresh_radio_styles(state: TopologyMenuState) -> None:
         enabled = state.is_enabled(topology_name)
         active = enabled and topology_name == state.active_topology
         if active:
-            label_colors.append(_ENABLED_TEXT_COLOR)
+            label_colors.append(state.ui_palette.text_color)
             font_weights.append("bold")
-            face_colors.append(_ACTIVE_ACCENT_COLOR)
-            edge_colors.append(_ACTIVE_BORDER_COLOR)
+            face_colors.append(state.ui_palette.accent_color)
+            edge_colors.append(state.ui_palette.surface_edgecolor_active)
             line_widths.append(1.8)
         elif enabled:
-            label_colors.append(_ENABLED_TEXT_COLOR)
+            label_colors.append(state.ui_palette.text_color)
             font_weights.append("normal")
             face_colors.append("none")
-            edge_colors.append(_ENABLED_BORDER_COLOR)
+            edge_colors.append(state.ui_palette.surface_edgecolor)
             line_widths.append(1.4)
         else:
-            label_colors.append(_DISABLED_TEXT_COLOR)
+            label_colors.append(state.ui_palette.disabled_text_color)
             font_weights.append("normal")
             face_colors.append("none")
-            edge_colors.append(_DISABLED_BORDER_COLOR)
+            edge_colors.append(state.ui_palette.surface_edgecolor_disabled)
             line_widths.append(1.2)
 
     state.radio.set_label_props(

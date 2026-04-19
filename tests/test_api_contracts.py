@@ -140,8 +140,8 @@ def test_draw_quantum_circuit_applies_requested_theme() -> None:
 def test_draw_quantum_circuit_uses_dark_theme_by_default() -> None:
     figure, axes = draw_quantum_circuit(build_sample_ir(), show=False)
 
-    assert figure.get_facecolor() == to_rgba("#000000")
-    assert axes.get_facecolor() == to_rgba("#000000")
+    assert figure.get_facecolor() == to_rgba("#0b0f14")
+    assert axes.get_facecolor() == to_rgba("#11161d")
     plt.close(figure)
 
 

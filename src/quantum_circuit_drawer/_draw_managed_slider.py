@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from ._draw_managed_viewport import (
     axes_viewport_pixels,
     build_continuous_slider_scene,
@@ -47,22 +48,22 @@ _MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS = (0.12, 0.02, 0.86, 0.96)
 _MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS = (0.12, 0.18, 0.86, 0.8)
 _MANAGED_2D_MAIN_AXES_WITH_LEFT_CONTROLS_BOUNDS = (0.12, 0.02, 0.86, 0.96)
 _MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_AND_BOX_BOUNDS = (0.12, 0.18, 0.86, 0.8)
-_MANAGED_2D_HORIZONTAL_SLIDER_HEIGHT = 0.055
-_MANAGED_2D_HORIZONTAL_SLIDER_BOTTOM = 0.045
+_MANAGED_2D_HORIZONTAL_SLIDER_HEIGHT = 0.06
+_MANAGED_2D_HORIZONTAL_SLIDER_BOTTOM = 0.05
 _MANAGED_2D_LEFT_CONTROL_LEFT = 0.04
 _MANAGED_2D_LEFT_CONTROL_WIDTH = 0.055
 _MANAGED_2D_VERTICAL_SLIDER_WIDTH = 0.021
 _MANAGED_2D_VISIBLE_QUBITS_WIDTH = 0.055
 _MANAGED_2D_VISIBLE_QUBITS_HEIGHT = 0.045
-_MANAGED_2D_VISIBLE_QUBITS_BOTTOM = 0.045
-_MANAGED_2D_VISIBLE_QUBITS_BOTTOM_WITH_HORIZONTAL = 0.115
+_MANAGED_2D_VISIBLE_QUBITS_BOTTOM = 0.05
+_MANAGED_2D_VISIBLE_QUBITS_BOTTOM_WITH_HORIZONTAL = 0.12
 _MANAGED_2D_VISIBLE_QUBITS_GAP = 0.02
 _DEFAULT_VISIBLE_QUBITS = 15
 
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _MANAGED_3D_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
 _MANAGED_3D_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.0, 0.14, 1.0, 0.86)
-_MANAGED_3D_SLIDER_BOUNDS = (0.18, 0.045, 0.72, 0.055)
+_MANAGED_3D_SLIDER_BOUNDS = (0.18, 0.05, 0.72, 0.06)
 _MANAGED_3D_MENU_BOUNDS = (0.035, 0.06, 0.2, 0.24)
 _MANAGED_3D_MENU_BOUNDS_WITH_SLIDER = (0.035, 0.18, 0.2, 0.24)
 
@@ -483,12 +484,14 @@ def _attach_2d_controls(
     from matplotlib.widgets import Slider, TextBox
 
     theme = state.style.theme
+    palette = managed_ui_palette(theme)
 
     if state.max_start_column > 0 and layout.horizontal_axes_bounds is not None:
         horizontal_axes = state.figure.add_axes(
             layout.horizontal_axes_bounds,
-            facecolor=theme.axes_facecolor,
+            facecolor=palette.surface_facecolor,
         )
+        _style_control_axes(horizontal_axes, palette=palette)
         horizontal_slider = Slider(
             ax=horizontal_axes,
             label="Columns",
@@ -496,15 +499,15 @@ def _attach_2d_controls(
             valmax=float(state.max_start_column),
             valinit=float(state.start_column),
             valstep=1.0,
-            color=theme.gate_edgecolor,
-            track_color=theme.classical_wire_color,
+            color=palette.slider_fill_color,
+            track_color=palette.slider_track_color,
             handle_style={
-                "facecolor": theme.accent_color,
-                "edgecolor": theme.text_color,
+                "facecolor": palette.accent_color,
+                "edgecolor": palette.accent_edgecolor,
                 "size": 16,
             },
         )
-        _style_slider(horizontal_slider, text_color=theme.text_color)
+        _style_slider(horizontal_slider, palette=palette)
         horizontal_slider.on_changed(
             lambda value: state.show_start_column(int(round(float(value))))
         )
@@ -514,8 +517,9 @@ def _attach_2d_controls(
     if state.max_start_row > 0 and layout.vertical_axes_bounds is not None:
         vertical_axes = state.figure.add_axes(
             layout.vertical_axes_bounds,
-            facecolor=theme.axes_facecolor,
+            facecolor=palette.surface_facecolor,
         )
+        _style_control_axes(vertical_axes, palette=palette)
         vertical_slider = Slider(
             ax=vertical_axes,
             label="Rows",
@@ -524,15 +528,15 @@ def _attach_2d_controls(
             valinit=float(state.start_row),
             valstep=1.0,
             orientation="vertical",
-            color=theme.gate_edgecolor,
-            track_color=theme.classical_wire_color,
+            color=palette.slider_fill_color,
+            track_color=palette.slider_track_color,
             handle_style={
-                "facecolor": theme.accent_color,
-                "edgecolor": theme.text_color,
+                "facecolor": palette.accent_color,
+                "edgecolor": palette.accent_edgecolor,
                 "size": 12,
             },
         )
-        _style_slider(vertical_slider, text_color=theme.text_color)
+        _style_slider(vertical_slider, palette=palette)
         vertical_slider.on_changed(lambda value: state.show_start_row(int(round(float(value)))))
         state.vertical_slider = vertical_slider
         state.vertical_axes = vertical_axes
@@ -540,17 +544,23 @@ def _attach_2d_controls(
     if state.show_visible_qubits_box and layout.visible_qubits_axes_bounds is not None:
         visible_qubits_axes = state.figure.add_axes(
             layout.visible_qubits_axes_bounds,
-            facecolor=theme.axes_facecolor,
+            facecolor=palette.surface_facecolor,
         )
+        _style_control_axes(visible_qubits_axes, palette=palette)
         visible_qubits_box = TextBox(
             visible_qubits_axes,
             "",
             initial=str(state.visible_qubits),
-            color=theme.axes_facecolor,
-            hovercolor=theme.figure_facecolor,
+            color=palette.surface_facecolor,
+            hovercolor=palette.surface_hover_facecolor,
             textalignment="center",
         )
-        _style_text_box(visible_qubits_box, text_color=theme.text_color)
+        _style_text_box(
+            visible_qubits_box,
+            text_color=palette.text_color,
+            border_color=palette.surface_edgecolor,
+            facecolor=palette.surface_facecolor,
+        )
         visible_qubits_box.on_submit(lambda text: _handle_visible_qubits_submit(state, text))
         state.visible_qubits_box = visible_qubits_box
         state.visible_qubits_axes = visible_qubits_axes
@@ -1068,6 +1078,8 @@ def configure_3d_page_slider(
 
     apply_managed_3d_axes_bounds(axes, has_page_slider=True)
     slider_axes = figure.add_axes(_MANAGED_3D_SLIDER_BOUNDS)
+    palette = managed_ui_palette(cast("LayoutScene3D", pipeline.paged_scene).style.theme)
+    _style_control_axes(slider_axes, palette=palette)
     state = Managed3DPageSliderState(
         figure=figure,
         axes=axes,
@@ -1089,15 +1101,15 @@ def configure_3d_page_slider(
         valmax=float(max_start_column),
         valinit=0.0,
         valstep=1.0,
-        color=initial_scene.style.theme.gate_edgecolor,
-        track_color=initial_scene.style.theme.classical_wire_color,
+        color=palette.slider_fill_color,
+        track_color=palette.slider_track_color,
         handle_style={
-            "facecolor": initial_scene.style.theme.accent_color,
-            "edgecolor": initial_scene.style.theme.text_color,
+            "facecolor": palette.accent_color,
+            "edgecolor": palette.accent_edgecolor,
             "size": 16,
         },
     )
-    _style_slider(slider, text_color=initial_scene.style.theme.text_color)
+    _style_slider(slider, palette=palette)
     slider.on_changed(lambda value: state.show_start_column(int(round(float(value)))))
     state.horizontal_slider = slider
     set_page_slider(figure, state)
@@ -1283,25 +1295,61 @@ def _visible_qubits_box_bounds(
     )
 
 
-def _style_slider(slider: Slider, *, text_color: str) -> None:
-    slider.label.set_color(text_color)
+def _style_control_axes(axes: Axes, *, palette: ManagedUiPalette) -> None:
+    axes.set_facecolor(palette.surface_facecolor)
+    axes.tick_params(
+        left=False,
+        bottom=False,
+        labelleft=False,
+        labelbottom=False,
+    )
+    for spine in axes.spines.values():
+        spine.set_visible(True)
+        spine.set_color(palette.surface_edgecolor)
+        spine.set_linewidth(1.0)
+
+
+def _style_slider(slider: Slider, *, palette: ManagedUiPalette) -> None:
+    from matplotlib.lines import Line2D
+
+    _style_control_axes(slider.ax, palette=palette)
+    slider.label.set_color(palette.secondary_text_color)
+    slider.label.set_fontsize(10.0)
     slider.valtext.set_visible(False)
     if hasattr(slider, "track"):
-        slider.track.set_alpha(0.45)
+        slider.track.set_alpha(1.0)
+        slider.track.set_facecolor(palette.slider_track_color)
+        slider.track.set_edgecolor("none")
     if hasattr(slider, "poly"):
-        slider.poly.set_alpha(0.75)
+        slider.poly.set_alpha(0.32)
+        slider.poly.set_facecolor(palette.slider_fill_color)
+        slider.poly.set_edgecolor("none")
     if hasattr(slider, "vline"):
-        slider.vline.set_linewidth(3.0)
+        slider.vline.set_color(palette.accent_color)
+        slider.vline.set_alpha(0.75)
+        slider.vline.set_linewidth(2.2)
+    handle = getattr(slider, "_handle", None)
+    if isinstance(handle, Line2D):
+        handle.set_markerfacecolor(palette.accent_color)
+        handle.set_markeredgecolor(palette.accent_edgecolor)
+        handle.set_markeredgewidth(1.2)
 
 
-def _style_text_box(text_box: TextBox, *, text_color: str) -> None:
+def _style_text_box(
+    text_box: TextBox,
+    *,
+    text_color: str,
+    border_color: str,
+    facecolor: str,
+) -> None:
     text_box.label.set_visible(False)
+    text_box.ax.set_facecolor(facecolor)
     if hasattr(text_box, "text_disp"):
         text_box.text_disp.set_color(text_color)
-        text_box.text_disp.set_fontsize(9.5)
+        text_box.text_disp.set_fontsize(10.0)
     if hasattr(text_box, "cursor"):
         text_box.cursor.set_color(text_color)
-        text_box.cursor.set_linewidth(1.6)
+        text_box.cursor.set_linewidth(1.5)
     text_box.ax.set_title("")
     text_box.ax.tick_params(
         left=False,
@@ -1310,7 +1358,8 @@ def _style_text_box(text_box: TextBox, *, text_color: str) -> None:
         labelbottom=False,
     )
     for spine in text_box.ax.spines.values():
-        spine.set_color(text_color)
+        spine.set_color(border_color)
+        spine.set_linewidth(1.0)
 
 
 def _figure_size_inches(figure: object) -> tuple[float, float]:

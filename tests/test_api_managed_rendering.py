@@ -478,7 +478,10 @@ def test_draw_quantum_circuit_attaches_lower_left_dark_topology_radio_panel(
         (0.035, 0.06, 0.2, 0.24),
         abs=1e-3,
     )
-    assert menu_state.menu_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#111827"))
+    assert menu_state.menu_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert menu_state.menu_axes.spines["left"].get_edgecolor() == pytest.approx(
+        mcolors.to_rgba("#2a3441")
+    )
     assert menu_state.radio.value_selected == "line"
     assert [label.get_text() for label in menu_state.radio.labels] == [
         "line",
@@ -635,8 +638,12 @@ def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging(
     assert len(page_window.page_cache) == 1
     assert page_window.page_axes is not None
     assert page_window.visible_pages_axes is not None
-    assert page_window.page_axes.get_position().width < 0.08
-    assert page_window.visible_pages_axes.get_position().width < 0.08
+    assert page_window.page_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert page_window.visible_pages_axes.get_facecolor() == pytest.approx(
+        mcolors.to_rgba("#161d26")
+    )
+    assert page_window.previous_page_button.label.get_color() == "#9aa7b7"
+    assert page_window.next_page_button.label.get_color() == "#e6edf3"
     assert get_auto_paging_state(axes) is None
     plt.close(figure)
 
@@ -880,11 +887,15 @@ def test_draw_quantum_circuit_adds_discrete_page_slider_for_wrapped_managed_figu
     slider_axes = page_slider.horizontal_axes
     assert slider_axes is not None
     _, slider_bottom, _, slider_height = slider_axes.get_position().bounds
+    horizontal_slider = page_slider.horizontal_slider
+    assert horizontal_slider is not None
 
     assert len(figure.axes) == 2
-    assert page_slider.horizontal_slider is not None
     assert page_slider.vertical_slider is None
     assert page_slider.start_column == 0
+    assert slider_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert horizontal_slider.label.get_color() == "#9aa7b7"
+    assert horizontal_slider._handle.get_markerfacecolor() == "#6cb6ff"
     assert slider_bottom < 0.1
     assert slider_height > 0.05
     assert axes.get_xlim()[0] == pytest.approx(0.0)
@@ -893,8 +904,6 @@ def test_draw_quantum_circuit_adds_discrete_page_slider_for_wrapped_managed_figu
     assert "H" in initial_labels
     assert "Y" not in initial_labels
 
-    horizontal_slider = page_slider.horizontal_slider
-    assert horizontal_slider is not None
     horizontal_slider.set_val(horizontal_slider.valmax)
 
     moved_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
@@ -1436,6 +1445,10 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert page_slider.visible_qubits_axes.get_position().width < 0.06
     assert page_slider.visible_qubits_axes.get_position().height < 0.05
     assert page_slider.visible_qubits_axes.get_title() == ""
+    assert page_slider.vertical_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert page_slider.visible_qubits_axes.get_facecolor() == pytest.approx(
+        mcolors.to_rgba("#161d26")
+    )
     assert page_slider.start_row == 0
     assert len(figure.axes) == 3
 

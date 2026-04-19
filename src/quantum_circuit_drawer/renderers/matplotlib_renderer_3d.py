@@ -1166,7 +1166,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 va=text.va,
                 multialignment=text.ha,
                 fontsize=text.font_size or scene.style.font_size,
-                color=scene.style.theme.text_color,
+                color=scene.style.theme.classical_wire_color,
             )
 
     def _draw_texts_batched_offscreen(
@@ -1211,7 +1211,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 [_aligned_text_path(text_key)],
                 offsets=np.asarray(offsets, dtype=float),
                 transOffset=IdentityTransform(),
-                facecolors=scene.style.theme.text_color,
+                facecolors=scene.style.theme.classical_wire_color,
                 edgecolors="none",
             )
             collection.set_transform(Affine2D().scale(display_scale))
