@@ -979,6 +979,10 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert page_slider.visible_qubits_box is not None
     assert page_slider.visible_qubits_axes is not None
     assert page_slider.visible_qubits == 15
+    assert (
+        page_slider.vertical_axes.get_position().width
+        < page_slider.visible_qubits_axes.get_position().width
+    )
     assert len(figure.axes) == 3
 
     initial_ylim = axes.get_ylim()
@@ -1037,6 +1041,15 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     assert tuple(float(value) for value in figure.get_size_inches()) != pytest.approx(
         initial_figure_size
     )
+
+    visible_qubits_box = page_slider.visible_qubits_box
+    assert visible_qubits_box is not None
+
+    visible_qubits_box.set_val("24")
+
+    assert page_slider.visible_qubits == 24
+    assert page_slider.vertical_slider is None
+    assert page_slider.vertical_axes is None
 
     plt.close(figure)
 

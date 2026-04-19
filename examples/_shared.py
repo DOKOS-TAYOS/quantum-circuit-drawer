@@ -87,7 +87,7 @@ def add_render_arguments(
         "--mode",
         choices=("pages", "slider"),
         default="pages",
-        help="Render in wrapped pages or in the horizontal slider view.",
+        help="Render in wrapped pages or slider mode. In 3D, slider mode moves through columns.",
     )
     parser.add_argument(
         "--view",
@@ -211,8 +211,6 @@ def request_from_namespace(
         raise SystemExit("--qubits must be at least 1.")
     if columns < 1:
         raise SystemExit("--columns must be at least 1.")
-    if view == "3d" and mode == "slider":
-        raise SystemExit("Slider mode is only available in 2D. Use --mode pages with --view 3d.")
     figure_width, figure_height = _normalize_figsize(args.figsize)
     hover_matrix_max_qubits = int(getattr(args, "hover_matrix_max_qubits", 2))
     if hover_matrix_max_qubits < 1:

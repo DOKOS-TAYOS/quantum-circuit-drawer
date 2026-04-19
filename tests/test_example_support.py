@@ -67,7 +67,7 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
     )
 
 
-def test_request_from_namespace_rejects_3d_slider() -> None:
+def test_request_from_namespace_accepts_3d_slider() -> None:
     from examples._shared import request_from_namespace
 
     args = Namespace(
@@ -86,8 +86,11 @@ def test_request_from_namespace_rejects_3d_slider() -> None:
         hover_show_size=False,
     )
 
-    with pytest.raises(SystemExit, match="Slider mode is only available in 2D"):
-        request_from_namespace(args, default_qubits=4, default_columns=5)
+    request = request_from_namespace(args, default_qubits=4, default_columns=5)
+
+    assert request.mode == "slider"
+    assert request.view == "3d"
+    assert request.topology == "line"
 
 
 def test_request_from_namespace_rejects_non_positive_hover_matrix_max_qubits() -> None:
@@ -286,6 +289,97 @@ def test_render_example_draws_and_reports_saved_output(
         }
     ]
     assert f"Saved qiskit-random to {output}" in captured.out
+
+
+def test_render_example_forwards_page_slider_in_3d_slider_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._shared import ExampleRequest, render_example
+
+    from quantum_circuit_drawer import HoverOptions
+
+    draw_calls: list[dict[str, object]] = []
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        framework: str | None = None,
+        *,
+        style: dict[str, object],
+        output: Path | None = None,
+        show: bool = True,
+        page_slider: bool = False,
+        view: str = "2d",
+        topology: str = "line",
+        topology_menu: bool = False,
+        direct: bool = True,
+        hover: object = False,
+        figsize: tuple[float, float] | None = None,
+        **options: object,
+    ) -> None:
+        draw_calls.append(
+            {
+                "circuit": circuit,
+                "framework": framework,
+                "style": style,
+                "output": output,
+                "show": show,
+                "page_slider": page_slider,
+                "view": view,
+                "topology": topology,
+                "topology_menu": topology_menu,
+                "direct": direct,
+                "hover": hover,
+                "figsize": figsize,
+                "options": options,
+            }
+        )
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    request = ExampleRequest(
+        qubits=12,
+        columns=20,
+        mode="slider",
+        view="3d",
+        topology="grid",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(10.0, 5.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    render_example(
+        {"kind": "demo"},
+        request=request,
+        framework="qiskit",
+        saved_label="qiskit-random",
+    )
+
+    assert draw_calls == [
+        {
+            "circuit": {"kind": "demo"},
+            "framework": "qiskit",
+            "style": {
+                "font_size": 12.0,
+                "show_params": True,
+                "max_page_width": 8.9,
+            },
+            "output": None,
+            "show": False,
+            "page_slider": True,
+            "view": "3d",
+            "topology": "grid",
+            "topology_menu": True,
+            "direct": False,
+            "hover": HoverOptions(),
+            "figsize": (10.0, 5.5),
+            "options": {},
+        }
+    ]
 
 
 def test_render_example_disables_explicit_matrices_for_cirq_on_windows(

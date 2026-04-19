@@ -22,7 +22,7 @@ Every script and `examples/run_demo.py` accepts the same main flags:
 
 - `--qubits`: number of quantum wires
 - `--columns`: random depth, or QAOA layers `p`
-- `--mode pages|slider`: wrapped pages or horizontal slider
+- `--mode pages|slider`: wrapped pages or slider mode
 - `--view 2d|3d`: standard 2D view or topology-aware 3D view
 - `--topology line|grid|star|star_tree|honeycomb`: only used in 3D
 - `--seed`: random seed for the random demos
@@ -38,7 +38,8 @@ Notes:
 
 - In the QAOA demos, `--columns` means QAOA layers.
 - `--topology` has no effect in 2D.
-- `--mode slider` is only available in 2D.
+- In 2D, `--mode slider` gives you the continuous viewport with sliders.
+- In 3D, `--mode slider` moves through circuit columns and keeps the topology selector available.
 - Hover is enabled by default in both 2D and 3D when the Matplotlib backend is interactive.
 - By default, hover tooltips show gate name, matrix dimensions, and affected qubits, and they add the full matrix automatically for small gates.
 - The shared demo window now opens at `10 x 5.5` inches by default; use `--figsize` when you want a larger or smaller managed figure.
@@ -134,7 +135,7 @@ CUDA-Q remains Linux or WSL oriented:
 
 ## 3D topology recipes
 
-Use `--view 3d --mode pages` with the topology that matches the wire count you want to inspect best. Once the figure is open, you can switch to any other supported topology from the built-in selector.
+Use `--view 3d` with the topology that matches the wire count you want to inspect best. `--mode pages` keeps the existing full-scene view, while `--mode slider` is the best option when the circuit has many columns. Once the figure is open, you can switch to any other supported topology from the built-in selector.
 
 ```powershell
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 12 --columns 12 --view 3d --topology line
@@ -143,6 +144,8 @@ Use `--view 3d --mode pages` with the topology that matches the wire count you w
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 10 --columns 12 --view 3d --topology star_tree
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 53 --columns 8 --view 3d --topology honeycomb
 .\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa --qubits 9 --columns 8 --view 3d --topology grid
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-random --qubits 12 --columns 24 --view 3d --mode slider --topology grid
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-qaoa --qubits 14 --columns 16 --view 3d --mode slider --topology line
 ```
 
 The same 3D flags also work with:

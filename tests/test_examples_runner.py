@@ -191,9 +191,12 @@ def test_run_demo_with_args_builds_subject_and_renders(
     ]
 
 
-def test_run_demo_with_args_rejects_3d_slider_before_loading_demo(
+def test_run_demo_with_args_accepts_3d_slider_and_loads_demo(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    built_subject = {"kind": "3d-slider-demo"}
+    builder_calls: list[ExampleRequest] = []
+    render_calls: list[dict[str, object]] = []
     spec = DemoSpec(
         demo_id="custom-demo",
         description="Custom demo",
@@ -223,15 +226,56 @@ def test_run_demo_with_args_rejects_3d_slider_before_loading_demo(
         hover_show_size=False,
     )
 
-    def fail_if_called(spec: DemoSpec) -> object:
-        raise AssertionError(
-            f"load_demo_builder should not be called for invalid args: {spec.demo_id}"
+    def fake_builder(request: ExampleRequest) -> object:
+        builder_calls.append(request)
+        return built_subject
+
+    def fake_render_example(
+        subject: object,
+        *,
+        request: ExampleRequest,
+        framework: str | None,
+        saved_label: str,
+    ) -> None:
+        render_calls.append(
+            {
+                "subject": subject,
+                "request": request,
+                "framework": framework,
+                "saved_label": saved_label,
+            }
         )
 
-    monkeypatch.setattr(run_demo_module, "load_demo_builder", fail_if_called)
+    monkeypatch.setattr(run_demo_module, "load_demo_builder", lambda demo_spec: fake_builder)
+    monkeypatch.setattr(run_demo_module, "render_example", fake_render_example)
 
-    with pytest.raises(SystemExit, match="Slider mode is only available in 2D"):
-        run_demo_module.run_demo_with_args(spec, args)
+    run_demo_module.run_demo_with_args(spec, args)
+
+    assert builder_calls == [
+        ExampleRequest(
+            qubits=12,
+            columns=20,
+            mode="slider",
+            view="3d",
+            topology="grid",
+            seed=19,
+            output=None,
+            show=False,
+            figsize=(9.0, 4.0),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        )
+    ]
+    assert render_calls == [
+        {
+            "subject": built_subject,
+            "request": builder_calls[0],
+            "framework": "qiskit",
+            "saved_label": "custom-demo",
+        }
+    ]
 
 
 def test_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -446,8 +490,16 @@ def test_examples_runner_can_render_3d_demo_for_random_qiskit(sandbox_tmp_path: 
     assert_saved_image_has_visible_content(output_path)
 
 
-def test_examples_runner_rejects_slider_mode_in_3d() -> None:
+@pytest.mark.optional
+@pytest.mark.integration
+def test_examples_runner_can_render_3d_slider_demo_for_random_qiskit(
+    sandbox_tmp_path: Path,
+) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the 3D slider smoke test")
+
     script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    output_path = sandbox_tmp_path / "qiskit-3d-slider.png"
 
     result = subprocess.run(
         [
@@ -455,19 +507,27 @@ def test_examples_runner_rejects_slider_mode_in_3d() -> None:
             str(script_path),
             "--demo",
             "qiskit-random",
+            "--qubits",
+            "12",
+            "--columns",
+            "18",
             "--view",
             "3d",
             "--mode",
             "slider",
+            "--topology",
+            "grid",
             "--no-show",
+            "--output",
+            str(output_path),
         ],
         capture_output=True,
         text=True,
         check=False,
     )
 
-    assert result.returncode != 0
-    assert "Slider mode is only available in 2D" in (result.stderr or result.stdout)
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
 
 
 @pytest.mark.optional
