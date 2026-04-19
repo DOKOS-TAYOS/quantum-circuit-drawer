@@ -9,19 +9,33 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from ._draw_managed_viewport import axes_viewport_pixels
+from ._draw_managed_viewport import axes_viewport_pixels, compute_paged_scene
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
 from .ir.circuit import CircuitIR
 from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
-from .layout.scene import LayoutScene
+from .layout.scene import (
+    LayoutScene,
+    SceneBarrier,
+    SceneConnection,
+    SceneControl,
+    SceneGate,
+    SceneGateAnnotation,
+    SceneMeasurement,
+    SceneSwap,
+    SceneText,
+    SceneWire,
+)
 from .layout.scene_3d import LayoutScene3D
 from .renderers._matplotlib_figure import clear_hover_state, set_viewport_width
-from .typing import LayoutEngine3DLike
+from .style import DrawStyle
+from .style.defaults import replace_draw_style
+from .typing import LayoutEngine3DLike, LayoutEngineLike
 
 if TYPE_CHECKING:
     from matplotlib.widgets import Slider, TextBox
 
     from .layout.topology_3d import TopologyName
+    from .renderers.matplotlib_renderer import MatplotlibRenderer
 
 _VIEWPORT_EPSILON = 1e-6
 
@@ -81,15 +95,25 @@ class Managed2DPageSliderState:
 
     figure: Figure
     axes: Axes
+    circuit: CircuitIR
+    layout_engine: LayoutEngineLike
+    renderer: MatplotlibRenderer
+    style: DrawStyle
+    full_scene: LayoutScene
     scene: LayoutScene
+    column_widths: tuple[float, ...]
+    total_scene_width: float
+    total_column_count: int
     horizontal_slider: Slider | None
     vertical_slider: Slider | None
     visible_qubits_box: TextBox | None
     horizontal_axes: Axes | None
     vertical_axes: Axes | None
     visible_qubits_axes: Axes | None
-    x_offset: float
-    y_offset: float
+    start_column: int
+    max_start_column: int
+    start_row: int
+    max_start_row: int
     viewport_width: float
     viewport_height: float
     viewport_aspect_ratio: float
@@ -97,7 +121,21 @@ class Managed2DPageSliderState:
     visible_qubits: int
     allow_figure_resize: bool
     show_visible_qubits_box: bool
+    horizontal_scene_cache: dict[int, LayoutScene] = field(default_factory=dict)
+    window_scene_cache: dict[tuple[int, int], LayoutScene] = field(default_factory=dict)
     is_syncing_visible_qubits: bool = False
+
+    def show_start_column(self, start_column: int) -> None:
+        """Render the requested horizontal start column."""
+
+        self.start_column = int(start_column)
+        _apply_2d_slider_state(self)
+
+    def show_start_row(self, start_row: int) -> None:
+        """Render the requested vertical start row."""
+
+        self.start_row = int(start_row)
+        _apply_2d_slider_state(self)
 
 
 @dataclass(slots=True)
@@ -222,8 +260,12 @@ def configure_page_slider(
     quantum_wire_count: int | None = None,
     allow_figure_resize: bool = True,
     initial_visible_qubits: int = _DEFAULT_VISIBLE_QUBITS,
+    circuit: CircuitIR | None = None,
+    layout_engine: LayoutEngineLike | None = None,
+    renderer: MatplotlibRenderer | None = None,
+    normalized_style: DrawStyle | None = None,
 ) -> None:
-    """Attach and wire sliders that scroll the rendered 2D circuit."""
+    """Attach and wire sliders that redraw one discrete 2D window at a time."""
 
     resolved_layout = layout or prepare_page_slider_layout(axes, scene)
     resolved_viewport_width = (
@@ -234,49 +276,87 @@ def configure_page_slider(
         if layout is not None
         else (scene.height if viewport_height is None else viewport_height)
     )
-    max_scroll_x = max(0.0, scene.width - resolved_viewport_width)
-    max_scroll_y = max(0.0, scene.height - resolved_viewport_height)
-    if max_scroll_x <= 0.0 and max_scroll_y <= 0.0:
-        return
 
     resolved_visible_row_count = max(
         _scene_visible_row_count(scene),
         1 if quantum_wire_count is None else quantum_wire_count,
     )
+    resolved_visible_qubits = _clamp_visible_qubits(
+        initial_visible_qubits,
+        resolved_visible_row_count,
+    )
+
+    if circuit is None or layout_engine is None or renderer is None:
+        max_scroll_x = max(0.0, scene.width - resolved_viewport_width)
+        max_scroll_y = max(0.0, scene.height - resolved_viewport_height)
+        if max_scroll_x <= 0.0 and max_scroll_y <= 0.0:
+            return
+        raise ValueError(
+            "discrete 2D page slider requires circuit, layout_engine, and renderer context"
+        )
+
+    resolved_style = scene.style if normalized_style is None else normalized_style
+    paging_inputs = build_layout_paging_inputs(circuit, resolved_style)
+    total_scene_width = paged_scene_metrics_for_width(
+        paging_inputs,
+        max_page_width=float("inf"),
+    ).scene_width
+    initial_viewport_height = (
+        scene.height
+        if resolved_visible_qubits >= resolved_visible_row_count
+        else _visible_qubits_viewport_height(scene, visible_qubits=resolved_visible_qubits)
+    )
+    initial_viewport_width = min(
+        total_scene_width,
+        initial_viewport_height
+        * max(
+            resolved_viewport_width / max(resolved_viewport_height, _VIEWPORT_EPSILON),
+            _VIEWPORT_EPSILON,
+        ),
+    )
+    if (
+        total_scene_width - initial_viewport_width <= _VIEWPORT_EPSILON
+        and resolved_visible_row_count <= resolved_visible_qubits
+    ):
+        return
+
     state = Managed2DPageSliderState(
         figure=figure,
         axes=axes,
+        circuit=circuit,
+        layout_engine=layout_engine,
+        renderer=renderer,
+        style=resolved_style,
+        full_scene=scene,
         scene=scene,
+        column_widths=tuple(paging_inputs.column_widths),
+        total_scene_width=total_scene_width,
+        total_column_count=len(circuit.layers),
         horizontal_slider=None,
         vertical_slider=None,
         visible_qubits_box=None,
         horizontal_axes=None,
         vertical_axes=None,
         visible_qubits_axes=None,
-        x_offset=0.0,
-        y_offset=0.0,
-        viewport_width=resolved_viewport_width,
-        viewport_height=resolved_viewport_height,
+        start_column=0,
+        max_start_column=0,
+        start_row=0,
+        max_start_row=0,
+        viewport_width=initial_viewport_width,
+        viewport_height=initial_viewport_height,
         viewport_aspect_ratio=(
             resolved_viewport_width / resolved_viewport_height
             if resolved_viewport_height > 0.0
             else 1.0
         ),
         total_visible_rows=resolved_visible_row_count,
-        visible_qubits=_clamp_visible_qubits(
-            initial_visible_qubits,
-            resolved_visible_row_count,
-        ),
+        visible_qubits=resolved_visible_qubits,
         allow_figure_resize=allow_figure_resize,
-        show_visible_qubits_box=(
-            max_scroll_y > 0.0 and resolved_visible_row_count > _DEFAULT_VISIBLE_QUBITS
-        ),
+        show_visible_qubits_box=resolved_visible_row_count > _DEFAULT_VISIBLE_QUBITS,
     )
     set_page_slider(figure, state)
-    if state.show_visible_qubits_box:
-        _set_visible_qubits(state, state.visible_qubits)
-        return
     _apply_2d_slider_state(state)
+    _sync_visible_qubits_box(state, state.visible_qubits)
 
 
 def page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
@@ -346,27 +426,27 @@ def set_slider_view(
 
 
 def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
-    max_scroll_x = max(0.0, state.scene.width - state.viewport_width)
-    max_scroll_y = max(0.0, state.scene.height - state.viewport_height)
-    state.x_offset = min(max(0.0, state.x_offset), max_scroll_x)
-    state.y_offset = min(max(0.0, state.y_offset), max_scroll_y)
+    max_start_column = max(0, state.total_column_count - 1)
+    state.max_start_column = max_start_column if _has_horizontal_overflow(state) else 0
+    state.max_start_row = max(0, state.total_visible_rows - state.visible_qubits)
+    state.start_column = min(max(0, state.start_column), state.max_start_column)
+    state.start_row = min(max(0, state.start_row), state.max_start_row)
     layout = _resolve_2d_slider_layout(
         state.axes,
-        show_horizontal_slider=max_scroll_x > 0.0,
-        show_vertical_slider=max_scroll_y > 0.0,
+        show_horizontal_slider=state.max_start_column > 0,
+        show_vertical_slider=state.max_start_row > 0,
         show_visible_qubits_box=state.show_visible_qubits_box,
     )
     _remove_2d_controls(state)
-    set_viewport_width(state.figure, viewport_width=state.viewport_width)
-    set_slider_view(
-        state.axes,
-        state.scene,
-        x_offset=state.x_offset,
-        y_offset=state.y_offset,
-        viewport_width=state.viewport_width,
-        viewport_height=state.viewport_height,
-    )
+    state.scene = _scene_for_current_window(state)
+    clear_hover_state(state.axes)
+    state.axes.clear()
+    state.axes.set_position(layout.main_axes_bounds)
+    setattr(state.axes, "_quantum_circuit_drawer_windowed_clip", True)
+    set_viewport_width(state.figure, viewport_width=state.scene.width)
+    state.renderer.render(state.scene, ax=state.axes)
     _attach_2d_controls(state, layout)
+    _sync_visible_qubits_box(state, state.visible_qubits)
     canvas = getattr(state.figure, "canvas", None)
     if canvas is not None:
         canvas.draw_idle()
@@ -378,22 +458,20 @@ def _attach_2d_controls(
 ) -> None:
     from matplotlib.widgets import Slider, TextBox
 
-    scene = state.scene
-    theme = scene.style.theme
-    max_scroll_x = max(0.0, scene.width - state.viewport_width)
-    max_scroll_y = max(0.0, scene.height - state.viewport_height)
+    theme = state.style.theme
 
-    if max_scroll_x > 0.0 and layout.horizontal_axes_bounds is not None:
+    if state.max_start_column > 0 and layout.horizontal_axes_bounds is not None:
         horizontal_axes = state.figure.add_axes(
             layout.horizontal_axes_bounds,
             facecolor=theme.axes_facecolor,
         )
         horizontal_slider = Slider(
             ax=horizontal_axes,
-            label="Scroll",
+            label="Columns",
             valmin=0.0,
-            valmax=max_scroll_x,
-            valinit=state.x_offset,
+            valmax=float(state.max_start_column),
+            valinit=float(state.start_column),
+            valstep=1.0,
             color=theme.gate_edgecolor,
             track_color=theme.classical_wire_color,
             handle_style={
@@ -403,22 +481,24 @@ def _attach_2d_controls(
             },
         )
         _style_slider(horizontal_slider, text_color=theme.text_color)
-        horizontal_slider.on_changed(lambda value: _update_scroll(state, x_offset=float(value)))
+        horizontal_slider.on_changed(
+            lambda value: state.show_start_column(int(round(float(value))))
+        )
         state.horizontal_slider = horizontal_slider
         state.horizontal_axes = horizontal_axes
 
-    if max_scroll_y > 0.0 and layout.vertical_axes_bounds is not None:
+    if state.max_start_row > 0 and layout.vertical_axes_bounds is not None:
         vertical_axes = state.figure.add_axes(
             layout.vertical_axes_bounds,
             facecolor=theme.axes_facecolor,
         )
         vertical_slider = Slider(
             ax=vertical_axes,
-            label="Scroll",
+            label="Rows",
             valmin=0.0,
-            valmax=max_scroll_y,
-            valinit=state.y_offset,
-            valstep=max_scroll_y / max(1, int(round(max_scroll_y / 0.1))),
+            valmax=float(state.max_start_row),
+            valinit=float(state.start_row),
+            valstep=1.0,
             orientation="vertical",
             color=theme.gate_edgecolor,
             track_color=theme.classical_wire_color,
@@ -429,7 +509,7 @@ def _attach_2d_controls(
             },
         )
         _style_slider(vertical_slider, text_color=theme.text_color)
-        vertical_slider.on_changed(lambda value: _update_scroll(state, y_offset=float(value)))
+        vertical_slider.on_changed(lambda value: state.show_start_row(int(round(float(value)))))
         state.vertical_slider = vertical_slider
         state.vertical_axes = vertical_axes
 
@@ -477,29 +557,6 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
     state.visible_qubits_axes = None
 
 
-def _update_scroll(
-    state: Managed2DPageSliderState,
-    *,
-    x_offset: float | None = None,
-    y_offset: float | None = None,
-) -> None:
-    if x_offset is not None:
-        state.x_offset = float(x_offset)
-    if y_offset is not None:
-        state.y_offset = float(y_offset)
-    set_slider_view(
-        state.axes,
-        state.scene,
-        x_offset=state.x_offset,
-        y_offset=state.y_offset,
-        viewport_width=state.viewport_width,
-        viewport_height=state.viewport_height,
-    )
-    canvas = getattr(state.figure, "canvas", None)
-    if canvas is not None:
-        canvas.draw_idle()
-
-
 def _handle_visible_qubits_submit(
     state: Managed2DPageSliderState,
     text: str,
@@ -526,15 +583,17 @@ def _set_visible_qubits(
     )
     state.visible_qubits = resolved_visible_qubits
     state.viewport_height = _visible_qubits_viewport_height(
-        state.scene,
+        state.full_scene,
         visible_qubits=resolved_visible_qubits,
     )
     state.viewport_width = min(
-        state.scene.width,
+        state.total_scene_width,
         state.viewport_height * max(state.viewport_aspect_ratio, _VIEWPORT_EPSILON),
     )
     if state.viewport_height > _VIEWPORT_EPSILON:
         state.viewport_aspect_ratio = state.viewport_width / state.viewport_height
+    state.horizontal_scene_cache.clear()
+    state.window_scene_cache.clear()
     if state.allow_figure_resize:
         figure_width, figure_height = page_slider_figsize(
             state.viewport_width,
@@ -587,6 +646,295 @@ def _clamp_visible_qubits(
 
 def _scene_visible_row_count(scene: LayoutScene) -> int:
     return max(1, len(scene.wires))
+
+
+def _has_horizontal_overflow(state: Managed2DPageSliderState) -> bool:
+    return state.total_scene_width - state.viewport_width > _VIEWPORT_EPSILON
+
+
+def _scene_for_current_window(state: Managed2DPageSliderState) -> LayoutScene:
+    cache_key = (state.start_column, state.start_row)
+    cached_scene = state.window_scene_cache.get(cache_key)
+    if cached_scene is not None:
+        return cached_scene
+
+    horizontal_scene = _horizontal_scene_for_start_column(state, state.start_column)
+    if state.max_start_row <= 0:
+        state.window_scene_cache[cache_key] = horizontal_scene
+        return horizontal_scene
+
+    window_scene = _row_window_scene(
+        horizontal_scene,
+        start_row=state.start_row,
+        visible_qubits=state.visible_qubits,
+    )
+    state.window_scene_cache[cache_key] = window_scene
+    return window_scene
+
+
+def _horizontal_scene_for_start_column(
+    state: Managed2DPageSliderState,
+    start_column: int,
+) -> LayoutScene:
+    cached_scene = state.horizontal_scene_cache.get(start_column)
+    if cached_scene is not None:
+        return cached_scene
+
+    resolved_start_column = min(max(0, start_column), max(0, state.total_column_count - 1))
+    end_column = _window_end_column(
+        state.column_widths,
+        state.style,
+        start_column=resolved_start_column,
+        max_scene_width=state.viewport_width,
+    )
+    windowed_circuit = circuit_window(
+        state.circuit,
+        start_column=resolved_start_column,
+        window_size=max(1, end_column - resolved_start_column + 1),
+    )
+    window_scene = compute_paged_scene(
+        windowed_circuit,
+        state.layout_engine,
+        replace_draw_style(state.style, max_page_width=state.viewport_width),
+        hover_enabled=state.full_scene.hover.enabled,
+    )
+    window_scene.hover = state.full_scene.hover
+    state.horizontal_scene_cache[resolved_start_column] = window_scene
+    return window_scene
+
+
+def _window_end_column(
+    column_widths: tuple[float, ...],
+    style: DrawStyle,
+    *,
+    start_column: int,
+    max_scene_width: float,
+) -> int:
+    current_scene_width = style.margin_left + style.margin_right
+    end_column = start_column
+    for column in range(start_column, len(column_widths)):
+        additional_width = column_widths[column]
+        if column > start_column:
+            additional_width += style.layer_spacing
+        proposed_scene_width = current_scene_width + additional_width
+        if column > start_column and proposed_scene_width > max_scene_width + _VIEWPORT_EPSILON:
+            break
+        current_scene_width = proposed_scene_width
+        end_column = column
+    return end_column
+
+
+def _row_window_scene(
+    scene: LayoutScene,
+    *,
+    start_row: int,
+    visible_qubits: int,
+) -> LayoutScene:
+    visible_wires = tuple(scene.wires[start_row : start_row + visible_qubits])
+    if not visible_wires:
+        return scene
+
+    first_wire_y = visible_wires[0].y
+    last_wire_y = visible_wires[-1].y
+    style = scene.style
+    window_top = first_wire_y - style.margin_top
+    window_bottom = last_wire_y + style.margin_bottom
+    y_shift = style.margin_top - first_wire_y
+    window_height = style.margin_top + style.margin_bottom + (last_wire_y - first_wire_y)
+    visible_wire_ids = {wire.id for wire in visible_wires}
+
+    return LayoutScene(
+        width=scene.width,
+        height=window_height,
+        page_height=window_height,
+        style=scene.style,
+        wires=tuple(_shift_wire(wire, y_shift=y_shift) for wire in visible_wires),
+        gates=tuple(
+            _shift_gate(gate, y_shift=y_shift)
+            for gate in scene.gates
+            if _intersects_range(
+                gate.y - (gate.height / 2.0),
+                gate.y + (gate.height / 2.0),
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
+        gate_annotations=tuple(
+            _shift_gate_annotation(annotation, y_shift=y_shift)
+            for annotation in scene.gate_annotations
+            if _intersects_range(
+                annotation.y,
+                annotation.y,
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
+        controls=tuple(
+            _shift_control(control, y_shift=y_shift)
+            for control in scene.controls
+            if _intersects_range(
+                control.y,
+                control.y,
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
+        connections=tuple(
+            _shift_connection(connection, y_shift=y_shift)
+            for connection in scene.connections
+            if _intersects_range(
+                connection.y_start,
+                connection.y_end,
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
+        swaps=tuple(
+            _shift_swap(swap, y_shift=y_shift)
+            for swap in scene.swaps
+            if _intersects_range(
+                swap.y_top,
+                swap.y_bottom,
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
+        barriers=tuple(
+            _shift_barrier(barrier, y_shift=y_shift)
+            for barrier in scene.barriers
+            if _intersects_range(
+                barrier.y_top,
+                barrier.y_bottom,
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
+        measurements=tuple(
+            _shift_measurement(measurement, y_shift=y_shift)
+            for measurement in scene.measurements
+            if _measurement_intersects_range(
+                measurement,
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
+        texts=tuple(
+            _shift_text(text, y_shift=y_shift)
+            for text in scene.texts
+            if getattr(text, "text", "")
+            and _text_matches_visible_wire(text, scene, visible_wire_ids)
+        ),
+        pages=((replace(scene.pages[0], y_offset=0.0),) if scene.pages else ()),
+        hover=scene.hover,
+        wire_y_positions={
+            wire_id: wire_y + y_shift
+            for wire_id, wire_y in scene.wire_y_positions.items()
+            if wire_id in visible_wire_ids
+        },
+        page_count_for_text_scale=1,
+    )
+
+
+def _intersects_range(
+    start: float,
+    end: float,
+    *,
+    window_top: float,
+    window_bottom: float,
+) -> bool:
+    lower = min(start, end)
+    upper = max(start, end)
+    return upper >= window_top - _VIEWPORT_EPSILON and lower <= window_bottom + _VIEWPORT_EPSILON
+
+
+def _measurement_intersects_range(
+    measurement: SceneMeasurement,
+    *,
+    window_top: float,
+    window_bottom: float,
+) -> bool:
+    measurement_top = measurement.quantum_y - (measurement.height / 2.0)
+    measurement_bottom = measurement.quantum_y + (measurement.height / 2.0)
+    lower = measurement_top
+    upper = measurement_bottom
+    if measurement.classical_y is not None:
+        lower = min(lower, measurement.classical_y, measurement.connector_y)
+        upper = max(upper, measurement.classical_y, measurement.connector_y)
+    return upper >= window_top - _VIEWPORT_EPSILON and lower <= window_bottom + _VIEWPORT_EPSILON
+
+
+def _text_matches_visible_wire(
+    text: SceneText,
+    scene: LayoutScene,
+    visible_wire_ids: set[str],
+) -> bool:
+    for wire in scene.wires:
+        if wire.id in visible_wire_ids and abs(wire.y - text.y) <= _VIEWPORT_EPSILON:
+            return True
+    return False
+
+
+def _shift_wire(wire: SceneWire, *, y_shift: float) -> SceneWire:
+    return replace(wire, y=wire.y + y_shift)
+
+
+def _shift_gate(gate: SceneGate, *, y_shift: float) -> SceneGate:
+    return replace(gate, y=gate.y + y_shift)
+
+
+def _shift_gate_annotation(
+    annotation: SceneGateAnnotation,
+    *,
+    y_shift: float,
+) -> SceneGateAnnotation:
+    return replace(annotation, y=annotation.y + y_shift)
+
+
+def _shift_control(control: SceneControl, *, y_shift: float) -> SceneControl:
+    return replace(control, y=control.y + y_shift)
+
+
+def _shift_connection(connection: SceneConnection, *, y_shift: float) -> SceneConnection:
+    return replace(
+        connection,
+        y_start=connection.y_start + y_shift,
+        y_end=connection.y_end + y_shift,
+    )
+
+
+def _shift_swap(swap: SceneSwap, *, y_shift: float) -> SceneSwap:
+    return replace(
+        swap,
+        y_top=swap.y_top + y_shift,
+        y_bottom=swap.y_bottom + y_shift,
+    )
+
+
+def _shift_barrier(barrier: SceneBarrier, *, y_shift: float) -> SceneBarrier:
+    return replace(
+        barrier,
+        y_top=barrier.y_top + y_shift,
+        y_bottom=barrier.y_bottom + y_shift,
+    )
+
+
+def _shift_measurement(
+    measurement: SceneMeasurement,
+    *,
+    y_shift: float,
+) -> SceneMeasurement:
+    return replace(
+        measurement,
+        quantum_y=measurement.quantum_y + y_shift,
+        classical_y=(
+            None if measurement.classical_y is None else measurement.classical_y + y_shift
+        ),
+        connector_y=measurement.connector_y + y_shift,
+    )
+
+
+def _shift_text(text: SceneText, *, y_shift: float) -> SceneText:
+    return replace(text, y=text.y + y_shift)
 
 
 def configure_3d_page_slider(
@@ -644,10 +992,10 @@ def configure_3d_page_slider(
     return state
 
 
-def page_slider_window_size(circuit: CircuitIR, style: object) -> int:
+def page_slider_window_size(circuit: CircuitIR, style: DrawStyle) -> int:
     """Return the number of columns that fit in the first 2D page budget."""
 
-    paging_inputs = build_layout_paging_inputs(circuit, cast("object", style))
+    paging_inputs = build_layout_paging_inputs(circuit, style)
     metrics = paged_scene_metrics_for_width(
         paging_inputs,
         max_page_width=float(getattr(style, "max_page_width")),

@@ -89,7 +89,7 @@ def add_render_arguments(
         default="pages",
         help=(
             "Render in wrapped pages, slider mode, or a fixed 2D page window. "
-            "In 3D, slider mode moves through columns."
+            "In 2D, slider mode redraws discrete windows. In 3D, it moves through columns."
         ),
     )
     parser.add_argument(

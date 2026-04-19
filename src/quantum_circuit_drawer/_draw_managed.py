@@ -14,6 +14,10 @@ from ._draw_managed_page_window import (
     configure_page_window as _configure_page_window_impl,
 )
 from ._draw_managed_slider import (
+    _DEFAULT_VISIBLE_QUBITS,
+    _visible_qubits_viewport_height,
+)
+from ._draw_managed_slider import (
     apply_managed_3d_axes_bounds as _apply_managed_3d_axes_bounds_impl,
 )
 from ._draw_managed_slider import (
@@ -87,6 +91,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
+    from ._draw_managed_slider import Managed2DSliderLayout, Managed3DPageSliderState
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
     from .layout.scene_3d import LayoutScene3D
@@ -115,7 +120,6 @@ def render_managed_draw_pipeline(
         create_managed_figure,
         set_page_slider,
         set_page_window,
-        set_viewport_width,
     )
 
     hover_enabled = (
@@ -150,11 +154,14 @@ def render_managed_draw_pipeline(
 
         page_slider_state = None
         if page_slider:
-            page_slider_state = configure_3d_page_slider(
-                figure=figure,
-                axes=axes,
-                pipeline=pipeline,
-                set_page_slider=set_page_slider,
+            page_slider_state = cast(
+                "Managed3DPageSliderState | None",
+                configure_3d_page_slider(
+                    figure=figure,
+                    axes=axes,
+                    pipeline=pipeline,
+                    set_page_slider=set_page_slider,
+                ),
             )
 
         if pipeline.draw_options.topology_menu and output is None and not use_agg_canvas:
@@ -174,75 +181,68 @@ def render_managed_draw_pipeline(
     if page_slider:
         scene_2d = cast("LayoutScene", pipeline.paged_scene)
         layout_engine = cast(LayoutEngineLike, pipeline.layout_engine)
-        slider_scene = build_continuous_slider_scene(
-            pipeline.ir,
-            layout_engine,
-            pipeline.normalized_style,
-            hover_enabled=scene_2d.hover.enabled,
+        resolved_visible_qubits = min(
+            max(1, 1 if not scene_2d.wires else _DEFAULT_VISIBLE_QUBITS), len(scene_2d.wires)
         )
-        slider_scene.hover = scene_2d.hover
-        initial_viewport_width = min(scene_2d.width, slider_scene.width)
+        initial_viewport_height = (
+            scene_2d.height
+            if resolved_visible_qubits >= len(scene_2d.wires)
+            else _visible_qubits_viewport_height(
+                scene_2d,
+                visible_qubits=resolved_visible_qubits,
+            )
+        )
+        first_page = scene_2d.pages[0]
+        initial_viewport_width = min(
+            scene_2d.width,
+            scene_2d.style.margin_left
+            + max(first_page.content_width, scene_2d.style.max_page_width)
+            + scene_2d.style.margin_right,
+        )
         figure_width, figure_height = page_slider_figsize(
             initial_viewport_width,
-            slider_scene.height,
+            initial_viewport_height,
         )
         if figsize is not None:
             figure_width, figure_height = figsize
         else:
             figure_width = min(11.0, figure_width)
             figure_height = min(7.0, figure_height)
-        if output is None:
-            figure, axes = create_managed_figure(
-                slider_scene,
-                figure_width=figure_width,
-                figure_height=figure_height,
-                use_agg=use_agg_canvas,
-            )
-        else:
-            figure, axes = create_managed_figure(
-                scene_2d,
-                figure_width=figure_width,
-                figure_height=figure_height,
-                use_agg=use_agg_canvas,
-            )
-        slider_layout = prepare_page_slider_layout(axes, slider_scene)
+        figure, axes = create_managed_figure(
+            scene_2d,
+            figure_width=figure_width,
+            figure_height=figure_height,
+            use_agg=use_agg_canvas,
+        )
         frozen_style = _freeze_default_line_width_for_scene(
-            style=slider_scene.style,
-            scene=slider_scene,
+            style=scene_2d.style,
+            scene=scene_2d,
             axes=axes,
         )
-        slider_scene.style = frozen_style
         scene_2d.style = replace_draw_style(
             scene_2d.style, line_width=resolved_line_width(frozen_style)
         )
         if output is not None:
             pipeline.renderer.render(scene_2d, ax=axes, output=output)
             axes.clear()
-        set_viewport_width(figure, viewport_width=slider_layout.viewport_width)
-        pipeline.renderer.render(slider_scene, ax=axes)
-        set_slider_view(
-            axes,
-            slider_scene,
-            x_offset=0.0,
-            y_offset=0.0,
-            viewport_width=slider_layout.viewport_width,
-            viewport_height=slider_layout.viewport_height,
-        )
         configure_page_slider(
             figure=figure,
             axes=axes,
-            scene=slider_scene,
-            viewport_width=slider_layout.viewport_width,
-            viewport_height=slider_layout.viewport_height,
-            layout=slider_layout,
+            scene=scene_2d,
+            viewport_width=initial_viewport_width,
+            viewport_height=initial_viewport_height,
             quantum_wire_count=len(pipeline.ir.quantum_wires),
             allow_figure_resize=figsize is None,
             set_page_slider=set_page_slider,
+            circuit=pipeline.ir,
+            layout_engine=layout_engine,
+            renderer=cast("MatplotlibRenderer", pipeline.renderer),
+            normalized_style=frozen_style,
         )
         logger.debug(
-            "Rendered managed figure with page slider viewport_width=%.2f viewport_height=%.2f pages=%d",
-            slider_layout.viewport_width,
-            slider_layout.viewport_height,
+            "Rendered managed figure with discrete page slider viewport_width=%.2f viewport_height=%.2f pages=%d",
+            initial_viewport_width,
+            initial_viewport_height,
             len(scene_2d.pages),
         )
     elif page_window:
@@ -608,8 +608,12 @@ def configure_page_slider(
     layout: object | None = None,
     quantum_wire_count: int | None = None,
     allow_figure_resize: bool = True,
+    circuit: CircuitIR | None = None,
+    layout_engine: LayoutEngineLike | None = None,
+    renderer: MatplotlibRenderer | None = None,
+    normalized_style: DrawStyle | None = None,
 ) -> None:
-    """Attach and wire a slider that scrolls the rendered circuit horizontally."""
+    """Attach and wire a slider that redraws discrete 2D circuit windows."""
 
     _configure_page_slider_impl(
         figure=figure,
@@ -618,9 +622,13 @@ def configure_page_slider(
         viewport_width=viewport_width,
         set_page_slider=set_page_slider,
         viewport_height=viewport_height,
-        layout=cast("object", layout),
+        layout=cast("Managed2DSliderLayout | None", layout),
         quantum_wire_count=quantum_wire_count,
         allow_figure_resize=allow_figure_resize,
+        circuit=circuit,
+        layout_engine=layout_engine,
+        renderer=renderer,
+        normalized_style=normalized_style,
     )
 
 

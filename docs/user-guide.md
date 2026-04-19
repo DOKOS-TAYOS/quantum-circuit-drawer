@@ -180,7 +180,7 @@ Important rules:
 - `page_window=True` freezes the wrapped page width chosen at creation time; resizing the window does not repaginate the circuit.
 - In `page_window=True`, the `Page` and `Visible` boxes clamp values into the valid range and reuse already loaded pages from an in-memory cache.
 - `page_slider=True` requires a managed figure, so do not combine it with `ax=...`.
-- In 2D, the library shows a bottom slider, a left slider, or both, depending on which axis overflows.
+- In 2D, `page_slider=True` redraws a discrete window of circuit columns and rows, showing a bottom slider, a left slider, or both depending on which direction still has hidden content.
 - In 3D, `page_slider=True` moves through circuit columns with a horizontal slider.
 - If you also pass `output=...`, the saved file uses the clean paged layout without the `page_window` or `page_slider` UI.
 

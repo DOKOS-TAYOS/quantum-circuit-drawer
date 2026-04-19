@@ -59,6 +59,7 @@ _NUMERIC_TEXT_PATTERN = re.compile(
     r"^[+\-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?(?:, [+\-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?)*$"
 )
 _SHAPE_METRICS_CACHE_SIZE = 256
+_WINDOWED_CLIP_ATTR = "_quantum_circuit_drawer_windowed_clip"
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +109,7 @@ def _supports_fast_text_artist_path(ax: Axes) -> bool:
 def _add_patch_artist(ax: Axes, patch: Patch) -> Patch:
     if not _supports_fast_patch_artist_path(ax):
         ax.add_artist(patch)
+        _apply_axes_artist_clip(ax, patch)
         return patch
 
     children = cast(list[object], getattr(ax, "_children"))
@@ -116,6 +118,7 @@ def _add_patch_artist(ax: Axes, patch: Patch) -> Patch:
     children.append(patch)
     setattr(patch, "_remove_method", children.remove)
     set_artist_props(patch)
+    _apply_axes_artist_clip(ax, patch)
     ax.stale = True
     return patch
 
@@ -129,19 +132,23 @@ def _add_text_artist(
     **kwargs: Any,
 ) -> Text:
     fontdict_dict = dict(fontdict) if fontdict is not None else None
+    clip_on = _axes_should_clip_artists(ax)
     if not _supports_fast_text_artist_path(ax):
         resolved_kwargs = dict(kwargs)
+        resolved_kwargs.setdefault("clip_on", clip_on)
         if "fontsize" in resolved_kwargs and "fontproperties" not in resolved_kwargs:
             resolved_kwargs["fontproperties"] = _font_properties_for_size(
                 float(resolved_kwargs.pop("fontsize"))
             )
-        return ax.text(x, y, text, fontdict=fontdict_dict, **resolved_kwargs)
+        text_artist = ax.text(x, y, text, fontdict=fontdict_dict, **resolved_kwargs)
+        _apply_axes_artist_clip(ax, text_artist)
+        return text_artist
 
     effective_kwargs: dict[str, Any] = {
         "verticalalignment": "baseline",
         "horizontalalignment": "left",
         "transform": ax.transData,
-        "clip_on": False,
+        "clip_on": clip_on,
     }
     if fontdict_dict is not None:
         effective_kwargs.update(fontdict_dict)
@@ -152,7 +159,9 @@ def _add_text_artist(
         )
     text_artist = Text(x=x, y=y, text=text, **effective_kwargs)
     add_text = cast(Any, getattr(ax, "_add_text"))
-    return cast(Text, add_text(text_artist))
+    added_text = cast(Text, add_text(text_artist))
+    _apply_axes_artist_clip(ax, added_text)
+    return added_text
 
 
 def _add_line_collection(
@@ -168,6 +177,7 @@ def _add_line_collection(
     if not segments:
         return None
 
+    clip_on = _axes_should_clip_artists(ax)
     collection = LineCollection(
         segments,
         colors=color,
@@ -175,9 +185,10 @@ def _add_line_collection(
         linestyles=linestyle,
         capstyle=capstyle,
         zorder=zorder,
-        clip_on=False,
+        clip_on=clip_on,
     )
     ax.add_collection(collection)
+    _apply_axes_artist_clip(ax, collection)
     return collection
 
 
@@ -195,6 +206,7 @@ def _add_ellipse_collection(
     if not offsets:
         return None
 
+    clip_on = _axes_should_clip_artists(ax)
     collection = EllipseCollection(
         widths=widths,
         heights=heights,
@@ -206,9 +218,10 @@ def _add_ellipse_collection(
         edgecolors=edgecolor,
         linewidths=linewidth,
         zorder=zorder,
-        clip_on=False,
+        clip_on=clip_on,
     )
     ax.add_collection(collection)
+    _apply_axes_artist_clip(ax, collection)
     x_min = float("inf")
     x_max = float("-inf")
     y_min = float("inf")
@@ -252,6 +265,19 @@ def _set_artist_data_extent(
         )
 
     setattr(artist, "get_window_extent", MethodType(data_extent, artist))
+
+
+def _axes_should_clip_artists(ax: Axes) -> bool:
+    return bool(getattr(ax, _WINDOWED_CLIP_ATTR, False))
+
+
+def _apply_axes_artist_clip(ax: Axes, artist: object) -> None:
+    if not _axes_should_clip_artists(ax):
+        return
+    if hasattr(artist, "set_clip_on"):
+        cast(Any, artist).set_clip_on(True)
+    if hasattr(artist, "set_clip_path"):
+        cast(Any, artist).set_clip_path(ax.patch)
 
 
 @lru_cache(maxsize=32)
@@ -906,7 +932,10 @@ def draw_measurement_symbol(
         linewidth=resolved_line_width(scene.style),
         solid_capstyle="round",
         zorder=SYMBOL_LAYER_ZORDER,
+        clip_on=_axes_should_clip_artists(ax),
     )
+    for line in ax.lines[-1:]:
+        _apply_axes_artist_clip(ax, line)
     measurement_label_artist = _add_text_artist(
         ax,
         measurement_x,

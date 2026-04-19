@@ -59,7 +59,7 @@ from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 | `ax` | `None` | Existing Matplotlib axes to draw into |
 | `output` | `None` | File path where the rendered figure should be saved |
 | `show` | `True` | Whether to show a managed Matplotlib figure when the backend is interactive |
-| `page_slider` | `False` | Enable managed interactive navigation: horizontal and/or vertical sliders in 2D, or a horizontal column slider in 3D |
+| `page_slider` | `False` | Enable managed interactive navigation: discrete column/row window sliders in 2D, or a horizontal column slider in 3D |
 | `page_window` | `False` | Enable a managed 2D fixed page window with `Page` and `Visible` input boxes; the paging is frozen when the figure is created and navigation reuses cached pages |
 | `composite_mode` | `"compact"` | Use `"compact"` for one box, or `"expand"` for supported decompositions |
 | `view` | `"2d"` | Use `"2d"` or `"3d"` |
@@ -189,10 +189,10 @@ draw_quantum_circuit(
 
 In this mode the library keeps the wrapped page width fixed after the initial render. The controls let you choose the first visible page and how many consecutive pages to show at once.
 
-In 2D, the library shows only the sliders it needs for the current managed viewport:
+In 2D, the library redraws only the current managed window and shows only the sliders it needs:
 
-- bottom horizontal slider when the circuit is wider than the viewport
-- left vertical slider when the circuit is taller than the viewport
+- bottom horizontal slider when more columns remain outside the current window
+- left vertical slider when more wire rows remain outside the current window
 
 Use a managed 3D column slider:
 

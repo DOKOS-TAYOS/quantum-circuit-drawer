@@ -38,7 +38,7 @@ Notes:
 
 - In the QAOA demos, `--columns` means QAOA layers.
 - `--topology` has no effect in 2D.
-- In 2D, `--mode slider` gives you the continuous viewport with sliders.
+- In 2D, `--mode slider` redraws a discrete window of circuit columns and rows as you move the sliders.
 - In 2D, `--mode window` opens the fixed page-window viewer with `Page` and `Visible` boxes and reuses cached pages as you move around.
 - In 3D, `--mode slider` moves through circuit columns and keeps the topology selector available.
 - `--mode window` is only available in 2D.

@@ -192,6 +192,69 @@ def _overlapping_raw_layer_ir(*, raw_layer_count: int) -> CircuitIR:
     )
 
 
+def _variable_width_slider_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="LONGSUPERGATE",
+                        target_wires=("q0",),
+                        parameters=(123456789.0,),
+                    )
+                ]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q1",))]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="Y", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="Z", target_wires=("q1",))]
+            ),
+        ],
+    )
+
+
+def _vertical_window_multiqubit_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(18)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="BIG",
+                        target_wires=("q0", "q1", "q2"),
+                    )
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        control_wires=("q4",),
+                        target_wires=("q6",),
+                    )
+                ]
+            ),
+        ],
+    )
+
+
 def _matching_text_artists(axes: object, text: str) -> list[object]:
     return [
         text_artist
@@ -795,12 +858,10 @@ def test_draw_quantum_circuit_page_window_preserves_columns_from_expanded_raw_la
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_figures() -> None:
+def test_draw_quantum_circuit_adds_discrete_page_slider_for_wrapped_managed_figures() -> None:
     paged_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=4.0))
-    long_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=100.0))
 
     assert len(paged_scene.pages) > 1
-    assert len(long_scene.pages) == 1
 
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
@@ -818,21 +879,49 @@ def test_draw_quantum_circuit_adds_continuous_page_slider_for_wrapped_managed_fi
     assert len(figure.axes) == 2
     assert page_slider.horizontal_slider is not None
     assert page_slider.vertical_slider is None
+    assert page_slider.start_column == 0
     assert slider_bottom < 0.1
     assert slider_height > 0.05
     assert axes.get_xlim()[0] == pytest.approx(0.0)
-    assert axes.get_xlim()[1] > paged_scene.width
-    assert axes.get_xlim()[1] <= long_scene.width
-    assert axes.get_ylim() == pytest.approx((long_scene.height, 0.0))
-    initial_viewport_width = axes.get_xlim()[1] - axes.get_xlim()[0]
+    initial_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+
+    assert "H" in initial_labels
+    assert "Y" not in initial_labels
 
     horizontal_slider = page_slider.horizontal_slider
     assert horizontal_slider is not None
     horizontal_slider.set_val(horizontal_slider.valmax)
 
-    assert axes.get_xlim() == pytest.approx(
-        (long_scene.width - initial_viewport_width, long_scene.width)
+    moved_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+
+    assert page_slider.start_column == page_slider.max_start_column
+    assert axes.get_xlim()[0] == pytest.approx(0.0)
+    assert "H" not in moved_labels
+    assert "Y" in moved_labels
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_uses_width_budgeted_column_windows() -> None:
+    figure, axes = draw_quantum_circuit(
+        _variable_width_slider_ir(),
+        style={"max_page_width": 4.5},
+        page_slider=True,
+        show=False,
     )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+
+    initial_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+    assert {label for label in initial_labels if label in {"H", "X", "Y", "Z"}} == {"H"}
+
+    page_slider.horizontal_slider.set_val(2.0)
+
+    moved_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+    assert {label for label in moved_labels if label in {"H", "X", "Y", "Z"}} == {"X", "Y", "Z"}
+
     plt.close(figure)
 
 
@@ -1284,7 +1373,7 @@ def test_draw_quantum_circuit_page_slider_skips_auto_paging_state() -> None:
 
 def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures() -> None:
     figure, axes = draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=2, wire_count=24),
+        _tall_measured_ir(quantum_wire_count=24, layer_count=2),
         style={"max_page_width": 12.0},
         page_slider=True,
         show=False,
@@ -1303,6 +1392,7 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert page_slider.visible_qubits_axes.get_position().width < 0.06
     assert page_slider.visible_qubits_axes.get_position().height < 0.05
     assert page_slider.visible_qubits_axes.get_title() == ""
+    assert page_slider.start_row == 0
     assert len(figure.axes) == 3
 
     visible_qubits_box = page_slider.visible_qubits_box
@@ -1311,7 +1401,10 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
         mcolors.to_rgba(visible_qubits_box.text_disp.get_color())
     )
 
-    initial_ylim = axes.get_ylim()
+    initial_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+    assert "q0" in initial_labels
+    assert "q23" not in initial_labels
+
     vertical_slider = page_slider.vertical_slider
     assert vertical_slider is not None
 
@@ -1320,8 +1413,13 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert vertical_track_bounds[3] == pytest.approx(1.0, abs=0.02)
     vertical_slider.set_val(vertical_slider.valmax)
 
+    moved_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+
+    assert page_slider.start_row == page_slider.max_start_row
     assert axes.get_xlim()[0] == pytest.approx(0.0)
-    assert axes.get_ylim()[0] > initial_ylim[0]
+    assert axes.get_ylim()[1] == pytest.approx(0.0)
+    assert "q0" not in moved_labels
+    assert "q23" in moved_labels
     plt.close(figure)
 
 
@@ -1370,7 +1468,7 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     assert page_slider.visible_qubits == 8
     assert page_slider.horizontal_slider is not None
     assert page_slider.vertical_slider is not None
-    assert page_slider.horizontal_slider.valmax > initial_horizontal_max
+    assert page_slider.horizontal_slider.valmax == initial_horizontal_max
     assert page_slider.vertical_slider.valmax > initial_vertical_max
     assert axes.get_xlim()[1] - axes.get_xlim()[0] < initial_xlim[1] - initial_xlim[0]
     assert axes.get_ylim()[0] - axes.get_ylim()[1] < initial_ylim[0] - initial_ylim[1]
@@ -1410,6 +1508,33 @@ def test_draw_quantum_circuit_visible_qubits_box_counts_classical_register_row()
     assert page_slider.visible_qubits == 19
     assert page_slider.vertical_slider is None
     assert page_slider.vertical_axes is None
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_clips_windowed_multiqubit_text() -> None:
+    figure, axes = draw_quantum_circuit(
+        _vertical_window_multiqubit_ir(),
+        style={"max_page_width": 12.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.visible_qubits_box is not None
+    page_slider.visible_qubits_box.set_val("2")
+    assert page_slider.vertical_slider is not None
+
+    page_slider.vertical_slider.set_val(1.0)
+
+    visible_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+
+    assert "BIG" in visible_labels
+    assert "q0" not in visible_labels
+    assert "q1" in visible_labels
+    assert all(text_artist.get_clip_on() for text_artist in axes.texts)
 
     plt.close(figure)
 

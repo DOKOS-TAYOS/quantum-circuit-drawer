@@ -61,8 +61,8 @@ def draw_quantum_circuit(
 
     Notes:
         ``page_slider=True`` requires a managed Matplotlib figure.
-        In 2D it adds horizontal and/or vertical sliders when the viewport
-        overflows. In 3D it moves through circuit columns.
+        In 2D it redraws discrete column and row windows as you move the
+        sliders. In 3D it moves through circuit columns.
         ``page_window=True`` requires a managed 2D Matplotlib figure.
         ``view="3d"`` requires a 3D Matplotlib axes when ``ax`` is provided.
     """
