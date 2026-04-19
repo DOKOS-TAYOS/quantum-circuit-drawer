@@ -12,14 +12,15 @@ from matplotlib.figure import Figure
 from ._draw_managed_viewport import axes_viewport_pixels
 from ._draw_pipeline import PreparedDrawPipeline, _compute_3d_scene
 from .ir.circuit import CircuitIR
+from .ir.wires import WireKind
 from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from .layout.scene import LayoutScene
 from .layout.scene_3d import LayoutScene3D
-from .renderers._matplotlib_figure import clear_hover_state
+from .renderers._matplotlib_figure import clear_hover_state, set_viewport_width
 from .typing import LayoutEngine3DLike
 
 if TYPE_CHECKING:
-    from matplotlib.widgets import Slider
+    from matplotlib.widgets import Slider, TextBox
 
     from .layout.topology_3d import TopologyName
 
@@ -29,10 +30,17 @@ _MANAGED_2D_MAIN_AXES_BOUNDS = (0.02, 0.02, 0.96, 0.96)
 _MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_BOUNDS = (0.02, 0.18, 0.96, 0.8)
 _MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS = (0.12, 0.02, 0.86, 0.96)
 _MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS = (0.12, 0.18, 0.86, 0.8)
+_MANAGED_2D_MAIN_AXES_WITH_LEFT_CONTROLS_BOUNDS = (0.135, 0.02, 0.845, 0.96)
+_MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_AND_BOX_BOUNDS = (0.135, 0.18, 0.845, 0.8)
 _MANAGED_2D_HORIZONTAL_SLIDER_HEIGHT = 0.055
 _MANAGED_2D_HORIZONTAL_SLIDER_BOTTOM = 0.045
-_MANAGED_2D_VERTICAL_SLIDER_LEFT = 0.035
-_MANAGED_2D_VERTICAL_SLIDER_WIDTH = 0.055
+_MANAGED_2D_LEFT_CONTROL_LEFT = 0.04
+_MANAGED_2D_LEFT_CONTROL_WIDTH = 0.07
+_MANAGED_2D_VISIBLE_QUBITS_HEIGHT = 0.055
+_MANAGED_2D_VISIBLE_QUBITS_BOTTOM = 0.045
+_MANAGED_2D_VISIBLE_QUBITS_BOTTOM_WITH_HORIZONTAL = 0.115
+_MANAGED_2D_VISIBLE_QUBITS_GAP = 0.02
+_DEFAULT_VISIBLE_QUBITS = 15
 
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _MANAGED_3D_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
@@ -49,6 +57,7 @@ class Managed2DSliderLayout:
     main_axes_bounds: tuple[float, float, float, float]
     horizontal_axes_bounds: tuple[float, float, float, float] | None
     vertical_axes_bounds: tuple[float, float, float, float] | None
+    visible_qubits_axes_bounds: tuple[float, float, float, float] | None
     viewport_width: float
     viewport_height: float
 
@@ -60,19 +69,34 @@ class Managed2DSliderLayout:
     def show_vertical_slider(self) -> bool:
         return self.vertical_axes_bounds is not None
 
+    @property
+    def show_visible_qubits_box(self) -> bool:
+        return self.visible_qubits_axes_bounds is not None
+
 
 @dataclass(slots=True)
 class Managed2DPageSliderState:
     """Typed 2D managed-slider state attached to the figure metadata."""
 
+    figure: Figure
+    axes: Axes
+    scene: LayoutScene
     horizontal_slider: Slider | None
     vertical_slider: Slider | None
+    visible_qubits_box: TextBox | None
     horizontal_axes: Axes | None
     vertical_axes: Axes | None
+    visible_qubits_axes: Axes | None
     x_offset: float
     y_offset: float
     viewport_width: float
     viewport_height: float
+    viewport_aspect_ratio: float
+    total_quantum_wires: int
+    visible_qubits: int
+    allow_figure_resize: bool
+    show_visible_qubits_box: bool
+    is_syncing_visible_qubits: bool = False
 
 
 @dataclass(slots=True)
@@ -149,10 +173,11 @@ def prepare_page_slider_layout(axes: Axes, scene: LayoutScene) -> Managed2DSlide
         (False, True),
         (True, True),
     ):
-        main_axes_bounds = _apply_2d_main_axes_bounds(
+        layout = _resolve_2d_slider_layout(
             axes,
             show_horizontal_slider=show_horizontal_slider,
             show_vertical_slider=show_vertical_slider,
+            show_visible_qubits_box=False,
         )
         viewport_width, viewport_height = slider_viewport_size(axes, scene)
         needs_horizontal_slider = scene.width - viewport_width > _VIEWPORT_EPSILON
@@ -161,42 +186,26 @@ def prepare_page_slider_layout(axes: Axes, scene: LayoutScene) -> Managed2DSlide
             continue
         if not show_vertical_slider and needs_vertical_slider:
             continue
-        layout = Managed2DSliderLayout(
-            main_axes_bounds=main_axes_bounds,
-            horizontal_axes_bounds=(
-                _horizontal_slider_bounds(main_axes_bounds) if show_horizontal_slider else None
-            ),
-            vertical_axes_bounds=(
-                _vertical_slider_bounds(main_axes_bounds) if show_vertical_slider else None
-            ),
-            viewport_width=viewport_width,
-            viewport_height=viewport_height,
-        )
+        layout = replace(layout, viewport_width=viewport_width, viewport_height=viewport_height)
         slider_count = int(show_horizontal_slider) + int(show_vertical_slider)
         visible_area = viewport_width * viewport_height
         candidate_layouts.append((slider_count, -visible_area, layout))
 
     if not candidate_layouts:
-        main_axes_bounds = _apply_2d_main_axes_bounds(
+        layout = _resolve_2d_slider_layout(
             axes,
             show_horizontal_slider=True,
             show_vertical_slider=True,
+            show_visible_qubits_box=False,
         )
         viewport_width, viewport_height = slider_viewport_size(axes, scene)
-        return Managed2DSliderLayout(
-            main_axes_bounds=main_axes_bounds,
-            horizontal_axes_bounds=_horizontal_slider_bounds(main_axes_bounds),
-            vertical_axes_bounds=_vertical_slider_bounds(main_axes_bounds),
+        return replace(
+            layout,
             viewport_width=viewport_width,
             viewport_height=viewport_height,
         )
 
     _, _, selected_layout = min(candidate_layouts)
-    _apply_2d_main_axes_bounds(
-        axes,
-        show_horizontal_slider=selected_layout.show_horizontal_slider,
-        show_vertical_slider=selected_layout.show_vertical_slider,
-    )
     return selected_layout
 
 
@@ -209,6 +218,9 @@ def configure_page_slider(
     set_page_slider: Callable[[Figure, object], None],
     viewport_height: float | None = None,
     layout: Managed2DSliderLayout | None = None,
+    quantum_wire_count: int | None = None,
+    allow_figure_resize: bool = True,
+    initial_visible_qubits: int = _DEFAULT_VISIBLE_QUBITS,
 ) -> None:
     """Attach and wire sliders that scroll the rendered 2D circuit."""
 
@@ -226,94 +238,43 @@ def configure_page_slider(
     if max_scroll_x <= 0.0 and max_scroll_y <= 0.0:
         return
 
-    from matplotlib.widgets import Slider
-
+    resolved_quantum_wire_count = (
+        _quantum_wire_count(scene) if quantum_wire_count is None else quantum_wire_count
+    )
     state = Managed2DPageSliderState(
+        figure=figure,
+        axes=axes,
+        scene=scene,
         horizontal_slider=None,
         vertical_slider=None,
+        visible_qubits_box=None,
         horizontal_axes=None,
         vertical_axes=None,
+        visible_qubits_axes=None,
         x_offset=0.0,
         y_offset=0.0,
         viewport_width=resolved_viewport_width,
         viewport_height=resolved_viewport_height,
+        viewport_aspect_ratio=(
+            resolved_viewport_width / resolved_viewport_height
+            if resolved_viewport_height > 0.0
+            else 1.0
+        ),
+        total_quantum_wires=resolved_quantum_wire_count,
+        visible_qubits=_clamp_visible_qubits(
+            initial_visible_qubits,
+            resolved_quantum_wire_count,
+        ),
+        allow_figure_resize=allow_figure_resize,
+        show_visible_qubits_box=(
+            max_scroll_y > 0.0 and resolved_quantum_wire_count > _DEFAULT_VISIBLE_QUBITS
+        ),
     )
-    set_slider_view(
-        axes,
-        scene,
-        x_offset=state.x_offset,
-        y_offset=state.y_offset,
-        viewport_width=state.viewport_width,
-        viewport_height=state.viewport_height,
-    )
-
-    def update_scroll(*, x_offset: float | None = None, y_offset: float | None = None) -> None:
-        if x_offset is not None:
-            state.x_offset = float(x_offset)
-        if y_offset is not None:
-            state.y_offset = float(y_offset)
-        set_slider_view(
-            axes,
-            scene,
-            x_offset=state.x_offset,
-            y_offset=state.y_offset,
-            viewport_width=state.viewport_width,
-            viewport_height=state.viewport_height,
-        )
-        if figure.canvas is not None:
-            figure.canvas.draw_idle()
-
-    if max_scroll_x > 0.0 and resolved_layout.horizontal_axes_bounds is not None:
-        horizontal_axes = figure.add_axes(
-            resolved_layout.horizontal_axes_bounds,
-            facecolor=scene.style.theme.axes_facecolor,
-        )
-        horizontal_slider = Slider(
-            ax=horizontal_axes,
-            label="Scroll",
-            valmin=0.0,
-            valmax=max_scroll_x,
-            valinit=0.0,
-            color=scene.style.theme.gate_edgecolor,
-            track_color=scene.style.theme.classical_wire_color,
-            handle_style={
-                "facecolor": scene.style.theme.accent_color,
-                "edgecolor": scene.style.theme.text_color,
-                "size": 16,
-            },
-        )
-        _style_slider(horizontal_slider, text_color=scene.style.theme.text_color)
-        horizontal_slider.on_changed(lambda value: update_scroll(x_offset=float(value)))
-        state.horizontal_slider = horizontal_slider
-        state.horizontal_axes = horizontal_axes
-
-    if max_scroll_y > 0.0 and resolved_layout.vertical_axes_bounds is not None:
-        vertical_axes = figure.add_axes(
-            resolved_layout.vertical_axes_bounds,
-            facecolor=scene.style.theme.axes_facecolor,
-        )
-        vertical_slider = Slider(
-            ax=vertical_axes,
-            label="Scroll",
-            valmin=0.0,
-            valmax=max_scroll_y,
-            valinit=0.0,
-            valstep=max_scroll_y / max(1, int(round(max_scroll_y / 0.1))),
-            orientation="vertical",
-            color=scene.style.theme.gate_edgecolor,
-            track_color=scene.style.theme.classical_wire_color,
-            handle_style={
-                "facecolor": scene.style.theme.accent_color,
-                "edgecolor": scene.style.theme.text_color,
-                "size": 16,
-            },
-        )
-        _style_slider(vertical_slider, text_color=scene.style.theme.text_color)
-        vertical_slider.on_changed(lambda value: update_scroll(y_offset=float(value)))
-        state.vertical_slider = vertical_slider
-        state.vertical_axes = vertical_axes
-
     set_page_slider(figure, state)
+    if state.show_visible_qubits_box:
+        _set_visible_qubits(state, state.visible_qubits)
+        return
+    _apply_2d_slider_state(state)
 
 
 def page_slider_figsize(viewport_width: float, scene_height: float) -> tuple[float, float]:
@@ -380,6 +341,247 @@ def set_slider_view(
     resolved_y_offset = min(max(0.0, y_offset), max_y_offset)
     axes.set_xlim(resolved_x_offset, resolved_x_offset + viewport_width)
     axes.set_ylim(resolved_y_offset + resolved_viewport_height, resolved_y_offset)
+
+
+def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
+    max_scroll_x = max(0.0, state.scene.width - state.viewport_width)
+    max_scroll_y = max(0.0, state.scene.height - state.viewport_height)
+    state.x_offset = min(max(0.0, state.x_offset), max_scroll_x)
+    state.y_offset = min(max(0.0, state.y_offset), max_scroll_y)
+    layout = _resolve_2d_slider_layout(
+        state.axes,
+        show_horizontal_slider=max_scroll_x > 0.0,
+        show_vertical_slider=max_scroll_y > 0.0,
+        show_visible_qubits_box=state.show_visible_qubits_box,
+    )
+    _remove_2d_controls(state)
+    set_viewport_width(state.figure, viewport_width=state.viewport_width)
+    set_slider_view(
+        state.axes,
+        state.scene,
+        x_offset=state.x_offset,
+        y_offset=state.y_offset,
+        viewport_width=state.viewport_width,
+        viewport_height=state.viewport_height,
+    )
+    _attach_2d_controls(state, layout)
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is not None:
+        canvas.draw_idle()
+
+
+def _attach_2d_controls(
+    state: Managed2DPageSliderState,
+    layout: Managed2DSliderLayout,
+) -> None:
+    from matplotlib.widgets import Slider, TextBox
+
+    scene = state.scene
+    theme = scene.style.theme
+    max_scroll_x = max(0.0, scene.width - state.viewport_width)
+    max_scroll_y = max(0.0, scene.height - state.viewport_height)
+
+    if max_scroll_x > 0.0 and layout.horizontal_axes_bounds is not None:
+        horizontal_axes = state.figure.add_axes(
+            layout.horizontal_axes_bounds,
+            facecolor=theme.axes_facecolor,
+        )
+        horizontal_slider = Slider(
+            ax=horizontal_axes,
+            label="Scroll",
+            valmin=0.0,
+            valmax=max_scroll_x,
+            valinit=state.x_offset,
+            color=theme.gate_edgecolor,
+            track_color=theme.classical_wire_color,
+            handle_style={
+                "facecolor": theme.accent_color,
+                "edgecolor": theme.text_color,
+                "size": 16,
+            },
+        )
+        _style_slider(horizontal_slider, text_color=theme.text_color)
+        horizontal_slider.on_changed(lambda value: _update_scroll(state, x_offset=float(value)))
+        state.horizontal_slider = horizontal_slider
+        state.horizontal_axes = horizontal_axes
+
+    if max_scroll_y > 0.0 and layout.vertical_axes_bounds is not None:
+        vertical_axes = state.figure.add_axes(
+            layout.vertical_axes_bounds,
+            facecolor=theme.axes_facecolor,
+        )
+        vertical_slider = Slider(
+            ax=vertical_axes,
+            label="Scroll",
+            valmin=0.0,
+            valmax=max_scroll_y,
+            valinit=state.y_offset,
+            valstep=max_scroll_y / max(1, int(round(max_scroll_y / 0.1))),
+            orientation="vertical",
+            color=theme.gate_edgecolor,
+            track_color=theme.classical_wire_color,
+            handle_style={
+                "facecolor": theme.accent_color,
+                "edgecolor": theme.text_color,
+                "size": 16,
+            },
+        )
+        _style_slider(vertical_slider, text_color=theme.text_color)
+        vertical_slider.on_changed(lambda value: _update_scroll(state, y_offset=float(value)))
+        state.vertical_slider = vertical_slider
+        state.vertical_axes = vertical_axes
+
+    if state.show_visible_qubits_box and layout.visible_qubits_axes_bounds is not None:
+        visible_qubits_axes = state.figure.add_axes(
+            layout.visible_qubits_axes_bounds,
+            facecolor=theme.axes_facecolor,
+        )
+        visible_qubits_box = TextBox(
+            visible_qubits_axes,
+            "",
+            initial=str(state.visible_qubits),
+            color=theme.axes_facecolor,
+            hovercolor=theme.figure_facecolor,
+            textalignment="center",
+        )
+        _style_text_box(visible_qubits_box, text_color=theme.text_color)
+        visible_qubits_box.on_submit(lambda text: _handle_visible_qubits_submit(state, text))
+        state.visible_qubits_box = visible_qubits_box
+        state.visible_qubits_axes = visible_qubits_axes
+
+
+def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
+    for widget in (
+        state.horizontal_slider,
+        state.vertical_slider,
+        state.visible_qubits_box,
+    ):
+        if widget is not None and hasattr(widget, "disconnect_events"):
+            widget.disconnect_events()
+
+    for axes in (
+        state.horizontal_axes,
+        state.vertical_axes,
+        state.visible_qubits_axes,
+    ):
+        if axes is not None:
+            axes.remove()
+
+    state.horizontal_slider = None
+    state.vertical_slider = None
+    state.visible_qubits_box = None
+    state.horizontal_axes = None
+    state.vertical_axes = None
+    state.visible_qubits_axes = None
+
+
+def _update_scroll(
+    state: Managed2DPageSliderState,
+    *,
+    x_offset: float | None = None,
+    y_offset: float | None = None,
+) -> None:
+    if x_offset is not None:
+        state.x_offset = float(x_offset)
+    if y_offset is not None:
+        state.y_offset = float(y_offset)
+    set_slider_view(
+        state.axes,
+        state.scene,
+        x_offset=state.x_offset,
+        y_offset=state.y_offset,
+        viewport_width=state.viewport_width,
+        viewport_height=state.viewport_height,
+    )
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is not None:
+        canvas.draw_idle()
+
+
+def _handle_visible_qubits_submit(
+    state: Managed2DPageSliderState,
+    text: str,
+) -> None:
+    if state.is_syncing_visible_qubits:
+        return
+
+    try:
+        requested_visible_qubits = int(text.strip())
+    except ValueError:
+        _sync_visible_qubits_box(state, state.visible_qubits)
+        return
+
+    _set_visible_qubits(state, requested_visible_qubits)
+
+
+def _set_visible_qubits(
+    state: Managed2DPageSliderState,
+    requested_visible_qubits: int,
+) -> None:
+    resolved_visible_qubits = _clamp_visible_qubits(
+        requested_visible_qubits,
+        state.total_quantum_wires,
+    )
+    state.visible_qubits = resolved_visible_qubits
+    state.viewport_height = _visible_qubits_viewport_height(
+        state.scene,
+        visible_qubits=resolved_visible_qubits,
+    )
+    state.viewport_width = min(
+        state.scene.width,
+        state.viewport_height * max(state.viewport_aspect_ratio, _VIEWPORT_EPSILON),
+    )
+    if state.viewport_height > _VIEWPORT_EPSILON:
+        state.viewport_aspect_ratio = state.viewport_width / state.viewport_height
+    if state.allow_figure_resize:
+        figure_width, figure_height = page_slider_figsize(
+            state.viewport_width,
+            state.viewport_height,
+        )
+        state.figure.set_size_inches(figure_width, figure_height, forward=True)
+    _apply_2d_slider_state(state)
+    _sync_visible_qubits_box(state, resolved_visible_qubits)
+
+
+def _sync_visible_qubits_box(
+    state: Managed2DPageSliderState,
+    visible_qubits: int,
+) -> None:
+    if state.visible_qubits_box is None:
+        return
+
+    state.is_syncing_visible_qubits = True
+    try:
+        state.visible_qubits_box.set_val(str(visible_qubits))
+    finally:
+        state.is_syncing_visible_qubits = False
+
+
+def _visible_qubits_viewport_height(
+    scene: LayoutScene,
+    *,
+    visible_qubits: int,
+) -> float:
+    resolved_visible_qubits = max(1, visible_qubits)
+    style = scene.style
+    return min(
+        scene.height,
+        style.margin_top
+        + style.margin_bottom
+        + max(0, resolved_visible_qubits - 1) * style.wire_spacing,
+    )
+
+
+def _clamp_visible_qubits(
+    visible_qubits: int,
+    total_quantum_wires: int | None,
+) -> int:
+    resolved_total_quantum_wires = max(1, 1 if total_quantum_wires is None else total_quantum_wires)
+    return min(max(1, visible_qubits), resolved_total_quantum_wires)
+
+
+def _quantum_wire_count(scene: LayoutScene) -> int:
+    return max(1, sum(1 for wire in scene.wires if wire.kind == WireKind.QUANTUM))
 
 
 def configure_3d_page_slider(
@@ -503,17 +705,60 @@ def _apply_2d_main_axes_bounds(
     *,
     show_horizontal_slider: bool,
     show_vertical_slider: bool,
+    show_visible_qubits_box: bool,
 ) -> tuple[float, float, float, float]:
-    if show_horizontal_slider and show_vertical_slider:
+    show_left_controls = show_vertical_slider or show_visible_qubits_box
+    if show_horizontal_slider and show_visible_qubits_box:
+        bounds = _MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_AND_BOX_BOUNDS
+    elif show_horizontal_slider and show_vertical_slider:
         bounds = _MANAGED_2D_MAIN_AXES_WITH_BOTH_BOUNDS
     elif show_horizontal_slider:
         bounds = _MANAGED_2D_MAIN_AXES_WITH_HORIZONTAL_BOUNDS
     elif show_vertical_slider:
         bounds = _MANAGED_2D_MAIN_AXES_WITH_VERTICAL_BOUNDS
+    elif show_left_controls:
+        bounds = _MANAGED_2D_MAIN_AXES_WITH_LEFT_CONTROLS_BOUNDS
     else:
         bounds = _MANAGED_2D_MAIN_AXES_BOUNDS
     axes.set_position(bounds)
     return bounds
+
+
+def _resolve_2d_slider_layout(
+    axes: Axes,
+    *,
+    show_horizontal_slider: bool,
+    show_vertical_slider: bool,
+    show_visible_qubits_box: bool,
+) -> Managed2DSliderLayout:
+    main_axes_bounds = _apply_2d_main_axes_bounds(
+        axes,
+        show_horizontal_slider=show_horizontal_slider,
+        show_vertical_slider=show_vertical_slider,
+        show_visible_qubits_box=show_visible_qubits_box,
+    )
+    return Managed2DSliderLayout(
+        main_axes_bounds=main_axes_bounds,
+        horizontal_axes_bounds=(
+            _horizontal_slider_bounds(main_axes_bounds) if show_horizontal_slider else None
+        ),
+        vertical_axes_bounds=(
+            _vertical_slider_bounds(
+                main_axes_bounds,
+                show_horizontal_slider=show_horizontal_slider,
+                show_visible_qubits_box=show_visible_qubits_box,
+            )
+            if show_vertical_slider
+            else None
+        ),
+        visible_qubits_axes_bounds=(
+            _visible_qubits_box_bounds(show_horizontal_slider=show_horizontal_slider)
+            if show_visible_qubits_box
+            else None
+        ),
+        viewport_width=0.0,
+        viewport_height=0.0,
+    )
 
 
 def _horizontal_slider_bounds(
@@ -530,13 +775,43 @@ def _horizontal_slider_bounds(
 
 def _vertical_slider_bounds(
     main_axes_bounds: tuple[float, float, float, float],
+    *,
+    show_horizontal_slider: bool,
+    show_visible_qubits_box: bool,
 ) -> tuple[float, float, float, float]:
     _, bottom, _, height = main_axes_bounds
+    slider_bottom = bottom
+    if show_visible_qubits_box:
+        _, box_bottom, _, box_height = _visible_qubits_box_bounds(
+            show_horizontal_slider=show_horizontal_slider
+        )
+        slider_bottom = max(
+            slider_bottom,
+            box_bottom + box_height + _MANAGED_2D_VISIBLE_QUBITS_GAP,
+        )
+    slider_height = max(_VIEWPORT_EPSILON, bottom + height - slider_bottom)
     return (
-        _MANAGED_2D_VERTICAL_SLIDER_LEFT,
+        _MANAGED_2D_LEFT_CONTROL_LEFT,
+        slider_bottom,
+        _MANAGED_2D_LEFT_CONTROL_WIDTH,
+        slider_height,
+    )
+
+
+def _visible_qubits_box_bounds(
+    *,
+    show_horizontal_slider: bool,
+) -> tuple[float, float, float, float]:
+    bottom = (
+        _MANAGED_2D_VISIBLE_QUBITS_BOTTOM_WITH_HORIZONTAL
+        if show_horizontal_slider
+        else _MANAGED_2D_VISIBLE_QUBITS_BOTTOM
+    )
+    return (
+        _MANAGED_2D_LEFT_CONTROL_LEFT,
         bottom,
-        _MANAGED_2D_VERTICAL_SLIDER_WIDTH,
-        height,
+        _MANAGED_2D_LEFT_CONTROL_WIDTH,
+        _MANAGED_2D_VISIBLE_QUBITS_HEIGHT,
     )
 
 
@@ -557,6 +832,21 @@ def _style_slider(slider: Slider, *, text_color: str) -> None:
         slider.poly.set_alpha(0.75)
     if hasattr(slider, "vline"):
         slider.vline.set_linewidth(3.0)
+
+
+def _style_text_box(text_box: TextBox, *, text_color: str) -> None:
+    text_box.label.set_visible(False)
+    if hasattr(text_box, "text_disp"):
+        text_box.text_disp.set_color(text_color)
+    text_box.ax.set_title("Qubits", color=text_color, fontsize=8.5, pad=1.5)
+    text_box.ax.tick_params(
+        left=False,
+        bottom=False,
+        labelleft=False,
+        labelbottom=False,
+    )
+    for spine in text_box.ax.spines.values():
+        spine.set_color(text_color)
 
 
 def _figure_size_inches(figure: object) -> tuple[float, float]:

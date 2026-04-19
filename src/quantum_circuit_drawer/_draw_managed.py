@@ -223,6 +223,8 @@ def render_managed_draw_pipeline(
             viewport_width=slider_layout.viewport_width,
             viewport_height=slider_layout.viewport_height,
             layout=slider_layout,
+            quantum_wire_count=len(pipeline.ir.quantum_wires),
+            allow_figure_resize=figsize is None,
             set_page_slider=set_page_slider,
         )
         logger.debug(
@@ -523,6 +525,8 @@ def configure_page_slider(
     set_page_slider: Callable[[Figure, object], None],
     viewport_height: float | None = None,
     layout: object | None = None,
+    quantum_wire_count: int | None = None,
+    allow_figure_resize: bool = True,
 ) -> None:
     """Attach and wire a slider that scrolls the rendered circuit horizontally."""
 
@@ -534,6 +538,8 @@ def configure_page_slider(
         set_page_slider=set_page_slider,
         viewport_height=viewport_height,
         layout=cast("object", layout),
+        quantum_wire_count=quantum_wire_count,
+        allow_figure_resize=allow_figure_resize,
     )
 
 

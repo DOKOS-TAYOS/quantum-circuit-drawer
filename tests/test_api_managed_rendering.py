@@ -976,7 +976,10 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert page_slider.horizontal_slider is None
     assert page_slider.vertical_slider is not None
     assert page_slider.vertical_axes is not None
-    assert len(figure.axes) == 2
+    assert page_slider.visible_qubits_box is not None
+    assert page_slider.visible_qubits_axes is not None
+    assert page_slider.visible_qubits == 15
+    assert len(figure.axes) == 3
 
     initial_ylim = axes.get_ylim()
     vertical_slider = page_slider.vertical_slider
@@ -1006,20 +1009,35 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     assert page_slider.vertical_slider is not None
     assert page_slider.horizontal_axes is not None
     assert page_slider.vertical_axes is not None
-    assert len(figure.axes) == 3
+    assert page_slider.visible_qubits_box is not None
+    assert len(figure.axes) == 4
 
     initial_xlim = axes.get_xlim()
     initial_ylim = axes.get_ylim()
+    initial_figure_size = tuple(float(value) for value in figure.get_size_inches())
     horizontal_slider = page_slider.horizontal_slider
     vertical_slider = page_slider.vertical_slider
+    visible_qubits_box = page_slider.visible_qubits_box
     assert horizontal_slider is not None
     assert vertical_slider is not None
+    assert visible_qubits_box is not None
 
-    horizontal_slider.set_val(horizontal_slider.valmax)
-    vertical_slider.set_val(vertical_slider.valmax)
+    initial_horizontal_max = horizontal_slider.valmax
+    initial_vertical_max = vertical_slider.valmax
 
-    assert axes.get_xlim()[0] > initial_xlim[0]
-    assert axes.get_ylim()[0] > initial_ylim[0]
+    visible_qubits_box.set_val("8")
+
+    assert page_slider.visible_qubits == 8
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.vertical_slider is not None
+    assert page_slider.horizontal_slider.valmax > initial_horizontal_max
+    assert page_slider.vertical_slider.valmax > initial_vertical_max
+    assert axes.get_xlim()[1] - axes.get_xlim()[0] < initial_xlim[1] - initial_xlim[0]
+    assert axes.get_ylim()[0] - axes.get_ylim()[1] < initial_ylim[0] - initial_ylim[1]
+    assert tuple(float(value) for value in figure.get_size_inches()) != pytest.approx(
+        initial_figure_size
+    )
+
     plt.close(figure)
 
 
