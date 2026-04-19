@@ -13,6 +13,7 @@ from matplotlib.transforms import Bbox
 
 import quantum_circuit_drawer._draw_managed as managed_module
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
+from quantum_circuit_drawer._draw_managed_slider import Managed2DPageSliderState
 from quantum_circuit_drawer._draw_managed_zoom import current_text_scale
 from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
@@ -870,7 +871,7 @@ def test_draw_quantum_circuit_adds_discrete_page_slider_for_wrapped_managed_figu
         show=False,
     )
 
-    page_slider = get_page_slider(figure)
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
     assert page_slider is not None
     slider_axes = page_slider.horizontal_axes
     assert slider_axes is not None
@@ -907,9 +908,10 @@ def test_draw_quantum_circuit_page_slider_uses_width_budgeted_column_windows() -
         style={"max_page_width": 4.5},
         page_slider=True,
         show=False,
+        figsize=(7.0, 4.0),
     )
 
-    page_slider = get_page_slider(figure)
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
 
     assert page_slider is not None
     assert page_slider.horizontal_slider is not None
@@ -922,6 +924,40 @@ def test_draw_quantum_circuit_page_slider_uses_width_budgeted_column_windows() -
     moved_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
     assert {label for label in moved_labels if label in {"H", "X", "Y", "Z"}} == {"X", "Y", "Z"}
 
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_uses_user_figsize_for_initial_window_budget() -> None:
+    default_figure, _ = draw_quantum_circuit(
+        _variable_width_slider_ir(),
+        style={"max_page_width": 4.5},
+        page_slider=True,
+        show=False,
+    )
+    figure, axes = draw_quantum_circuit(
+        _variable_width_slider_ir(),
+        style={"max_page_width": 4.5},
+        page_slider=True,
+        show=False,
+        figsize=(12.0, 4.0),
+    )
+
+    default_page_slider = cast(Managed2DPageSliderState | None, get_page_slider(default_figure))
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+    assert default_page_slider is not None
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.viewport_width > default_page_slider.viewport_width
+    assert axes.get_xlim()[1] - axes.get_xlim()[0] == pytest.approx(page_slider.viewport_width)
+
+    page_slider.horizontal_slider.set_val(2.0)
+
+    visible_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+
+    assert {label for label in visible_labels if label in {"H", "X", "Y", "Z"}} == {"X", "Y", "Z"}
+
+    plt.close(default_figure)
     plt.close(figure)
 
 
@@ -1042,13 +1078,17 @@ def test_draw_quantum_circuit_page_slider_uses_more_horizontal_space_for_taller_
         page_slider=True,
         show=False,
     )
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
 
     left, _, width, _ = axes.get_position().bounds
     right_gap = 1.0 - (left + width)
 
-    assert width > 0.84
-    assert left < 0.13
-    assert right_gap < 0.03
+    assert page_slider is not None
+    assert axes.get_xlim()[1] - axes.get_xlim()[0] == pytest.approx(page_slider.viewport_width)
+    assert axes.get_xlim()[1] - axes.get_xlim()[0] > 4.5
+    assert width > 0.6
+    assert left < 0.16
+    assert right_gap < 0.16
 
     plt.close(figure)
 
@@ -1124,7 +1164,7 @@ def test_draw_quantum_circuit_page_slider_keeps_text_size_stable_after_redraw() 
         page_slider=True,
         show=False,
     )
-    page_slider = get_page_slider(figure)
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
 
     assert page_slider is not None
     horizontal_slider = page_slider.horizontal_slider
@@ -1484,6 +1524,35 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     assert page_slider.visible_qubits == 24
     assert page_slider.vertical_slider is None
     assert page_slider.vertical_axes is None
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_preserves_control_widgets_during_scroll() -> None:
+    figure, _ = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.vertical_slider is not None
+    assert page_slider.visible_qubits_box is not None
+
+    horizontal_slider = page_slider.horizontal_slider
+    vertical_slider = page_slider.vertical_slider
+    visible_qubits_box = page_slider.visible_qubits_box
+
+    horizontal_slider.set_val(min(horizontal_slider.valmax, 2.0))
+    vertical_slider.set_val(min(vertical_slider.valmax, 2.0))
+
+    assert page_slider.horizontal_slider is horizontal_slider
+    assert page_slider.vertical_slider is vertical_slider
+    assert page_slider.visible_qubits_box is visible_qubits_box
 
     plt.close(figure)
 

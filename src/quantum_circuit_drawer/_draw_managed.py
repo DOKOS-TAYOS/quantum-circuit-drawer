@@ -184,13 +184,9 @@ def render_managed_draw_pipeline(
         resolved_visible_qubits = min(
             max(1, 1 if not scene_2d.wires else _DEFAULT_VISIBLE_QUBITS), len(scene_2d.wires)
         )
-        initial_viewport_height = (
-            scene_2d.height
-            if resolved_visible_qubits >= len(scene_2d.wires)
-            else _visible_qubits_viewport_height(
-                scene_2d,
-                visible_qubits=resolved_visible_qubits,
-            )
+        initial_viewport_height = _visible_qubits_viewport_height(
+            scene_2d,
+            visible_qubits=resolved_visible_qubits,
         )
         first_page = scene_2d.pages[0]
         initial_viewport_width = min(

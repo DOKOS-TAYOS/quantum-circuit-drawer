@@ -121,6 +121,7 @@ class Managed2DPageSliderState:
     visible_qubits: int
     allow_figure_resize: bool
     show_visible_qubits_box: bool
+    layout: Managed2DSliderLayout | None = None
     horizontal_scene_cache: dict[int, LayoutScene] = field(default_factory=dict)
     window_scene_cache: dict[tuple[int, int], LayoutScene] = field(default_factory=dict)
     is_syncing_visible_qubits: bool = False
@@ -267,13 +268,25 @@ def configure_page_slider(
 ) -> None:
     """Attach and wire sliders that redraw one discrete 2D window at a time."""
 
+    if circuit is None or layout_engine is None or renderer is None:
+        resolved_viewport_height = scene.height if viewport_height is None else viewport_height
+        max_scroll_x = max(0.0, scene.width - viewport_width)
+        max_scroll_y = max(0.0, scene.height - resolved_viewport_height)
+        if max_scroll_x <= 0.0 and max_scroll_y <= 0.0:
+            return
+        raise ValueError(
+            "discrete 2D page slider requires circuit, layout_engine, and renderer context"
+        )
+
     resolved_layout = layout or prepare_page_slider_layout(axes, scene)
     resolved_viewport_width = (
-        resolved_layout.viewport_width if layout is not None else viewport_width
+        resolved_layout.viewport_width
+        if resolved_layout.viewport_width > _VIEWPORT_EPSILON
+        else viewport_width
     )
     resolved_viewport_height = (
         resolved_layout.viewport_height
-        if layout is not None
+        if resolved_layout.viewport_height > _VIEWPORT_EPSILON
         else (scene.height if viewport_height is None else viewport_height)
     )
 
@@ -286,25 +299,15 @@ def configure_page_slider(
         resolved_visible_row_count,
     )
 
-    if circuit is None or layout_engine is None or renderer is None:
-        max_scroll_x = max(0.0, scene.width - resolved_viewport_width)
-        max_scroll_y = max(0.0, scene.height - resolved_viewport_height)
-        if max_scroll_x <= 0.0 and max_scroll_y <= 0.0:
-            return
-        raise ValueError(
-            "discrete 2D page slider requires circuit, layout_engine, and renderer context"
-        )
-
     resolved_style = scene.style if normalized_style is None else normalized_style
     paging_inputs = build_layout_paging_inputs(circuit, resolved_style)
     total_scene_width = paged_scene_metrics_for_width(
         paging_inputs,
         max_page_width=float("inf"),
     ).scene_width
-    initial_viewport_height = (
-        scene.height
-        if resolved_visible_qubits >= resolved_visible_row_count
-        else _visible_qubits_viewport_height(scene, visible_qubits=resolved_visible_qubits)
+    initial_viewport_height = _visible_qubits_viewport_height(
+        scene,
+        visible_qubits=resolved_visible_qubits,
     )
     initial_viewport_width = min(
         total_scene_width,
@@ -318,6 +321,12 @@ def configure_page_slider(
         total_scene_width - initial_viewport_width <= _VIEWPORT_EPSILON
         and resolved_visible_row_count <= resolved_visible_qubits
     ):
+        clear_hover_state(axes)
+        axes.clear()
+        axes.set_position(resolved_layout.main_axes_bounds)
+        setattr(axes, "_quantum_circuit_drawer_windowed_clip", False)
+        set_viewport_width(figure, viewport_width=scene.width)
+        renderer.render(scene, ax=axes)
         return
 
     state = Managed2DPageSliderState(
@@ -353,6 +362,7 @@ def configure_page_slider(
         visible_qubits=resolved_visible_qubits,
         allow_figure_resize=allow_figure_resize,
         show_visible_qubits_box=resolved_visible_row_count > _DEFAULT_VISIBLE_QUBITS,
+        layout=None,
     )
     set_page_slider(figure, state)
     _apply_2d_slider_state(state)
@@ -437,15 +447,27 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
         show_vertical_slider=state.max_start_row > 0,
         show_visible_qubits_box=state.show_visible_qubits_box,
     )
-    _remove_2d_controls(state)
+    rebuild_controls = _needs_2d_control_rebuild(state, layout)
+    if rebuild_controls:
+        _remove_2d_controls(state)
     state.scene = _scene_for_current_window(state)
     clear_hover_state(state.axes)
     state.axes.clear()
     state.axes.set_position(layout.main_axes_bounds)
     setattr(state.axes, "_quantum_circuit_drawer_windowed_clip", True)
-    set_viewport_width(state.figure, viewport_width=state.scene.width)
+    set_viewport_width(state.figure, viewport_width=state.viewport_width)
     state.renderer.render(state.scene, ax=state.axes)
-    _attach_2d_controls(state, layout)
+    set_slider_view(
+        state.axes,
+        state.scene,
+        x_offset=0.0,
+        viewport_width=state.viewport_width,
+        y_offset=0.0,
+        viewport_height=state.viewport_height,
+    )
+    if rebuild_controls:
+        _attach_2d_controls(state, layout)
+    state.layout = layout
     _sync_visible_qubits_box(state, state.visible_qubits)
     canvas = getattr(state.figure, "canvas", None)
     if canvas is not None:
@@ -555,6 +577,7 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
     state.horizontal_axes = None
     state.vertical_axes = None
     state.visible_qubits_axes = None
+    state.layout = None
 
 
 def _handle_visible_qubits_submit(
@@ -594,6 +617,7 @@ def _set_visible_qubits(
         state.viewport_aspect_ratio = state.viewport_width / state.viewport_height
     state.horizontal_scene_cache.clear()
     state.window_scene_cache.clear()
+    state.layout = None
     if state.allow_figure_resize:
         figure_width, figure_height = page_slider_figsize(
             state.viewport_width,
@@ -625,7 +649,7 @@ def _visible_qubits_viewport_height(
 ) -> float:
     resolved_visible_qubits = max(1, visible_qubits)
     wire_positions = sorted(wire.y for wire in scene.wires)
-    if not wire_positions or resolved_visible_qubits >= len(wire_positions):
+    if not wire_positions:
         return scene.height
 
     largest_window_span = max(
@@ -646,6 +670,39 @@ def _clamp_visible_qubits(
 
 def _scene_visible_row_count(scene: LayoutScene) -> int:
     return max(1, len(scene.wires))
+
+
+def _needs_2d_control_rebuild(
+    state: Managed2DPageSliderState,
+    layout: Managed2DSliderLayout,
+) -> bool:
+    if state.layout is None:
+        return True
+
+    if state.layout.horizontal_axes_bounds != layout.horizontal_axes_bounds:
+        return True
+    if state.layout.vertical_axes_bounds != layout.vertical_axes_bounds:
+        return True
+    if state.layout.visible_qubits_axes_bounds != layout.visible_qubits_axes_bounds:
+        return True
+
+    if (state.horizontal_slider is None) != (layout.horizontal_axes_bounds is None):
+        return True
+    if (state.vertical_slider is None) != (layout.vertical_axes_bounds is None):
+        return True
+    if (state.visible_qubits_box is None) != (layout.visible_qubits_axes_bounds is None):
+        return True
+
+    if state.horizontal_slider is not None and state.horizontal_slider.valmax != float(
+        state.max_start_column
+    ):
+        return True
+    if state.vertical_slider is not None and state.vertical_slider.valmax != float(
+        state.max_start_row
+    ):
+        return True
+
+    return False
 
 
 def _has_horizontal_overflow(state: Managed2DPageSliderState) -> bool:
