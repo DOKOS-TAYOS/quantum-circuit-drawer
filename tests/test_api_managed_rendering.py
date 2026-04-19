@@ -167,6 +167,31 @@ def _tall_measured_ir(*, quantum_wire_count: int, layer_count: int = 2) -> Circu
     )
 
 
+def _overlapping_raw_layer_ir(*, raw_layer_count: int) -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE, name=f"H{layer_index}", target_wires=("q0",)
+                    ),
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    ),
+                ]
+            )
+            for layer_index in range(raw_layer_count)
+        ],
+    )
+
+
 def _matching_text_artists(axes: object, text: str) -> list[object]:
     return [
         text_artist
@@ -524,6 +549,7 @@ def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging(
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
         style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
         page_window=True,
         show=False,
     )
@@ -551,6 +577,7 @@ def test_draw_quantum_circuit_page_window_clamps_inputs_and_reuses_cached_pages(
     figure, _ = draw_quantum_circuit(
         build_wrapped_ir(),
         style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
         page_window=True,
         show=False,
     )
@@ -607,6 +634,7 @@ def test_draw_quantum_circuit_page_window_navigation_buttons_step_between_pages(
     figure, _ = draw_quantum_circuit(
         build_wrapped_ir(),
         style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
         page_window=True,
         show=False,
     )
@@ -627,10 +655,67 @@ def test_draw_quantum_circuit_page_window_navigation_buttons_step_between_pages(
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_window_uses_viewport_adaptive_initial_paging() -> None:
+    circuit = build_dense_rotation_ir(layer_count=64, wire_count=2)
+    strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+
+    figure, _ = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0},
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.effective_page_width > 4.0
+    assert page_window.total_pages < len(strict_scene.pages)
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_fills_vertical_space_from_visible_page_height() -> None:
+    circuit = build_dense_rotation_ir(layer_count=40, wire_count=12)
+    strict_scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
+    figure_height = max(2.1, strict_scene.page_height * 0.72) + 1.0
+    probe_figure, probe_axes = create_managed_figure(
+        strict_scene,
+        figure_width=4.6,
+        figure_height=figure_height,
+        use_agg=True,
+    )
+    probe_axes.set_position((0.02, 0.18, 0.96, 0.8))
+    full_scene_adaptive, full_scene_page_width = managed_module.viewport_adaptive_paged_scene(
+        circuit,
+        LayoutEngine(),
+        strict_scene.style,
+        probe_axes,
+        hover_enabled=strict_scene.hover.enabled,
+        initial_scene=strict_scene,
+    )
+    plt.close(probe_figure)
+
+    figure, _ = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0},
+        figsize=(4.6, figure_height),
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.total_pages > len(full_scene_adaptive.pages)
+    assert page_window.effective_page_width < full_scene_page_width
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_window_renders_requested_page_inside_viewport() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
         style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
         page_window=True,
         show=False,
     )
@@ -645,18 +730,16 @@ def test_draw_quantum_circuit_page_window_renders_requested_page_inside_viewport
     page_window.page_box.set_val("2")
 
     x_min, x_max = axes.get_xlim()
-    z_label = _text_artist_by_text(axes, "Z")
     y_label = _text_artist_by_text(axes, "Y")
 
     assert x_max < initial_x_max
-    assert x_min <= z_label.get_position()[0] <= x_max
     assert x_min <= y_label.get_position()[0] <= x_max
     plt.close(figure)
 
 
 def test_draw_quantum_circuit_page_window_renders_all_requested_pages_inside_viewport() -> None:
     figure, axes = draw_quantum_circuit(
-        build_dense_rotation_ir(layer_count=12, wire_count=2),
+        build_dense_rotation_ir(layer_count=64, wire_count=2),
         style={"max_page_width": 4.0},
         page_window=True,
         show=False,
@@ -670,6 +753,9 @@ def test_draw_quantum_circuit_page_window_renders_all_requested_pages_inside_vie
     assert page_window.total_pages >= 4
 
     page_window.page_box.set_val("2")
+
+    single_page_gate_count = len(_matching_text_artists(axes, "RX\n0.5"))
+
     page_window.visible_pages_box.set_val("2")
 
     x_min, x_max = axes.get_xlim()
@@ -677,8 +763,35 @@ def test_draw_quantum_circuit_page_window_renders_all_requested_pages_inside_vie
         text_artist.get_position()[0] for text_artist in _matching_text_artists(axes, "RX\n0.5")
     ]
 
-    assert len(gate_positions) == 6
+    assert len(gate_positions) == single_page_gate_count * 2
     assert all(x_min <= x_position <= x_max for x_position in gate_positions)
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_preserves_columns_from_expanded_raw_layers() -> None:
+    raw_layer_count = 10
+    figure, axes = draw_quantum_circuit(
+        _overlapping_raw_layer_ir(raw_layer_count=raw_layer_count),
+        style={"max_page_width": 4.0},
+        figsize=(3.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+
+    seen_labels: set[str] = set()
+    for page_number in range(1, page_window.total_pages + 1):
+        page_window.page_box.set_val(str(page_number))
+        seen_labels.update(
+            normalize_rendered_text(text_artist.get_text())
+            for text_artist in axes.texts
+            if normalize_rendered_text(text_artist.get_text()).startswith("H")
+        )
+
+    assert seen_labels == {f"H{layer_index}" for layer_index in range(raw_layer_count)}
     plt.close(figure)
 
 

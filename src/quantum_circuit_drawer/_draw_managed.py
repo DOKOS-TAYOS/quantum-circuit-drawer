@@ -8,6 +8,9 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeGuard, cast
 
 from ._draw_managed_page_window import (
+    apply_page_window_axes_bounds as _apply_page_window_axes_bounds_impl,
+)
+from ._draw_managed_page_window import (
     configure_page_window as _configure_page_window_impl,
 )
 from ._draw_managed_slider import (
@@ -49,6 +52,9 @@ from ._draw_managed_viewport import (
 )
 from ._draw_managed_viewport import (
     compute_paged_scene as _compute_paged_scene_impl,
+)
+from ._draw_managed_viewport import (
+    page_window_adaptive_paged_scene as _page_window_adaptive_paged_scene_impl,
 )
 from ._draw_managed_viewport import (
     scene_aspect_ratio as _scene_aspect_ratio_impl,
@@ -251,8 +257,16 @@ def render_managed_draw_pipeline(
             figure_height=figure_height,
             use_agg=use_agg_canvas,
         )
-        initial_scene = scene_2d
-        effective_page_width = float(initial_scene.style.max_page_width)
+        _apply_page_window_axes_bounds_impl(axes)
+        initial_scene, effective_page_width = page_window_adaptive_paged_scene(
+            pipeline.ir,
+            cast(LayoutEngineLike, pipeline.layout_engine),
+            scene_2d.style,
+            axes,
+            hover_enabled=scene_2d.hover.enabled,
+            initial_scene=scene_2d,
+            visible_page_count=1,
+        )
         frozen_style = _freeze_default_line_width_for_scene(
             style=initial_scene.style,
             scene=initial_scene,
@@ -399,6 +413,29 @@ def viewport_adaptive_paged_scene(
         axes,
         hover_enabled=hover_enabled,
         initial_scene=initial_scene,
+    )
+
+
+def page_window_adaptive_paged_scene(
+    circuit: CircuitIR,
+    layout_engine: LayoutEngineLike,
+    style: DrawStyle,
+    axes: Axes,
+    *,
+    hover_enabled: bool = True,
+    initial_scene: LayoutScene | None = None,
+    visible_page_count: int = 1,
+) -> tuple[LayoutScene, float]:
+    """Return the paged scene that best matches the fixed page-window viewport."""
+
+    return _page_window_adaptive_paged_scene_impl(
+        circuit,
+        layout_engine,
+        style,
+        axes,
+        hover_enabled=hover_enabled,
+        initial_scene=initial_scene,
+        visible_page_count=visible_page_count,
     )
 
 

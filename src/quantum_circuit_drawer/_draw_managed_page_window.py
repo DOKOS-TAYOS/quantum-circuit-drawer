@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from ._draw_managed_slider import _style_text_box, circuit_window
-from ._draw_managed_viewport import compute_paged_scene
+from ._draw_managed_slider import _style_text_box
 from .layout.scene import LayoutScene, ScenePage
 from .renderers._matplotlib_figure import (
     clear_hover_state,
@@ -18,7 +17,7 @@ from .renderers._matplotlib_figure import (
     set_viewport_width,
 )
 from .renderers._matplotlib_hover import _HoverTarget2D, attach_hover
-from .renderers._matplotlib_page_projection import _ProjectedPage, project_pages
+from .renderers._matplotlib_page_projection import _ProjectedPage
 from .renderers.matplotlib_primitives import (
     _build_gate_text_fitting_context,
     finalize_axes,
@@ -46,8 +45,14 @@ _VISIBLE_SUFFIX_POSITION = (0.586, 0.072)
 
 @dataclass(frozen=True, slots=True)
 class _PageWindowCacheEntry:
-    scene: LayoutScene
     projected_page: _ProjectedPage
+
+
+class _SceneColumnItemLike(Protocol):
+    column: int
+
+
+_SceneColumnItem = TypeVar("_SceneColumnItem", bound=_SceneColumnItemLike)
 
 
 @dataclass(slots=True)
@@ -111,11 +116,17 @@ def configure_page_window(
     return state
 
 
+def apply_page_window_axes_bounds(axes: Axes) -> None:
+    """Pin page-window drawing axes above the control row."""
+
+    axes.set_position(_MAIN_AXES_BOUNDS)
+
+
 def _attach_controls(state: Managed2DPageWindowState) -> None:
     from matplotlib.widgets import Button, TextBox
 
     theme = state.scene.style.theme
-    state.axes.set_position(_MAIN_AXES_BOUNDS)
+    apply_page_window_axes_bounds(state.axes)
 
     previous_page_button_axes = state.figure.add_axes(
         _PREVIOUS_PAGE_BUTTON_BOUNDS,
@@ -389,7 +400,9 @@ def _visible_page_indexes(state: Managed2DPageWindowState) -> range:
 def _visible_page_width(state: Managed2DPageWindowState) -> float:
     return max(
         (
-            _cache_entry_for_page(state, page_index).scene.width
+            state.scene.style.margin_left
+            + state.scene.pages[page_index].content_width
+            + state.scene.style.margin_right
             for page_index in _visible_page_indexes(state)
         ),
         default=state.scene.width,
@@ -403,14 +416,13 @@ def _window_page(
     window_index: int,
 ) -> ScenePage:
     source_page = state.scene.pages[page_index]
-    cached_page = _cache_entry_for_page(state, page_index).scene.pages[0]
     return ScenePage(
         index=window_index,
         start_column=source_page.start_column,
         end_column=source_page.end_column,
-        content_x_start=cached_page.content_x_start,
-        content_x_end=cached_page.content_x_end,
-        content_width=cached_page.content_width,
+        content_x_start=source_page.content_x_start,
+        content_x_end=source_page.content_x_end,
+        content_width=source_page.content_width,
         y_offset=window_index * (state.scene.page_height + state.scene.style.page_vertical_gap),
     )
 
@@ -423,21 +435,27 @@ def _cache_entry_for_page(
     if cached_entry is not None:
         return cached_entry
 
-    source_page = state.scene.pages[page_index]
-    page_circuit = circuit_window(
-        state.circuit,
-        start_column=source_page.start_column,
-        window_size=(source_page.end_column - source_page.start_column + 1),
-    )
-    page_scene = compute_paged_scene(
-        page_circuit,
-        state.layout_engine,
-        state.scene.style,
-        hover_enabled=state.scene.hover.enabled,
-    )
-    page_scene.hover = state.scene.hover
-    projected_pages = project_pages(page_scene)
-    projected_page = projected_pages[0]
-    cache_entry = _PageWindowCacheEntry(scene=page_scene, projected_page=projected_page)
+    cache_entry = _PageWindowCacheEntry(projected_page=_project_page(state.scene, page_index))
     state.page_cache[page_index] = cache_entry
     return cache_entry
+
+
+def _project_page(scene: LayoutScene, page_index: int) -> _ProjectedPage:
+    page = scene.pages[page_index]
+    return _ProjectedPage(
+        barriers=_items_for_page(scene.barriers, page=page),
+        connections=_items_for_page(scene.connections, page=page),
+        gates=_items_for_page(scene.gates, page=page),
+        gate_annotations=_items_for_page(scene.gate_annotations, page=page),
+        measurements=_items_for_page(scene.measurements, page=page),
+        controls=_items_for_page(scene.controls, page=page),
+        swaps=_items_for_page(scene.swaps, page=page),
+    )
+
+
+def _items_for_page(
+    items: tuple[_SceneColumnItem, ...],
+    *,
+    page: ScenePage,
+) -> tuple[_SceneColumnItem, ...]:
+    return tuple(item for item in items if page.start_column <= item.column <= page.end_column)
