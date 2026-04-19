@@ -41,6 +41,7 @@ def draw_quantum_circuit(
     show: bool = True,
     figsize: tuple[float, float] | None = None,
     page_slider: bool = False,
+    page_window: bool = False,
     composite_mode: str = "compact",
     view: Literal["2d", "3d"] = "2d",
     topology: Literal["line", "grid", "star", "star_tree", "honeycomb"] = "line",
@@ -62,6 +63,7 @@ def draw_quantum_circuit(
         ``page_slider=True`` requires a managed Matplotlib figure.
         In 2D it adds horizontal and/or vertical sliders when the viewport
         overflows. In 3D it moves through circuit columns.
+        ``page_window=True`` requires a managed 2D Matplotlib figure.
         ``view="3d"`` requires a 3D Matplotlib axes when ``ax`` is provided.
     """
 
@@ -78,6 +80,7 @@ def draw_quantum_circuit(
         show=show,
         figsize=figsize,
         page_slider=page_slider,
+        page_window=page_window,
         composite_mode=composite_mode,
         view=view,
         topology=topology,

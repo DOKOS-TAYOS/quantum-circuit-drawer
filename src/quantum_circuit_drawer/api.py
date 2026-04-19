@@ -39,6 +39,7 @@ def draw_quantum_circuit(
     show: bool = True,
     figsize: tuple[float, float] | None = None,
     page_slider: bool = False,
+    page_window: bool = False,
     composite_mode: str = "compact",
     view: Literal["2d", "3d"] = "2d",
     topology: Literal["line", "grid", "star", "star_tree", "honeycomb"] = "line",
@@ -80,6 +81,7 @@ def draw_quantum_circuit(
         show=show,
         figsize=figsize,
         page_slider=page_slider,
+        page_window=page_window,
         composite_mode=composite_mode,
         view=view,
         topology=topology,
@@ -104,6 +106,7 @@ def draw_quantum_circuit(
             show=request.show,
             figsize=request.figsize,
             page_slider=request.page_slider,
+            page_window=request.page_window,
         )
 
     if request.pipeline_options.view == "3d" and not _is_3d_axes(request.ax):
@@ -124,6 +127,7 @@ def _render_managed_draw_pipeline(
     show: bool,
     figsize: tuple[float, float] | None,
     page_slider: bool,
+    page_window: bool,
 ) -> tuple[Figure, Axes]:
     from ._draw_managed import render_managed_draw_pipeline
 
@@ -133,6 +137,7 @@ def _render_managed_draw_pipeline(
         show=show,
         figsize=figsize,
         page_slider=page_slider,
+        page_window=page_window,
     )
 
 

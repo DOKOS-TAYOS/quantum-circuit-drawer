@@ -7,6 +7,9 @@ import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeGuard, cast
 
+from ._draw_managed_page_window import (
+    configure_page_window as _configure_page_window_impl,
+)
 from ._draw_managed_slider import (
     apply_managed_3d_axes_bounds as _apply_managed_3d_axes_bounds_impl,
 )
@@ -81,6 +84,7 @@ if TYPE_CHECKING:
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
     from .layout.scene_3d import LayoutScene3D
+    from .renderers.matplotlib_renderer import MatplotlibRenderer
 
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _ADAPTIVE_LINE_WIDTH_REFERENCE_PIXELS_PER_UNIT = 96.0
@@ -96,6 +100,7 @@ def render_managed_draw_pipeline(
     show: bool,
     figsize: tuple[float, float] | None,
     page_slider: bool,
+    page_window: bool,
 ) -> tuple[Figure, Axes]:
     """Render a prepared pipeline on a managed figure."""
 
@@ -103,6 +108,7 @@ def render_managed_draw_pipeline(
         clear_topology_menu_state,
         create_managed_figure,
         set_page_slider,
+        set_page_window,
         set_viewport_width,
     )
 
@@ -232,6 +238,44 @@ def render_managed_draw_pipeline(
             slider_layout.viewport_width,
             slider_layout.viewport_height,
             len(scene_2d.pages),
+        )
+    elif page_window:
+        scene_2d = cast("LayoutScene", pipeline.paged_scene)
+        figure_width, figure_height = figsize or (
+            max(4.6, scene_2d.width * 0.95),
+            max(2.1, scene_2d.page_height * 0.72) + 1.0,
+        )
+        figure, axes = create_managed_figure(
+            scene_2d,
+            figure_width=figure_width,
+            figure_height=figure_height,
+            use_agg=use_agg_canvas,
+        )
+        initial_scene = scene_2d
+        effective_page_width = float(initial_scene.style.max_page_width)
+        frozen_style = _freeze_default_line_width_for_scene(
+            style=initial_scene.style,
+            scene=initial_scene,
+            axes=axes,
+        )
+        initial_scene.style = frozen_style
+        if output is not None:
+            pipeline.renderer.render(initial_scene, ax=axes, output=output)
+            axes.clear()
+        configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=pipeline.ir,
+            layout_engine=cast(LayoutEngineLike, pipeline.layout_engine),
+            renderer=cast("MatplotlibRenderer", pipeline.renderer),
+            scene=initial_scene,
+            effective_page_width=effective_page_width,
+            set_page_window=set_page_window,
+        )
+        logger.debug(
+            "Rendered managed figure with fixed page window effective_page_width=%.2f pages=%d",
+            effective_page_width,
+            len(initial_scene.pages),
         )
     else:
         scene_2d = cast("LayoutScene", pipeline.paged_scene)
@@ -540,6 +584,31 @@ def configure_page_slider(
         layout=cast("object", layout),
         quantum_wire_count=quantum_wire_count,
         allow_figure_resize=allow_figure_resize,
+    )
+
+
+def configure_page_window(
+    *,
+    figure: Figure,
+    axes: Axes,
+    circuit: CircuitIR,
+    layout_engine: LayoutEngineLike,
+    renderer: MatplotlibRenderer,
+    scene: LayoutScene,
+    effective_page_width: float,
+    set_page_window: Callable[[Figure, object], None],
+) -> object:
+    """Attach fixed page-window controls for one managed 2D figure."""
+
+    return _configure_page_window_impl(
+        figure=figure,
+        axes=axes,
+        circuit=circuit,
+        layout_engine=layout_engine,
+        renderer=renderer,
+        scene=scene,
+        effective_page_width=effective_page_width,
+        set_page_window=set_page_window,
     )
 
 

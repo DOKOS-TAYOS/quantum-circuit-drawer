@@ -161,3 +161,4 @@ class LayoutScene:
     pages: tuple[ScenePage, ...]
     hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
     wire_y_positions: dict[str, float] = field(default_factory=dict)
+    page_count_for_text_scale: int | None = None

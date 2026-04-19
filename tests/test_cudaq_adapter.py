@@ -9,7 +9,11 @@ import pytest
 from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import OperationKind
-from tests.support import assert_axes_contains_circuit_artists, assert_figure_has_visible_content
+from tests.support import (
+    assert_axes_contains_circuit_artists,
+    assert_figure_has_visible_content,
+    normalize_rendered_text,
+)
 
 pytestmark = pytest.mark.optional
 
@@ -392,7 +396,9 @@ def test_draw_quantum_circuit_accepts_cudaq_framework_override(
     kernel = FakePyKernel(mlir=build_supported_quake_mlir())
 
     figure, axes = draw_quantum_circuit(kernel, framework="cudaq")
+    texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}
 
     assert axes.figure is figure
-    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "RZ", "MZ", "q0", "q1", "q2"})
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "MZ", "q0", "q1", "q2"})
+    assert any(text.startswith("RZ\n") for text in texts)
     assert_figure_has_visible_content(figure)

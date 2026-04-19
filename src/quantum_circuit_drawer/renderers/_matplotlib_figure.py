@@ -33,6 +33,7 @@ _HOVER_STATE_ATTR = "_quantum_circuit_drawer_hover_state"
 class _ManagedFigureMetadata:
     viewport_width: float | None = None
     page_slider: object | None = None
+    page_window: object | None = None
     topology_menu_state: object | None = None
 
 
@@ -143,6 +144,18 @@ def get_page_slider(figure: Figure | SubFigure) -> object | None:
     """Return the stored page slider if one has been attached."""
 
     return _metadata_for(figure).page_slider
+
+
+def set_page_window(figure: Figure | SubFigure, page_window: object) -> None:
+    """Store the page-window state attached to a managed figure."""
+
+    _metadata_for(figure).page_window = page_window
+
+
+def get_page_window(figure: Figure | SubFigure) -> object | None:
+    """Return the stored page-window state if one has been attached."""
+
+    return _metadata_for(figure).page_window
 
 
 def set_topology_menu_state(figure: Figure | SubFigure, state: object) -> None:

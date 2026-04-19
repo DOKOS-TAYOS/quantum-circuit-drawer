@@ -27,6 +27,7 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_base_font_size,
     get_hover_state,
     get_page_slider,
+    get_page_window,
     get_text_scaling_state,
     get_topology_menu_state,
 )
@@ -507,6 +508,92 @@ def test_draw_quantum_circuit_rejects_page_slider_with_existing_axes() -> None:
     with pytest.raises(ValueError, match="page_slider"):
         draw_quantum_circuit(build_sample_ir(), ax=axes, page_slider=True)
 
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_rejects_page_window_with_existing_axes() -> None:
+    figure, axes = plt.subplots()
+
+    with pytest.raises(ValueError, match="page_window"):
+        draw_quantum_circuit(build_sample_ir(), ax=axes, page_window=True)
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+    assert page_window.visible_pages_box is not None
+    assert page_window.total_pages > 1
+    assert page_window.start_page == 0
+    assert page_window.visible_page_count == 1
+    assert len(page_window.page_cache) == 1
+    assert get_auto_paging_state(axes) is None
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_clamps_inputs_and_reuses_cached_pages() -> None:
+    figure, _ = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+    assert page_window.visible_pages_box is not None
+    assert len(page_window.page_cache) == 1
+
+    page_window.page_box.set_val(str(page_window.total_pages))
+
+    assert page_window.start_page == page_window.total_pages - 1
+    assert page_window.visible_page_count == 1
+    assert len(page_window.page_cache) == 2
+
+    page_window.visible_pages_box.set_val("999")
+
+    assert page_window.visible_page_count == 1
+    assert len(page_window.page_cache) == 2
+
+    page_window.page_box.set_val("1")
+
+    assert page_window.start_page == 0
+    assert len(page_window.page_cache) == 2
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_keeps_initial_page_width_after_resize() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    initial_page_width = page_window.effective_page_width
+    initial_total_pages = page_window.total_pages
+
+    figure.set_size_inches(12.0, 3.2, forward=True)
+    figure.canvas.draw()
+
+    assert page_window.effective_page_width == pytest.approx(initial_page_width)
+    assert page_window.total_pages == initial_total_pages
+    assert get_auto_paging_state(axes) is None
     plt.close(figure)
 
 

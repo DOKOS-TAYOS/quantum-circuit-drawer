@@ -27,21 +27,27 @@ def test_create_managed_figure_uses_agg_canvas_when_requested(
 def test_managed_figure_metadata_tracks_slider_and_viewport() -> None:
     from quantum_circuit_drawer.renderers._matplotlib_figure import (
         get_page_slider,
+        get_page_window,
         get_viewport_width,
         set_page_slider,
+        set_page_window,
         set_viewport_width,
     )
 
     figure, _ = plt.subplots()
     slider = cast("object", object())
+    page_window = cast("object", object())
 
     assert get_page_slider(figure) is None
+    assert get_page_window(figure) is None
     assert get_viewport_width(figure, default=7.5) == 7.5
 
     set_page_slider(figure, slider)
+    set_page_window(figure, page_window)
     set_viewport_width(figure, viewport_width=3.25)
 
     assert get_page_slider(figure) is slider
+    assert get_page_window(figure) is page_window
     assert get_viewport_width(figure, default=7.5) == 3.25
     plt.close(figure)
 

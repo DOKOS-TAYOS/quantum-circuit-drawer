@@ -87,6 +87,7 @@ class DrawRequest:
     show: bool
     figsize: tuple[float, float] | None
     page_slider: bool
+    page_window: bool
     pipeline_options: DrawPipelineOptions
 
 
@@ -102,6 +103,7 @@ def build_draw_request(
     show: bool = True,
     figsize: tuple[float, float] | None = None,
     page_slider: bool = False,
+    page_window: bool = False,
     composite_mode: str = "compact",
     view: ViewMode = "2d",
     topology: TopologyMode = "line",
@@ -124,6 +126,7 @@ def build_draw_request(
         direct=direct,
         show=show,
         page_slider=page_slider,
+        page_window=page_window,
         topology_menu=topology_menu,
         figsize=figsize,
     )
@@ -146,6 +149,7 @@ def build_draw_request(
         show=show,
         figsize=figsize,
         page_slider=page_slider,
+        page_window=page_window,
         pipeline_options=DrawPipelineOptions(
             composite_mode=composite_mode,
             view=view,
@@ -166,6 +170,7 @@ def validate_public_options(
     direct: object,
     show: object,
     page_slider: object,
+    page_window: object,
     topology_menu: object,
     figsize: object,
 ) -> None:
@@ -177,6 +182,7 @@ def validate_public_options(
     _validate_bool("direct", direct)
     _validate_bool("show", show)
     _validate_bool("page_slider", page_slider)
+    _validate_bool("page_window", page_window)
     _validate_bool("topology_menu", topology_menu)
     _validate_figsize(figsize)
 
@@ -215,10 +221,18 @@ def validate_draw_request(request: DrawRequest) -> None:
         raise ValueError(
             "page_slider=True requires a Matplotlib-managed figure and cannot be used with ax"
         )
+    if request.ax is not None and request.page_window:
+        raise ValueError(
+            "page_window=True requires a Matplotlib-managed figure and cannot be used with ax"
+        )
     if request.ax is not None and request.figsize is not None:
         raise ValueError(
             "figsize cannot be used with ax because the caller already owns the figure"
         )
+    if request.page_slider and request.page_window:
+        raise ValueError("page_slider=True cannot be combined with page_window=True")
+    if request.page_window and request.pipeline_options.view != "2d":
+        raise ValueError("page_window=True is only supported for view='2d'")
     if request.pipeline_options.view != "3d" and request.pipeline_options.topology_menu:
         raise ValueError("topology_menu=True is only supported for view='3d'")
 

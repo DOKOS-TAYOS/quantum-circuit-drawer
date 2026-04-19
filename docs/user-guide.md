@@ -38,6 +38,7 @@ Most users only need these options regularly:
 - `output="path.png"` to save a file
 - `ax=axes` to draw inside an existing Matplotlib figure
 - `style={...}` to change theme, spacing, labels, or pagination
+- `page_window=True` for managed 2D page-by-page navigation with fixed paging
 - `page_slider=True` for managed interactive navigation in 2D or 3D
 - `view="3d"` for topology-aware 3D views
 - `composite_mode="expand"` when you want to inspect supported decompositions
@@ -52,7 +53,7 @@ Managed rendering:
 figure, axes = draw_quantum_circuit(circuit, show=False)
 ```
 
-The library creates the Matplotlib figure and axes. Use this when you want the simplest path, or when you need features that require a managed figure such as `page_slider=True`.
+The library creates the Matplotlib figure and axes. Use this when you want the simplest path, or when you need features that require a managed figure such as `page_slider=True` or `page_window=True`.
 
 Caller-managed rendering:
 
@@ -141,7 +142,7 @@ For all accepted style fields, see [API reference](api.md#style-fields).
 
 ## Wide circuits
 
-Wide circuits can either wrap across pages or use managed sliders.
+Wide circuits can either wrap across pages, use a fixed page window, or use managed sliders.
 
 Wrapped rendering is controlled mainly by `max_page_width`:
 
@@ -163,12 +164,25 @@ figure, axes = draw_quantum_circuit(
 )
 ```
 
+If you want to keep only a few wrapped pages visible at a time, use `page_window=True`:
+
+```python
+figure, axes = draw_quantum_circuit(
+    circuit,
+    style={"max_page_width": 4.0},
+    page_window=True,
+)
+```
+
 Important rules:
 
+- `page_window=True` requires a managed 2D figure, so do not combine it with `ax=...`.
+- `page_window=True` freezes the wrapped page width chosen at creation time; resizing the window does not repaginate the circuit.
+- In `page_window=True`, the `Page` and `Visible` boxes clamp values into the valid range and reuse already loaded pages from an in-memory cache.
 - `page_slider=True` requires a managed figure, so do not combine it with `ax=...`.
 - In 2D, the library shows a bottom slider, a left slider, or both, depending on which axis overflows.
 - In 3D, `page_slider=True` moves through circuit columns with a horizontal slider.
-- If you also pass `output=...`, the saved file uses the clean paged layout without the slider UI.
+- If you also pass `output=...`, the saved file uses the clean paged layout without the `page_window` or `page_slider` UI.
 
 Gate labels and subtitles in 2D also adapt to zoom. When you zoom into dense pages, gate text grows only as far as the visible gate body allows, so labels stay inside the box instead of becoming oversized.
 

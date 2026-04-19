@@ -30,6 +30,7 @@ draw_quantum_circuit(
     output=None,
     show=True,
     page_slider=False,
+    page_window=False,
     composite_mode="compact",
     view="2d",
     topology="line",
@@ -59,6 +60,7 @@ from quantum_circuit_drawer import HoverOptions, draw_quantum_circuit
 | `output` | `None` | File path where the rendered figure should be saved |
 | `show` | `True` | Whether to show a managed Matplotlib figure when the backend is interactive |
 | `page_slider` | `False` | Enable managed interactive navigation: horizontal and/or vertical sliders in 2D, or a horizontal column slider in 3D |
+| `page_window` | `False` | Enable a managed 2D fixed page window with `Page` and `Visible` input boxes; the paging is frozen when the figure is created and navigation reuses cached pages |
 | `composite_mode` | `"compact"` | Use `"compact"` for one box, or `"expand"` for supported decompositions |
 | `view` | `"2d"` | Use `"2d"` or `"3d"` |
 | `topology` | `"line"` | 3D topology: `"line"`, `"grid"`, `"star"`, `"star_tree"`, or `"honeycomb"` |
@@ -175,6 +177,18 @@ draw_quantum_circuit(
 )
 ```
 
+Use a fixed page window for a wrapped 2D circuit:
+
+```python
+draw_quantum_circuit(
+    circuit,
+    style={"max_page_width": 4.0},
+    page_window=True,
+)
+```
+
+In this mode the library keeps the wrapped page width fixed after the initial render. The controls let you choose the first visible page and how many consecutive pages to show at once.
+
 In 2D, the library shows only the sliders it needs for the current managed viewport:
 
 - bottom horizontal slider when the circuit is wider than the viewport
@@ -289,7 +303,7 @@ Unknown style keys and invalid values raise `StyleValidationError`.
 | `StyleValidationError` | The style mapping contains an unknown key or invalid value |
 | `RenderingError` | Saving the figure to `output` failed |
 | `LayoutError` | Layout computation failed |
-| `ValueError` | Runtime options are incompatible, such as `page_slider=True` with `ax=...` |
+| `ValueError` | Runtime options are incompatible, such as `page_slider=True` or `page_window=True` with `ax=...` |
 
 See [Troubleshooting](troubleshooting.md) for fixes for the most common cases.
 

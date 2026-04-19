@@ -57,6 +57,7 @@ class LayoutEngine:
             texts=scene_collections.texts,
             pages=scaffold.pages,
             wire_y_positions=scaffold.wire_positions,
+            page_count_for_text_scale=len(scaffold.pages),
         )
         logger.debug(
             "Computed layout scene for circuit=%r wires=%d layers=%d pages=%d width=%.2f height=%.2f",

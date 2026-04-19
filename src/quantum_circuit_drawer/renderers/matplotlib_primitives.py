@@ -1181,7 +1181,11 @@ def _fit_gate_text_font_size_with_context(
 
 
 def _page_wrapped_font_scale(scene: LayoutScene) -> float:
-    page_count = len(scene.pages)
+    page_count = (
+        scene.page_count_for_text_scale
+        if scene.page_count_for_text_scale is not None
+        else len(scene.pages)
+    )
     if page_count <= 1:
         return 1.0
     return 0.9 * max(0.4, 1.0 - ((page_count - 2) * 0.035))

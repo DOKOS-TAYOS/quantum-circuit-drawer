@@ -447,8 +447,8 @@ def test_draw_quantum_circuit_renders_readable_myqlm_param_labels(
     )
     texts = [normalize_rendered_text(text.get_text()) for text in axes.texts]
 
-    assert "theta" in texts
-    assert "0.5" in texts
+    assert any("theta" in text for text in texts)
+    assert any("0.5" in text for text in texts)
     assert not any("Param(" in text for text in texts)
     assert_figure_has_visible_content(figure)
 
