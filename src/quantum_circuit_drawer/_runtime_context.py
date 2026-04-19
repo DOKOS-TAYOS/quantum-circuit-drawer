@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -81,10 +82,13 @@ def _resolve_draw_mode(
 
 def _running_inside_notebook() -> bool:
     try:
-        from IPython import get_ipython
+        ipython_module = importlib.import_module("IPython")
     except ImportError:
         return False
 
+    get_ipython = getattr(ipython_module, "get_ipython", None)
+    if not callable(get_ipython):
+        return False
     shell = get_ipython()
     if shell is None:
         return False
