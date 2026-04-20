@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -11,6 +12,61 @@ from quantum_circuit_drawer.exceptions import RenderingError
 from quantum_circuit_drawer.export import save_matplotlib_figure
 from quantum_circuit_drawer.histogram import plot_histogram
 
+_ROOT_COMPATIBILITY_FACADE_TARGETS: tuple[tuple[str, str], ...] = (
+    (
+        "quantum_circuit_drawer._draw_managed",
+        "quantum_circuit_drawer.managed.drawing",
+    ),
+    (
+        "quantum_circuit_drawer._draw_managed_page_window",
+        "quantum_circuit_drawer.managed.page_window",
+    ),
+    (
+        "quantum_circuit_drawer._draw_managed_page_window_3d",
+        "quantum_circuit_drawer.managed.page_window_3d",
+    ),
+    (
+        "quantum_circuit_drawer._draw_managed_slider",
+        "quantum_circuit_drawer.managed.slider",
+    ),
+    (
+        "quantum_circuit_drawer._draw_managed_topology_menu",
+        "quantum_circuit_drawer.managed.topology_menu",
+    ),
+    (
+        "quantum_circuit_drawer._draw_managed_viewport",
+        "quantum_circuit_drawer.managed.viewport",
+    ),
+    (
+        "quantum_circuit_drawer._draw_managed_zoom",
+        "quantum_circuit_drawer.managed.zoom",
+    ),
+    (
+        "quantum_circuit_drawer._draw_request",
+        "quantum_circuit_drawer.drawing.request",
+    ),
+    (
+        "quantum_circuit_drawer._managed_3d_view_state",
+        "quantum_circuit_drawer.managed.view_state_3d",
+    ),
+    (
+        "quantum_circuit_drawer._managed_ui_palette",
+        "quantum_circuit_drawer.managed.ui_palette",
+    ),
+    (
+        "quantum_circuit_drawer._matrix_support",
+        "quantum_circuit_drawer.utils.matrix_support",
+    ),
+    (
+        "quantum_circuit_drawer._runtime_context",
+        "quantum_circuit_drawer.drawing.runtime",
+    ),
+    (
+        "quantum_circuit_drawer._scene_pages",
+        "quantum_circuit_drawer.drawing.pages",
+    ),
+)
+
 
 def test_domain_packages_expose_draw_and_histogram_entrypoints() -> None:
     from quantum_circuit_drawer.drawing.api import (
@@ -20,6 +76,54 @@ def test_domain_packages_expose_draw_and_histogram_entrypoints() -> None:
 
     assert drawing_draw_quantum_circuit is draw_quantum_circuit
     assert plots_plot_histogram is plot_histogram
+
+
+@pytest.mark.parametrize(
+    ("facade_module_name", "target_module_name"),
+    _ROOT_COMPATIBILITY_FACADE_TARGETS,
+)
+def test_root_compatibility_facades_reexport_split_modules(
+    facade_module_name: str,
+    target_module_name: str,
+) -> None:
+    facade_module = import_module(facade_module_name)
+    target_module = import_module(target_module_name)
+
+    expected_public_names = tuple(name for name in dir(target_module) if not name.startswith("__"))
+
+    assert tuple(facade_module.__all__) == expected_public_names
+    assert expected_public_names
+    assert getattr(facade_module, expected_public_names[0]) == getattr(
+        target_module,
+        expected_public_names[0],
+    )
+    assert getattr(facade_module, expected_public_names[-1]) == getattr(
+        target_module,
+        expected_public_names[-1],
+    )
+
+
+def test_lazy_managed_and_renderer_packages_reexport_split_modules() -> None:
+    import quantum_circuit_drawer.managed as managed_facade
+    import quantum_circuit_drawer.renderers as renderer_facade
+    from quantum_circuit_drawer.managed.drawing import (
+        render_draw_pipeline_on_axes,
+        render_managed_draw_pipeline,
+    )
+    from quantum_circuit_drawer.renderers.base import BaseRenderer
+    from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
+    from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import MatplotlibRenderer3D
+
+    assert managed_facade.render_draw_pipeline_on_axes is render_draw_pipeline_on_axes
+    assert managed_facade.render_managed_draw_pipeline is render_managed_draw_pipeline
+    assert renderer_facade.BaseRenderer is BaseRenderer
+    assert renderer_facade.MatplotlibRenderer is MatplotlibRenderer
+    assert renderer_facade.MatplotlibRenderer3D is MatplotlibRenderer3D
+
+    with pytest.raises(AttributeError):
+        getattr(managed_facade, "missing_managed_export")
+    with pytest.raises(AttributeError):
+        getattr(renderer_facade, "missing_renderer_export")
 
 
 def test_second_pass_managed_facades_reexport_split_helpers() -> None:
@@ -69,8 +173,6 @@ def test_third_pass_2d_managed_facades_reexport_split_helpers() -> None:
 
 
 def test_third_pass_2d_private_helper_modules_are_importable() -> None:
-    from importlib import import_module
-
     page_window_controls = import_module("quantum_circuit_drawer.managed.page_window_controls")
     page_window_windowing = import_module("quantum_circuit_drawer.managed.page_window_windowing")
     page_window_render = import_module("quantum_circuit_drawer.managed.page_window_render")
@@ -208,8 +310,6 @@ def test_third_pass_matplotlib_primitives_facade_reexports_split_helpers() -> No
 
 
 def test_second_pass_3d_renderer_and_layout_helpers_are_importable() -> None:
-    from importlib import import_module
-
     import quantum_circuit_drawer.layout._engine_3d_classical as engine_3d_classical
     import quantum_circuit_drawer.layout._engine_3d_metrics as engine_3d_metrics
     import quantum_circuit_drawer.layout._engine_3d_operations as engine_3d_operations

@@ -27,6 +27,7 @@
 - Narrowed 2D hover hit areas for connected multi-artist gates such as `CNOT`, `CZ`, and `SWAP`, including connection-line hitboxes, so hovering no longer claims the full rectangle between separated markers or nearby empty columns
 - Rebalanced managed 3D page-window ranges for visually dense circuits so example demos like `qiskit-random` stop packing so many routed columns into one page
 - Example scripts now close rendered Matplotlib figures and trigger prompt cleanup after the window closes, which reduces the lingering shutdown lag seen most often with Cirq and PennyLane demos
+- Restored core coverage after the internal package split by exercising the root compatibility facades and lazy package exports in the modularization test suite
 
 ## [0.3.0] - 2026-04-20
 
