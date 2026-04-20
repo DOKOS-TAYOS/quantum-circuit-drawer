@@ -1028,7 +1028,7 @@ def test_gate_text_fitting_context_matches_existing_font_fit_for_wrapped_gate_te
 
     matplotlib_primitives.prepare_axes(axes, scene)
     context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
-    cache: dict[tuple[str, float, float], float] = {}
+    cache: dict[tuple[object, ...], float] = {}
 
     multiline_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
         context=context,
@@ -1074,7 +1074,7 @@ def test_gate_text_fitting_context_caches_repeated_inputs(monkeypatch) -> None:
 
     monkeypatch.setattr(matplotlib_primitives, "_text_width_in_points", count_text_width)
 
-    cache: dict[tuple[str, float, float], float] = {}
+    cache: dict[tuple[object, ...], float] = {}
     first_size = matplotlib_primitives._fit_gate_text_font_size_with_context(
         context=context,
         width=gate.width,
@@ -1092,7 +1092,8 @@ def test_gate_text_fitting_context_caches_repeated_inputs(monkeypatch) -> None:
 
     assert first_size == approx(second_size)
     assert text_width_calls == 1
-    assert cache == {(gate.label, gate.width, scene.style.font_size): first_size}
+    assert len(cache) == 1
+    assert next(iter(cache.values())) == approx(first_size)
 
 
 def test_gate_text_fitting_fast_path_reuses_numeric_shape_measurements(
@@ -1145,7 +1146,7 @@ def test_gate_text_fitting_context_reuses_numeric_shape_cache_entries() -> None:
 
     matplotlib_primitives.prepare_axes(axes, scene)
     context = matplotlib_primitives._build_gate_text_fitting_context(axes, scene)
-    cache: dict[tuple[str, float, float], float] = {}
+    cache: dict[tuple[object, ...], float] = {}
     numeric_subtitles = ("0.11", "1.22", "2.33", "3.44", "4.55", "5.66")
 
     for subtitle in numeric_subtitles:
@@ -1183,6 +1184,63 @@ def test_matplotlib_renderer_reuses_gate_text_context_per_wrapped_page(monkeypat
 
     assert len(scene.pages) > 1
     assert 0 < viewport_calls <= len(scene.pages)
+
+
+def test_matplotlib_renderer_reuses_projected_pages_across_repeated_renders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=24),
+        DrawStyle(max_page_width=4.0, show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(2.1, 18.0))
+    renderer = MatplotlibRenderer()
+    project_calls = 0
+    original_project_pages = matplotlib_renderer_module.project_pages
+
+    def count_project_pages(scene_to_project: LayoutScene) -> object:
+        nonlocal project_calls
+        project_calls += 1
+        return original_project_pages(scene_to_project)
+
+    monkeypatch.setattr(matplotlib_renderer_module, "project_pages", count_project_pages)
+
+    renderer.render(scene, ax=axes)
+    axes.clear()
+    renderer.render(scene, ax=axes)
+
+    assert project_calls == 1
+    plt.close(figure)
+
+
+def test_matplotlib_renderer_reuses_text_fit_cache_across_repeated_renders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=24),
+        DrawStyle(max_page_width=4.0, show_params=True),
+    )
+    figure, axes = plt.subplots(figsize=(2.1, 18.0))
+    renderer = MatplotlibRenderer()
+    cache_ids: set[int] = set()
+    original_fit = matplotlib_primitives._fit_gate_text_font_size_with_context
+
+    def track_cache_ids(**kwargs: object) -> float:
+        cache_ids.add(id(kwargs["cache"]))
+        return original_fit(**kwargs)
+
+    monkeypatch.setattr(
+        matplotlib_primitives,
+        "_fit_gate_text_font_size_with_context",
+        track_cache_ids,
+    )
+
+    renderer.render(scene, ax=axes)
+    axes.clear()
+    renderer.render(scene, ax=axes)
+
+    assert len(cache_ids) == 1
+    plt.close(figure)
 
 
 def test_draw_gate_label_centers_label_and_subtitle_block() -> None:

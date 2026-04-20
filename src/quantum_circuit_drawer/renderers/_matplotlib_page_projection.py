@@ -41,6 +41,24 @@ _SceneColumnItem = TypeVar(
 )
 
 
+def projection_cache_key(scene: LayoutScene) -> tuple[object, ...]:
+    """Return a stable cache key for one scene's projected-page structure."""
+
+    return (
+        id(scene),
+        tuple(
+            (
+                page.index,
+                page.start_column,
+                page.end_column,
+                round(page.content_width, 9),
+                round(page.y_offset, 9),
+            )
+            for page in scene.pages
+        ),
+    )
+
+
 def project_pages(scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
     """Bucket each scene primitive into its rendered page."""
 

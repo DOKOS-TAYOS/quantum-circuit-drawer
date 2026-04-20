@@ -47,8 +47,9 @@ OCCLUSION_LAYER_ZORDER = 4
 SYMBOL_LAYER_ZORDER = 5
 TEXT_LAYER_ZORDER = 6
 LineSegment = tuple[tuple[float, float], tuple[float, float]]
-_GateTextCacheKey = tuple[object, float, float]
+_GateTextCacheKey = tuple[object, ...]
 _GateTextCache = dict[_GateTextCacheKey, float]
+_GATE_TEXT_CACHE_MAX_ENTRIES = 4096
 _SINGLE_LINE_HEIGHT_FRACTION = 0.62
 _STACKED_TEXT_USABLE_HEIGHT_FRACTION = 0.72
 _MULTILINE_TEXT_LINE_SPACING = 1.2
@@ -77,6 +78,15 @@ class _ConnectionLabelStyle:
     text: str
     font_size: float
     bbox: Mapping[str, object]
+
+
+def trim_gate_text_fit_cache(
+    cache: _GateTextCache, *, max_entries: int = _GATE_TEXT_CACHE_MAX_ENTRIES
+) -> None:
+    """Keep one shared text-fit cache bounded without dropping recent inserts immediately."""
+
+    while len(cache) > max_entries:
+        cache.pop(next(iter(cache)))
 
 
 def _measurement_half_gate_box(scene: LayoutScene) -> tuple[float, float]:
@@ -1156,19 +1166,15 @@ def _fit_gate_text_font_size_with_context(
     if context.points_per_layout_unit <= 0.0:
         return effective_default_font_size
 
-    cache_text: object = _gate_text_fit_cache_token(text)
-    if (
-        height is not None
-        or max_font_size is not None
-        or abs(height_fraction - _SINGLE_LINE_HEIGHT_FRACTION) > 1e-9
-    ):
-        cache_text = (
-            _gate_text_fit_cache_token(text),
-            height,
-            height_fraction,
-            max_font_size,
-        )
-    cache_key = (cache_text, width, default_font_size)
+    cache_key = _gate_text_fit_cache_key(
+        context=context,
+        width=width,
+        height=height,
+        text=text,
+        default_font_size=default_font_size,
+        height_fraction=height_fraction,
+        max_font_size=max_font_size,
+    )
     cached_font_size = cache.get(cache_key)
     if cached_font_size is not None:
         return cached_font_size
@@ -1210,6 +1216,28 @@ def _fit_gate_text_font_size_with_context(
     resolved_font_size = max(_MIN_GATE_TEXT_FONT_SIZE, resolved_font_size)
     cache[cache_key] = resolved_font_size
     return resolved_font_size
+
+
+def _gate_text_fit_cache_key(
+    *,
+    context: _GateTextFittingContext,
+    width: float,
+    height: float | None,
+    text: str,
+    default_font_size: float,
+    height_fraction: float,
+    max_font_size: float | None,
+) -> _GateTextCacheKey:
+    return (
+        round(context.default_scale, 9),
+        round(context.points_per_layout_unit, 9),
+        _gate_text_fit_cache_token(text),
+        round(width, 9),
+        None if height is None else round(height, 9),
+        round(default_font_size, 9),
+        round(height_fraction, 9),
+        None if max_font_size is None else round(max_font_size, 9),
+    )
 
 
 def _page_wrapped_font_scale(scene: LayoutScene) -> float:

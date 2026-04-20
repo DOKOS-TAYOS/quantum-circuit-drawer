@@ -22,8 +22,10 @@ from .renderers._matplotlib_hover import _HoverTarget2D, attach_hover
 from .renderers._matplotlib_page_projection import _ProjectedPage
 from .renderers.matplotlib_primitives import (
     _build_gate_text_fitting_context,
+    _GateTextCache,
     finalize_axes,
     prepare_axes,
+    trim_gate_text_fit_cache,
 )
 from .renderers.matplotlib_renderer import MatplotlibRenderer
 from .typing import LayoutEngineLike
@@ -67,6 +69,7 @@ class Managed2DPageWindowState:
     start_page: int
     visible_page_count: int
     page_cache: dict[int, _PageWindowCacheEntry] = field(default_factory=dict)
+    text_fit_cache: _GateTextCache = field(default_factory=dict)
     page_box: TextBox | None = None
     visible_pages_box: TextBox | None = None
     visible_pages_decrement_button: Button | None = None
@@ -436,7 +439,6 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
     state.figure.patch.set_facecolor(window_scene.style.theme.figure_facecolor)
     prepare_axes(state.axes, window_scene)
     gate_text_context = _build_gate_text_fitting_context(state.axes, window_scene)
-    gate_text_cache: dict[tuple[object, float, float], float] = {}
     hover_targets: list[_HoverTarget2D] = []
 
     for window_index, page_index in enumerate(_visible_page_indexes(state)):
@@ -448,7 +450,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
             window_page,
             cache_entry.projected_page,
             gate_text_context=gate_text_context,
-            gate_text_cache=gate_text_cache,
+            gate_text_cache=state.text_fit_cache,
             hover_targets=hover_targets,
         )
 
@@ -465,6 +467,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
 
     configure_zoom_text_scaling(state.axes, scene=window_scene)
     set_viewport_width(state.figure, viewport_width=window_scene.width)
+    trim_gate_text_fit_cache(state.text_fit_cache)
     canvas = getattr(state.figure, "canvas", None)
     if canvas is not None:
         canvas.draw_idle()

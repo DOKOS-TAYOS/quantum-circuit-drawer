@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import importlib
+import builtins
+import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from .config import DrawConfig, DrawMode, ResolvedDrawConfig
@@ -80,16 +82,9 @@ def _resolve_draw_mode(
     return DrawMode.PAGES_CONTROLS
 
 
+@lru_cache(maxsize=1)
 def _running_inside_notebook() -> bool:
-    try:
-        ipython_module = importlib.import_module("IPython")
-    except ImportError:
-        return False
-
-    get_ipython = getattr(ipython_module, "get_ipython", None)
-    if not callable(get_ipython):
-        return False
-    shell = get_ipython()
+    shell = _resolve_ipython_shell()
     if shell is None:
         return False
     shell_name = type(shell).__name__
@@ -97,3 +92,17 @@ def _running_inside_notebook() -> bool:
         return True
     config = getattr(shell, "config", None)
     return bool(config is not None and "IPKernelApp" in config)
+
+
+def _resolve_ipython_shell() -> object | None:
+    get_ipython = getattr(builtins, "get_ipython", None)
+    if callable(get_ipython):
+        return get_ipython()
+
+    ipython_module = sys.modules.get("IPython")
+    if ipython_module is None:
+        return None
+    get_ipython = getattr(ipython_module, "get_ipython", None)
+    if not callable(get_ipython):
+        return None
+    return get_ipython()
