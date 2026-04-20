@@ -143,7 +143,9 @@ def plot_histogram(
 
     _save_histogram_if_requested(figure, output_path=resolved_config.output_path)
     if resolved_config.show:
-        figure.show()
+        from .renderers._render_support import show_figure_if_supported
+
+        show_figure_if_supported(figure, show=True)
 
     return HistogramResult(
         figure=figure,

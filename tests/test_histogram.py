@@ -3,6 +3,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 
 import quantum_circuit_drawer
@@ -187,4 +188,29 @@ def test_plot_histogram_saves_non_empty_output(sandbox_tmp_path) -> None:
     )
 
     assert_saved_image_has_visible_content(output)
+    plt.close(result.figure)
+
+
+def test_plot_histogram_uses_pyplot_show_for_managed_figures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    show_calls: list[bool] = []
+
+    def fake_show(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        show_calls.append(True)
+
+    def fail_figure_show(self: Figure, *args: object, **kwargs: object) -> None:
+        del self, args, kwargs
+        raise AssertionError("plot_histogram should not call Figure.show directly")
+
+    monkeypatch.setattr(plt, "show", fake_show)
+    monkeypatch.setattr(Figure, "show", fail_figure_show)
+
+    result = plot_histogram(
+        {"00": 5, "11": 3},
+        config=HistogramConfig(show=True),
+    )
+
+    assert show_calls == [True]
     plt.close(result.figure)
