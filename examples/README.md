@@ -1,8 +1,8 @@
 # Examples
 
-The example scripts now follow the public `DrawConfig` / `DrawMode` API.
+The example scripts now cover both circuit rendering and histogram rendering.
 
-## Catalog
+## Circuit demo catalog
 
 | Demo id              | Description                                    | Framework  |
 | -------------------- | ---------------------------------------------- | ---------- |
@@ -14,6 +14,14 @@ The example scripts now follow the public `DrawConfig` / `DrawMode` API.
 | `pennylane-qaoa`     | Configurable QAOA / MaxCut tape in PennyLane   | pennylane  |
 | `myqlm-random`       | Configurable random myQLM circuit              | myqlm      |
 | `cudaq-random`       | Configurable random CUDA-Q kernel              | cudaq      |
+
+## Histogram demo catalog
+
+| Demo id                      | Description                                       | Dependency |
+| ---------------------------- | ------------------------------------------------- | ---------- |
+| `histogram-counts`           | Counts histogram from a plain mapping             | none       |
+| `histogram-quasi`            | Quasi-probability histogram with negative bars    | none       |
+| `histogram-qiskit-marginal`  | Qiskit result histogram reduced to a joint marginal | qiskit   |
 
 ## Main axes
 
@@ -27,12 +35,32 @@ Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe examples/run_demo.py --list
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --list
 ```
 
 Linux or WSL:
 
 ```bash
 .venv/bin/python examples/run_demo.py --list
+.venv/bin/python examples/run_histogram_demo.py --list
+```
+
+## Histogram demo commands
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-counts
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-quasi
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-qiskit-marginal
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-counts
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-quasi
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-qiskit-marginal
 ```
 
 ## All commands, copy-paste ready
