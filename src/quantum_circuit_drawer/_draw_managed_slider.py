@@ -534,9 +534,7 @@ def _attach_2d_controls(
             },
         )
         _style_slider(horizontal_slider, palette=palette)
-        horizontal_slider.on_changed(
-            lambda value: state.show_start_column(round(float(value)))
-        )
+        horizontal_slider.on_changed(lambda value: state.show_start_column(round(float(value))))
         state.horizontal_slider = horizontal_slider
         state.horizontal_axes = horizontal_axes
 

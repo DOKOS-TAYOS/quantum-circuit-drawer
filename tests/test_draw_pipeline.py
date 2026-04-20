@@ -223,6 +223,11 @@ def test_build_draw_request_keeps_figsize_out_of_pipeline_adapter_options() -> N
     assert "figsize" not in request.pipeline_options.adapter_options()
 
 
+def test_build_draw_request_rejects_boolean_figsize_entries() -> None:
+    with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
+        build_draw_request(circuit=build_sample_ir(), figsize=(True, 3.0))
+
+
 def test_build_draw_request_normalizes_hover_mapping_for_2d_view() -> None:
     request = build_draw_request(
         circuit=build_sample_ir(),

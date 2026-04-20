@@ -156,6 +156,11 @@ def test_draw_config_validates_public_choices() -> None:
         DrawConfig(view="invalid")  # type: ignore[arg-type]
 
 
+def test_draw_config_rejects_boolean_figsize_entries() -> None:
+    with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
+        DrawConfig(figsize=(True, 2.0))
+
+
 def test_draw_quantum_circuit_rejects_explicit_interactive_mode_with_existing_axes() -> None:
     figure, axes = plt.subplots()
 

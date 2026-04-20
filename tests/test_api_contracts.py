@@ -118,6 +118,22 @@ def test_draw_quantum_circuit_validates_hover_options_mapping() -> None:
         draw_quantum_circuit(build_sample_ir(), hover={"show_matrix": "sometimes"})
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"enabled": 1}, "hover.enabled must be a boolean"),
+        ({"show_matrix": "sometimes"}, "hover.show_matrix must be one of: always, auto, never"),
+        ({"matrix_max_qubits": True}, "hover.matrix_max_qubits must be a positive integer"),
+    ],
+)
+def test_hover_options_reject_invalid_direct_values(
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        HoverOptions(**kwargs)
+
+
 def test_draw_quantum_circuit_rejects_invalid_figsize() -> None:
     with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
         draw_quantum_circuit(build_sample_ir(), figsize=(8.0, 0.0))

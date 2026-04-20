@@ -218,6 +218,23 @@ def test_plot_histogram_rejects_non_positive_top_k() -> None:
         HistogramConfig(top_k=0)
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"top_k": True}, "top_k must be a positive integer"),
+        ({"result_index": True}, "result_index must be a non-negative integer"),
+        ({"qubits": (True,)}, "qubits must be a tuple of non-negative integers"),
+        ({"figsize": (True, 4.0)}, "figsize must be a 2-item tuple of positive numbers"),
+    ],
+)
+def test_histogram_config_rejects_boolean_numeric_values(
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        HistogramConfig(**kwargs)
+
+
 def test_plot_histogram_draws_uniform_reference_for_counts_using_full_state_space() -> None:
     result = plot_histogram(
         {"00": 5, "01": 3, "10": 1, "11": 7},

@@ -38,6 +38,22 @@ class HoverOptions:
     show_matrix: HoverMatrixMode = "auto"
     matrix_max_qubits: int = 2
 
+    def __post_init__(self) -> None:
+        for field_name in _BOOLEAN_HOVER_FIELDS:
+            value = getattr(self, field_name)
+            if not isinstance(value, bool):
+                raise ValueError(f"hover.{field_name} must be a boolean")
+
+        if (
+            not isinstance(self.show_matrix, str)
+            or self.show_matrix not in _VALID_SHOW_MATRIX_VALUES
+        ):
+            choices = ", ".join(sorted(_VALID_SHOW_MATRIX_VALUES))
+            raise ValueError(f"hover.show_matrix must be one of: {choices}")
+
+        if not _is_positive_integer(self.matrix_max_qubits):
+            raise ValueError("hover.matrix_max_qubits must be a positive integer")
+
     def to_mapping(self) -> dict[str, object]:
         """Return the options as a plain mapping."""
 
@@ -94,9 +110,9 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
 
     if "matrix_max_qubits" in hover:
         value = hover["matrix_max_qubits"]
-        if not isinstance(value, int) or value <= 0:
+        if not _is_positive_integer(value):
             raise ValueError("hover.matrix_max_qubits must be a positive integer")
-        resolved = replace(resolved, matrix_max_qubits=value)
+        resolved = replace(resolved, matrix_max_qubits=cast("int", value))
 
     return resolved
 
@@ -107,3 +123,7 @@ def disable_hover(hover: HoverOptions) -> HoverOptions:
     if not hover.enabled:
         return hover
     return replace(hover, enabled=False)
+
+
+def _is_positive_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0

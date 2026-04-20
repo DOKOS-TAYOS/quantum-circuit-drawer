@@ -13,6 +13,11 @@
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, and joint marginals
 - Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, top-k filtering, draw styles, and uniform-reference guides
 
+### Fixed
+
+- Tightened public config validation so boolean values are no longer accepted where positive numeric `figsize`, `top_k`, `result_index`, qubit-index, or hover matrix limits are required
+- `HoverOptions` now validates direct construction the same way as mapping-based hover input, preventing invalid booleans and unsupported `show_matrix` values from slipping through
+
 ## [0.3.0] - 2026-04-20
 
 ### Changed

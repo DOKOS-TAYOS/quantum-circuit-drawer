@@ -114,7 +114,7 @@ class HistogramConfig:
             return
         if not isinstance(qubits, tuple):
             raise ValueError("qubits must be a tuple of non-negative integers")
-        if any(not isinstance(qubit, int) or qubit < 0 for qubit in qubits):
+        if any(not _is_non_negative_integer(qubit) for qubit in qubits):
             raise ValueError("qubits must be a tuple of non-negative integers")
         if len(set(qubits)) != len(qubits):
             raise ValueError("qubits must not contain duplicates")
@@ -123,13 +123,13 @@ class HistogramConfig:
     def _validate_top_k(value: int | None) -> None:
         if value is None:
             return
-        if isinstance(value, int) and value > 0:
+        if _is_positive_integer(value):
             return
         raise ValueError("top_k must be a positive integer")
 
     @staticmethod
     def _validate_result_index(value: int) -> None:
-        if isinstance(value, int) and value >= 0:
+        if _is_non_negative_integer(value):
             return
         raise ValueError("result_index must be a non-negative integer")
 
@@ -152,9 +152,7 @@ class HistogramConfig:
         if not isinstance(value, tuple | list) or len(value) != 2:
             raise ValueError("figsize must be a 2-item tuple of positive numbers")
         width, height = value
-        if not isinstance(width, int | float) or not isinstance(height, int | float):
-            raise ValueError("figsize must be a 2-item tuple of positive numbers")
-        if float(width) <= 0.0 or float(height) <= 0.0:
+        if not _is_positive_dimension(width) or not _is_positive_dimension(height):
             raise ValueError("figsize must be a 2-item tuple of positive numbers")
 
 
@@ -175,6 +173,18 @@ class _NormalizedHistogramData:
     values_by_state: dict[str, float]
     bit_width: int
     kind: HistogramKind
+
+
+def _is_positive_dimension(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
+
+
+def _is_non_negative_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_positive_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 def plot_histogram(

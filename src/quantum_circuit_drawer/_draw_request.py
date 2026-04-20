@@ -206,10 +206,12 @@ def _validate_figsize(value: object) -> None:
     if not isinstance(value, tuple | list) or len(value) != 2:
         raise ValueError("figsize must be a 2-item tuple of positive numbers")
     width, height = value
-    if not isinstance(width, int | float) or not isinstance(height, int | float):
+    if not _is_positive_dimension(width) or not _is_positive_dimension(height):
         raise ValueError("figsize must be a 2-item tuple of positive numbers")
-    if float(width) <= 0.0 or float(height) <= 0.0:
-        raise ValueError("figsize must be a 2-item tuple of positive numbers")
+
+
+def _is_positive_dimension(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
 
 
 def validate_draw_request(request: DrawRequest) -> None:
