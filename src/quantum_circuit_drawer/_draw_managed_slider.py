@@ -1199,9 +1199,17 @@ def configure_3d_page_slider(
 ) -> Managed3DPageSliderState | None:
     """Attach and wire a managed 3D slider that moves through circuit columns."""
 
+    from ._draw_managed_page_window_3d import windowed_3d_page_ranges
+
     normalized_pipeline = replace(pipeline, ir=normalized_draw_circuit(pipeline.ir))
     total_columns = len(normalized_pipeline.ir.layers)
-    window_size = page_slider_window_size(normalized_pipeline.ir, pipeline.normalized_style)
+    page_ranges = windowed_3d_page_ranges(
+        pipeline,
+        figure_size=_figure_size_inches(figure),
+        axes_bounds=managed_3d_axes_bounds(has_page_slider=True),
+    )
+    first_page_start, first_page_end = page_ranges[0]
+    window_size = max(1, first_page_end - first_page_start + 1)
     max_start_column = max(0, total_columns - window_size)
     if max_start_column <= 0:
         return None

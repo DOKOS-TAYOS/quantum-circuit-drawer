@@ -1,3 +1,11 @@
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/Quantum_Circuit_Drawer_logo.png"
+    alt="Quantum Circuit Drawer logo"
+    width="560"
+  />
+</p>
+
 # quantum-circuit-drawer
 
 `quantum-circuit-drawer` draws quantum circuits from several ecosystems with one Matplotlib-based API.

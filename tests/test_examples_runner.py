@@ -278,6 +278,102 @@ def test_run_demo_with_args_accepts_3d_slider_and_loads_demo(
     ]
 
 
+@pytest.mark.parametrize(
+    ("topology", "expected_qubits"),
+    [
+        ("star_tree", 10),
+        ("honeycomb", 53),
+    ],
+)
+def test_run_demo_with_args_uses_topology_compatible_3d_defaults_when_qubits_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+    topology: str,
+    expected_qubits: int,
+) -> None:
+    built_subject = {"kind": "3d-pages-controls-demo"}
+    builder_calls: list[ExampleRequest] = []
+    render_calls: list[dict[str, object]] = []
+    spec = DemoSpec(
+        demo_id="custom-demo",
+        description="Custom demo",
+        module_name="examples.qiskit_qaoa",
+        builder_name="build_circuit",
+        framework="qiskit",
+        default_qubits=8,
+        default_columns=6,
+        columns_help="QAOA layers to generate",
+        dependency_module="qiskit",
+    )
+    args = Namespace(
+        list=False,
+        demo="custom-demo",
+        qubits=None,
+        columns=None,
+        mode="pages_controls",
+        view="3d",
+        topology=topology,
+        seed=19,
+        output=None,
+        show=False,
+        figsize=(9.0, 4.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    def fake_builder(request: ExampleRequest) -> object:
+        builder_calls.append(request)
+        return built_subject
+
+    def fake_render_example(
+        subject: object,
+        *,
+        request: ExampleRequest,
+        framework: str | None,
+        saved_label: str,
+    ) -> None:
+        render_calls.append(
+            {
+                "subject": subject,
+                "request": request,
+                "framework": framework,
+                "saved_label": saved_label,
+            }
+        )
+
+    monkeypatch.setattr(run_demo_module, "load_demo_builder", lambda demo_spec: fake_builder)
+    monkeypatch.setattr(run_demo_module, "render_example", fake_render_example)
+
+    run_demo_module.run_demo_with_args(spec, args)
+
+    assert builder_calls == [
+        ExampleRequest(
+            qubits=expected_qubits,
+            columns=6,
+            mode="pages_controls",
+            view="3d",
+            topology=topology,
+            seed=19,
+            output=None,
+            show=False,
+            figsize=(9.0, 4.0),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        )
+    ]
+    assert render_calls == [
+        {
+            "subject": built_subject,
+            "request": builder_calls[0],
+            "framework": "qiskit",
+            "saved_label": "custom-demo",
+        }
+    ]
+
+
 def test_run_demo_with_args_accepts_2d_pages_controls_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 _WIRE_DEPTH_MARGIN = 0.8
 _Z_STEP = 0.625
+_COLUMN_DEPTH_GAP = 0.12
 _CLASSICAL_PLANE_GAP = 2.2
 _CLASSICAL_WIRE_SPACING = 1.05
 _GATE_SIZE = 0.72
@@ -84,8 +85,13 @@ class LayoutEngine3D:
         topology = build_topology(topology_name, tuple(circuit.quantum_wires))
         metrics = self._build_operation_metrics(normalized_layers, draw_style)
         gate_depth = self._gate_cube_size(draw_style)
+        column_depth_step = self._column_depth_step(draw_style)
         z_start = _WIRE_DEPTH_MARGIN
-        z_end = z_start + max(gate_depth, len(normalized_layers) * _Z_STEP) + _WIRE_DEPTH_MARGIN
+        z_end = (
+            z_start
+            + max(gate_depth, len(normalized_layers) * column_depth_step)
+            + _WIRE_DEPTH_MARGIN
+        )
 
         quantum_wire_positions = {
             wire_id: Point3D(x=position[0], y=position[1], z=z_start)
@@ -133,7 +139,7 @@ class LayoutEngine3D:
         )
 
         for column, layer in enumerate(normalized_layers):
-            gate_z = z_start + ((column + 1) * _Z_STEP)
+            gate_z = z_start + ((column + 1) * column_depth_step)
             for operation in layer.operations:
                 self._layout_operation(
                     operation=operation,
@@ -720,6 +726,9 @@ class LayoutEngine3D:
 
     def _gate_cube_size(self, style: DrawStyle) -> float:
         return max(_GATE_SIZE, _GATE_DEPTH, style.gate_width, style.gate_height)
+
+    def _column_depth_step(self, style: DrawStyle) -> float:
+        return max(_Z_STEP, self._gate_cube_size(style) + _COLUMN_DEPTH_GAP)
 
     def _fit_gate_text_size(
         self,

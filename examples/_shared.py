@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 try:
     from ._bootstrap import ensure_local_project_on_path
@@ -81,7 +82,7 @@ def add_render_arguments(
     else:
         normalized_columns_help = f"{normalized_columns_help}."
 
-    parser.add_argument("--qubits", type=int, default=default_qubits, help=qubits_help)
+    parser.add_argument("--qubits", type=int, default=None, help=qubits_help)
     parser.add_argument(
         "--columns",
         type=int,
@@ -209,7 +210,6 @@ def request_from_namespace(
 ) -> ExampleRequest:
     """Normalize one parsed namespace into an example request."""
 
-    qubits = int(default_qubits if args.qubits is None else args.qubits)
     columns = int(default_columns if args.columns is None else args.columns)
     mode = str(args.mode)
     view = str(args.view)
@@ -217,8 +217,6 @@ def request_from_namespace(
     valid_modes = {"pages", "pages_controls", "slider", "full"}
     valid_views = {"2d", "3d"}
 
-    if qubits < 1:
-        raise SystemExit("--qubits must be at least 1.")
     if columns < 1:
         raise SystemExit("--columns must be at least 1.")
     if mode not in valid_modes:
@@ -228,6 +226,14 @@ def request_from_namespace(
     if topology not in SUPPORTED_TOPOLOGIES:
         allowed_topologies = ", ".join(SUPPORTED_TOPOLOGIES)
         raise SystemExit(f"--topology must be one of: {allowed_topologies}.")
+    qubits = _resolve_request_qubits(
+        qubits=args.qubits,
+        default_qubits=default_qubits,
+        view=cast(ViewMode, view),
+        topology=cast(TopologyMode, topology),
+    )
+    if qubits < 1:
+        raise SystemExit("--qubits must be at least 1.")
     figure_width, figure_height = _normalize_figsize(args.figsize)
     hover_matrix_max_qubits = int(getattr(args, "hover_matrix_max_qubits", 2))
     if hover_matrix_max_qubits < 1:
@@ -250,6 +256,52 @@ def request_from_namespace(
         hover_matrix_max_qubits=hover_matrix_max_qubits,
         hover_show_size=bool(getattr(args, "hover_show_size", False)),
     )
+
+
+def _resolve_request_qubits(
+    *,
+    qubits: object,
+    default_qubits: int,
+    view: ViewMode,
+    topology: TopologyMode,
+) -> int:
+    if qubits is not None:
+        return int(qubits)
+    if view != "3d":
+        return int(default_qubits)
+    return _topology_compatible_default_qubits(
+        default_qubits=default_qubits,
+        topology=topology,
+    )
+
+
+def _topology_compatible_default_qubits(*, default_qubits: int, topology: TopologyMode) -> int:
+    if topology == "line":
+        return max(1, default_qubits)
+    if topology == "grid":
+        return _next_grid_wire_count(default_qubits)
+    if topology == "star":
+        return max(2, default_qubits)
+    if topology == "star_tree":
+        return _next_star_tree_wire_count(default_qubits)
+    return 53
+
+
+def _next_grid_wire_count(default_qubits: int) -> int:
+    candidate = max(4, default_qubits)
+    while True:
+        for rows in range(2, int(candidate**0.5) + 1):
+            if candidate % rows == 0 and (candidate // rows) >= 2:
+                return candidate
+        candidate += 1
+
+
+def _next_star_tree_wire_count(default_qubits: int) -> int:
+    candidate = max(4, default_qubits)
+    depth = 1
+    while ((3 * (2**depth)) - 2) < candidate:
+        depth += 1
+    return (3 * (2**depth)) - 2
 
 
 def _normalize_figsize(value: object) -> tuple[float, float]:
@@ -336,10 +388,16 @@ def render_example(
     """Draw one built example subject and optionally report the saved file."""
 
     config = build_draw_config(request, framework=framework)
-    result = draw_quantum_circuit(
-        subject,
-        config=config,
-    )
+    try:
+        result = draw_quantum_circuit(
+            subject,
+            config=config,
+        )
+    except ValueError as error:
+        friendly_error = _friendly_demo_render_error(request=request, error=error)
+        if friendly_error is not None:
+            raise friendly_error from None
+        raise
     _set_demo_figure_titles(result=result, saved_label=saved_label)
 
     if request.output is not None:
@@ -388,7 +446,56 @@ def _set_demo_figure_titles(*, result: object, saved_label: str) -> None:
         )
         if hasattr(figure, "set_label"):
             figure.set_label(title)
-        canvas = getattr(figure, "canvas", None)
-        manager = getattr(canvas, "manager", None)
-        if manager is not None and hasattr(manager, "set_window_title"):
-            manager.set_window_title(title)
+        _set_demo_window_title(figure=figure, title=title)
+
+
+def _set_demo_window_title(*, figure: object, title: str) -> None:
+    canvas = getattr(figure, "canvas", None)
+    manager = getattr(canvas, "manager", None)
+    if manager is None or not hasattr(manager, "set_window_title"):
+        return
+
+    try:
+        manager.set_window_title(title)
+    except Exception as error:
+        if _is_destroyed_window_error(error):
+            return
+        raise
+
+
+def _is_destroyed_window_error(error: Exception) -> bool:
+    error_name = type(error).__name__
+    if error_name not in {"TclError", "RuntimeError"}:
+        return False
+
+    normalized_message = str(error).lower()
+    destroyed_markers = (
+        "application has been destroyed",
+        "already deleted",
+        "has been deleted",
+        "does not exist",
+    )
+    return any(marker in normalized_message for marker in destroyed_markers)
+
+
+def _friendly_demo_render_error(
+    *,
+    request: ExampleRequest,
+    error: ValueError,
+) -> SystemExit | None:
+    if request.view != "3d":
+        return None
+
+    match = re.search(
+        r"topology '([^']+)' does not support (\d+) quantum wire(?:s)?",
+        str(error),
+    )
+    if match is None:
+        return None
+
+    topology_name = match.group(1)
+    wire_count = int(match.group(2))
+    return SystemExit(
+        f"3D topology '{topology_name}' is not available for this demo with {wire_count} qubits. "
+        "Try another topology or change --qubits."
+    )

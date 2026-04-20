@@ -511,9 +511,12 @@ def test_layout_engine_3d_uses_compact_column_spacing() -> None:
     )
     gate_depths = [gate.center.z for gate in scene.gates]
     spacing = [right - left for left, right in zip(gate_depths, gate_depths[1:], strict=False)]
+    gate_depth = scene.gates[0].size_z
 
     assert spacing
-    assert spacing == pytest.approx([0.625, 0.625, 0.625])
+    assert spacing == pytest.approx([spacing[0], spacing[0], spacing[0]])
+    assert spacing[0] > gate_depth
+    assert spacing[0] - gate_depth >= 0.1
 
 
 def test_layout_engine_3d_marks_measurement_connection_with_arrow_to_classical_register() -> None:

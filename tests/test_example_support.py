@@ -145,6 +145,40 @@ def test_request_from_namespace_accepts_3d_pages_controls() -> None:
     assert request.topology == "grid"
 
 
+@pytest.mark.parametrize(
+    ("topology", "expected_qubits"),
+    [
+        ("star_tree", 10),
+        ("honeycomb", 53),
+    ],
+)
+def test_request_from_namespace_uses_topology_compatible_default_qubits_in_3d(
+    topology: str,
+    expected_qubits: int,
+) -> None:
+    from examples._shared import request_from_namespace
+
+    args = Namespace(
+        qubits=None,
+        columns=8,
+        mode="pages_controls",
+        view="3d",
+        topology=topology,
+        seed=7,
+        output=None,
+        show=True,
+        figsize=(14.0, 8.0),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    request = request_from_namespace(args, default_qubits=8, default_columns=5)
+
+    assert request.qubits == expected_qubits
+
+
 def test_request_from_namespace_rejects_non_positive_hover_matrix_max_qubits() -> None:
     from examples._shared import request_from_namespace
 
@@ -404,6 +438,185 @@ def test_render_example_names_each_demo_figure_with_demo_and_page_context(
         ["qiskit-random - page 1/2"],
         ["qiskit-random - page 2/2"],
     ]
+
+
+def test_render_example_ignores_destroyed_window_title_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._shared import ExampleRequest, render_example
+
+    class TclError(RuntimeError):
+        pass
+
+    class _DestroyedManager:
+        def __init__(self) -> None:
+            self.window_titles: list[str] = []
+
+        def set_window_title(self, title: str) -> None:
+            self.window_titles.append(title)
+            raise TclError('can\'t invoke "wm" command: application has been destroyed')
+
+    class _FakeCanvas:
+        def __init__(self) -> None:
+            self.manager = _DestroyedManager()
+
+    class _FakeFigure:
+        def __init__(self) -> None:
+            self.label = ""
+            self.canvas = _FakeCanvas()
+
+        def set_label(self, label: str) -> None:
+            self.label = label
+
+    class _FakeResult:
+        def __init__(self, figures: tuple[_FakeFigure, ...]) -> None:
+            self.figures = figures
+
+    fake_figures = (_FakeFigure(),)
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        *,
+        config: object = None,
+        ax: object = None,
+    ) -> _FakeResult:
+        del circuit, config, ax
+        return _FakeResult(fake_figures)
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    request = ExampleRequest(
+        qubits=9,
+        columns=20,
+        mode="pages",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(9.0, 3.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    render_example(
+        {"kind": "demo"},
+        request=request,
+        framework="qiskit",
+        saved_label="qiskit-random",
+    )
+
+    assert fake_figures[0].label == "qiskit-random"
+    assert fake_figures[0].canvas.manager.window_titles == ["qiskit-random"]
+
+
+def test_render_example_reraises_unexpected_window_title_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._shared import ExampleRequest, render_example
+
+    class _BrokenManager:
+        def set_window_title(self, title: str) -> None:
+            del title
+            raise RuntimeError("unexpected title failure")
+
+    class _FakeCanvas:
+        def __init__(self) -> None:
+            self.manager = _BrokenManager()
+
+    class _FakeFigure:
+        def __init__(self) -> None:
+            self.canvas = _FakeCanvas()
+
+        def set_label(self, label: str) -> None:
+            del label
+
+    class _FakeResult:
+        def __init__(self, figures: tuple[_FakeFigure, ...]) -> None:
+            self.figures = figures
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        *,
+        config: object = None,
+        ax: object = None,
+    ) -> _FakeResult:
+        del circuit, config, ax
+        return _FakeResult((_FakeFigure(),))
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    request = ExampleRequest(
+        qubits=9,
+        columns=20,
+        mode="pages",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(9.0, 3.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected title failure"):
+        render_example(
+            {"kind": "demo"},
+            request=request,
+            framework="qiskit",
+            saved_label="qiskit-random",
+        )
+
+
+def test_render_example_reports_unsupported_3d_topology_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._shared import ExampleRequest, render_example
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        *,
+        config: object = None,
+        ax: object = None,
+    ) -> object:
+        del circuit, config, ax
+        raise ValueError("topology 'honeycomb' does not support 10 quantum wires")
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    request = ExampleRequest(
+        qubits=10,
+        columns=16,
+        mode="pages_controls",
+        view="3d",
+        topology="honeycomb",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(10.0, 5.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    with pytest.raises(
+        SystemExit,
+        match=(
+            "3D topology 'honeycomb' is not available for this demo with 10 qubits.*change --qubits"
+        ),
+    ):
+        render_example(
+            {"kind": "demo"},
+            request=request,
+            framework="qiskit",
+            saved_label="qiskit-random",
+        )
 
 
 def test_render_example_forwards_page_slider_in_3d_slider_mode(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.backend_bases import MouseEvent
 
 from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
@@ -31,10 +32,22 @@ def test_draw_quantum_circuit_3d_pages_controls_attaches_navigation_state() -> N
     assert page_window.visible_page_count == 1
     assert page_window.page_box is not None
     assert page_window.visible_pages_box is not None
+    assert page_window.visible_pages_decrement_button is not None
+    assert page_window.visible_pages_increment_button is not None
     assert page_window.previous_page_button is not None
     assert page_window.next_page_button is not None
     assert len(page_window.display_axes) == 1
     assert all(axes.name == "3d" for axes in page_window.display_axes)
+
+    page_window.visible_pages_increment_button._observers.process("clicked", None)
+
+    assert page_window.visible_page_count == 2
+    assert len(page_window.display_axes) == 2
+
+    page_window.visible_pages_decrement_button._observers.process("clicked", None)
+
+    assert page_window.visible_page_count == 1
+    assert len(page_window.display_axes) == 1
 
     page_window.visible_pages_box.set_val("2")
 
@@ -122,5 +135,123 @@ def test_draw_quantum_circuit_3d_pages_controls_supports_topology_menu() -> None
     assert page_window.pipeline.draw_options.topology == "grid"
     assert menu_state.active_topology == "grid"
     assert len(page_window.display_axes) == 1
+
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_3d_pages_controls_keeps_adapted_page_count_after_topology_switch() -> (
+    None
+):
+    circuit = build_dense_rotation_ir(layer_count=24, wire_count=4)
+    result = draw_quantum_circuit(
+        circuit,
+        config=DrawConfig(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            topology_menu=True,
+            style={"max_page_width": 4.0},
+            show=True,
+            figsize=(12.0, 4.0),
+        ),
+    )
+    expected_pages = draw_quantum_circuit(
+        circuit,
+        config=DrawConfig(
+            mode=DrawMode.PAGES,
+            view="3d",
+            topology="line",
+            style={"max_page_width": 4.0},
+            show=False,
+            figsize=(12.0, 4.0),
+        ),
+    )
+
+    page_window = get_page_window(result.primary_figure)
+    menu_state = get_topology_menu_state(result.primary_figure)
+
+    assert page_window is not None
+    assert menu_state is not None
+    assert page_window.page_suffix_text is not None
+    assert page_window.visible_suffix_text is not None
+    assert page_window.total_pages == expected_pages.page_count
+    assert page_window.page_suffix_text.get_text() == f"/ {expected_pages.page_count}"
+    assert page_window.visible_suffix_text.get_text() == f"/ {expected_pages.page_count}"
+
+    menu_state.select_topology("grid")
+
+    assert page_window.total_pages == expected_pages.page_count
+    assert page_window.page_suffix_text.get_text() == f"/ {expected_pages.page_count}"
+    assert page_window.visible_suffix_text.get_text() == f"/ {expected_pages.page_count}"
+
+    plt.close(expected_pages.primary_figure)
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_3d_pages_controls_keeps_honeycomb_pages_wide_enough() -> None:
+    from quantum_circuit_drawer._draw_managed_page_window_3d import (
+        _MIN_3D_PAGE_PROJECTED_ASPECT_RATIO,
+        _projected_scene_aspect_ratio,
+    )
+
+    result = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=120, wire_count=53),
+        config=DrawConfig(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="honeycomb",
+            style={"max_page_width": 4.0},
+            show=False,
+            figsize=(10.0, 5.5),
+        ),
+    )
+
+    page_window = get_page_window(result.primary_figure)
+
+    assert page_window is not None
+    assert page_window.page_scenes
+    assert (
+        _projected_scene_aspect_ratio(
+            scene=page_window.page_scenes[0],
+            renderer=page_window.pipeline.renderer,
+            figure_size=(10.0, 5.5),
+        )
+        >= _MIN_3D_PAGE_PROJECTED_ASPECT_RATIO
+    )
+
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_3d_pages_controls_detaches_removed_axes_mouse_release() -> None:
+    result = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=4),
+        config=DrawConfig(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            style={"max_page_width": 4.0},
+            show=False,
+        ),
+    )
+
+    page_window = get_page_window(result.primary_figure)
+
+    assert page_window is not None
+    assert page_window.visible_pages_increment_button is not None
+    assert page_window.visible_pages_decrement_button is not None
+
+    page_window.visible_pages_increment_button._observers.process("clicked", None)
+    page_window.visible_pages_decrement_button._observers.process("clicked", None)
+
+    result.primary_figure.canvas.callbacks.process(
+        "button_release_event",
+        MouseEvent(
+            "button_release_event",
+            result.primary_figure.canvas,
+            x=0,
+            y=0,
+            button=1,
+        ),
+    )
 
     plt.close(result.primary_figure)

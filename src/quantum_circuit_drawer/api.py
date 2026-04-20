@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from .layout.scene import LayoutScene
     from .layout.scene_3d import LayoutScene3D
     from .renderers.base import BaseRenderer
-    from .typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath
+    from .typing import LayoutEngineLike, OutputPath
 
 logger = logging.getLogger(__name__)
 
@@ -415,31 +415,9 @@ def _windowed_3d_scenes(
     *,
     figsize: tuple[float, float] | None = None,
 ) -> tuple[LayoutScene3D, ...]:
-    from ._draw_managed_slider import circuit_window
-    from ._draw_pipeline import _compute_3d_scene
-    from .layout._layering import normalized_draw_circuit
+    from ._draw_managed_page_window_3d import windowed_3d_page_scenes
 
-    layout_engine = cast("LayoutEngine3DLike", pipeline.layout_engine)
-    normalized_circuit = normalized_draw_circuit(pipeline.ir)
-    adapted_scene = _page_window_adapted_2d_scene(pipeline, figsize=figsize)
-    page_ranges = tuple((page.start_column, page.end_column) for page in adapted_scene.pages) or (
-        (0, max(0, len(normalized_circuit.layers) - 1)),
-    )
-    return tuple(
-        _compute_3d_scene(
-            layout_engine,
-            circuit_window(
-                normalized_circuit,
-                start_column=start_column,
-                window_size=max(1, end_column - start_column + 1),
-            ),
-            pipeline.normalized_style,
-            topology_name=pipeline.draw_options.topology,
-            direct=pipeline.draw_options.direct,
-            hover_enabled=pipeline.draw_options.hover.enabled,
-        )
-        for start_column, end_column in page_ranges
-    )
+    return windowed_3d_page_scenes(pipeline, figure_size=figsize)
 
 
 def _save_clean_3d_pages_output(
