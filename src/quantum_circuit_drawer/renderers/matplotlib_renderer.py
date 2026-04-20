@@ -23,7 +23,7 @@ from ..layout.scene import (
     SceneSwap,
 )
 from ..layout.scene_3d import LayoutScene3D
-from ..style import resolved_line_width
+from ..style import resolved_connection_line_width
 from ..typing import OutputPath, RenderResult
 from ..utils.formatting import format_gate_text_block, format_visible_label
 from ._matplotlib_figure import clear_hover_state, create_managed_figure
@@ -66,6 +66,9 @@ _WIRE_STUB_FRACTION_OF_GATE_WIDTH = 0.16
 _WIRE_STUB_LABEL_MARGIN_FRACTION = 0.75
 _WIRE_STUB_PAGE_MARGIN_FRACTION = 0.75
 _PROJECTED_PAGES_CACHE_SIZE = 8
+_CONNECTION_HOVER_LINE_WIDTH_MULTIPLIER = 1.5
+_CONNECTION_HOVER_MIN_HALF_WIDTH_PIXELS = 4.0
+_CONNECTION_HOVER_MIN_HALF_WIDTH_DATA = 1e-6
 
 _SceneColumnItem = TypeVar(
     "_SceneColumnItem",
@@ -343,6 +346,7 @@ class MatplotlibRenderer(BaseRenderer):
                     hover_targets,
                     connection,
                     scene,
+                    axes=axes,
                     x_offset=x_offset,
                     y_offset=y_offset,
                 )
@@ -493,11 +497,12 @@ class MatplotlibRenderer(BaseRenderer):
         connection: SceneConnection,
         scene: LayoutScene,
         *,
+        axes: Axes,
         x_offset: float,
         y_offset: float,
     ) -> None:
         assert connection.hover_data is not None
-        half_width = max(0.08, fabs(resolved_line_width(scene.style)) * 2.0)
+        half_width = self._connection_hover_half_width(axes, scene)
         add_hover_target(
             hover_targets,
             connection.hover_data,
@@ -505,4 +510,25 @@ class MatplotlibRenderer(BaseRenderer):
             x_max=connection.x + x_offset + half_width,
             y_min=connection.y_start + y_offset,
             y_max=connection.y_end + y_offset,
+        )
+
+    def _connection_hover_half_width(
+        self,
+        axes: Axes,
+        scene: LayoutScene,
+    ) -> float:
+        line_width_points = fabs(resolved_connection_line_width(scene.style))
+        line_width_pixels = line_width_points * (axes.figure.dpi / 72.0)
+        hover_half_width_pixels = max(
+            _CONNECTION_HOVER_MIN_HALF_WIDTH_PIXELS,
+            line_width_pixels * _CONNECTION_HOVER_LINE_WIDTH_MULTIPLIER,
+        )
+        origin_x, origin_y = axes.transData.transform((0.0, 0.0))
+        data_origin_x, _ = axes.transData.inverted().transform((origin_x, origin_y))
+        data_hover_x, _ = axes.transData.inverted().transform(
+            (origin_x + hover_half_width_pixels, origin_y)
+        )
+        return max(
+            _CONNECTION_HOVER_MIN_HALF_WIDTH_DATA,
+            fabs(float(data_hover_x - data_origin_x)),
         )

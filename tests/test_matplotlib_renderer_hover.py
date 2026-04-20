@@ -264,6 +264,41 @@ def test_matplotlib_hover_does_not_fill_gap_between_connected_targets() -> None:
     assert matplotlib_hover_module._resolve_hover_box(hover_boxes, x=0.5, y=2.5) is not None
 
 
+def test_draw_quantum_circuit_2d_hover_connection_hitbox_stays_near_visible_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    circuit_ir = _adjacent_cnot_and_box_gates_ir()
+    scene = LayoutEngine().compute(circuit_ir, DrawStyle())
+    projected_page = MatplotlibRenderer()._project_pages(scene)[0]
+    connection = next(
+        scene_connection
+        for scene_connection in projected_page.connections
+        if scene_connection.hover_data is not None and scene_connection.hover_data.name == "CNOT"
+    )
+    right_column_left_edge = min(
+        gate.x - (gate.width / 2.0) for gate in projected_page.gates if gate.x > connection.x
+    )
+    right_column_gate_ys = sorted(gate.y for gate in projected_page.gates if gate.x > connection.x)
+    probe_data_x = (connection.x + right_column_left_edge) / 2.0
+    probe_data_y = (right_column_gate_ys[1] + right_column_gate_ys[2]) / 2.0
+
+    figure, axes = draw_quantum_circuit(circuit_ir, hover=True)
+    try:
+        figure.canvas.draw()
+
+        annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+        probe_x, probe_y = axes.transData.transform((probe_data_x, probe_data_y))
+
+        _dispatch_motion_event_at(figure, float(probe_x), float(probe_y))
+
+        assert annotation.get_visible() is False
+    finally:
+        plt.close(figure)
+
+
 def test_matplotlib_renderer_hover_keeps_batch_draws_for_hoverable_artifacts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -332,3 +367,33 @@ def test_matplotlib_renderer_hover_keeps_batch_draws_for_hoverable_artifacts(
         "x_target_circles": 0,
         "x_target_segments": 0,
     }
+
+
+def _adjacent_cnot_and_box_gates_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(8)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q7",),
+                        control_wires=("q2",),
+                    )
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q3",)),
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q4",)),
+                    OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q5",)),
+                    OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q6",)),
+                ]
+            ),
+        ],
+    )
