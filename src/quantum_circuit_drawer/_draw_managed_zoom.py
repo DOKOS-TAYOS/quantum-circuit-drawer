@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
@@ -25,6 +26,7 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
     from .renderers.matplotlib_primitives import (
         _build_gate_text_fitting_context,
         _fit_gate_text_font_size_with_context,
+        _multiline_text_line_spacing,
     )
 
     base_view_width, base_view_height = current_view_size(axes)
@@ -88,7 +90,11 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
                                 default=scene.style.font_size,
                             ),
                         )
-                        text_artist.set_fontsize(base_font_size * scale_factor)
+                        _apply_text_artist_scale(
+                            text_artist,
+                            font_size=base_font_size * scale_factor,
+                            multiline_line_spacing=_multiline_text_line_spacing,
+                        )
                         continue
                     base_font_size = get_base_font_size(
                         text_artist,
@@ -97,8 +103,9 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
                             default=scene.style.font_size,
                         ),
                     )
-                    text_artist.set_fontsize(
-                        _fit_gate_text_font_size_with_context(
+                    _apply_text_artist_scale(
+                        text_artist,
+                        font_size=_fit_gate_text_font_size_with_context(
                             context=gate_text_context,
                             width=gate_text_metadata.gate_width,
                             height=gate_text_metadata.gate_height,
@@ -107,7 +114,8 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
                             height_fraction=gate_text_metadata.height_fraction,
                             max_font_size=base_font_size * scale_factor,
                             cache=text_fit_cache,
-                        )
+                        ),
+                        multiline_line_spacing=_multiline_text_line_spacing,
                     )
                 state.last_scale_factor = scale_factor
                 state.last_points_per_layout_unit = points_per_layout_unit
@@ -119,13 +127,7 @@ def configure_zoom_text_scaling(axes: Axes, *, scene: LayoutScene) -> None:
                 canvas.draw_idle()
 
         def update_text_scale_on_limits_change(_axes: Axes) -> None:
-            if canvas is None:
-                apply_text_scale(request_redraw=False)
-                return
-            if state.update_queued:
-                return
-            state.update_queued = True
-            canvas.draw_idle()
+            apply_text_scale(request_redraw=canvas is not None)
 
         if canvas is not None:
 
@@ -188,3 +190,15 @@ def _coerce_font_size(font_size: float | str, *, default: float) -> float:
     if isinstance(font_size, int | float):
         return float(font_size)
     return default
+
+
+def _apply_text_artist_scale(
+    text_artist: object,
+    *,
+    font_size: float,
+    multiline_line_spacing: Callable[[float], float],
+) -> None:
+    text_artist.set_fontsize(font_size)
+    if "\n" not in text_artist.get_text() or not hasattr(text_artist, "set_linespacing"):
+        return
+    text_artist.set_linespacing(multiline_line_spacing(font_size))

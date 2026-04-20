@@ -2000,6 +2000,39 @@ def test_draw_quantum_circuit_updates_gate_text_immediately_when_zoom_changes() 
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_updates_gate_text_without_waiting_for_draw_idle() -> None:
+    figure, axes = plt.subplots(figsize=(8.0, 3.0))
+
+    draw_quantum_circuit(
+        _zoom_text_scaling_ir(),
+        style={"max_page_width": 12.0},
+        ax=axes,
+    )
+    figure.canvas.draw()
+
+    tracked_labels = ("RZZ\n0.7", "M", "q0", "q1", "c", "0", "1", "dest", "23")
+    initial_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
+
+    original_draw_idle = figure.canvas.draw_idle
+
+    def suppress_draw_idle() -> None:
+        return None
+
+    figure.canvas.draw_idle = suppress_draw_idle  # type: ignore[method-assign]
+    try:
+        axes.set_xlim(0.0, 2.5)
+        axes.set_ylim(3.5, 0.0)
+    finally:
+        figure.canvas.draw_idle = original_draw_idle  # type: ignore[method-assign]
+
+    updated_font_sizes = {label: _font_size_by_text(axes, label) for label in tracked_labels}
+
+    for label in tracked_labels:
+        assert updated_font_sizes[label] > initial_font_sizes[label]
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_fits_zoom_scaled_text_to_reference_boxes() -> None:
     figure, axes = plt.subplots(figsize=(8.0, 3.0))
     circuit = _zoom_text_scaling_ir()
@@ -2087,6 +2120,30 @@ def test_draw_quantum_circuit_reduces_wrapped_gate_font_progressively_with_page_
 
     assert page_to_font_size[3] > page_to_font_size[4] > page_to_font_size[8]
     assert page_to_font_size[8] < page_to_font_size[3] * 0.85
+
+
+def test_draw_quantum_circuit_tightens_multiline_line_spacing_for_smaller_gate_fonts() -> None:
+    sparse_figure, sparse_axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=5, wire_count=1),
+        style={"max_page_width": 12.0},
+        show=False,
+        figsize=(8.0, 3.0),
+    )
+    dense_figure, dense_axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=1),
+        style={"max_page_width": 4.0},
+        show=False,
+        figsize=(3.2, 12.0),
+    )
+
+    sparse_label = _text_artist_by_text(sparse_axes, "RX\n0.5")
+    dense_label = _text_artist_by_text(dense_axes, "RX\n0.5")
+
+    assert dense_label.get_fontsize() < sparse_label.get_fontsize()
+    assert dense_label._linespacing < sparse_label._linespacing  # type: ignore[attr-defined]
+
+    plt.close(sparse_figure)
+    plt.close(dense_figure)
 
 
 def test_draw_quantum_circuit_uses_thinner_default_line_width_for_denser_initial_scene() -> None:

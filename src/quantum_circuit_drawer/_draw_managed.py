@@ -106,6 +106,7 @@ def render_managed_draw_pipeline(
     figsize: tuple[float, float] | None,
     page_slider: bool,
     page_window: bool,
+    respect_precomputed_scene: bool = False,
 ) -> tuple[Figure, Axes]:
     """Render a prepared pipeline on a managed figure."""
 
@@ -297,6 +298,7 @@ def render_managed_draw_pipeline(
             pipeline,
             axes=axes,
             output=output,
+            respect_precomputed_scene=respect_precomputed_scene,
         )
         logger.debug("Rendered managed figure without page slider")
 
@@ -309,6 +311,7 @@ def render_draw_pipeline_on_axes(
     *,
     axes: Axes,
     output: OutputPath | None,
+    respect_precomputed_scene: bool = False,
 ) -> Axes:
     """Render a prepared pipeline on existing axes using one-shot 2D composition."""
 
@@ -322,15 +325,19 @@ def render_draw_pipeline_on_axes(
         return axes
 
     prepared_scene = cast("LayoutScene", pipeline.paged_scene)
-    scene_2d, effective_page_width = viewport_adaptive_paged_scene(
-        pipeline.ir,
-        cast(LayoutEngineLike, pipeline.layout_engine),
-        pipeline.normalized_style,
-        axes,
-        hover_enabled=prepared_scene.hover.enabled,
-        initial_scene=prepared_scene,
-    )
-    scene_2d.hover = prepared_scene.hover
+    if respect_precomputed_scene:
+        scene_2d = prepared_scene
+    else:
+        scene_2d, effective_page_width = viewport_adaptive_paged_scene(
+            pipeline.ir,
+            cast(LayoutEngineLike, pipeline.layout_engine),
+            pipeline.normalized_style,
+            axes,
+            hover_enabled=prepared_scene.hover.enabled,
+            initial_scene=prepared_scene,
+        )
+        del effective_page_width
+        scene_2d.hover = prepared_scene.hover
     frozen_style = _freeze_default_line_width_for_scene(
         style=scene_2d.style,
         scene=scene_2d,

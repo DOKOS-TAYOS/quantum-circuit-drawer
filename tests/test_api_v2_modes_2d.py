@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+import pytest
 
 from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer._scene_pages import single_page_scenes
+from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_page_slider,
     get_page_window,
 )
-from tests.support import build_wrapped_ir
+from quantum_circuit_drawer.style import DrawStyle
+from tests.support import build_dense_rotation_ir, build_wrapped_ir, normalize_rendered_text
 
 
 def test_draw_quantum_circuit_pages_mode_returns_one_figure_per_wrapped_page() -> None:
@@ -29,6 +33,53 @@ def test_draw_quantum_circuit_pages_mode_returns_one_figure_per_wrapped_page() -
 
     for figure in result.figures:
         plt.close(figure)
+
+
+def test_draw_quantum_circuit_pages_mode_renders_only_one_page_per_figure() -> None:
+    result = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=1),
+        config=DrawConfig(
+            mode=DrawMode.PAGES,
+            style={"max_page_width": 4.0},
+            show=False,
+        ),
+    )
+
+    assert result.page_count > 1
+
+    visible_gate_counts = [
+        sum(
+            normalize_rendered_text(text_artist.get_text()) == "RX\n0.5"
+            for text_artist in axes.texts
+        )
+        for axes in result.axes
+    ]
+
+    assert all(0 < visible_gate_count < 24 for visible_gate_count in visible_gate_counts)
+    assert sum(visible_gate_counts) == 24
+
+    for figure in result.figures:
+        plt.close(figure)
+
+
+def test_single_page_scenes_keep_a_shared_page_width_for_consistent_2d_spacing() -> None:
+    source_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=4.0))
+
+    assert len(source_scene.pages) > 1
+
+    page_scenes = single_page_scenes(source_scene)
+    shared_content_width = max(page.content_width for page in source_scene.pages)
+    expected_scene_width = (
+        source_scene.style.margin_left + shared_content_width + source_scene.style.margin_right
+    )
+
+    assert all(
+        page_scene.width == pytest.approx(expected_scene_width) for page_scene in page_scenes
+    )
+    assert all(
+        page_scene.pages[0].content_width == pytest.approx(shared_content_width)
+        for page_scene in page_scenes
+    )
 
 
 def test_draw_quantum_circuit_pages_mode_on_existing_axes_keeps_single_axes_result() -> None:

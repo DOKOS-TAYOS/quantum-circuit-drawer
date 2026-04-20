@@ -180,6 +180,7 @@ def _render_managed_draw_pipeline(
     figsize: tuple[float, float] | None,
     page_slider: bool,
     page_window: bool,
+    respect_precomputed_scene: bool = False,
 ) -> tuple[Figure, Axes]:
     from ._draw_managed import render_managed_draw_pipeline
 
@@ -190,6 +191,7 @@ def _render_managed_draw_pipeline(
         figsize=figsize,
         page_slider=page_slider,
         page_window=page_window,
+        respect_precomputed_scene=respect_precomputed_scene,
     )
 
 
@@ -232,6 +234,7 @@ def _render_managed_2d_pages_result(
             figsize=figsize,
             page_slider=False,
             page_window=False,
+            respect_precomputed_scene=True,
         )
         figures.append(figure)
         axes_list.append(axes)

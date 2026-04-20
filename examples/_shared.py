@@ -336,10 +336,11 @@ def render_example(
     """Draw one built example subject and optionally report the saved file."""
 
     config = build_draw_config(request, framework=framework)
-    draw_quantum_circuit(
+    result = draw_quantum_circuit(
         subject,
         config=config,
     )
+    _set_demo_figure_titles(result=result, saved_label=saved_label)
 
     if request.output is not None:
         print(f"Saved {saved_label} to {request.output}")
@@ -371,3 +372,23 @@ def run_example(
         framework=framework,
         saved_label=saved_label,
     )
+
+
+def _set_demo_figure_titles(*, result: object, saved_label: str) -> None:
+    figures = tuple(getattr(result, "figures", ()))
+    if not figures:
+        return
+
+    total_figures = len(figures)
+    for page_index, figure in enumerate(figures, start=1):
+        title = (
+            saved_label
+            if total_figures == 1
+            else f"{saved_label} - page {page_index}/{total_figures}"
+        )
+        if hasattr(figure, "set_label"):
+            figure.set_label(title)
+        canvas = getattr(figure, "canvas", None)
+        manager = getattr(canvas, "manager", None)
+        if manager is not None and hasattr(manager, "set_window_title"):
+            manager.set_window_title(title)

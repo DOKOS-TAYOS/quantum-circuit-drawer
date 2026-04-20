@@ -753,6 +753,7 @@ def draw_gate_label(
             va="center",
             multialignment="center",
             fontsize=resolved_label_font_size,
+            linespacing=_multiline_text_line_spacing(resolved_label_font_size),
             color=scene.style.theme.text_color,
             zorder=TEXT_LAYER_ZORDER,
         )
@@ -1182,18 +1183,32 @@ def _fit_gate_text_font_size_with_context(
         return effective_default_font_size
 
     fitted_font_size = available_width_points / text_width_at_one_point
-    fitted_height_font_size = float("inf")
+    resolved_font_size = min(effective_default_font_size, fitted_font_size)
     if height is not None:
         available_height_points = context.points_per_layout_unit * height * height_fraction
-        text_height_at_one_point = _text_height_in_points(text)
+        text_height_at_one_point = _text_height_in_points(
+            text,
+            line_spacing=_resolved_multiline_text_line_spacing(text, resolved_font_size),
+        )
         if _is_mathtext_string(text):
             text_height_at_one_point *= _MATHTEXT_HEIGHT_PADDING_FACTOR
         if text_height_at_one_point > 0.0:
-            fitted_height_font_size = available_height_points / text_height_at_one_point
-    resolved_font_size = max(
-        _MIN_GATE_TEXT_FONT_SIZE,
-        min(effective_default_font_size, fitted_font_size, fitted_height_font_size),
-    )
+            resolved_font_size = min(
+                resolved_font_size,
+                available_height_points / text_height_at_one_point,
+            )
+            adjusted_text_height = _text_height_in_points(
+                text,
+                line_spacing=_resolved_multiline_text_line_spacing(text, resolved_font_size),
+            )
+            if _is_mathtext_string(text):
+                adjusted_text_height *= _MATHTEXT_HEIGHT_PADDING_FACTOR
+            if adjusted_text_height > 0.0:
+                resolved_font_size = min(
+                    resolved_font_size,
+                    available_height_points / adjusted_text_height,
+                )
+    resolved_font_size = max(_MIN_GATE_TEXT_FONT_SIZE, resolved_font_size)
     cache[cache_key] = resolved_font_size
     return resolved_font_size
 
@@ -1261,13 +1276,15 @@ def _text_width_in_points(text: str) -> float:
 
 
 @lru_cache(maxsize=128)
-def _text_height_in_points(text: str) -> float:
+def _text_height_in_points(
+    text: str, *, line_spacing: float = _MULTILINE_TEXT_LINE_SPACING
+) -> float:
     if "\n" in text:
         line_heights = [_text_height_in_points(line) for line in text.split("\n")]
         if not line_heights:
             return 0.0
         max_line_height = max(line_heights)
-        extra_line_spacing = max(0.0, _MULTILINE_TEXT_LINE_SPACING - 1.0)
+        extra_line_spacing = max(0.0, line_spacing - 1.0)
         return sum(line_heights) + (max_line_height * (len(line_heights) - 1) * extra_line_spacing)
     shape_key = _text_shape_key(text)
     if shape_key is not None:
@@ -1275,6 +1292,19 @@ def _text_height_in_points(text: str) -> float:
     return (
         TextPath((0.0, 0.0), text, size=1.0, prop=_default_font_properties()).get_extents().height
     )
+
+
+def _multiline_text_line_spacing(font_size: float) -> float:
+    if font_size <= 0.0:
+        return 0.9
+    normalized_font_size = min(1.0, font_size / 12.0)
+    return 0.9 + ((_MULTILINE_TEXT_LINE_SPACING - 0.9) * normalized_font_size)
+
+
+def _resolved_multiline_text_line_spacing(text: str, font_size: float) -> float:
+    if "\n" not in text:
+        return _MULTILINE_TEXT_LINE_SPACING
+    return _multiline_text_line_spacing(font_size)
 
 
 def finalize_axes(ax: Axes, scene: LayoutScene) -> None:

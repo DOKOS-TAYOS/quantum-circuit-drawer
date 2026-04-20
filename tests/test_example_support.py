@@ -332,6 +332,80 @@ def test_render_example_draws_and_reports_saved_output(
     assert f"Saved qiskit-random to {output}" in captured.out
 
 
+def test_render_example_names_each_demo_figure_with_demo_and_page_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._shared import ExampleRequest, render_example
+
+    class _FakeManager:
+        def __init__(self) -> None:
+            self.window_titles: list[str] = []
+
+        def set_window_title(self, title: str) -> None:
+            self.window_titles.append(title)
+
+    class _FakeCanvas:
+        def __init__(self) -> None:
+            self.manager = _FakeManager()
+
+    class _FakeFigure:
+        def __init__(self) -> None:
+            self.label = ""
+            self.canvas = _FakeCanvas()
+
+        def set_label(self, label: str) -> None:
+            self.label = label
+
+    class _FakeResult:
+        def __init__(self, figures: tuple[_FakeFigure, ...]) -> None:
+            self.figures = figures
+
+    fake_figures = (_FakeFigure(), _FakeFigure())
+
+    def fake_draw_quantum_circuit(
+        circuit: object,
+        *,
+        config: object = None,
+        ax: object = None,
+    ) -> _FakeResult:
+        del circuit, config, ax
+        return _FakeResult(fake_figures)
+
+    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
+
+    request = ExampleRequest(
+        qubits=9,
+        columns=20,
+        mode="pages",
+        view="2d",
+        topology="line",
+        seed=7,
+        output=None,
+        show=False,
+        figsize=(9.0, 3.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    render_example(
+        {"kind": "demo"},
+        request=request,
+        framework="qiskit",
+        saved_label="qiskit-random",
+    )
+
+    assert [figure.label for figure in fake_figures] == [
+        "qiskit-random - page 1/2",
+        "qiskit-random - page 2/2",
+    ]
+    assert [figure.canvas.manager.window_titles for figure in fake_figures] == [
+        ["qiskit-random - page 1/2"],
+        ["qiskit-random - page 2/2"],
+    ]
+
+
 def test_render_example_forwards_page_slider_in_3d_slider_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
