@@ -48,6 +48,165 @@ def test_second_pass_managed_facades_reexport_split_helpers() -> None:
     assert facade_windowed_3d_page_ranges is windowed_3d_page_ranges
 
 
+def test_third_pass_2d_managed_facades_reexport_split_helpers() -> None:
+    from quantum_circuit_drawer.managed.page_window import (
+        configure_page_window as facade_configure_page_window,
+    )
+    from quantum_circuit_drawer.managed.slider import (
+        Managed2DPageSliderState as facade_managed_2d_page_slider_state,
+    )
+    from quantum_circuit_drawer.managed.slider import (
+        configure_page_slider as facade_configure_page_slider,
+    )
+    from quantum_circuit_drawer.managed.slider_2d import (
+        Managed2DPageSliderState,
+        configure_page_slider,
+    )
+
+    assert facade_managed_2d_page_slider_state is Managed2DPageSliderState
+    assert facade_configure_page_slider is configure_page_slider
+    assert facade_configure_page_window.__name__ == "configure_page_window"
+
+
+def test_third_pass_2d_private_helper_modules_are_importable() -> None:
+    from importlib import import_module
+
+    page_window_controls = import_module("quantum_circuit_drawer.managed.page_window_controls")
+    page_window_windowing = import_module("quantum_circuit_drawer.managed.page_window_windowing")
+    page_window_render = import_module("quantum_circuit_drawer.managed.page_window_render")
+    matplotlib_axes = import_module("quantum_circuit_drawer.renderers._matplotlib_axes")
+    matplotlib_text = import_module("quantum_circuit_drawer.renderers._matplotlib_text")
+    matplotlib_connections = import_module(
+        "quantum_circuit_drawer.renderers._matplotlib_connections"
+    )
+    matplotlib_gates = import_module("quantum_circuit_drawer.renderers._matplotlib_gates")
+
+    assert page_window_controls.__name__.endswith("_controls")
+    assert page_window_windowing.__name__.endswith("_windowing")
+    assert page_window_render.__name__.endswith("_render")
+    assert matplotlib_axes.__name__.endswith("_axes")
+    assert matplotlib_text.__name__.endswith("_text")
+    assert matplotlib_connections.__name__.endswith("_connections")
+    assert matplotlib_gates.__name__.endswith("_gates")
+
+
+def test_third_pass_matplotlib_primitives_facade_reexports_split_helpers() -> None:
+    from quantum_circuit_drawer.renderers._matplotlib_axes import (
+        _add_patch_artist,
+        _add_text_artist,
+        finalize_axes,
+        prepare_axes,
+    )
+    from quantum_circuit_drawer.renderers._matplotlib_connections import (
+        draw_barriers,
+        draw_connections,
+        draw_wires,
+    )
+    from quantum_circuit_drawer.renderers._matplotlib_gates import (
+        draw_controls,
+        draw_gate_annotation,
+        draw_gate_box,
+        draw_gate_label,
+        draw_measurement_box,
+        draw_measurement_symbol,
+        draw_swaps,
+        draw_text,
+        draw_x_target_circles,
+        draw_x_target_segments,
+    )
+    from quantum_circuit_drawer.renderers._matplotlib_text import (
+        _build_gate_text_fitting_context,
+        _fit_gate_text_font_size_with_context,
+        _GateTextCache,
+        trim_gate_text_fit_cache,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        _add_patch_artist as facade_add_patch_artist,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        _add_text_artist as facade_add_text_artist,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        _build_gate_text_fitting_context as facade_build_gate_text_fitting_context,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        _fit_gate_text_font_size_with_context as facade_fit_gate_text_font_size_with_context,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        _GateTextCache as facade_gate_text_cache,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_barriers as facade_draw_barriers,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_connections as facade_draw_connections,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_controls as facade_draw_controls,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_gate_annotation as facade_draw_gate_annotation,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_gate_box as facade_draw_gate_box,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_gate_label as facade_draw_gate_label,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_measurement_box as facade_draw_measurement_box,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_measurement_symbol as facade_draw_measurement_symbol,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_swaps as facade_draw_swaps,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_text as facade_draw_text,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_wires as facade_draw_wires,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_x_target_circles as facade_draw_x_target_circles,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        draw_x_target_segments as facade_draw_x_target_segments,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        finalize_axes as facade_finalize_axes,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        prepare_axes as facade_prepare_axes,
+    )
+    from quantum_circuit_drawer.renderers.matplotlib_primitives import (
+        trim_gate_text_fit_cache as facade_trim_gate_text_fit_cache,
+    )
+
+    assert facade_gate_text_cache is _GateTextCache
+    assert facade_add_patch_artist is _add_patch_artist
+    assert facade_add_text_artist is _add_text_artist
+    assert facade_prepare_axes is prepare_axes
+    assert facade_finalize_axes is finalize_axes
+    assert facade_trim_gate_text_fit_cache is trim_gate_text_fit_cache
+    assert facade_build_gate_text_fitting_context is _build_gate_text_fitting_context
+    assert facade_fit_gate_text_font_size_with_context is _fit_gate_text_font_size_with_context
+    assert facade_draw_wires is draw_wires
+    assert facade_draw_connections is draw_connections
+    assert facade_draw_barriers is draw_barriers
+    assert facade_draw_gate_box is draw_gate_box
+    assert facade_draw_gate_label is draw_gate_label
+    assert facade_draw_controls is draw_controls
+    assert facade_draw_swaps is draw_swaps
+    assert facade_draw_measurement_box is draw_measurement_box
+    assert facade_draw_measurement_symbol is draw_measurement_symbol
+    assert facade_draw_text is draw_text
+    assert facade_draw_gate_annotation is draw_gate_annotation
+    assert facade_draw_x_target_circles is draw_x_target_circles
+    assert facade_draw_x_target_segments is draw_x_target_segments
+
+
 def test_second_pass_3d_renderer_and_layout_helpers_are_importable() -> None:
     from importlib import import_module
 

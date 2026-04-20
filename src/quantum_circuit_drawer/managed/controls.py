@@ -11,7 +11,7 @@ from .ui_palette import ManagedUiPalette
 if TYPE_CHECKING:
     from matplotlib.widgets import Button, Slider, TextBox
 
-    from .slider import Managed2DSliderLayout
+    from .slider_2d import Managed2DSliderLayout
 
 _VIEWPORT_EPSILON = 1e-6
 
@@ -103,7 +103,7 @@ def _resolve_2d_slider_layout(
     show_vertical_slider: bool,
     show_visible_qubits_box: bool,
 ) -> Managed2DSliderLayout:
-    from .slider import Managed2DSliderLayout
+    from .slider_2d import Managed2DSliderLayout
 
     main_axes_bounds = _apply_2d_main_axes_bounds(
         axes,

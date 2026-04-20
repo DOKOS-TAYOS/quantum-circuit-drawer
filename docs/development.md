@@ -70,22 +70,32 @@ Most implementation now lives in focused internal subpackages:
 The managed and 3D internals are now split more finely so the older orchestration modules can stay small and readable:
 
 - `quantum_circuit_drawer.managed.slider` stays as the stable internal facade for slider-related imports
+- `quantum_circuit_drawer.managed.slider_2d` now owns the real 2D slider state, viewport sizing, and control orchestration
 - `quantum_circuit_drawer.managed.controls` owns shared widget bounds, layout, and styling helpers
 - `quantum_circuit_drawer.managed.slider_2d_windowing` owns 2D scene slicing and row/column window helpers
 - `quantum_circuit_drawer.managed.slider_3d` owns 3D slider state, circuit windows, and 3D slider setup
+- `quantum_circuit_drawer.managed.page_window` stays as the stable orchestration layer for managed 2D page windows
+- `quantum_circuit_drawer.managed.page_window_controls` owns button/textbox wiring and navigation state sync for 2D page windows
+- `quantum_circuit_drawer.managed.page_window_windowing` owns visible-page slicing and projected page-window helpers
+- `quantum_circuit_drawer.managed.page_window_render` owns rerender lifecycle, hover attachment, and projected-page caching for 2D page windows
 - `quantum_circuit_drawer.managed.page_window_3d` stays as the orchestration layer for managed 3D page windows
 - `quantum_circuit_drawer.managed.page_window_3d_ranges` owns 3D page-range calculation and aspect-ratio balancing
 - `quantum_circuit_drawer.managed.page_window_3d_controls` owns button/textbox wiring and navigation state sync
 - `quantum_circuit_drawer.managed.page_window_3d_render` owns display-axes lifecycle and rerender helpers
 
-The heaviest 3D layout and rendering modules follow the same pattern:
+The heaviest renderer and 3D layout modules follow the same pattern:
+
+- `quantum_circuit_drawer.renderers.matplotlib_primitives` stays as the stable 2D drawing facade used by the renderer and compatibility-sensitive tests
+- `quantum_circuit_drawer.renderers._matplotlib_axes`, `_matplotlib_text`, `_matplotlib_connections`, and `_matplotlib_gates` now own the private 2D Matplotlib drawing internals
 
 - `quantum_circuit_drawer.layout.engine_3d` keeps the public `LayoutEngine3D` entrypoint
 - `quantum_circuit_drawer.layout._engine_3d_metrics`, `_engine_3d_topology`, `_engine_3d_operations`, and `_engine_3d_classical` hold focused private helpers used by `LayoutEngine3D`
 - `quantum_circuit_drawer.renderers.matplotlib_renderer_3d` keeps `MatplotlibRenderer3D` and `_MANAGED_3D_VIEWPORT_BOUNDS_ATTR` importable
 - `quantum_circuit_drawer.renderers._matplotlib_renderer_3d_viewport`, `_geometry`, `_text`, `_hover`, and `_segments` hold private support code for the 3D Matplotlib renderer
 
-Compatibility bridge modules still exist for older internal imports, but new internal code and new tests should target the domain packages directly.
+The larger internal test modules are also split along the same lines, with shared helpers moved into support modules so domain-specific test files stay focused.
+
+Compatibility bridge modules still exist for older internal imports, but new internal code and new tests should target the focused helper modules directly.
 
 ## Run checks
 

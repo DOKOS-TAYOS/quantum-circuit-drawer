@@ -12,39 +12,39 @@ from ..renderers._render_support import should_use_managed_agg_canvas, show_figu
 from ..style import DrawStyle
 from ..style.defaults import replace_draw_style, resolved_line_width, uses_default_line_width
 from ..typing import LayoutEngineLike, OutputPath
+from .controls import (
+    apply_managed_3d_axes_bounds as _apply_managed_3d_axes_bounds_impl,
+)
 from .page_window import (
     apply_page_window_axes_bounds as _apply_page_window_axes_bounds_impl,
 )
 from .page_window import (
     configure_page_window as _configure_page_window_impl,
 )
-from .slider import (
+from .slider_2d import (
     _DEFAULT_VISIBLE_QUBITS,
     _visible_qubits_viewport_height,
 )
-from .slider import (
-    apply_managed_3d_axes_bounds as _apply_managed_3d_axes_bounds_impl,
-)
-from .slider import (
-    configure_3d_page_slider as _configure_3d_page_slider_impl,
-)
-from .slider import (
+from .slider_2d import (
     configure_page_slider as _configure_page_slider_impl,
 )
-from .slider import (
+from .slider_2d import (
     page_slider_figsize as _page_slider_figsize_impl,
 )
-from .slider import (
+from .slider_2d import (
     prepare_page_slider_layout as _prepare_page_slider_layout_impl,
 )
-from .slider import (
+from .slider_2d import (
     set_slider_view as _set_slider_view_impl,
 )
-from .slider import (
+from .slider_2d import (
     slider_viewport_height as _slider_viewport_height_impl,
 )
-from .slider import (
+from .slider_2d import (
     slider_viewport_width as _slider_viewport_width_impl,
+)
+from .slider_3d import (
+    configure_3d_page_slider as _configure_3d_page_slider_impl,
 )
 from .topology_menu import attach_topology_menu
 from .viewport import (
@@ -89,7 +89,8 @@ if TYPE_CHECKING:
     from ..layout.scene import LayoutScene
     from ..layout.scene_3d import LayoutScene3D
     from ..renderers.matplotlib_renderer import MatplotlibRenderer
-    from .slider import Managed2DSliderLayout, Managed3DPageSliderState
+    from .slider_2d import Managed2DSliderLayout
+    from .slider_3d import Managed3DPageSliderState
 
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _ADAPTIVE_LINE_WIDTH_REFERENCE_PIXELS_PER_UNIT = 96.0

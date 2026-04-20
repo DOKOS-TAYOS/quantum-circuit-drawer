@@ -22,7 +22,7 @@ from .slider_3d import circuit_window
 from .viewport import build_continuous_slider_scene
 
 if TYPE_CHECKING:
-    from .slider import Managed2DPageSliderState
+    from .slider_2d import Managed2DPageSliderState
 
 _VIEWPORT_EPSILON = 1e-6
 
