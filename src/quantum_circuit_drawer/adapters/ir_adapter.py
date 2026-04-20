@@ -18,6 +18,7 @@ class IRAdapter(BaseAdapter):
         return isinstance(circuit, CircuitIR)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
+        del options
         if not isinstance(circuit, CircuitIR):
             raise TypeError("IRAdapter expects CircuitIR instances")
         return circuit

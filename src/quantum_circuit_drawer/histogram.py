@@ -6,17 +6,27 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from itertools import product
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, SupportsFloat, runtime_checkable
 
 from .exceptions import RenderingError
 from .style.theme import resolve_theme
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.container import BarContainer
     from matplotlib.figure import Figure
 
     from .style.theme import DrawTheme
     from .typing import OutputPath
+
+
+@runtime_checkable
+class _SupportsLenAndGetItem(Protocol):
+    """Minimal protocol for objects that behave like a sequence."""
+
+    def __len__(self) -> int: ...
+
+    def __getitem__(self, index: int) -> object: ...
 
 
 class HistogramKind(StrEnum):
@@ -305,12 +315,16 @@ def _extract_raw_distribution(
         return _extract_raw_distribution(data.data, result_index=result_index, data_key=data_key)
 
     if hasattr(data, "quasi_dists") and hasattr(data, "metadata"):
-        quasi_dists = getattr(data, "quasi_dists")
+        quasi_dists = data.quasi_dists
         selected = _select_result_item(
             quasi_dists,
             result_index=result_index,
             label="SamplerResult.quasi_dists",
         )
+        if not isinstance(selected, Mapping):
+            raise TypeError(
+                "SamplerResult.quasi_dists entries must be mappings from states to probabilities"
+            )
         return _mapping_from_distribution_object(selected)
 
     if (
@@ -331,11 +345,13 @@ def _extract_raw_distribution(
 def _mapping_from_distribution_object(
     data: Mapping[object, object],
 ) -> tuple[Mapping[object, object], int | None, HistogramKind | None]:
-    if hasattr(data, "binary_probabilities") and callable(getattr(data, "binary_probabilities")):
-        mapping = getattr(data, "binary_probabilities")()
+    binary_probabilities = getattr(data, "binary_probabilities", None)
+    if callable(binary_probabilities):
+        mapping = binary_probabilities()
         return mapping, _infer_mapping_bit_width(mapping), HistogramKind.QUASI
-    if hasattr(data, "int_outcomes") and callable(getattr(data, "int_outcomes")):
-        mapping = getattr(data, "int_outcomes")()
+    int_outcomes = getattr(data, "int_outcomes", None)
+    if callable(int_outcomes):
+        mapping = int_outcomes()
         return mapping, _infer_mapping_bit_width(mapping), HistogramKind.COUNTS
     return data, None, None
 
@@ -345,7 +361,11 @@ def _normalize_distribution_mapping(
     *,
     bit_width: int | None,
 ) -> tuple[dict[str, float], int]:
-    entries = [(key, float(value)) for key, value in raw_mapping.items()]
+    entries: list[tuple[object, float]] = []
+    for key, value in raw_mapping.items():
+        if not isinstance(value, SupportsFloat):
+            raise TypeError("histogram state values must be numeric")
+        entries.append((key, float(value)))
     if not entries:
         return {"0": 0.0}, 1
 
@@ -400,8 +420,13 @@ def _resolve_figure_and_axes(
     ax: Axes | None,
     figsize: tuple[float, float] | None,
 ) -> tuple[Figure, Axes]:
+    from matplotlib.figure import SubFigure
+
     if ax is not None:
-        return ax.figure, ax
+        parent_figure = ax.figure
+        if isinstance(parent_figure, SubFigure):
+            parent_figure = parent_figure.figure
+        return parent_figure, ax
 
     import matplotlib.pyplot as plt
 
@@ -490,7 +515,7 @@ def _apply_histogram_theme(
 
 def _apply_bar_style(
     *,
-    bars: object,
+    bars: BarContainer,
     values: tuple[float, ...],
     draw_style: HistogramDrawStyle,
     theme: DrawTheme,
@@ -601,12 +626,12 @@ def _select_data_bin_field(data_bin: object, *, data_key: str | None) -> object:
 
 
 def _select_result_item(sequence: object, *, result_index: int, label: str) -> object:
-    if not hasattr(sequence, "__len__") or not hasattr(sequence, "__getitem__"):
+    if not isinstance(sequence, _SupportsLenAndGetItem):
         raise TypeError(f"{label} is not indexable")
-    length = len(sequence)  # type: ignore[arg-type]
+    length = len(sequence)
     if result_index >= length:
         raise ValueError(f"result_index {result_index} is out of range for {label}")
-    return sequence[result_index]  # type: ignore[index]
+    return sequence[result_index]
 
 
 def _infer_mapping_bit_width(mapping: Mapping[object, object]) -> int:

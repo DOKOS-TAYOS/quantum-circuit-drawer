@@ -518,6 +518,8 @@ class LayoutEngine3D:
             operation.target_wires[0], quantum_wire_positions, gate_z
         )
         gate_size = self._gate_cube_size(draw_style)
+        label = "" if hover_enabled else metrics.display_label
+        subtitle = None if hover_enabled else metrics.subtitle
         gates.append(
             SceneGate3D(
                 column=column,
@@ -525,14 +527,33 @@ class LayoutEngine3D:
                 size_x=gate_size,
                 size_y=gate_size,
                 size_z=gate_size,
-                label=metrics.display_label,
-                subtitle=metrics.subtitle,
+                label=label,
+                subtitle=subtitle,
                 kind=OperationKind.MEASUREMENT,
                 render_style=GateRenderStyle3D.MEASUREMENT,
                 hover_text=self._gate_hover_text(metrics),
                 target_positions=(target_point,),
             )
         )
+        if not hover_enabled and label:
+            gate_text = label if not subtitle else f"{label}\n{subtitle}"
+            label_font_size = self._fit_gate_text_size(
+                text=gate_text,
+                gate_size=gate_size,
+                default_font_size=draw_style.font_size,
+            )
+            texts.append(
+                SceneText3D(
+                    position=Point3D(
+                        x=target_point.x,
+                        y=target_point.y,
+                        z=target_point.z + (gate_size * 0.5),
+                    ),
+                    text=gate_text,
+                    font_size=label_font_size,
+                    role="gate_label_block" if subtitle else "label",
+                )
+            )
         if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
             classical_point = classical_wire_positions[operation.classical_target]
             classical_label = (

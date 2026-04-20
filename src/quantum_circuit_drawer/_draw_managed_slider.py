@@ -10,6 +10,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from ._draw_managed_viewport import (
+    _figure_size_inches,
     axes_viewport_pixels,
     build_continuous_slider_scene,
 )
@@ -534,7 +535,7 @@ def _attach_2d_controls(
         )
         _style_slider(horizontal_slider, palette=palette)
         horizontal_slider.on_changed(
-            lambda value: state.show_start_column(int(round(float(value))))
+            lambda value: state.show_start_column(round(float(value)))
         )
         state.horizontal_slider = horizontal_slider
         state.horizontal_axes = horizontal_axes
@@ -763,7 +764,7 @@ def _start_row_for_vertical_slider_value(
     state: Managed2DPageSliderState,
     value: float,
 ) -> int:
-    resolved_value = int(round(float(value)))
+    resolved_value = round(float(value))
     return min(max(0, state.max_start_row - resolved_value), state.max_start_row)
 
 
@@ -840,12 +841,10 @@ def _needs_2d_control_rebuild(
         state.max_start_column
     ):
         return True
-    if state.vertical_slider is not None and state.vertical_slider.valmax != float(
-        state.max_start_row
-    ):
-        return True
 
-    return False
+    return state.vertical_slider is not None and state.vertical_slider.valmax != float(
+        state.max_start_row
+    )
 
 
 def _has_horizontal_overflow(state: Managed2DPageSliderState) -> bool:
@@ -1251,7 +1250,7 @@ def configure_3d_page_slider(
         },
     )
     _style_slider(slider, palette=palette)
-    slider.on_changed(lambda value: state.show_start_column(int(round(float(value)))))
+    slider.on_changed(lambda value: state.show_start_column(round(float(value))))
     state.horizontal_slider = slider
     set_page_slider(figure, state)
     return state
@@ -1553,12 +1552,3 @@ def _style_text_box(
     for spine in text_box.ax.spines.values():
         spine.set_color(border_color)
         spine.set_linewidth(1.0)
-
-
-def _figure_size_inches(figure: object) -> tuple[float, float]:
-    if hasattr(figure, "get_size_inches"):
-        size_inches = getattr(figure, "get_size_inches")()
-        return float(size_inches[0]), float(size_inches[1])
-    parent_figure = getattr(figure, "figure")
-    size_inches = parent_figure.get_size_inches()
-    return float(size_inches[0]), float(size_inches[1])

@@ -160,7 +160,7 @@ def _build_grid_topology(quantum_wires: tuple[WireIR, ...]) -> Topology3D:
     if not factor_pairs:
         raise _unsupported_topology_error("grid", wire_count)
 
-    rows, columns = min(
+    _rows, columns = min(
         ((min(first, second), max(first, second)) for first, second in factor_pairs),
         key=lambda pair: (abs(pair[1] - pair[0]), -pair[1]),
     )

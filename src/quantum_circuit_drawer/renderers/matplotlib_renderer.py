@@ -119,7 +119,7 @@ class MatplotlibRenderer(BaseRenderer):
         if scene.hover.enabled and hover_targets:
             attach_hover(axes, scene.hover, hover_targets, theme=scene.style.theme)
 
-        finalize_axes(axes, scene)
+        finalize_axes(axes)
         from .._draw_managed import configure_zoom_text_scaling
 
         configure_zoom_text_scaling(axes, scene=scene)
@@ -229,7 +229,6 @@ class MatplotlibRenderer(BaseRenderer):
                         height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
                         cache=gate_text_cache,
                     )
-                    subtitle_font_size = None
                 else:
                     visible_label = format_visible_label(
                         gate.label,
@@ -244,13 +243,11 @@ class MatplotlibRenderer(BaseRenderer):
                         height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
                         cache=gate_text_cache,
                     )
-                    subtitle_font_size = None
                 draw_gate_label(
                     axes,
                     gate,
                     scene,
                     label_font_size=label_font_size,
-                    subtitle_font_size=subtitle_font_size,
                     x_offset=x_offset,
                     y_offset=y_offset,
                     text_fit_context=gate_text_context,

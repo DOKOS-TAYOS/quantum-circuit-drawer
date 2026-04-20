@@ -15,6 +15,7 @@ from ._draw_managed_slider import (
     _style_text_box,
     circuit_window,
 )
+from ._draw_managed_viewport import _figure_size_inches
 from ._draw_pipeline import _compute_3d_scene
 from ._managed_3d_view_state import (
     _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
@@ -757,8 +758,3 @@ def _sync_total_page_texts(state: Managed3DPageWindowState) -> None:
         state.page_suffix_text.set_text(total_pages_text)
     if state.visible_suffix_text is not None:
         state.visible_suffix_text.set_text(total_pages_text)
-
-
-def _figure_size_inches(figure: Figure) -> tuple[float, float]:
-    size_inches = figure.get_size_inches()
-    return float(size_inches[0]), float(size_inches[1])

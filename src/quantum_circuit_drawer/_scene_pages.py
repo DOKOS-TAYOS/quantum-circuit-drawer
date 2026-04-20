@@ -3,30 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
-from .layout.scene import (
-    LayoutScene,
-    SceneBarrier,
-    SceneConnection,
-    SceneControl,
-    SceneGate,
-    SceneGateAnnotation,
-    SceneMeasurement,
-    ScenePage,
-    SceneSwap,
-)
+from .layout.scene import LayoutScene, ScenePage
 
-_SceneColumnItem = TypeVar(
-    "_SceneColumnItem",
-    SceneBarrier,
-    SceneConnection,
-    SceneControl,
-    SceneGate,
-    SceneGateAnnotation,
-    SceneMeasurement,
-    SceneSwap,
-)
+
+class _SceneColumnItemLike(Protocol):
+    """Protocol for scene items that track a ``column`` index."""
+
+    column: int
+
+
+_SceneColumnItem = TypeVar("_SceneColumnItem", bound=_SceneColumnItemLike)
 
 
 def single_page_scene(scene: LayoutScene, page_index: int) -> LayoutScene:

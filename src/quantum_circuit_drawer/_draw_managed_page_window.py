@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, TypeVar
+from typing import TYPE_CHECKING
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from ._draw_managed_slider import _style_control_axes, _style_stepper_button, _style_text_box
 from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
+from ._scene_pages import _items_for_page
 from .layout.scene import LayoutScene, ScenePage
 from .renderers._matplotlib_figure import (
     clear_hover_state,
@@ -49,13 +50,6 @@ _VISIBLE_SUFFIX_POSITION = (0.628, 0.079)
 @dataclass(frozen=True, slots=True)
 class _PageWindowCacheEntry:
     projected_page: _ProjectedPage
-
-
-class _SceneColumnItemLike(Protocol):
-    column: int
-
-
-_SceneColumnItem = TypeVar("_SceneColumnItem", bound=_SceneColumnItemLike)
 
 
 @dataclass(slots=True)
@@ -466,7 +460,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
             theme=window_scene.style.theme,
         )
 
-    finalize_axes(state.axes, window_scene)
+    finalize_axes(state.axes)
     from ._draw_managed import configure_zoom_text_scaling
 
     configure_zoom_text_scaling(state.axes, scene=window_scene)
@@ -568,11 +562,3 @@ def _project_page(scene: LayoutScene, page_index: int) -> _ProjectedPage:
         controls=_items_for_page(scene.controls, page=page),
         swaps=_items_for_page(scene.swaps, page=page),
     )
-
-
-def _items_for_page(
-    items: tuple[_SceneColumnItem, ...],
-    *,
-    page: ScenePage,
-) -> tuple[_SceneColumnItem, ...]:
-    return tuple(item for item in items if page.start_column <= item.column <= page.end_column)

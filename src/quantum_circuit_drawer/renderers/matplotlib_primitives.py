@@ -718,7 +718,6 @@ def draw_gate_label(
     scene: LayoutScene,
     *,
     label_font_size: float | None = None,
-    subtitle_font_size: float | None = None,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
     text_fit_context: _GateTextFittingContext | None = None,
@@ -1100,7 +1099,7 @@ def _build_gate_text_fitting_context(ax: Axes, scene: LayoutScene) -> _GateTextF
         round(x_limits[0], 9),
         round(x_limits[1], 9),
         round(scene_width, 9),
-        int(round(canvas_width_pixels)),
+        round(canvas_width_pixels),
         round(figure.dpi, 6),
     )
     cached_context = getattr(ax, _GATE_TEXT_CONTEXT_CACHE_ATTR, None)
@@ -1307,5 +1306,5 @@ def _resolved_multiline_text_line_spacing(text: str, font_size: float) -> float:
     return _multiline_text_line_spacing(font_size)
 
 
-def finalize_axes(ax: Axes, scene: LayoutScene) -> None:
+def finalize_axes(ax: Axes) -> None:
     ax.axis("off")

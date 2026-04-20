@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, replace
 from functools import lru_cache
+from itertools import pairwise
 from types import MethodType
 from typing import TYPE_CHECKING, cast
 
@@ -1263,7 +1264,7 @@ class MatplotlibRenderer3D(BaseRenderer):
             render_context=render_context,
         )
         grouped_offsets: dict[_TextPathCacheKey, list[tuple[float, float]]] = {}
-        for text, projected_position in zip(scene.texts, projected_positions):
+        for text, projected_position in zip(scene.texts, projected_positions, strict=True):
             visible_text = _visible_3d_text_value(text.text, role=text.role, scene=scene)
             text_key = (
                 visible_text,
@@ -1461,7 +1462,7 @@ class MatplotlibRenderer3D(BaseRenderer):
                 (first.x, first.y, first.z),
                 (second.x, second.y, second.z),
             )
-            for first, second in zip(points, points[1:])
+            for first, second in pairwise(points)
         ]
 
     def _segments_for_ring_points(

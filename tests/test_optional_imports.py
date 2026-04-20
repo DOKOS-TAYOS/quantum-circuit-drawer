@@ -118,7 +118,7 @@ def test_myqlm_adapter_can_handle_does_not_swallow_nested_import_errors(
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
-    with pytest.raises(RuntimeError, match="boom: qat.core"):
+    with pytest.raises(RuntimeError, match=r"boom: qat\.core"):
         MyQLMAdapter.can_handle(object())
 
 

@@ -8,8 +8,8 @@ from .wires import WireIR, WireKind
 
 __all__ = [
     "CanonicalGateFamily",
-    "ClassicalConditionIR",
     "CircuitIR",
+    "ClassicalConditionIR",
     "LayerIR",
     "MeasurementIR",
     "OperationIR",

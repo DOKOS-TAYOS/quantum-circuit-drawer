@@ -25,6 +25,7 @@ class CudaqAdapter(BaseAdapter):
         return bool(kernel_types) and isinstance(circuit, kernel_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
+        del options
         if not self.can_handle(circuit):
             raise TypeError("CudaqAdapter received a non-CUDA-Q kernel")
 
