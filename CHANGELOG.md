@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `plot_histogram` with public `HistogramConfig`, `HistogramKind`, and `HistogramResult` types for counts, quasi-probabilities, and joint marginals on selected qubits
+- Added support for histogram inputs from plain mappings and Qiskit 2.x result objects, including `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`
+
+### Changed
+
+- Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, and joint marginals
+
 ## [0.3.0] - 2026-04-20
 
 ### Changed

@@ -15,6 +15,7 @@ from .exceptions import (
     UnsupportedFrameworkError,
     UnsupportedOperationError,
 )
+from .histogram import HistogramConfig, HistogramKind, HistogramResult
 from .hover import HoverOptions
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
@@ -44,12 +45,32 @@ def draw_quantum_circuit(
     )
 
 
+def plot_histogram(
+    data: object,
+    *,
+    config: HistogramConfig | None = None,
+    ax: Axes | None = None,
+) -> HistogramResult:
+    """Plot counts or quasi-probability data and return ``HistogramResult``."""
+
+    from .histogram import plot_histogram as _plot_histogram
+
+    return _plot_histogram(
+        data,
+        config=config,
+        ax=ax,
+    )
+
+
 __all__ = [
     "DrawConfig",
     "DrawMode",
     "DrawResult",
     "DrawStyle",
     "DrawTheme",
+    "HistogramConfig",
+    "HistogramKind",
+    "HistogramResult",
     "HoverOptions",
     "LayoutError",
     "QuantumCircuitDrawerError",
@@ -60,4 +81,5 @@ __all__ = [
     "UnsupportedOperationError",
     "__version__",
     "draw_quantum_circuit",
+    "plot_histogram",
 ]

@@ -1,6 +1,6 @@
 # API reference
 
-## Main function
+## Main functions
 
 ```python
 draw_quantum_circuit(
@@ -9,9 +9,16 @@ draw_quantum_circuit(
     config: DrawConfig | None = None,
     ax: Axes | None = None,
 ) -> DrawResult
+
+plot_histogram(
+    data: object,
+    *,
+    config: HistogramConfig | None = None,
+    ax: Axes | None = None,
+) -> HistogramResult
 ```
 
-This is the only public entry point for drawing.
+These are the public entry points for circuit drawing and result histograms.
 
 ## `DrawConfig`
 
@@ -94,6 +101,58 @@ Examples:
 - simple managed render: one figure and one axes
 - `pages` in a notebook: several figures, one per page
 - caller-managed `ax=...`: one figure and one axes, wrapped in `DrawResult`
+
+## `HistogramKind`
+
+- `AUTO`
+  - infers counts from non-negative integers
+  - otherwise treats the data as quasi-probabilities
+- `COUNTS`
+  - requires non-negative integer values
+- `QUASI`
+  - accepts positive and negative weights
+
+## `HistogramConfig`
+
+```python
+HistogramConfig(
+    kind=HistogramKind.AUTO,
+    qubits=None,
+    result_index=0,
+    data_key=None,
+    show=True,
+    output_path=None,
+    figsize=None,
+)
+```
+
+Important fields:
+
+- `kind`: `AUTO`, `COUNTS`, or `QUASI`
+- `qubits`: optional tuple for a joint marginal over a subset of qubits
+- `result_index`: which Qiskit result entry to read when the object contains several results
+- `data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
+- `output_path`: optional file path for saving
+- `figsize`: managed figure size in inches
+
+## `HistogramResult`
+
+`plot_histogram(...)` always returns `HistogramResult`.
+
+Fields:
+
+- `figure`
+- `axes`
+- `kind`
+- `state_labels`
+- `values`
+- `qubits`
+
+Notes:
+
+- direct mappings can use `str` or `int` state keys
+- Qiskit 2.x inputs include `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, and `BitArray`
+- when `qubits` is provided, the function returns one joint marginal and preserves the exact qubit order you passed
 
 ## `ax`
 
@@ -182,5 +241,32 @@ result = draw_quantum_circuit(
 result = draw_quantum_circuit(
     circuit,
     config=DrawConfig(mode=DrawMode.FULL, show=False),
+)
+```
+
+### Counts histogram
+
+```python
+result = plot_histogram(
+    {"00": 51, "11": 49},
+    config=HistogramConfig(show=False),
+)
+```
+
+### Quasi-probability histogram
+
+```python
+result = plot_histogram(
+    {0: 0.52, 3: -0.08},
+    config=HistogramConfig(kind=HistogramKind.QUASI, show=False),
+)
+```
+
+### Joint marginal on selected qubits
+
+```python
+result = plot_histogram(
+    {"101": 2, "001": 1, "111": 3},
+    config=HistogramConfig(qubits=(0, 2), show=False),
 )
 ```

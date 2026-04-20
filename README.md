@@ -10,10 +10,12 @@
 
 `quantum-circuit-drawer` draws quantum circuits from several ecosystems with one Matplotlib-based API.
 
-The public API is now centered on two objects:
+The public API is now centered on two workflows:
 
 - `DrawConfig`: one ordered configuration object for view, mode, saving, style, and hover
 - `DrawResult`: one consistent return object for managed figures, caller-owned axes, 2D, and 3D
+- `HistogramConfig`: configuration for counts, quasi-probabilities, and marginals
+- `HistogramResult`: one stable return object for histogram figures and normalized values
 
 ## Install
 
@@ -52,6 +54,41 @@ result = draw_quantum_circuit(
 figure = result.primary_figure
 axes = result.primary_axes
 ```
+
+## Histogram from counts
+
+```python
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+result = plot_histogram(
+    {"00": 51, "11": 49},
+    config=HistogramConfig(show=False),
+)
+```
+
+## Histogram from quasi-probabilities
+
+```python
+from quantum_circuit_drawer import HistogramConfig, HistogramKind, plot_histogram
+
+result = plot_histogram(
+    {0: 0.52, 3: -0.08},
+    config=HistogramConfig(kind=HistogramKind.QUASI, show=False),
+)
+```
+
+## Joint marginal over selected qubits
+
+```python
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+result = plot_histogram(
+    {"101": 2, "001": 1, "111": 3},
+    config=HistogramConfig(qubits=(0, 2), show=False),
+)
+```
+
+`qubits=(0, 2)` keeps the requested order, so the marginal labels are built as `q0` followed by `q2`.
 
 ## Modes
 

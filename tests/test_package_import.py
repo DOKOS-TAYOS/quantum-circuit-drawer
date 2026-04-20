@@ -45,6 +45,29 @@ def test_package_import_does_not_eagerly_import_matplotlib() -> None:
     assert payload["matplotlib_modules"] == []
 
 
+def test_package_import_does_not_eagerly_import_qiskit() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import json, sys; "
+                "import quantum_circuit_drawer; "
+                "print(json.dumps(sorted("
+                "name for name in sys.modules if name == 'qiskit' or name.startswith('qiskit.')"
+                ")))"
+            ),
+        ],
+        capture_output=True,
+        env=_subprocess_env(),
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.strip()) == []
+
+
 def test_api_module_import_does_not_eagerly_import_matplotlib() -> None:
     result = subprocess.run(
         [
@@ -55,6 +78,29 @@ def test_api_module_import_does_not_eagerly_import_matplotlib() -> None:
                 "import quantum_circuit_drawer.api; "
                 "print(json.dumps(sorted("
                 "name for name in sys.modules if name == 'matplotlib' or name.startswith('matplotlib.')"
+                ")))"
+            ),
+        ],
+        capture_output=True,
+        env=_subprocess_env(),
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.strip()) == []
+
+
+def test_histogram_module_import_does_not_eagerly_import_qiskit() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import json, sys; "
+                "import quantum_circuit_drawer.histogram; "
+                "print(json.dumps(sorted("
+                "name for name in sys.modules if name == 'qiskit' or name.startswith('qiskit.')"
                 ")))"
             ),
         ],

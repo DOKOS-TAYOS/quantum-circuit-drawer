@@ -101,6 +101,39 @@ result = draw_quantum_circuit(
 )
 ```
 
+## Plot a counts histogram
+
+```python
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+result = plot_histogram(
+    {"00": 51, "11": 49},
+    config=HistogramConfig(show=False),
+)
+```
+
+## Plot a quasi-probability distribution
+
+```python
+from quantum_circuit_drawer import HistogramConfig, HistogramKind, plot_histogram
+
+result = plot_histogram(
+    {0: 0.52, 3: -0.08},
+    config=HistogramConfig(kind=HistogramKind.QUASI, show=False),
+)
+```
+
+## Plot a joint marginal on selected qubits
+
+```python
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+result = plot_histogram(
+    {"101": 2, "001": 1, "111": 3},
+    config=HistogramConfig(qubits=(0, 2), show=False),
+)
+```
+
 ## Custom widths and hover
 
 ```python
