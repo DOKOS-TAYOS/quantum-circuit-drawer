@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import re
 import sys
 from argparse import ArgumentParser, Namespace
@@ -388,20 +389,25 @@ def render_example(
     """Draw one built example subject and optionally report the saved file."""
 
     config = build_draw_config(request, framework=framework)
+    result: object | None = None
     try:
-        result = draw_quantum_circuit(
-            subject,
-            config=config,
-        )
-    except ValueError as error:
-        friendly_error = _friendly_demo_render_error(request=request, error=error)
-        if friendly_error is not None:
-            raise friendly_error from None
-        raise
-    _set_demo_figure_titles(result=result, saved_label=saved_label)
+        try:
+            result = draw_quantum_circuit(
+                subject,
+                config=config,
+            )
+        except ValueError as error:
+            friendly_error = _friendly_demo_render_error(request=request, error=error)
+            if friendly_error is not None:
+                raise friendly_error from None
+            raise
+        _set_demo_figure_titles(result=result, saved_label=saved_label)
 
-    if request.output is not None:
-        print(f"Saved {saved_label} to {request.output}")
+        if request.output is not None:
+            print(f"Saved {saved_label} to {request.output}")
+    finally:
+        if result is not None:
+            _release_rendered_result(result)
 
 
 def run_example(
@@ -476,6 +482,21 @@ def _is_destroyed_window_error(error: Exception) -> bool:
         "does not exist",
     )
     return any(marker in normalized_message for marker in destroyed_markers)
+
+
+def _release_rendered_result(result: object) -> None:
+    figures = tuple(getattr(result, "figures", ()))
+    if not figures:
+        return
+
+    from matplotlib import pyplot as plt
+
+    for figure in figures:
+        try:
+            plt.close(figure)
+        except Exception:
+            continue
+    gc.collect()
 
 
 def _friendly_demo_render_error(

@@ -5,6 +5,9 @@ import pytest
 from matplotlib.backend_bases import MouseEvent
 
 from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
+from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
+from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_page_window,
     get_topology_menu_state,
@@ -253,5 +256,41 @@ def test_draw_quantum_circuit_3d_pages_controls_detaches_removed_axes_mouse_rele
             button=1,
         ),
     )
+
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_3d_pages_controls_caps_dense_page_visual_load() -> None:
+    wire_count = 10
+    layer_count = 50
+    repeated_operations = tuple(
+        OperationIR(kind=OperationKind.GATE, name=name, target_wires=(wire_id,))
+        for name, wire_id in (("X", "q0"), ("Y", "q4"), ("Z", "q8"))
+    )
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(wire_count)
+        ],
+        layers=[LayerIR(operations=repeated_operations) for _ in range(layer_count)],
+    )
+
+    result = draw_quantum_circuit(
+        circuit,
+        config=DrawConfig(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            style={"max_page_width": 4.0},
+            show=False,
+            figsize=(10.0, 5.5),
+        ),
+    )
+
+    page_window = get_page_window(result.primary_figure)
+
+    assert page_window is not None
+    assert page_window.page_scenes
+    assert len(page_window.page_scenes[0].gates) <= 50
 
     plt.close(result.primary_figure)

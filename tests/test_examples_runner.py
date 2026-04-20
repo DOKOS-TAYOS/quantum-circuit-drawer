@@ -7,11 +7,15 @@ import sys
 from argparse import Namespace
 from importlib.util import find_spec
 from pathlib import Path
+from types import SimpleNamespace
 
+import examples._shared as shared_module
 import examples.run_demo as run_demo_module
+import matplotlib.pyplot as plt
 import pytest
 from examples._shared import ExampleRequest
 from examples.demo_catalog import DemoSpec, catalog_by_id, examples_directory, get_demo_catalog
+from matplotlib.figure import Figure
 
 from tests.support import assert_saved_image_has_visible_content
 
@@ -549,6 +553,47 @@ def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == str(expected_module_path.resolve())
+
+
+def test_render_example_closes_rendered_figures(monkeypatch: pytest.MonkeyPatch) -> None:
+    closed_figures: list[Figure] = []
+    figure_one = Figure()
+    figure_two = Figure()
+
+    def fake_draw_quantum_circuit(*args: object, **kwargs: object) -> object:
+        return SimpleNamespace(
+            primary_figure=figure_one,
+            figures=(figure_one, figure_two),
+        )
+
+    def track_close(figure: Figure) -> None:
+        closed_figures.append(figure)
+
+    monkeypatch.setattr(shared_module, "draw_quantum_circuit", fake_draw_quantum_circuit)
+    monkeypatch.setattr(plt, "close", track_close)
+
+    shared_module.render_example(
+        {"kind": "demo"},
+        request=ExampleRequest(
+            qubits=4,
+            columns=3,
+            mode="pages",
+            view="2d",
+            topology="line",
+            seed=7,
+            output=None,
+            show=False,
+            figsize=(10.0, 5.5),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        ),
+        framework="cirq",
+        saved_label="cleanup-demo",
+    )
+
+    assert closed_figures == [figure_one, figure_two]
 
 
 @pytest.mark.optional

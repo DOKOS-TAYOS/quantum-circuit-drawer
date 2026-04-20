@@ -257,20 +257,7 @@ def _coerce_complex_scalar(value: object) -> complex | None:
 def _build_hover_boxes(
     hover_targets: list[_HoverTarget2D],
 ) -> tuple[_HoverBox2D, ...]:
-    hover_boxes_by_key: dict[str, _HoverBox2D] = {}
-
-    for target in hover_targets:
-        hover_box = _hover_box_from_target(target)
-        cached_hover_box = hover_boxes_by_key.get(target.hover_data.key)
-        if cached_hover_box is None:
-            hover_boxes_by_key[target.hover_data.key] = hover_box
-            continue
-        hover_boxes_by_key[target.hover_data.key] = _merge_hover_boxes(
-            cached_hover_box,
-            hover_box,
-        )
-
-    return tuple(hover_boxes_by_key.values())
+    return tuple(_hover_box_from_target(target) for target in hover_targets)
 
 
 def _hover_box_from_target(
@@ -282,16 +269,6 @@ def _hover_box_from_target(
         x_max=target.x_max,
         y_min=target.y_min,
         y_max=target.y_max,
-    )
-
-
-def _merge_hover_boxes(left: _HoverBox2D, right: _HoverBox2D) -> _HoverBox2D:
-    return _HoverBox2D(
-        hover_data=left.hover_data,
-        x_min=min(left.x_min, right.x_min),
-        x_max=max(left.x_max, right.x_max),
-        y_min=min(left.y_min, right.y_min),
-        y_max=max(left.y_max, right.y_max),
     )
 
 

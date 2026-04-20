@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ..renderers.matplotlib_renderer_3d import MatplotlibRenderer3D
 
 _MIN_3D_PAGE_PROJECTED_ASPECT_RATIO = 1.2
+_MAX_3D_PAGE_VISUAL_LOAD = 48.0
 
 
 def windowed_3d_page_scenes(
@@ -87,12 +88,16 @@ def windowed_3d_page_ranges(
     page_ranges = tuple((page.start_column, page.end_column) for page in adapted_scene.pages) or (
         (0, max(0, len(normalized_circuit.layers) - 1)),
     )
-    return _rebalance_narrow_3d_page_ranges(
+    page_ranges = _rebalance_narrow_3d_page_ranges(
         pipeline,
         normalized_circuit=normalized_circuit,
         page_ranges=page_ranges,
         figure_size=(figure_width, figure_height),
         axes_bounds=axes_bounds,
+    )
+    return _rebalance_dense_3d_page_ranges(
+        normalized_circuit=normalized_circuit,
+        page_ranges=page_ranges,
     )
 
 
@@ -177,6 +182,37 @@ def _uniform_3d_page_ranges(
         ranges.append((start_column, end_column))
         start_column = end_column + 1
     return tuple(ranges)
+
+
+def _rebalance_dense_3d_page_ranges(
+    *,
+    normalized_circuit: CircuitIR,
+    page_ranges: tuple[tuple[int, int], ...],
+) -> tuple[tuple[int, int], ...]:
+    if not page_ranges:
+        return page_ranges
+
+    operation_counts = tuple(len(layer.operations) for layer in normalized_circuit.layers)
+    if not operation_counts:
+        return page_ranges
+
+    average_operations_per_layer = sum(operation_counts) / float(len(operation_counts))
+    if average_operations_per_layer <= 0.0:
+        return page_ranges
+
+    first_start_column, first_end_column = page_ranges[0]
+    first_window_size = max(1, first_end_column - first_start_column + 1)
+    max_visual_window_size = max(
+        1,
+        int(_MAX_3D_PAGE_VISUAL_LOAD / average_operations_per_layer),
+    )
+    if first_window_size <= max_visual_window_size:
+        return page_ranges
+
+    return _uniform_3d_page_ranges(
+        total_columns=len(normalized_circuit.layers),
+        window_size=max_visual_window_size,
+    )
 
 
 def _projected_scene_aspect_ratio(

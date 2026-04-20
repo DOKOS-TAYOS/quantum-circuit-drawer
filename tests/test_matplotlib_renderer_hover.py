@@ -1,4 +1,6 @@
 # ruff: noqa: F403, F405
+import quantum_circuit_drawer.renderers._matplotlib_hover as matplotlib_hover_module
+from quantum_circuit_drawer.layout.scene import SceneHoverData
 from tests._matplotlib_renderer_support import *
 
 
@@ -214,6 +216,52 @@ def test_draw_quantum_circuit_2d_hover_only_redraws_on_target_changes(
 
     _dispatch_motion_event_at(figure, axes_bounds.x0 + 4.0, axes_bounds.y0 + 4.0)
     assert redraw_count == 3
+
+
+def test_matplotlib_hover_does_not_fill_gap_between_connected_targets() -> None:
+    hover_data = SceneHoverData(
+        key="controlled-x",
+        name="CX",
+        qubit_labels=("q0", "q1"),
+        other_wire_labels=(),
+        matrix=None,
+        matrix_dimension=4,
+        gate_x=0.0,
+        gate_y=0.0,
+        gate_width=1.0,
+        gate_height=1.0,
+    )
+    hover_targets: list[matplotlib_hover_module._HoverTarget2D] = []
+
+    matplotlib_hover_module.add_hover_target(
+        hover_targets,
+        hover_data,
+        x_min=0.0,
+        x_max=1.0,
+        y_min=0.0,
+        y_max=1.0,
+    )
+    matplotlib_hover_module.add_hover_target(
+        hover_targets,
+        hover_data,
+        x_min=0.45,
+        x_max=0.55,
+        y_min=1.0,
+        y_max=4.0,
+    )
+    matplotlib_hover_module.add_hover_target(
+        hover_targets,
+        hover_data,
+        x_min=0.0,
+        x_max=1.0,
+        y_min=4.0,
+        y_max=5.0,
+    )
+
+    hover_boxes = matplotlib_hover_module._build_hover_boxes(hover_targets)
+
+    assert matplotlib_hover_module._resolve_hover_box(hover_boxes, x=0.1, y=2.5) is None
+    assert matplotlib_hover_module._resolve_hover_box(hover_boxes, x=0.5, y=2.5) is not None
 
 
 def test_matplotlib_renderer_hover_keeps_batch_draws_for_hoverable_artifacts(
