@@ -37,6 +37,7 @@ from .layout.scene import (
 )
 from .layout.scene_3d import LayoutScene3D
 from .renderers._matplotlib_figure import clear_hover_state, set_viewport_width
+from .renderers.matplotlib_primitives import _GateTextCache
 from .style import DrawStyle
 from .typing import LayoutEngine3DLike, LayoutEngineLike
 
@@ -144,6 +145,7 @@ class Managed2DPageSliderState:
     layout: Managed2DSliderLayout | None = None
     horizontal_scene_cache: dict[int, LayoutScene] = field(default_factory=dict)
     window_scene_cache: dict[tuple[int, int], LayoutScene] = field(default_factory=dict)
+    text_fit_cache: _GateTextCache = field(default_factory=dict)
     is_syncing_visible_qubits: bool = False
 
     def show_start_column(self, start_column: int) -> None:
@@ -483,7 +485,12 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     state.axes.set_position(layout.main_axes_bounds)
     setattr(state.axes, "_quantum_circuit_drawer_windowed_clip", True)
     set_viewport_width(state.figure, viewport_width=state.viewport_width)
-    state.renderer.render(state.scene, ax=state.axes)
+    state.renderer._render_2d_scene(
+        state.scene,
+        axes=state.axes,
+        output=None,
+        gate_text_cache=state.text_fit_cache,
+    )
     set_slider_view(
         state.axes,
         state.scene,

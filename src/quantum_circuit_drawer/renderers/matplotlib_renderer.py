@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from math import fabs
 from typing import Any, TypeVar
 
@@ -32,6 +33,7 @@ from ._matplotlib_page_projection import (
     page_x_offset,
     page_y_offset,
     project_pages,
+    projection_cache_key,
 )
 from ._render_support import save_rendered_figure
 from .base import BaseRenderer
@@ -40,6 +42,7 @@ from .matplotlib_primitives import (
     _STACKED_TEXT_USABLE_HEIGHT_FRACTION,
     _build_gate_text_fitting_context,
     _fit_gate_text_font_size_with_context,
+    _GateTextCache,
     draw_barriers,
     draw_connections,
     draw_controls,
@@ -55,12 +58,14 @@ from .matplotlib_primitives import (
     draw_x_target_segments,
     finalize_axes,
     prepare_axes,
+    trim_gate_text_fit_cache,
 )
 
 logger = logging.getLogger(__name__)
 _WIRE_STUB_FRACTION_OF_GATE_WIDTH = 0.16
 _WIRE_STUB_LABEL_MARGIN_FRACTION = 0.75
 _WIRE_STUB_PAGE_MARGIN_FRACTION = 0.75
+_PROJECTED_PAGES_CACHE_SIZE = 8
 
 _SceneColumnItem = TypeVar(
     "_SceneColumnItem",
@@ -79,6 +84,13 @@ class MatplotlibRenderer(BaseRenderer):
 
     backend_name = "matplotlib"
 
+    def __init__(self) -> None:
+        self._projected_pages_cache: OrderedDict[
+            tuple[object, ...],
+            tuple[_ProjectedPage, ...],
+        ] = OrderedDict()
+        self._gate_text_fit_cache: _GateTextCache = {}
+
     def render(
         self,
         scene: LayoutScene | LayoutScene3D,
@@ -96,12 +108,31 @@ class MatplotlibRenderer(BaseRenderer):
         else:
             logger.debug("Rendering scene on caller-managed axes")
 
+        self._render_2d_scene(
+            scene,
+            axes=axes,
+            output=output,
+            gate_text_cache=self._gate_text_fit_cache,
+        )
+
+        if ax is None:
+            assert managed_figure is not None
+            return managed_figure, axes
+        return axes
+
+    def _render_2d_scene(
+        self,
+        scene: LayoutScene,
+        *,
+        axes: Axes,
+        output: OutputPath | None,
+        gate_text_cache: _GateTextCache,
+    ) -> None:
         figure: Figure | SubFigure = axes.figure
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
         prepare_axes(axes, scene)
         projected_pages = self._project_pages(scene)
         gate_text_context = _build_gate_text_fitting_context(axes, scene)
-        gate_text_cache: dict[tuple[object, float, float], float] = {}
         hover_targets: list[_HoverTarget2D] = []
         clear_hover_state(axes)
 
@@ -124,11 +155,7 @@ class MatplotlibRenderer(BaseRenderer):
 
         configure_zoom_text_scaling(axes, scene=scene)
         self._save_output(figure, output)
-
-        if ax is None:
-            assert managed_figure is not None
-            return managed_figure, axes
-        return axes
+        trim_gate_text_fit_cache(gate_text_cache)
 
     def _draw_page(
         self,
@@ -138,7 +165,7 @@ class MatplotlibRenderer(BaseRenderer):
         projected_page: _ProjectedPage,
         *,
         gate_text_context: Any,
-        gate_text_cache: dict[tuple[object, float, float], float],
+        gate_text_cache: _GateTextCache,
         hover_targets: list[_HoverTarget2D],
     ) -> None:
         x_offset = self._page_x_offset(page, scene)
@@ -341,7 +368,17 @@ class MatplotlibRenderer(BaseRenderer):
             )
 
     def _project_pages(self, scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
-        return project_pages(scene)
+        cache_key = projection_cache_key(scene)
+        cached_pages = self._projected_pages_cache.get(cache_key)
+        if cached_pages is not None:
+            self._projected_pages_cache.move_to_end(cache_key)
+            return cached_pages
+
+        projected_pages = project_pages(scene)
+        self._projected_pages_cache[cache_key] = projected_pages
+        while len(self._projected_pages_cache) > _PROJECTED_PAGES_CACHE_SIZE:
+            self._projected_pages_cache.popitem(last=False)
+        return projected_pages
 
     def _save_output(self, figure: Figure | SubFigure, output: OutputPath | None) -> None:
         try:

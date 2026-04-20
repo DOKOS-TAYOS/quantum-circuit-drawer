@@ -722,6 +722,42 @@ def test_draw_quantum_circuit_page_window_clamps_inputs_and_reuses_cached_pages(
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_window_reuses_text_fit_cache_between_redraws(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_ids: set[int] = set()
+    original_fit = matplotlib_primitives._fit_gate_text_font_size_with_context
+
+    def track_cache_ids(**kwargs: object) -> float:
+        cache_ids.add(id(kwargs["cache"]))
+        return original_fit(**kwargs)
+
+    monkeypatch.setattr(
+        matplotlib_primitives,
+        "_fit_gate_text_font_size_with_context",
+        track_cache_ids,
+    )
+
+    figure, _ = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+
+    page_window.page_box.set_val(str(page_window.total_pages))
+    page_window.page_box.set_val("1")
+
+    assert len(cache_ids) == 1
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_window_keeps_initial_page_width_after_resize() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
@@ -1977,6 +2013,43 @@ def test_draw_quantum_circuit_managed_figure_computes_adaptive_layout_once_even_
 
     assert viewport_calls == 1
 
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_slider_reuses_text_fit_cache_between_redraws(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_ids: set[int] = set()
+    original_fit = matplotlib_primitives._fit_gate_text_font_size_with_context
+
+    def track_cache_ids(**kwargs: object) -> float:
+        cache_ids.add(id(kwargs["cache"]))
+        return original_fit(**kwargs)
+
+    monkeypatch.setattr(
+        matplotlib_primitives,
+        "_fit_gate_text_font_size_with_context",
+        track_cache_ids,
+    )
+
+    figure, _ = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+        figsize=(4.0, 3.0),
+    )
+
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.max_start_column > 0
+
+    page_slider.horizontal_slider.set_val(1.0)
+    page_slider.horizontal_slider.set_val(0.0)
+
+    assert len(cache_ids) == 1
     plt.close(figure)
 
 

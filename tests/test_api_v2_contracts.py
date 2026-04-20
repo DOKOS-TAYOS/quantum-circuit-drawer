@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import builtins
+
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import quantum_circuit_drawer
+import quantum_circuit_drawer._runtime_context as runtime_context_module
 from quantum_circuit_drawer import DrawConfig, DrawMode, DrawResult
 from quantum_circuit_drawer._runtime_context import RuntimeContext
 from quantum_circuit_drawer.api import draw_quantum_circuit
@@ -146,6 +149,25 @@ def test_draw_quantum_circuit_rejects_interactive_mode_in_non_widget_notebook(
             build_sample_ir(),
             config=DrawConfig(mode=DrawMode.SLIDER, show=False),
         )
+
+
+def test_runtime_context_detects_non_notebook_without_importing_ipython(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_context_module._running_inside_notebook.cache_clear()
+    monkeypatch.delattr(builtins, "get_ipython", raising=False)
+    monkeypatch.delitem(runtime_context_module.sys.modules, "IPython", raising=False)
+
+    original_import = builtins.__import__
+
+    def fail_ipython_import(name: str, *args: object, **kwargs: object) -> object:
+        if name == "IPython":
+            raise AssertionError(f"unexpected import attempt for {name}")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_ipython_import)
+
+    assert runtime_context_module._running_inside_notebook() is False
 
 
 def test_draw_config_validates_public_choices() -> None:

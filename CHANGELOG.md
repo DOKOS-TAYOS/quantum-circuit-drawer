@@ -12,6 +12,8 @@
 
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, and joint marginals
 - Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, top-k filtering, draw styles, and uniform-reference guides
+- Reduced 2D interactive redraw overhead by caching runtime notebook detection, reusing Matplotlib page projections across repeated renders, and keeping text-fit caches alive through page-window and slider redraws
+- Improved the synthetic `16 wires / 120 layers / 2 repeats` benchmark in this Windows environment from about `full_draw_seconds=0.2673` to `0.1328`, with `layout_seconds` dropping from about `0.0287` to `0.0127`
 
 ### Fixed
 
