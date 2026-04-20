@@ -18,22 +18,30 @@ except ImportError:
         run_histogram_example,
     )
 
-from quantum_circuit_drawer import HistogramConfig
+from quantum_circuit_drawer import HistogramConfig, HistogramDrawStyle, HistogramSort
 
 
 def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
     """Build a Qiskit result payload reduced to a joint marginal."""
 
     del request
-    circuit = QuantumCircuit(3)
-    circuit.h(0)
+    circuit = QuantumCircuit(5)
+    circuit.ry(1.18, 0)
+    circuit.ry(0.92, 2)
+    circuit.h(4)
     circuit.cx(0, 1)
-    circuit.x(2)
+    circuit.cx(2, 3)
     circuit.measure_all()
-    result = StatevectorSampler().run([circuit], shots=256).result()
+    result = StatevectorSampler().run([circuit], shots=512).result()
     return HistogramDemoPayload(
         data=result,
-        config=HistogramConfig(qubits=(2, 0), show=False),
+        config=HistogramConfig(
+            qubits=(4, 2, 0),
+            sort=HistogramSort.VALUE_DESC,
+            draw_style=HistogramDrawStyle.OUTLINE,
+            show_uniform_reference=True,
+            show=False,
+        ),
     )
 
 

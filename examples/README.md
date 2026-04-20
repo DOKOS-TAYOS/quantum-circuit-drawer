@@ -19,9 +19,9 @@ The example scripts now cover both circuit rendering and histogram rendering.
 
 | Demo id                      | Description                                       | Dependency |
 | ---------------------------- | ------------------------------------------------- | ---------- |
-| `histogram-counts`           | Counts histogram from a plain mapping             | none       |
-| `histogram-quasi`            | Quasi-probability histogram with negative bars    | none       |
-| `histogram-qiskit-marginal`  | Qiskit result histogram reduced to a joint marginal | qiskit   |
+| `histogram-counts`           | Larger counts histogram ordered by counts with top-k and uniform reference | none |
+| `histogram-quasi`            | Larger quasi-probability histogram with negative bars, soft style, and uniform reference | none |
+| `histogram-qiskit-marginal`  | Larger Qiskit joint marginal demo with outline style and uniform reference | qiskit |
 
 ## Main axes
 
@@ -54,6 +54,8 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-quasi
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-qiskit-marginal
 ```
+
+Each histogram demo now opens in a wider default window so larger state spaces remain readable.
 
 Linux or WSL:
 

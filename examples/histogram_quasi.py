@@ -15,7 +15,12 @@ except ImportError:
         run_histogram_example,
     )
 
-from quantum_circuit_drawer import HistogramConfig, HistogramKind
+from quantum_circuit_drawer import (
+    HistogramConfig,
+    HistogramDrawStyle,
+    HistogramKind,
+    HistogramSort,
+)
 
 
 def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
@@ -23,8 +28,23 @@ def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
 
     del request
     return HistogramDemoPayload(
-        data={"00": 0.52, "01": -0.08, "10": 0.21, "11": 0.35},
-        config=HistogramConfig(kind=HistogramKind.QUASI, show=False),
+        data={
+            "0000": 0.21,
+            "0001": 0.08,
+            "0011": -0.04,
+            "0101": 0.15,
+            "0110": 0.12,
+            "1001": -0.03,
+            "1100": 0.19,
+            "1111": 0.32,
+        },
+        config=HistogramConfig(
+            kind=HistogramKind.QUASI,
+            sort=HistogramSort.VALUE_DESC,
+            draw_style=HistogramDrawStyle.SOFT,
+            show_uniform_reference=True,
+            show=False,
+        ),
     )
 
 

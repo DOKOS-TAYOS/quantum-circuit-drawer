@@ -16,7 +16,7 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import HistogramConfig, plot_histogram  # noqa: E402
 
-DEFAULT_HISTOGRAM_FIGSIZE = (8.0, 4.5)
+DEFAULT_HISTOGRAM_FIGSIZE = (10.5, 5.6)
 
 
 @dataclass(frozen=True, slots=True)

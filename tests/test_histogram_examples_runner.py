@@ -9,7 +9,11 @@ from pathlib import Path
 
 import examples.run_histogram_demo as run_histogram_demo_module
 import pytest
-from examples._histogram_shared import HistogramDemoPayload, HistogramExampleRequest
+from examples._histogram_shared import (
+    DEFAULT_HISTOGRAM_FIGSIZE,
+    HistogramDemoPayload,
+    HistogramExampleRequest,
+)
 from examples.histogram_demo_catalog import (
     HistogramDemoSpec,
     catalog_by_id,
@@ -86,7 +90,7 @@ def test_run_histogram_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) 
         HistogramExampleRequest(
             output=None,
             show=False,
-            figsize=(8.0, 4.5),
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
         )
     ]
     assert render_calls == [
@@ -175,7 +179,13 @@ def test_histogram_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(
         run_histogram_demo_module,
         "parse_args",
-        lambda: Namespace(list=False, demo=None, output=None, show=True, figsize=(8.0, 4.5)),
+        lambda: Namespace(
+            list=False,
+            demo=None,
+            output=None,
+            show=True,
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
+        ),
     )
 
     with pytest.raises(SystemExit, match="Choose one histogram demo with --demo or use --list"):

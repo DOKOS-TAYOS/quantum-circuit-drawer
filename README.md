@@ -61,8 +61,13 @@ axes = result.primary_axes
 from quantum_circuit_drawer import HistogramConfig, plot_histogram
 
 result = plot_histogram(
-    {"00": 51, "11": 49},
-    config=HistogramConfig(show=False),
+    {"000": 51, "001": 14, "010": 9, "111": 49},
+    config=HistogramConfig(
+        sort="value_desc",
+        top_k=3,
+        show_uniform_reference=True,
+        show=False,
+    ),
 )
 ```
 
@@ -72,8 +77,13 @@ result = plot_histogram(
 from quantum_circuit_drawer import HistogramConfig, HistogramKind, plot_histogram
 
 result = plot_histogram(
-    {0: 0.52, 3: -0.08},
-    config=HistogramConfig(kind=HistogramKind.QUASI, show=False),
+    {0: 0.52, 3: -0.08, 4: 0.17, 7: 0.39},
+    config=HistogramConfig(
+        kind=HistogramKind.QUASI,
+        draw_style="soft",
+        show_uniform_reference=True,
+        show=False,
+    ),
 )
 ```
 
@@ -89,6 +99,8 @@ result = plot_histogram(
 ```
 
 `qubits=(0, 2)` keeps the requested order, so the marginal labels are built as `q0` followed by `q2`.
+
+Histogram plots also accept `theme="dark" | "light" | "paper"` so the default look now matches the circuit drawer theme family.
 
 ## Modes
 

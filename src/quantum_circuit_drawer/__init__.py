@@ -15,7 +15,13 @@ from .exceptions import (
     UnsupportedFrameworkError,
     UnsupportedOperationError,
 )
-from .histogram import HistogramConfig, HistogramKind, HistogramResult
+from .histogram import (
+    HistogramConfig,
+    HistogramDrawStyle,
+    HistogramKind,
+    HistogramResult,
+    HistogramSort,
+)
 from .hover import HoverOptions
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
@@ -69,8 +75,10 @@ __all__ = [
     "DrawStyle",
     "DrawTheme",
     "HistogramConfig",
+    "HistogramDrawStyle",
     "HistogramKind",
     "HistogramResult",
+    "HistogramSort",
     "HoverOptions",
     "LayoutError",
     "QuantumCircuitDrawerError",

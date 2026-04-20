@@ -9,11 +9,13 @@ from itertools import product
 from typing import TYPE_CHECKING
 
 from .exceptions import RenderingError
+from .style.theme import resolve_theme
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
+    from .style.theme import DrawTheme
     from .typing import OutputPath
 
 
@@ -25,22 +27,48 @@ class HistogramKind(StrEnum):
     QUASI = "quasi"
 
 
+class HistogramSort(StrEnum):
+    """Public histogram ordering modes."""
+
+    STATE = "state"
+    VALUE_DESC = "value_desc"
+    VALUE_ASC = "value_asc"
+
+
+class HistogramDrawStyle(StrEnum):
+    """Public histogram bar rendering styles."""
+
+    SOLID = "solid"
+    OUTLINE = "outline"
+    SOFT = "soft"
+
+
 @dataclass(frozen=True, slots=True)
 class HistogramConfig:
     """Public configuration for ``plot_histogram``."""
 
     kind: HistogramKind = HistogramKind.AUTO
+    sort: HistogramSort = HistogramSort.STATE
+    top_k: int | None = None
     qubits: tuple[int, ...] | None = None
     result_index: int = 0
     data_key: str | None = None
+    theme: DrawTheme | str | None = None
+    draw_style: HistogramDrawStyle = HistogramDrawStyle.SOLID
+    show_uniform_reference: bool = False
     show: bool = True
     output_path: OutputPath | None = None
     figsize: tuple[float, float] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "kind", self._normalize_kind(self.kind))
+        object.__setattr__(self, "sort", self._normalize_sort(self.sort))
+        object.__setattr__(self, "theme", resolve_theme(self.theme))
+        object.__setattr__(self, "draw_style", self._normalize_draw_style(self.draw_style))
         self._validate_qubits(self.qubits)
+        self._validate_top_k(self.top_k)
         self._validate_result_index(self.result_index)
+        self._validate_show_uniform_reference(self.show_uniform_reference)
         self._validate_show(self.show)
         self._validate_figsize(self.figsize)
 
@@ -51,6 +79,24 @@ class HistogramConfig:
         except ValueError as exc:
             choices = ", ".join(kind.value for kind in HistogramKind)
             raise ValueError(f"kind must be one of: {choices}") from exc
+
+    @staticmethod
+    def _normalize_sort(value: HistogramSort | str) -> HistogramSort:
+        try:
+            return value if isinstance(value, HistogramSort) else HistogramSort(str(value))
+        except ValueError as exc:
+            choices = ", ".join(sort.value for sort in HistogramSort)
+            raise ValueError(f"sort must be one of: {choices}") from exc
+
+    @staticmethod
+    def _normalize_draw_style(value: HistogramDrawStyle | str) -> HistogramDrawStyle:
+        try:
+            return (
+                value if isinstance(value, HistogramDrawStyle) else HistogramDrawStyle(str(value))
+            )
+        except ValueError as exc:
+            choices = ", ".join(style.value for style in HistogramDrawStyle)
+            raise ValueError(f"draw_style must be one of: {choices}") from exc
 
     @staticmethod
     def _validate_qubits(qubits: tuple[int, ...] | None) -> None:
@@ -64,10 +110,24 @@ class HistogramConfig:
             raise ValueError("qubits must not contain duplicates")
 
     @staticmethod
+    def _validate_top_k(value: int | None) -> None:
+        if value is None:
+            return
+        if isinstance(value, int) and value > 0:
+            return
+        raise ValueError("top_k must be a positive integer")
+
+    @staticmethod
     def _validate_result_index(value: int) -> None:
         if isinstance(value, int) and value >= 0:
             return
         raise ValueError("result_index must be a non-negative integer")
+
+    @staticmethod
+    def _validate_show_uniform_reference(value: bool) -> None:
+        if isinstance(value, bool):
+            return
+        raise ValueError("show_uniform_reference must be a boolean")
 
     @staticmethod
     def _validate_show(value: bool) -> None:
@@ -130,16 +190,52 @@ def plot_histogram(
         qubits=resolved_config.qubits,
         bit_width=normalized.bit_width,
     )
-    state_labels = tuple(values_by_state)
-    values = tuple(float(value) for value in values_by_state.values())
+    resolved_bit_width = _resolved_histogram_bit_width(
+        bit_width=normalized.bit_width,
+        qubits=resolved_config.qubits,
+    )
+    theme = resolve_theme(resolved_config.theme)
+    uniform_reference_value = _uniform_reference_value(
+        values_by_state,
+        kind=normalized.kind,
+        bit_width=resolved_bit_width,
+        show_uniform_reference=resolved_config.show_uniform_reference,
+    )
+    ordered_values_by_state = _order_histogram_values(
+        values_by_state,
+        sort=resolved_config.sort,
+        top_k=resolved_config.top_k,
+    )
+    state_labels = tuple(ordered_values_by_state)
+    values = tuple(float(value) for value in ordered_values_by_state.values())
     figure, axes = _resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
 
-    colors = _bar_colors(values=values, kind=normalized.kind)
-    axes.bar(state_labels, values, color=colors)
+    _apply_histogram_theme(figure=figure, axes=axes, theme=theme)
+    bars = axes.bar(
+        state_labels,
+        values,
+        color=_bar_colors(values=values, kind=normalized.kind, theme=theme),
+        edgecolor=theme.gate_edgecolor,
+        linewidth=1.2,
+    )
+    _apply_bar_style(
+        bars=bars,
+        values=values,
+        draw_style=resolved_config.draw_style,
+        theme=theme,
+    )
     axes.set_xlabel("State")
     axes.set_ylabel("Counts" if normalized.kind is HistogramKind.COUNTS else "Quasi-probability")
     if normalized.kind is HistogramKind.QUASI:
-        axes.axhline(0.0, color="#94a3b8", linewidth=1.0)
+        axes.axhline(0.0, color=_reference_line_color(theme), linewidth=1.0, linestyle="--")
+    if uniform_reference_value is not None:
+        axes.axhline(
+            uniform_reference_value,
+            color=_reference_line_color(theme),
+            linewidth=1.2,
+            linestyle=":",
+        )
+    axes.margins(x=0.02)
 
     _save_histogram_if_requested(figure, output_path=resolved_config.output_path)
     if resolved_config.show:
@@ -316,10 +412,118 @@ def _bar_colors(
     *,
     values: tuple[float, ...],
     kind: HistogramKind,
+    theme: DrawTheme,
 ) -> tuple[str, ...]:
     if kind is HistogramKind.COUNTS:
-        return tuple("#2563eb" for _ in values)
-    return tuple("#2563eb" if value >= 0.0 else "#dc2626" for value in values)
+        return tuple(theme.accent_color for _ in values)
+    return tuple(
+        theme.accent_color if value >= 0.0 else _negative_bar_color(theme) for value in values
+    )
+
+
+def _order_histogram_values(
+    values_by_state: Mapping[str, float],
+    *,
+    sort: HistogramSort,
+    top_k: int | None,
+) -> dict[str, float]:
+    items = list(values_by_state.items())
+    if sort is HistogramSort.STATE:
+        items.sort(key=lambda item: int(item[0], 2))
+    elif sort is HistogramSort.VALUE_DESC:
+        items.sort(key=lambda item: (-item[1], int(item[0], 2)))
+    else:
+        items.sort(key=lambda item: (item[1], int(item[0], 2)))
+    if top_k is not None:
+        items = items[:top_k]
+    return dict(items)
+
+
+def _resolved_histogram_bit_width(
+    *,
+    bit_width: int,
+    qubits: tuple[int, ...] | None,
+) -> int:
+    if qubits is None:
+        return bit_width
+    return len(qubits)
+
+
+def _uniform_reference_value(
+    values_by_state: Mapping[str, float],
+    *,
+    kind: HistogramKind,
+    bit_width: int,
+    show_uniform_reference: bool,
+) -> float | None:
+    if not show_uniform_reference:
+        return None
+    domain_size = 2**bit_width
+    if kind is HistogramKind.COUNTS:
+        return sum(values_by_state.values()) / float(domain_size)
+    return 1.0 / float(domain_size)
+
+
+def _apply_histogram_theme(
+    *,
+    figure: Figure,
+    axes: Axes,
+    theme: DrawTheme,
+) -> None:
+    figure.patch.set_facecolor(theme.figure_facecolor)
+    axes.set_facecolor(theme.axes_facecolor)
+    axes.tick_params(axis="x", colors=theme.text_color)
+    axes.tick_params(axis="y", colors=theme.text_color)
+    axes.xaxis.label.set_color(theme.text_color)
+    axes.yaxis.label.set_color(theme.text_color)
+    for spine in axes.spines.values():
+        spine.set_color(theme.ui_surface_edgecolor or theme.gate_edgecolor)
+    axes.grid(
+        axis="y",
+        color=theme.ui_surface_edgecolor or theme.barrier_color,
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.35,
+    )
+    axes.set_axisbelow(True)
+
+
+def _apply_bar_style(
+    *,
+    bars: object,
+    values: tuple[float, ...],
+    draw_style: HistogramDrawStyle,
+    theme: DrawTheme,
+) -> None:
+    del theme
+    if draw_style is HistogramDrawStyle.SOLID:
+        for bar in bars:
+            bar.set_alpha(0.95)
+        return
+    if draw_style is HistogramDrawStyle.SOFT:
+        for bar in bars:
+            bar.set_alpha(0.55)
+            bar.set_linewidth(1.0)
+        return
+    for bar, value in zip(bars, values, strict=True):
+        bar.set_fill(False)
+        bar.set_facecolor("none")
+        bar.set_alpha(1.0)
+        bar.set_linewidth(1.8)
+        if value < 0.0:
+            bar.set_edgecolor("#dc2626")
+
+
+def _reference_line_color(theme: DrawTheme) -> str:
+    return theme.ui_secondary_text_color or theme.barrier_color
+
+
+def _negative_bar_color(theme: DrawTheme) -> str:
+    if theme.name == "paper":
+        return "#b91c1c"
+    if theme.name == "light":
+        return "#dc2626"
+    return "#f87171"
 
 
 def _apply_joint_marginal(
