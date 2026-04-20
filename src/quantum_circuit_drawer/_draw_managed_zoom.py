@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
-from matplotlib.text import Annotation
+from matplotlib.text import Annotation, Text
 
 from .layout.scene import LayoutScene
 
@@ -193,7 +193,7 @@ def _coerce_font_size(font_size: float | str, *, default: float) -> float:
 
 
 def _apply_text_artist_scale(
-    text_artist: object,
+    text_artist: Text,
     *,
     font_size: float,
     multiline_line_spacing: Callable[[float], float],
