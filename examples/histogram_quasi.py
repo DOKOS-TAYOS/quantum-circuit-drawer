@@ -19,7 +19,6 @@ from quantum_circuit_drawer import (
     HistogramConfig,
     HistogramDrawStyle,
     HistogramKind,
-    HistogramSort,
 )
 
 
@@ -40,9 +39,8 @@ def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
         },
         config=HistogramConfig(
             kind=HistogramKind.QUASI,
-            sort=HistogramSort.VALUE_DESC,
+            theme="paper",
             draw_style=HistogramDrawStyle.SOFT,
-            show_uniform_reference=True,
             show=False,
         ),
     )

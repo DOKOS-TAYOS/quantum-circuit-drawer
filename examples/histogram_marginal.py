@@ -18,7 +18,7 @@ except ImportError:
         run_histogram_example,
     )
 
-from quantum_circuit_drawer import HistogramConfig, HistogramDrawStyle, HistogramSort
+from quantum_circuit_drawer import HistogramConfig, HistogramSort
 
 
 def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
@@ -37,9 +37,7 @@ def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
         data=result,
         config=HistogramConfig(
             qubits=(4, 2, 0),
-            sort=HistogramSort.VALUE_DESC,
-            draw_style=HistogramDrawStyle.OUTLINE,
-            show_uniform_reference=True,
+            sort=HistogramSort.STATE,
             show=False,
         ),
     )
@@ -51,7 +49,7 @@ def main() -> None:
     run_histogram_example(
         build_demo,
         description="Render a Qiskit joint marginal histogram demo.",
-        saved_label="histogram-qiskit-marginal",
+        saved_label="histogram-marginal",
     )
 
 

@@ -19,9 +19,11 @@ The example scripts now cover both circuit rendering and histogram rendering.
 
 | Demo id                      | Description                                       | Dependency |
 | ---------------------------- | ------------------------------------------------- | ---------- |
-| `histogram-counts`           | Larger counts histogram ordered by counts with top-k and uniform reference | none |
-| `histogram-quasi`            | Larger quasi-probability histogram with negative bars, soft style, and uniform reference | none |
-| `histogram-qiskit-marginal`  | Larger Qiskit joint marginal demo with outline style and uniform reference | qiskit |
+| `histogram-binary-order`     | Counts histogram in the natural binary-state order | none |
+| `histogram-count-order`      | Counts histogram ordered from highest to lowest counts | none |
+| `histogram-uniform-reference`| Counts histogram with the uniform reference line | none |
+| `histogram-quasi`            | Quasi-probability histogram with negative bars | none |
+| `histogram-marginal`         | Qiskit result histogram reduced to a joint marginal | qiskit |
 
 ## Main axes
 
@@ -50,9 +52,11 @@ Linux or WSL:
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-counts
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-binary-order
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-count-order
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-uniform-reference
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-quasi
-.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-qiskit-marginal
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-marginal
 ```
 
 Each histogram demo now opens in a wider default window so larger state spaces remain readable.
@@ -60,9 +64,11 @@ Each histogram demo now opens in a wider default window so larger state spaces r
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/run_histogram_demo.py --demo histogram-counts
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-binary-order
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-count-order
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-uniform-reference
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-quasi
-.venv/bin/python examples/run_histogram_demo.py --demo histogram-qiskit-marginal
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-marginal
 ```
 
 ## All commands, copy-paste ready

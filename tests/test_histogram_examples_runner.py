@@ -212,16 +212,18 @@ def test_histogram_demo_catalog_exposes_expected_demo_ids() -> None:
     demo_ids = {spec.demo_id for spec in get_demo_catalog()}
 
     assert demo_ids == {
-        "histogram-counts",
+        "histogram-binary-order",
+        "histogram-count-order",
+        "histogram-uniform-reference",
         "histogram-quasi",
-        "histogram-qiskit-marginal",
+        "histogram-marginal",
     }
 
 
 def test_run_histogram_demo_reports_clear_message_when_optional_dependency_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    spec = catalog_by_id()["histogram-qiskit-marginal"]
+    spec = catalog_by_id()["histogram-marginal"]
 
     monkeypatch.setattr(run_histogram_demo_module, "find_spec", lambda name: None)
 
@@ -230,7 +232,7 @@ def test_run_histogram_demo_reports_clear_message_when_optional_dependency_is_mi
 
     message = str(exc_info.value)
 
-    assert "histogram-qiskit-marginal" in message
+    assert "histogram-marginal" in message
     assert "qiskit" in message
     assert 'python.exe -m pip install -e ".[qiskit]"' in message
     assert "Traceback" not in message
@@ -270,7 +272,9 @@ def test_run_histogram_demo_script_imports_drawer_from_local_worktree_src() -> N
 @pytest.mark.parametrize(
     "demo_id",
     [
-        "histogram-counts",
+        "histogram-binary-order",
+        "histogram-count-order",
+        "histogram-uniform-reference",
         "histogram-quasi",
     ],
 )
@@ -307,17 +311,17 @@ def test_histogram_examples_runner_can_render_qiskit_marginal_demo(
     sandbox_tmp_path: Path,
 ) -> None:
     if find_spec("qiskit") is None:
-        pytest.skip("qiskit is required for the histogram qiskit marginal demo")
+        pytest.skip("qiskit is required for the histogram marginal demo")
 
     script_path = Path(__file__).resolve().parents[1] / "examples" / "run_histogram_demo.py"
-    output_path = sandbox_tmp_path / "histogram-qiskit-marginal.png"
+    output_path = sandbox_tmp_path / "histogram-marginal.png"
 
     result = subprocess.run(
         [
             sys.executable,
             str(script_path),
             "--demo",
-            "histogram-qiskit-marginal",
+            "histogram-marginal",
             "--no-show",
             "--output",
             str(output_path),

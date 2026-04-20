@@ -28,9 +28,21 @@ def get_demo_catalog() -> tuple[HistogramDemoSpec, ...]:
 
     return (
         HistogramDemoSpec(
-            demo_id="histogram-counts",
-            description="Counts histogram from a plain mapping",
-            module_name="examples.histogram_counts",
+            demo_id="histogram-binary-order",
+            description="Counts histogram ordered by binary state labels",
+            module_name="examples.histogram_binary_order",
+            builder_name="build_demo",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-count-order",
+            description="Counts histogram ordered from highest to lowest counts",
+            module_name="examples.histogram_count_order",
+            builder_name="build_demo",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-uniform-reference",
+            description="Counts histogram with the uniform reference line",
+            module_name="examples.histogram_uniform_reference",
             builder_name="build_demo",
         ),
         HistogramDemoSpec(
@@ -40,9 +52,9 @@ def get_demo_catalog() -> tuple[HistogramDemoSpec, ...]:
             builder_name="build_demo",
         ),
         HistogramDemoSpec(
-            demo_id="histogram-qiskit-marginal",
+            demo_id="histogram-marginal",
             description="Qiskit result histogram reduced to a joint marginal",
-            module_name="examples.histogram_qiskit_marginal",
+            module_name="examples.histogram_marginal",
             builder_name="build_demo",
             dependency_module="qiskit",
         ),

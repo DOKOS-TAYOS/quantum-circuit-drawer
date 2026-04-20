@@ -19,6 +19,29 @@ from quantum_circuit_drawer import HistogramConfig, plot_histogram  # noqa: E402
 DEFAULT_HISTOGRAM_FIGSIZE = (10.5, 5.6)
 
 
+def demo_counts_data() -> dict[str, int]:
+    """Return a shared counts payload with a full 4-bit state space."""
+
+    return {
+        "0000": 41,
+        "0001": 9,
+        "0010": 18,
+        "0011": 67,
+        "0100": 12,
+        "0101": 53,
+        "0110": 24,
+        "0111": 31,
+        "1000": 88,
+        "1001": 16,
+        "1010": 74,
+        "1011": 11,
+        "1100": 58,
+        "1101": 21,
+        "1110": 44,
+        "1111": 95,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class HistogramExampleRequest:
     """Normalized render request shared by histogram example scripts."""
