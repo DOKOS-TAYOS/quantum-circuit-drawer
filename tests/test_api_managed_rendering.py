@@ -25,6 +25,7 @@ from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
+from quantum_circuit_drawer.layout._layering import normalize_draw_layers
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
@@ -974,6 +975,28 @@ def test_draw_quantum_circuit_page_slider_uses_width_budgeted_column_windows() -
 
     moved_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
     assert {label for label in moved_labels if label in {"H", "X", "Y", "Z"}} == {"X", "Y", "Z"}
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_tracks_normalized_draw_columns() -> None:
+    circuit = _overlapping_raw_layer_ir(raw_layer_count=4)
+    figure, _ = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 2.0},
+        page_slider=True,
+        show=False,
+        figsize=(4.0, 3.0),
+    )
+
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+    normalized_column_count = len(normalize_draw_layers(circuit))
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.total_column_count == normalized_column_count
+    assert len(page_slider.column_widths) == normalized_column_count
+    assert page_slider.max_start_column > max(0, len(circuit.layers) - 1)
 
     plt.close(figure)
 

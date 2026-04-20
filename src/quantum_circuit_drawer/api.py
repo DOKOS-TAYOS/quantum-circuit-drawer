@@ -205,11 +205,13 @@ def _render_managed_2d_pages_result(
     page_window: bool,
     mode: DrawMode,
 ) -> DrawResult:
-    page_scenes = single_page_scenes(cast("LayoutScene", pipeline.paged_scene))
+    adapted_scene = _page_window_adapted_2d_scene(pipeline, figsize=figsize)
+    adapted_pipeline = replace(pipeline, paged_scene=adapted_scene)
+    page_scenes = single_page_scenes(adapted_scene)
 
     if output is not None:
         saved_figure, _ = _render_managed_draw_pipeline(
-            pipeline,
+            adapted_pipeline,
             output=output,
             show=False,
             figsize=figsize,
@@ -226,7 +228,7 @@ def _render_managed_2d_pages_result(
     figures: list[Figure] = []
     axes_list: list[Axes] = []
     for page_scene in page_scenes:
-        page_pipeline = replace(pipeline, paged_scene=page_scene)
+        page_pipeline = replace(adapted_pipeline, paged_scene=page_scene)
         figure, axes = _render_managed_draw_pipeline(
             page_pipeline,
             output=None,
@@ -257,7 +259,7 @@ def _render_managed_3d_pages_result(
     figsize: tuple[float, float] | None,
     mode: DrawMode,
 ) -> DrawResult:
-    page_scenes = _windowed_3d_scenes(pipeline)
+    page_scenes = _windowed_3d_scenes(pipeline, figsize=figsize)
 
     if output is not None:
         _save_clean_3d_pages_output(
@@ -305,7 +307,7 @@ def _render_managed_3d_page_controls_result(
     from .renderers._matplotlib_figure import create_managed_figure, set_page_window
     from .renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
 
-    page_scenes = _windowed_3d_scenes(pipeline)
+    page_scenes = _windowed_3d_scenes(pipeline, figsize=figsize)
     if output is not None:
         _save_clean_3d_pages_output(
             page_scenes,
@@ -364,28 +366,79 @@ def _page_count_for_pipeline(
     return len(_windowed_3d_scenes(pipeline))
 
 
-def _windowed_3d_scenes(pipeline: PreparedDrawPipeline) -> tuple[LayoutScene3D, ...]:
-    from ._draw_managed_slider import circuit_window, page_slider_window_size
+def _page_window_adapted_2d_scene(
+    pipeline: PreparedDrawPipeline,
+    *,
+    figsize: tuple[float, float] | None,
+) -> LayoutScene:
+    from ._draw_managed import page_window_adaptive_paged_scene
+    from .layout.engine import LayoutEngine
+    from .renderers._matplotlib_figure import create_managed_figure
+
+    if pipeline.draw_options.view == "2d":
+        initial_scene = cast("LayoutScene", pipeline.paged_scene)
+        layout_engine = cast("LayoutEngineLike", pipeline.layout_engine)
+    else:
+        layout_engine = LayoutEngine()
+        initial_scene = layout_engine.compute(pipeline.ir, pipeline.normalized_style)
+        initial_scene.hover = pipeline.draw_options.hover
+
+    figure_width, figure_height = figsize or (
+        max(4.6, initial_scene.width * 0.95),
+        max(2.1, initial_scene.page_height * 0.72),
+    )
+    figure, axes = create_managed_figure(
+        initial_scene,
+        figure_width=figure_width,
+        figure_height=figure_height,
+        use_agg=True,
+    )
+    try:
+        adapted_scene, _ = page_window_adaptive_paged_scene(
+            pipeline.ir,
+            layout_engine,
+            pipeline.normalized_style,
+            axes,
+            hover_enabled=initial_scene.hover.enabled,
+            initial_scene=initial_scene,
+            visible_page_count=1,
+        )
+    finally:
+        figure.clear()
+
+    adapted_scene.hover = initial_scene.hover
+    return adapted_scene
+
+
+def _windowed_3d_scenes(
+    pipeline: PreparedDrawPipeline,
+    *,
+    figsize: tuple[float, float] | None = None,
+) -> tuple[LayoutScene3D, ...]:
+    from ._draw_managed_slider import circuit_window
     from ._draw_pipeline import _compute_3d_scene
+    from .layout._layering import normalized_draw_circuit
 
     layout_engine = cast("LayoutEngine3DLike", pipeline.layout_engine)
-    total_columns = len(pipeline.ir.layers)
-    window_size = page_slider_window_size(pipeline.ir, pipeline.normalized_style)
-    start_columns = (0,) if total_columns == 0 else tuple(range(0, total_columns, window_size))
+    normalized_circuit = normalized_draw_circuit(pipeline.ir)
+    adapted_scene = _page_window_adapted_2d_scene(pipeline, figsize=figsize)
+    page_ranges = tuple((page.start_column, page.end_column) for page in adapted_scene.pages) or (
+        (0, max(0, len(normalized_circuit.layers) - 1)),
+    )
     return tuple(
         _compute_3d_scene(
             layout_engine,
             circuit_window(
-                pipeline.ir,
+                normalized_circuit,
                 start_column=start_column,
-                window_size=window_size,
+                window_size=max(1, end_column - start_column + 1),
             ),
             pipeline.normalized_style,
             topology_name=pipeline.draw_options.topology,
             direct=pipeline.draw_options.direct,
             hover_enabled=pipeline.draw_options.hover.enabled,
         )
-        for start_column in start_columns
+        for start_column, end_column in page_ranges
     )
 
 

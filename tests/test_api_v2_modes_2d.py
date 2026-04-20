@@ -62,6 +62,33 @@ def test_draw_quantum_circuit_pages_mode_renders_only_one_page_per_figure() -> N
         plt.close(figure)
 
 
+def test_draw_quantum_circuit_pages_mode_adapts_page_count_to_window_width() -> None:
+    circuit = build_dense_rotation_ir(layer_count=24, wire_count=4)
+    narrow_result = draw_quantum_circuit(
+        circuit,
+        config=DrawConfig(
+            mode=DrawMode.PAGES,
+            style={"max_page_width": 4.0},
+            show=False,
+            figsize=(3.2, 12.0),
+        ),
+    )
+    wide_result = draw_quantum_circuit(
+        circuit,
+        config=DrawConfig(
+            mode=DrawMode.PAGES,
+            style={"max_page_width": 4.0},
+            show=False,
+            figsize=(12.0, 4.0),
+        ),
+    )
+
+    assert wide_result.page_count < narrow_result.page_count
+
+    for figure in (*narrow_result.figures, *wide_result.figures):
+        plt.close(figure)
+
+
 def test_single_page_scenes_keep_a_shared_page_width_for_consistent_2d_spacing() -> None:
     source_scene = LayoutEngine().compute(build_wrapped_ir(), DrawStyle(max_page_width=4.0))
 

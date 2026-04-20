@@ -33,6 +33,18 @@ def normalize_draw_layers(circuit: CircuitIR) -> tuple[LayerIR, ...]:
     return tuple(normalized_layers)
 
 
+def normalized_draw_circuit(circuit: CircuitIR) -> CircuitIR:
+    """Return a circuit whose layers already match the drawable layer normalization."""
+
+    return CircuitIR(
+        quantum_wires=circuit.quantum_wires,
+        classical_wires=circuit.classical_wires,
+        layers=normalize_draw_layers(circuit),
+        name=circuit.name,
+        metadata=dict(circuit.metadata),
+    )
+
+
 def operation_draw_span_slots(
     operation: OperationNode,
     wire_order: dict[str, int],

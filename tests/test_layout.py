@@ -394,6 +394,48 @@ def test_layout_engine_keeps_barrier_columns_compact() -> None:
     assert scene.width < 6.0
 
 
+def test_layout_engine_keeps_consecutive_swap_columns_evenly_spaced() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=("q0", "q1"))
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=("q0", "q1"))
+                ]
+            ),
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q1",))]
+            ),
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    column_centers = (
+        scene.gates[0].x,
+        scene.swaps[0].x,
+        scene.swaps[1].x,
+        scene.gates[1].x,
+    )
+    column_gaps = [
+        right_center - left_center
+        for left_center, right_center in zip(column_centers, column_centers[1:])
+    ]
+    expected_gap = scene.style.gate_width + scene.style.layer_spacing
+
+    assert column_gaps == pytest.approx([expected_gap, expected_gap, expected_gap])
+
+
 def test_operation_width_from_parts_keeps_parametric_rotation_gates_compact() -> None:
     style = DrawStyle()
     operation = OperationIR(
@@ -401,6 +443,26 @@ def test_operation_width_from_parts_keeps_parametric_rotation_gates_compact() ->
         name="RX",
         target_wires=("q0",),
         parameters=(3.1415926535,),
+    )
+    label, subtitle = operation_label_parts(operation, style)
+
+    assert (
+        operation_width_from_parts(
+            operation=operation,
+            style=style,
+            label=label,
+            subtitle=subtitle,
+        )
+        == style.gate_width
+    )
+
+
+def test_operation_width_from_parts_keeps_swap_markers_compact() -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.SWAP,
+        name="SWAP",
+        target_wires=("q0", "q1"),
     )
     label, subtitle = operation_label_parts(operation, style)
 

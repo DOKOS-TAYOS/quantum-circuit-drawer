@@ -20,6 +20,7 @@ from ._managed_3d_view_state import (
 )
 from ._managed_ui_palette import ManagedUiPalette, managed_ui_palette
 from .ir.circuit import CircuitIR
+from .layout._layering import normalized_draw_circuit
 from .layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from .layout.scene import (
     LayoutScene,
@@ -320,7 +321,8 @@ def configure_page_slider(
     )
 
     resolved_style = scene.style if normalized_style is None else normalized_style
-    paging_inputs = build_layout_paging_inputs(circuit, resolved_style)
+    normalized_circuit = normalized_draw_circuit(circuit)
+    paging_inputs = build_layout_paging_inputs(normalized_circuit, resolved_style)
     total_scene_width = paged_scene_metrics_for_width(
         paging_inputs,
         max_page_width=float("inf"),
@@ -352,7 +354,7 @@ def configure_page_slider(
     state = Managed2DPageSliderState(
         figure=figure,
         axes=axes,
-        circuit=circuit,
+        circuit=normalized_circuit,
         layout_engine=layout_engine,
         renderer=renderer,
         style=resolved_style,
@@ -360,7 +362,7 @@ def configure_page_slider(
         scene=scene,
         column_widths=tuple(paging_inputs.column_widths),
         total_scene_width=total_scene_width,
-        total_column_count=len(circuit.layers),
+        total_column_count=len(normalized_circuit.layers),
         horizontal_slider=None,
         vertical_slider=None,
         visible_qubits_box=None,
@@ -1197,8 +1199,9 @@ def configure_3d_page_slider(
 ) -> Managed3DPageSliderState | None:
     """Attach and wire a managed 3D slider that moves through circuit columns."""
 
-    total_columns = len(pipeline.ir.layers)
-    window_size = page_slider_window_size(pipeline.ir, pipeline.normalized_style)
+    normalized_pipeline = replace(pipeline, ir=normalized_draw_circuit(pipeline.ir))
+    total_columns = len(normalized_pipeline.ir.layers)
+    window_size = page_slider_window_size(normalized_pipeline.ir, pipeline.normalized_style)
     max_start_column = max(0, total_columns - window_size)
     if max_start_column <= 0:
         return None
@@ -1213,7 +1216,7 @@ def configure_3d_page_slider(
     state = Managed3DPageSliderState(
         figure=figure,
         axes=axes_3d,
-        pipeline=pipeline,
+        pipeline=normalized_pipeline,
         current_scene=cast("LayoutScene3D", pipeline.paged_scene),
         horizontal_slider=None,
         horizontal_axes=slider_axes,
@@ -1249,13 +1252,14 @@ def configure_3d_page_slider(
 def page_slider_window_size(circuit: CircuitIR, style: DrawStyle) -> int:
     """Return the number of columns that fit in the first 2D page budget."""
 
-    paging_inputs = build_layout_paging_inputs(circuit, style)
+    normalized_circuit = normalized_draw_circuit(circuit)
+    paging_inputs = build_layout_paging_inputs(normalized_circuit, style)
     metrics = paged_scene_metrics_for_width(
         paging_inputs,
         max_page_width=float(getattr(style, "max_page_width")),
     )
     if not metrics.pages:
-        return max(1, len(circuit.layers))
+        return max(1, len(normalized_circuit.layers))
     first_page = metrics.pages[0]
     return max(1, first_page.end_column - first_page.start_column + 1)
 

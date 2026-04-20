@@ -67,6 +67,8 @@ def operation_width_from_parts(
 
     if operation.kind is OperationKind.BARRIER:
         return max(0.35, style.gate_width * 0.35)
+    if operation.kind is OperationKind.SWAP:
+        return style.gate_width
 
     if uses_compact_parametric_width(operation, label, subtitle):
         return style.gate_width
