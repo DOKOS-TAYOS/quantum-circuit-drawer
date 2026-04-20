@@ -5,15 +5,15 @@ from __future__ import annotations
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 
-from .. import _matrix_support as _matrix_support_module
-from .._matrix_support import (
-    _resolved_operation_matrix_and_dimension,
-)
 from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from ..ir.wires import WireIR
+from ..utils import matrix_support as _matrix_support_module
 from ..utils.formatting import format_gate_name
+from ..utils.matrix_support import (
+    _resolved_operation_matrix_and_dimension,
+)
 from ._classical_conditions import iter_classical_condition_anchors
 from ._layout_scaffold import _LayoutScaffold, _OperationMetrics, bundle_size
 from .routing import vertical_span

@@ -189,7 +189,7 @@ def test_draw_quantum_circuit_3d_pages_controls_keeps_adapted_page_count_after_t
 
 
 def test_draw_quantum_circuit_3d_pages_controls_keeps_honeycomb_pages_wide_enough() -> None:
-    from quantum_circuit_drawer._draw_managed_page_window_3d import (
+    from quantum_circuit_drawer.managed.page_window_3d import (
         _MIN_3D_PAGE_PROJECTED_ASPECT_RATIO,
         _projected_scene_aspect_ratio,
     )

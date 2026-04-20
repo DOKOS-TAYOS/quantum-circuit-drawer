@@ -7,10 +7,6 @@ from types import ModuleType, SimpleNamespace
 import numpy as np
 import pytest
 
-from quantum_circuit_drawer._matrix_support import (
-    operation_matrix_dimension,
-    resolved_operation_matrix,
-)
 from quantum_circuit_drawer.adapters._helpers import (
     _extract_dependency_types_cached,
     append_classical_conditions,
@@ -25,6 +21,10 @@ from quantum_circuit_drawer.adapters._helpers import (
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
+from quantum_circuit_drawer.utils.matrix_support import (
+    operation_matrix_dimension,
+    resolved_operation_matrix,
+)
 
 
 def test_load_optional_dependency_returns_none_when_module_is_missing(

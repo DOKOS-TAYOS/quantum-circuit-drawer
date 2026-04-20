@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
-from quantum_circuit_drawer._scene_pages import single_page_scenes
+from quantum_circuit_drawer.drawing.pages import single_page_scenes
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_page_slider,

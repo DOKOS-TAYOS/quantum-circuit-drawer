@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from quantum_circuit_drawer._managed_ui_palette import managed_ui_palette
+from quantum_circuit_drawer.managed.ui_palette import managed_ui_palette
 from quantum_circuit_drawer.style import (
     DrawTheme,
     normalize_style,

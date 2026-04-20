@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from quantum_circuit_drawer._matrix_support import _resolved_operation_matrix_and_dimension
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
+from quantum_circuit_drawer.utils.matrix_support import _resolved_operation_matrix_and_dimension
 
 
 def test_resolved_operation_matrix_and_dimension_prefers_explicit_matrix() -> None:

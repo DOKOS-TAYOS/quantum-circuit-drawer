@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Protocol, cast
 
-from .._matrix_support import square_matrix
 from ..exceptions import UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..ir.wires import WireIR, WireKind
+from ..utils.matrix_support import square_matrix
 from ._helpers import (
     append_classical_conditions,
     canonical_gate_spec,

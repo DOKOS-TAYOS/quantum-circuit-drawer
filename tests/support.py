@@ -13,19 +13,19 @@ import pytest
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from quantum_circuit_drawer._draw_managed import (
-    is_3d_axes,
-    render_draw_pipeline_on_axes,
-    render_managed_draw_pipeline,
-)
-from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline
-from quantum_circuit_drawer._draw_request import build_draw_request, validate_draw_request
+from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline
+from quantum_circuit_drawer.drawing.request import build_draw_request, validate_draw_request
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
+from quantum_circuit_drawer.managed.drawing import (
+    is_3d_axes,
+    render_draw_pipeline_on_axes,
+    render_managed_draw_pipeline,
+)
 from quantum_circuit_drawer.style import DrawStyle
 
 _MATHTEXT_GREEK_TO_NAME: dict[str, str] = {

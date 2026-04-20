@@ -8,10 +8,10 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event, MouseEvent
 
-from .._matrix_support import matrix_qubit_count, square_matrix
 from ..hover import HoverOptions
 from ..layout.scene import SceneHoverData
 from ..style.theme import DrawTheme
+from ..utils.matrix_support import matrix_qubit_count, square_matrix
 from ._matplotlib_figure import HoverState, set_hover_state
 
 _HOVER_ZORDER = 10_000

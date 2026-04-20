@@ -151,7 +151,7 @@ class MatplotlibRenderer(BaseRenderer):
             attach_hover(axes, scene.hover, hover_targets, theme=scene.style.theme)
 
         finalize_axes(axes)
-        from .._draw_managed import configure_zoom_text_scaling
+        from ..managed.drawing import configure_zoom_text_scaling
 
         configure_zoom_text_scaling(axes, scene=scene)
         self._save_output(figure, output)

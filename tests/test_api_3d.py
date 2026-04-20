@@ -3,14 +3,14 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import pytest
 
-from quantum_circuit_drawer._draw_managed_slider import Managed3DPageSliderState
-from quantum_circuit_drawer._managed_3d_view_state import (
-    _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
-    Managed3DFixedViewState,
-)
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
+from quantum_circuit_drawer.managed.slider import Managed3DPageSliderState
+from quantum_circuit_drawer.managed.view_state_3d import (
+    _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
+    Managed3DFixedViewState,
+)
 from quantum_circuit_drawer.renderers._matplotlib_figure import get_page_slider
 from tests.support import (
     build_dense_rotation_ir,

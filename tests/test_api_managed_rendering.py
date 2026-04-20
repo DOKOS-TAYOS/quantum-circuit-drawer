@@ -14,13 +14,8 @@ from matplotlib.figure import Figure
 from matplotlib.patches import FancyBboxPatch
 from matplotlib.transforms import Bbox
 
-import quantum_circuit_drawer._draw_managed as managed_module
+import quantum_circuit_drawer.managed.drawing as managed_module
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
-from quantum_circuit_drawer._draw_managed_slider import (
-    Managed2DPageSliderState,
-    _horizontal_scene_for_start_column,
-)
-from quantum_circuit_drawer._draw_managed_zoom import current_text_scale
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
@@ -28,6 +23,11 @@ from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout._layering import normalize_draw_layers
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
+from quantum_circuit_drawer.managed.slider import (
+    Managed2DPageSliderState,
+    _horizontal_scene_for_start_column,
+)
+from quantum_circuit_drawer.managed.zoom import current_text_scale
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_base_font_size,
@@ -1206,7 +1206,7 @@ def test_draw_quantum_circuit_page_slider_uses_more_horizontal_space_for_taller_
 def test_draw_quantum_circuit_page_slider_normalizes_style_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import quantum_circuit_drawer._draw_pipeline as pipeline_module
+    import quantum_circuit_drawer.drawing.pipeline as pipeline_module
     import quantum_circuit_drawer.layout.engine as engine_module
 
     normalize_style_calls = 0
@@ -1966,7 +1966,7 @@ def test_draw_quantum_circuit_managed_figure_resize_keeps_hover_cleanup_stable(
 def test_draw_quantum_circuit_managed_figure_computes_adaptive_layout_once_even_after_resize(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import quantum_circuit_drawer._draw_managed as draw_managed
+    import quantum_circuit_drawer.managed.drawing as draw_managed
 
     circuit = build_dense_rotation_ir(layer_count=24)
     viewport_calls = 0

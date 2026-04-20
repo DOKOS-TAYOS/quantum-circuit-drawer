@@ -7,10 +7,10 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import quantum_circuit_drawer
-import quantum_circuit_drawer._runtime_context as runtime_context_module
+import quantum_circuit_drawer.drawing.runtime as runtime_context_module
 from quantum_circuit_drawer import DrawConfig, DrawMode, DrawResult
-from quantum_circuit_drawer._runtime_context import RuntimeContext
 from quantum_circuit_drawer.api import draw_quantum_circuit
+from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from tests.support import build_sample_ir
 
 
@@ -104,7 +104,7 @@ def test_draw_quantum_circuit_resolves_auto_mode_to_pages_controls_for_scripts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "quantum_circuit_drawer._runtime_context.detect_runtime_context",
+        "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
         lambda: RuntimeContext(is_notebook=False, pyplot_backend="agg"),
     )
 
@@ -122,7 +122,7 @@ def test_draw_quantum_circuit_resolves_auto_mode_to_pages_for_notebooks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "quantum_circuit_drawer._runtime_context.detect_runtime_context",
+        "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
         lambda: RuntimeContext(is_notebook=True, pyplot_backend="inline"),
     )
 
@@ -140,7 +140,7 @@ def test_draw_quantum_circuit_rejects_interactive_mode_in_non_widget_notebook(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "quantum_circuit_drawer._runtime_context.detect_runtime_context",
+        "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
         lambda: RuntimeContext(is_notebook=True, pyplot_backend="inline"),
     )
 

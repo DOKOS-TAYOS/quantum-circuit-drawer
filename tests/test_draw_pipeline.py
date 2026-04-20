@@ -4,8 +4,8 @@ from collections.abc import Mapping
 
 import pytest
 
-from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline, resolve_layout_engine
-from quantum_circuit_drawer._draw_request import DrawPipelineOptions, build_draw_request
+from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline, resolve_layout_engine
+from quantum_circuit_drawer.drawing.request import DrawPipelineOptions, build_draw_request
 from quantum_circuit_drawer.exceptions import LayoutError
 from quantum_circuit_drawer.hover import HoverOptions
 from quantum_circuit_drawer.ir.circuit import CircuitIR
@@ -98,7 +98,7 @@ def test_prepare_draw_pipeline_forwards_options_and_uses_custom_layout(
 def test_prepare_draw_pipeline_normalizes_style_once_for_default_layout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import quantum_circuit_drawer._draw_pipeline as pipeline_module
+    import quantum_circuit_drawer.drawing.pipeline as pipeline_module
     import quantum_circuit_drawer.layout.engine as engine_module
 
     normalize_style_calls = 0
@@ -201,7 +201,7 @@ def test_build_draw_request_preserves_explicit_matrices_false_when_hover_stays_e
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "quantum_circuit_drawer._draw_request.pyplot_backend_supports_interaction",
+        "quantum_circuit_drawer.drawing.request.pyplot_backend_supports_interaction",
         lambda: True,
     )
 

@@ -5,6 +5,7 @@ This page is for working on the repository locally.
 ## Contents
 
 - [Set up the environment](#set-up-the-environment)
+- [Package layout](#package-layout)
 - [Run checks](#run-checks)
 - [Run examples](#run-examples)
 - [Build distributions](#build-distributions)
@@ -49,6 +50,42 @@ For CUDA-Q development, use Linux or WSL2:
 ```bash
 .venv/bin/python -m pip install -e ".[dev,cudaq]"
 ```
+
+## Package layout
+
+The package root keeps the stable public surface small:
+
+- `quantum_circuit_drawer.__init__`
+- `quantum_circuit_drawer.api`
+- `quantum_circuit_drawer.histogram`
+- public config, result, exception, style, IR, layout, renderer, and adapter modules
+
+Most implementation now lives in focused internal subpackages:
+
+- `quantum_circuit_drawer.drawing`: draw request normalization, runtime mode resolution, page helpers, and pipeline preparation
+- `quantum_circuit_drawer.managed`: managed Matplotlib figures, sliders, fixed page windows, viewport logic, zoom scaling, and 3D view state
+- `quantum_circuit_drawer.plots`: histogram plotting implementation
+- `quantum_circuit_drawer.export`: shared figure-saving helpers
+
+The managed and 3D internals are now split more finely so the older orchestration modules can stay small and readable:
+
+- `quantum_circuit_drawer.managed.slider` stays as the stable internal facade for slider-related imports
+- `quantum_circuit_drawer.managed.controls` owns shared widget bounds, layout, and styling helpers
+- `quantum_circuit_drawer.managed.slider_2d_windowing` owns 2D scene slicing and row/column window helpers
+- `quantum_circuit_drawer.managed.slider_3d` owns 3D slider state, circuit windows, and 3D slider setup
+- `quantum_circuit_drawer.managed.page_window_3d` stays as the orchestration layer for managed 3D page windows
+- `quantum_circuit_drawer.managed.page_window_3d_ranges` owns 3D page-range calculation and aspect-ratio balancing
+- `quantum_circuit_drawer.managed.page_window_3d_controls` owns button/textbox wiring and navigation state sync
+- `quantum_circuit_drawer.managed.page_window_3d_render` owns display-axes lifecycle and rerender helpers
+
+The heaviest 3D layout and rendering modules follow the same pattern:
+
+- `quantum_circuit_drawer.layout.engine_3d` keeps the public `LayoutEngine3D` entrypoint
+- `quantum_circuit_drawer.layout._engine_3d_metrics`, `_engine_3d_topology`, `_engine_3d_operations`, and `_engine_3d_classical` hold focused private helpers used by `LayoutEngine3D`
+- `quantum_circuit_drawer.renderers.matplotlib_renderer_3d` keeps `MatplotlibRenderer3D` and `_MANAGED_3D_VIEWPORT_BOUNDS_ATTR` importable
+- `quantum_circuit_drawer.renderers._matplotlib_renderer_3d_viewport`, `_geometry`, `_text`, `_hover`, and `_segments` hold private support code for the 3D Matplotlib renderer
+
+Compatibility bridge modules still exist for older internal imports, but new internal code and new tests should target the domain packages directly.
 
 ## Run checks
 

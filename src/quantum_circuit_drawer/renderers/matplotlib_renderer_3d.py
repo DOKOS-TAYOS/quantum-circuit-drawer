@@ -3,29 +3,20 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, replace
-from functools import lru_cache
-from itertools import pairwise
+from dataclasses import replace
 from types import MethodType
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from matplotlib.artist import Artist
-from matplotlib.backend_bases import MouseEvent
 from matplotlib.collections import PathCollection
-from matplotlib.path import Path
-from matplotlib.textpath import TextPath
-from matplotlib.transforms import Affine2D, Bbox, IdentityTransform
+from matplotlib.transforms import Affine2D, IdentityTransform
 from mpl_toolkits.mplot3d import proj3d  # type: ignore[import-untyped]
 from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
     Line3DCollection,
     Poly3DCollection,
 )
 
-from .._managed_3d_view_state import (
-    _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
-    Managed3DFixedViewState,
-)
 from ..exceptions import RenderingError
 from ..layout.scene import LayoutScene
 from ..layout.scene_3d import (
@@ -37,6 +28,10 @@ from ..layout.scene_3d import (
     SceneConnection3D,
     SceneGate3D,
 )
+from ..managed.view_state_3d import (
+    _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
+    Managed3DFixedViewState,
+)
 from ..style import (
     resolved_classical_wire_line_width,
     resolved_connection_line_width,
@@ -46,21 +41,39 @@ from ..style import (
     resolved_wire_line_width,
 )
 from ..typing import OutputPath, RenderResult
-from ..utils.formatting import format_gate_text_block, format_parameter_text, format_visible_label
+from ..utils.formatting import format_visible_label
 from ._matplotlib_figure import (
-    HoverState,
     clear_hover_state,
     create_managed_figure,
-    set_hover_state,
+)
+from ._matplotlib_renderer_3d_geometry import (
+    Segment3D,
+    _PreparedBatchedGateGeometry3D,
+    _RenderContext3D,
+    build_render_context_3d,
+    point_array_3d,
+)
+from ._matplotlib_renderer_3d_hover import attach_hover_3d
+from ._matplotlib_renderer_3d_segments import (
+    segments_for_path_points_3d,
+    segments_for_points_3d,
+    segments_for_ring_points_3d,
+)
+from ._matplotlib_renderer_3d_text import (
+    _aligned_text_path,
+    _TextPathCacheKey,
+    _visible_3d_text_value,
+)
+from ._matplotlib_renderer_3d_viewport import (
+    axes_box_aspect_3d,
+    viewport_short_dimension_3d,
 )
 from ._render_support import backend_supports_interaction, figure_backend_name, save_rendered_figure
 from .base import BaseRenderer
-from .matplotlib_primitives import _default_font_properties
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure, SubFigure
-    from matplotlib.transforms import Transform
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
@@ -74,101 +87,6 @@ _MANAGED_3D_FULL_VIEWPORT_ASPECT_ATTR = "_quantum_circuit_drawer_managed_3d_full
 _BATCHED_3D_TEXT_ARTISTS_ATTR = "_quantum_circuit_drawer_batched_3d_text_artists"
 _BATCHED_3D_TEXT_ARTIST_GID = "quantum-circuit-drawer-3d-batched-text"
 _TEXT_LAYER_ZORDER = 6.0
-_MULTILINE_TEXT_LINE_SPACING = 1.2
-Segment3D = tuple[tuple[float, float, float], tuple[float, float, float]]
-_TextPathCacheKey = tuple[str, float, str, str]
-
-
-@dataclass(slots=True)
-class _PreparedBatchedGateGeometry3D:
-    geometry_points: np.ndarray
-    box_faces: list[list[tuple[float, float, float]]]
-    measurement_faces: list[list[tuple[float, float, float]]]
-    measurement_gates: list[SceneGate3D]
-    x_target_ring_segments: list[Segment3D]
-    x_target_cross_segments: list[Segment3D]
-
-
-@dataclass(slots=True)
-class _RenderContext3D:
-    projection_matrix: np.ndarray
-    data_transform: Transform
-    projected_axis_scale_cache: dict[tuple[float, float, float], tuple[float, float, float]]
-    x_target_unit_circle: np.ndarray
-    prepared_gate_geometry: _PreparedBatchedGateGeometry3D | None = None
-
-
-@lru_cache(maxsize=256)
-def _aligned_text_path(key: _TextPathCacheKey) -> Path:
-    text, font_size, ha, va = key
-    if "\n" in text:
-        text_path = _multiline_text_path(text, font_size)
-    else:
-        text_path = TextPath((0.0, 0.0), text, size=font_size, prop=_default_font_properties())
-    extents = text_path.get_extents()
-    x_anchor = _text_horizontal_anchor(extents, ha)
-    y_anchor = _text_vertical_anchor(extents, va)
-    return Affine2D().translate(-x_anchor, -y_anchor).transform_path(text_path)
-
-
-def _multiline_text_path(text: str, font_size: float) -> Path:
-    line_paths: list[Path] = []
-    line_height = 0.0
-    for line in text.split("\n"):
-        current_path = TextPath((0.0, 0.0), line, size=font_size, prop=_default_font_properties())
-        current_extents = current_path.get_extents()
-        line_height = max(line_height, float(current_extents.height))
-        line_paths.append(current_path)
-
-    if not line_paths:
-        return Path(np.empty((0, 2), dtype=float), np.empty((0,), dtype=np.uint8))
-
-    positioned_paths: list[Path] = []
-    line_count = len(line_paths)
-    for index, line_path in enumerate(line_paths):
-        extents = line_path.get_extents()
-        center_x = float(extents.x0 + (extents.width / 2.0))
-        center_y = float(extents.y0 + (extents.height / 2.0))
-        target_center_y = (
-            ((line_count - 1) / 2.0 - index) * line_height * _MULTILINE_TEXT_LINE_SPACING
-        )
-        positioned_paths.append(
-            Affine2D().translate(-center_x, target_center_y - center_y).transform_path(line_path)
-        )
-    return Path.make_compound_path(*positioned_paths)
-
-
-def _text_horizontal_anchor(extents: Bbox, ha: str) -> float:
-    resolved_ha = ha.lower()
-    if resolved_ha == "left":
-        return float(extents.x0)
-    if resolved_ha == "right":
-        return float(extents.x1)
-    return float(extents.x0 + (extents.width / 2.0))
-
-
-def _text_vertical_anchor(extents: Bbox, va: str) -> float:
-    resolved_va = va.lower()
-    if resolved_va == "bottom":
-        return float(extents.y0)
-    if resolved_va == "top":
-        return float(extents.y1)
-    if resolved_va in {"baseline", "center_baseline"}:
-        return 0.0
-    return float(extents.y0 + (extents.height / 2.0))
-
-
-def _visible_3d_text_value(text: str, *, role: str, scene: LayoutScene3D) -> str:
-    if role == "gate_label_block":
-        label, _, subtitle = text.partition("\n")
-        return format_gate_text_block(
-            label,
-            subtitle or None,
-            use_mathtext=scene.style.use_mathtext,
-        )
-    if role == "parameter":
-        return format_parameter_text(text, use_mathtext=scene.style.use_mathtext)
-    return format_visible_label(text, use_mathtext=scene.style.use_mathtext)
 
 
 class MatplotlibRenderer3D(BaseRenderer):
@@ -413,14 +331,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         self._synchronize_axes_geometry(axes)
 
     def _axes_box_aspect(self, axes: Axes3D) -> tuple[float, float, float]:
-        x_limits = axes.get_xlim3d()
-        y_limits = axes.get_ylim3d()
-        z_limits = axes.get_zlim3d()
-        return (
-            float(x_limits[1] - x_limits[0]),
-            float(y_limits[1] - y_limits[0]),
-            float(z_limits[1] - z_limits[0]),
-        )
+        return axes_box_aspect_3d(axes)
 
     def _viewport_short_dimension(
         self,
@@ -428,11 +339,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         *,
         viewport_bounds: tuple[float, float, float, float] | None = None,
     ) -> float:
-        if viewport_bounds is None:
-            return min(float(axes.bbox.width), float(axes.bbox.height))
-        _, _, width, height = viewport_bounds
-        canvas_width, canvas_height = axes.figure.canvas.get_width_height()
-        return min(width * float(canvas_width), height * float(canvas_height))
+        return viewport_short_dimension_3d(axes, viewport_bounds=viewport_bounds)
 
     def _projected_scene_geometry_points(
         self,
@@ -658,18 +565,12 @@ class MatplotlibRenderer3D(BaseRenderer):
         )
 
     def _point_array(self, points: list[tuple[float, float, float]]) -> np.ndarray:
-        if not points:
-            return np.empty((0, 3), dtype=float)
-        return np.array(points, dtype=float)
+        return point_array_3d(points)
 
     def _create_render_context(self, axes: Axes3D) -> _RenderContext3D:
-        theta = np.linspace(0.0, 2.0 * np.pi, _X_TARGET_RING_SEGMENTS, endpoint=False)
-        unit_circle = np.column_stack((np.cos(theta), np.sin(theta)))
-        return _RenderContext3D(
-            projection_matrix=axes.get_proj(),
-            data_transform=axes.transData,
-            projected_axis_scale_cache={},
-            x_target_unit_circle=unit_circle,
+        return build_render_context_3d(
+            axes,
+            x_target_ring_segments=_X_TARGET_RING_SEGMENTS,
         )
 
     def _draw_wires(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
@@ -1333,50 +1234,13 @@ class MatplotlibRenderer3D(BaseRenderer):
         scene: LayoutScene3D,
         hover_targets: list[tuple[Artist, str]],
     ) -> None:
-        figure = axes.figure
-        annotation = axes.annotate(
-            "",
-            xy=(0.0, 0.0),
-            xytext=(10.0, 10.0),
-            xycoords="figure pixels",
-            textcoords="offset points",
-            visible=False,
-            bbox={
-                "boxstyle": "round,pad=0.18",
-                "fc": scene.style.theme.hover_facecolor,
-                "ec": scene.style.theme.hover_edgecolor,
-                "alpha": 0.9,
-            },
-            color=scene.style.theme.hover_text_color,
-            annotation_clip=False,
+        attach_hover_3d(
+            axes,
+            hover_targets=hover_targets,
+            hover_facecolor=scene.style.theme.hover_facecolor,
+            hover_edgecolor=scene.style.theme.hover_edgecolor,
+            hover_text_color=scene.style.theme.hover_text_color,
         )
-        annotation.set_zorder(_HOVER_ZORDER)
-        annotation.set_clip_on(False)
-
-        def _on_move(event: MouseEvent) -> None:
-            if getattr(event, "inaxes", None) is not axes:
-                if annotation.get_visible():
-                    annotation.set_visible(False)
-                    figure.canvas.draw_idle()
-                return
-            for artist, text in hover_targets:
-                contains, _ = artist.contains(event) if hasattr(artist, "contains") else (False, {})
-                if contains:
-                    annotation.xy = (
-                        float(getattr(event, "x", 0.0)),
-                        float(getattr(event, "y", 0.0)),
-                    )
-                    annotation.set_text(text)
-                    annotation.set_visible(True)
-                    figure.canvas.draw_idle()
-                    return
-            if annotation.get_visible():
-                annotation.set_visible(False)
-                figure.canvas.draw_idle()
-
-        if figure.canvas is not None:
-            callback_id = figure.canvas.mpl_connect("motion_notify_event", _on_move)
-            set_hover_state(axes, HoverState(annotation=annotation, callback_id=callback_id))
 
     def _connection_color(
         self,
@@ -1457,44 +1321,16 @@ class MatplotlibRenderer3D(BaseRenderer):
         self,
         points: tuple[Point3D, ...],
     ) -> list[tuple[tuple[float, float, float], tuple[float, float, float]]]:
-        return [
-            (
-                (first.x, first.y, first.z),
-                (second.x, second.y, second.z),
-            )
-            for first, second in pairwise(points)
-        ]
+        return segments_for_points_3d(points)
 
     def _segments_for_ring_points(
         self,
         points: np.ndarray,
     ) -> list[Segment3D]:
-        point_count = points.shape[0]
-        return [
-            (
-                (float(points[index][0]), float(points[index][1]), float(points[index][2])),
-                (
-                    float(points[(index + 1) % point_count][0]),
-                    float(points[(index + 1) % point_count][1]),
-                    float(points[(index + 1) % point_count][2]),
-                ),
-            )
-            for index in range(point_count)
-        ]
+        return segments_for_ring_points_3d(points)
 
     def _segments_for_path_points(self, points: np.ndarray) -> list[Segment3D]:
-        point_count = points.shape[0]
-        return [
-            (
-                (float(points[index][0]), float(points[index][1]), float(points[index][2])),
-                (
-                    float(points[index + 1][0]),
-                    float(points[index + 1][1]),
-                    float(points[index + 1][2]),
-                ),
-            )
-            for index in range(max(0, point_count - 1))
-        ]
+        return segments_for_path_points_3d(points)
 
     def _x_target_ring_points(
         self,

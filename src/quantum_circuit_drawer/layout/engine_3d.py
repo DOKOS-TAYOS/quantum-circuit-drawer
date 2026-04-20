@@ -4,15 +4,31 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
 
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
-from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
+from ..ir.operations import OperationIR, OperationKind
 from ..style import DrawStyle, normalize_style
-from ._classical_conditions import iter_classical_condition_anchors
+from ._engine_3d_classical import append_classical_condition_connections_3d
+from ._engine_3d_metrics import _OperationMetrics3D, build_operation_metrics_3d
+from ._engine_3d_operations import (
+    column_depth_step_3d,
+    connection_points_3d,
+    fit_gate_text_size_3d,
+    gate_cube_size_3d,
+    gate_hover_text_3d,
+    nearest_anchor_wire_3d,
+    point_for_wire_3d,
+    uses_canonical_controlled_x_target_3d,
+    uses_canonical_controlled_z_3d,
+)
+from ._engine_3d_topology import (
+    build_topology_edges_3d,
+    build_topology_nodes_3d,
+    build_topology_planes_3d,
+    build_wire_texts_3d,
+)
 from ._layering import normalize_draw_layers
-from ._operation_text import build_operation_text_metrics
 from .scene_3d import (
     ConnectionRenderStyle3D,
     GateRenderStyle3D,
@@ -31,24 +47,11 @@ from .topology_3d import Topology3D, TopologyName, build_topology
 logger = logging.getLogger(__name__)
 
 _WIRE_DEPTH_MARGIN = 0.8
-_Z_STEP = 0.625
 _COLUMN_DEPTH_GAP = 0.12
 _CLASSICAL_PLANE_GAP = 2.2
 _CLASSICAL_WIRE_SPACING = 1.05
-_GATE_SIZE = 0.72
-_GATE_DEPTH = 0.72
-_TOPOLOGY_NODE_SIZE = 1.65
-_TOPOLOGY_PLANE_ALPHA = 0.105
-_TOPOLOGY_PLANE_PADDING = 0.55
 _CONTROL_MARKER_SCALE = 7.4
 _SWAP_MARKER_SCALE = 1.25
-
-
-@dataclass(frozen=True, slots=True)
-class _OperationMetrics3D:
-    label: str
-    display_label: str
-    subtitle: str | None
 
 
 class LayoutEngine3D:
@@ -196,17 +199,7 @@ class LayoutEngine3D:
         layers: Sequence[LayerIR],
         style: DrawStyle,
     ) -> dict[int, _OperationMetrics3D]:
-        text_metrics = build_operation_text_metrics(layers, style)
-        metrics: dict[int, _OperationMetrics3D] = {}
-        for layer in layers:
-            for operation in layer.operations:
-                operation_text = text_metrics[id(operation)]
-                metrics[id(operation)] = _OperationMetrics3D(
-                    label=operation_text.label,
-                    display_label=operation_text.display_label,
-                    subtitle=operation_text.subtitle,
-                )
-        return metrics
+        return build_operation_metrics_3d(layers, style)
 
     def _build_wires(
         self,
@@ -251,15 +244,11 @@ class LayoutEngine3D:
         quantum_wire_positions: dict[str, Point3D],
         draw_style: DrawStyle,
     ) -> list[SceneMarker3D]:
-        return [
-            SceneMarker3D(
-                column=-1,
-                center=quantum_wire_positions[wire.id],
-                style=MarkerStyle3D.TOPOLOGY_NODE,
-                size=draw_style.control_radius * _TOPOLOGY_NODE_SIZE,
-            )
-            for wire in circuit.quantum_wires
-        ]
+        return build_topology_nodes_3d(
+            circuit=circuit,
+            quantum_wire_positions=quantum_wire_positions,
+            draw_style=draw_style,
+        )
 
     def _build_topology_edges(
         self,
@@ -267,17 +256,10 @@ class LayoutEngine3D:
         topology: Topology3D,
         quantum_wire_positions: dict[str, Point3D],
     ) -> list[SceneConnection3D]:
-        return [
-            SceneConnection3D(
-                column=-1,
-                points=(
-                    quantum_wire_positions[first_wire_id],
-                    quantum_wire_positions[second_wire_id],
-                ),
-                render_style=ConnectionRenderStyle3D.TOPOLOGY_EDGE,
-            )
-            for first_wire_id, second_wire_id in topology.edges
-        ]
+        return build_topology_edges_3d(
+            topology=topology,
+            quantum_wire_positions=quantum_wire_positions,
+        )
 
     def _build_topology_planes(
         self,
@@ -285,19 +267,9 @@ class LayoutEngine3D:
         *,
         draw_style: DrawStyle,
     ) -> tuple[SceneTopologyPlane3D, ...]:
-        x_values = [point.x for point in quantum_wire_positions.values()]
-        y_values = [point.y for point in quantum_wire_positions.values()]
-        z_start = next(iter(quantum_wire_positions.values())).z
-        return (
-            SceneTopologyPlane3D(
-                x_min=min(x_values) - _TOPOLOGY_PLANE_PADDING,
-                x_max=max(x_values) + _TOPOLOGY_PLANE_PADDING,
-                y_min=min(y_values) - _TOPOLOGY_PLANE_PADDING,
-                y_max=max(y_values) + _TOPOLOGY_PLANE_PADDING,
-                z=z_start,
-                color=draw_style.theme.topology_plane_color or draw_style.theme.accent_color,
-                alpha=_TOPOLOGY_PLANE_ALPHA,
-            ),
+        return build_topology_planes_3d(
+            quantum_wire_positions,
+            draw_style=draw_style,
         )
 
     def _build_wire_texts(
@@ -309,31 +281,13 @@ class LayoutEngine3D:
         hover_enabled: bool,
         draw_style: DrawStyle,
     ) -> list[SceneText3D]:
-        if hover_enabled:
-            return []
-
-        texts: list[SceneText3D] = []
-        for wire in circuit.quantum_wires:
-            position = quantum_wire_positions[wire.id]
-            texts.append(
-                SceneText3D(
-                    position=Point3D(x=position.x, y=position.y + 0.24, z=position.z - 0.35),
-                    text=wire.label or wire.id,
-                    font_size=draw_style.font_size * 0.88,
-                    role="label",
-                )
-            )
-        for wire in circuit.classical_wires:
-            position = classical_wire_positions[wire.id]
-            texts.append(
-                SceneText3D(
-                    position=Point3D(x=position.x, y=position.y - 0.28, z=position.z - 0.35),
-                    text=wire.label or wire.id,
-                    font_size=draw_style.font_size * 0.82,
-                    role="label",
-                )
-            )
-        return texts
+        return build_wire_texts_3d(
+            circuit=circuit,
+            quantum_wire_positions=quantum_wire_positions,
+            classical_wire_positions=classical_wire_positions,
+            hover_enabled=hover_enabled,
+            draw_style=draw_style,
+        )
 
     def _layout_operation(
         self,
@@ -661,20 +615,13 @@ class LayoutEngine3D:
         classical_wire_positions: dict[str, Point3D],
         connections: list[SceneConnection3D],
     ) -> None:
-        for anchor in iter_classical_condition_anchors(operation.classical_conditions):
-            classical_point = classical_wire_positions[anchor.wire_id]
-            connections.append(
-                SceneConnection3D(
-                    column=column,
-                    points=(
-                        Point3D(x=classical_point.x, y=classical_point.y, z=gate_center.z),
-                        gate_center,
-                    ),
-                    is_classical=True,
-                    double_line=True,
-                    label=anchor.label,
-                )
-            )
+        append_classical_condition_connections_3d(
+            operation=operation,
+            column=column,
+            gate_center=gate_center,
+            classical_wire_positions=classical_wire_positions,
+            connections=connections,
+        )
 
     def _point_for_wire(
         self,
@@ -682,8 +629,7 @@ class LayoutEngine3D:
         quantum_wire_positions: dict[str, Point3D],
         gate_z: float,
     ) -> Point3D:
-        point = quantum_wire_positions[wire_id]
-        return Point3D(x=point.x, y=point.y, z=gate_z)
+        return point_for_wire_3d(wire_id, quantum_wire_positions, gate_z)
 
     def _nearest_anchor_wire(
         self,
@@ -692,15 +638,11 @@ class LayoutEngine3D:
         anchor_wire_ids: Sequence[str],
         topology: Topology3D,
     ) -> str:
-        distances = [
-            (
-                len(topology.shortest_path(control_wire_id, anchor_wire_id)),
-                anchor_index,
-                anchor_wire_id,
-            )
-            for anchor_index, anchor_wire_id in enumerate(anchor_wire_ids)
-        ]
-        return min(distances)[2]
+        return nearest_anchor_wire_3d(
+            control_wire_id=control_wire_id,
+            anchor_wire_ids=anchor_wire_ids,
+            topology=topology,
+        )
 
     def _connection_points(
         self,
@@ -712,44 +654,29 @@ class LayoutEngine3D:
         anchor_point: Point3D,
         direct: bool,
     ) -> tuple[Point3D, ...]:
-        if direct:
-            return (control_point, anchor_point)
-
-        path_wire_ids = topology.shortest_path(control_wire_id, target_wire_id)
-        points = tuple(
-            Point3D(
-                x=topology.positions[wire_id][0],
-                y=topology.positions[wire_id][1],
-                z=control_point.z,
-            )
-            for wire_id in path_wire_ids
+        return connection_points_3d(
+            topology=topology,
+            control_wire_id=control_wire_id,
+            target_wire_id=target_wire_id,
+            control_point=control_point,
+            anchor_point=anchor_point,
+            direct=direct,
         )
-        return points if points[-1] == anchor_point else (*points, anchor_point)
 
     def _uses_canonical_controlled_x_target(self, operation: OperationIR) -> bool:
-        return (
-            operation.canonical_family is CanonicalGateFamily.X
-            and len(operation.target_wires) == 1
-            and not operation.parameters
-        )
+        return uses_canonical_controlled_x_target_3d(operation)
 
     def _uses_canonical_controlled_z(self, operation: OperationIR) -> bool:
-        return (
-            operation.canonical_family is CanonicalGateFamily.Z
-            and len(operation.target_wires) == 1
-            and not operation.parameters
-        )
+        return uses_canonical_controlled_z_3d(operation)
 
     def _gate_hover_text(self, metrics: _OperationMetrics3D) -> str:
-        if metrics.subtitle:
-            return f"{metrics.display_label}({metrics.subtitle})"
-        return metrics.display_label
+        return gate_hover_text_3d(metrics)
 
     def _gate_cube_size(self, style: DrawStyle) -> float:
-        return max(_GATE_SIZE, _GATE_DEPTH, style.gate_width, style.gate_height)
+        return gate_cube_size_3d(style)
 
     def _column_depth_step(self, style: DrawStyle) -> float:
-        return max(_Z_STEP, self._gate_cube_size(style) + _COLUMN_DEPTH_GAP)
+        return column_depth_step_3d(style)
 
     def _fit_gate_text_size(
         self,
@@ -758,13 +685,8 @@ class LayoutEngine3D:
         gate_size: float,
         default_font_size: float,
     ) -> float:
-        if not text:
-            return default_font_size
-
-        text_lines = text.split("\n")
-        longest_line_length = max((len(line) for line in text_lines), default=1)
-        line_count = len(text_lines)
-        available_character_units = gate_size * 4.2
-        width_scale = min(1.0, available_character_units / longest_line_length)
-        height_scale = min(1.0, 1.7 / max(1, line_count))
-        return max(3.5, default_font_size * min(width_scale, height_scale))
+        return fit_gate_text_size_3d(
+            text=text,
+            gate_size=gate_size,
+            default_font_size=default_font_size,
+        )
