@@ -36,13 +36,13 @@ def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging(
     assert len(page_window.page_cache) == 1
     assert page_window.page_axes is not None
     assert page_window.visible_pages_axes is not None
-    assert page_window.page_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert page_window.page_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#171221"))
     assert page_window.visible_pages_axes.get_facecolor() == pytest.approx(
-        mcolors.to_rgba("#161d26")
+        mcolors.to_rgba("#171221")
     )
     assert page_window.previous_page_button.label.get_text() == "\u2039"
     assert page_window.next_page_button.label.get_text() == "\u203a"
-    assert page_window.previous_page_button.label.get_color() == "#9aa7b7"
+    assert page_window.previous_page_button.label.get_color() == "#ab9fc0"
     assert page_window.next_page_button.label.get_color() == "#e6edf3"
 
     page_window.visible_pages_increment_button._observers.process("clicked", None)

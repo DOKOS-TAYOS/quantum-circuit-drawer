@@ -15,6 +15,7 @@ class HistogramDemoSpec:
     module_name: str
     builder_name: str
     dependency_module: str | None = None
+    extra_name: str | None = None
 
 
 def examples_directory() -> Path:
@@ -69,6 +70,35 @@ def get_demo_catalog() -> tuple[HistogramDemoSpec, ...]:
             module_name="examples.histogram_marginal",
             builder_name="build_demo",
             dependency_module="qiskit",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-cirq-result",
+            description="Cirq measurement-result histogram with several registers",
+            module_name="examples.histogram_cirq_result",
+            builder_name="build_demo",
+            dependency_module="cirq",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-pennylane-probs",
+            description="PennyLane probability-vector histogram from qml.probs()",
+            module_name="examples.histogram_pennylane_probs",
+            builder_name="build_demo",
+            dependency_module="pennylane",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-myqlm-result",
+            description="myQLM result histogram built directly from raw_data",
+            module_name="examples.histogram_myqlm_result",
+            builder_name="build_demo",
+            dependency_module="qat",
+            extra_name="myqlm",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-cudaq-sample",
+            description="CUDA-Q sample-result histogram from cudaq.sample()",
+            module_name="examples.histogram_cudaq_sample",
+            builder_name="build_demo",
+            dependency_module="cudaq",
         ),
     )
 

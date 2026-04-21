@@ -4,28 +4,36 @@ The example scripts now cover both circuit rendering and histogram rendering.
 
 ## Circuit demo catalog
 
-| Demo id              | Description                                    | Framework  |
-| -------------------- | ---------------------------------------------- | ---------- |
-| `qiskit-random`      | Configurable random Qiskit circuit             | qiskit     |
-| `qiskit-qaoa`        | Configurable QAOA / MaxCut circuit in Qiskit   | qiskit     |
-| `cirq-random`        | Configurable random Cirq circuit               | cirq       |
-| `cirq-qaoa`          | Configurable QAOA / MaxCut circuit in Cirq     | cirq       |
-| `pennylane-random`   | Configurable random PennyLane tape             | pennylane  |
-| `pennylane-qaoa`     | Configurable QAOA / MaxCut tape in PennyLane   | pennylane  |
-| `myqlm-random`       | Configurable random myQLM circuit              | myqlm      |
-| `cudaq-random`       | Configurable random CUDA-Q kernel              | cudaq      |
+
+| Demo id            | Description                                  | Framework |
+| ------------------ | -------------------------------------------- | --------- |
+| `qiskit-random`    | Configurable random Qiskit circuit           | qiskit    |
+| `qiskit-qaoa`      | Configurable QAOA / MaxCut circuit in Qiskit | qiskit    |
+| `cirq-random`      | Configurable random Cirq circuit             | cirq      |
+| `cirq-qaoa`        | Configurable QAOA / MaxCut circuit in Cirq   | cirq      |
+| `pennylane-random` | Configurable random PennyLane tape           | pennylane |
+| `pennylane-qaoa`   | Configurable QAOA / MaxCut tape in PennyLane | pennylane |
+| `myqlm-random`     | Configurable random myQLM circuit            | myqlm     |
+| `cudaq-random`     | Configurable random CUDA-Q kernel            | cudaq     |
+
 
 ## Histogram demo catalog
 
-| Demo id                      | Description                                       | Dependency |
-| ---------------------------- | ------------------------------------------------- | ---------- |
-| `histogram-binary-order`     | Counts histogram in the natural binary-state order | none |
-| `histogram-count-order`      | Counts histogram ordered from highest to lowest counts | none |
-| `histogram-interactive-large`| Large 7-bit histogram with auto controls, conditional slider, and marginal help | none |
-| `histogram-multi-register`   | Counts histogram with several registers and decimal labels per register | none |
-| `histogram-uniform-reference`| Counts histogram with the uniform reference line | none |
-| `histogram-quasi`            | Quasi-probability histogram with negative bars | none |
-| `histogram-marginal`         | Qiskit result histogram reduced to a joint marginal | qiskit |
+
+| Demo id                       | Description                                                                     | Dependency |
+| ----------------------------- | ------------------------------------------------------------------------------- | ---------- |
+| `histogram-binary-order`      | Counts histogram in the natural binary-state order                              | none       |
+| `histogram-count-order`       | Counts histogram ordered from highest to lowest counts                          | none       |
+| `histogram-interactive-large` | Large 7-bit histogram with auto controls, conditional slider, and marginal help | none       |
+| `histogram-multi-register`    | Counts histogram with several registers and decimal labels per register         | none       |
+| `histogram-uniform-reference` | Counts histogram with the uniform reference line                                | none       |
+| `histogram-quasi`             | Quasi-probability histogram with negative bars                                  | none       |
+| `histogram-marginal`          | Qiskit result histogram reduced to a joint marginal                             | qiskit     |
+| `histogram-cirq-result`       | Cirq measurement-result histogram with several registers                        | cirq       |
+| `histogram-pennylane-probs`   | PennyLane probability-vector histogram from `qml.probs()`                       | pennylane  |
+| `histogram-myqlm-result`      | myQLM result histogram built directly from `raw_data`                           | myqlm      |
+| `histogram-cudaq-sample`      | CUDA-Q sample-result histogram from `cudaq.sample()`                            | cudaq      |
+
 
 ## Main axes
 
@@ -61,6 +69,9 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-uniform-reference
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-quasi
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-marginal
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-cirq-result
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-pennylane-probs
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-myqlm-result
 ```
 
 Each histogram demo now opens in a wider default window so larger state spaces remain readable.
@@ -75,6 +86,10 @@ Linux or WSL:
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-uniform-reference
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-quasi
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-marginal
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-cirq-result
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-pennylane-probs
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-myqlm-result
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-cudaq-sample
 ```
 
 ## All commands, copy-paste ready
@@ -351,24 +366,6 @@ Linux or WSL:
 
 ### cudaq-random
 
-Windows PowerShell:
-
-```powershell
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --mode pages
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --mode pages_controls
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --mode slider
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --mode full
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode pages
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode pages_controls
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode slider
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode full
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode pages_controls --topology line
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode pages_controls --topology grid
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode pages_controls --topology star
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode pages_controls --topology star_tree
-.\.venv\Scripts\python.exe examples/run_demo.py --demo cudaq-random --view 3d --mode pages_controls --topology honeycomb
-```
-
 Linux or WSL:
 
 ```bash
@@ -395,3 +392,4 @@ Linux or WSL:
 - `full` renders the whole circuit without paging
 - in 3D, `pages_controls` can also expose the topology selector
 - `--topology` only applies to `--view 3d`; it is ignored in 2D
+

@@ -122,9 +122,9 @@ def test_draw_quantum_circuit_adds_discrete_page_slider_for_wrapped_managed_figu
     assert len(figure.axes) == 2
     assert page_slider.vertical_slider is None
     assert page_slider.start_column == 0
-    assert slider_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert slider_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#171221"))
     assert horizontal_slider.label.get_text() == ""
-    assert horizontal_slider._handle.get_markerfacecolor() == "#6cb6ff"
+    assert horizontal_slider._handle.get_markerfacecolor() == "#b794f6"
     assert slider_bottom < 0.1
     assert slider_height > 0.05
     assert axes.get_xlim()[0] == pytest.approx(0.0)
@@ -701,9 +701,9 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     assert page_slider.visible_qubits_axes.get_position().width < 0.06
     assert page_slider.visible_qubits_axes.get_position().height < 0.05
     assert page_slider.visible_qubits_axes.get_title() == ""
-    assert page_slider.vertical_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert page_slider.vertical_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#171221"))
     assert page_slider.visible_qubits_axes.get_facecolor() == pytest.approx(
-        mcolors.to_rgba("#161d26")
+        mcolors.to_rgba("#171221")
     )
     assert page_slider.vertical_slider.label.get_text() == ""
     assert page_slider.start_row == 0

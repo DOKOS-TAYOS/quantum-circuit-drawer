@@ -470,7 +470,7 @@ def test_layout_engine_3d_adds_translucent_topology_plane_at_circuit_start() -> 
     assert len(scene.topology_planes) == 1
     plane = scene.topology_planes[0]
     assert plane.z == topology_z
-    assert plane.color == "#22c55e"
+    assert plane.color == "#7c3aed"
     assert 0.08 <= plane.alpha <= 0.14
     assert plane.x_min < min(point.x for point in scene.quantum_wire_positions.values())
     assert plane.x_max > max(point.x for point in scene.quantum_wire_positions.values())
@@ -1632,7 +1632,7 @@ def test_draw_quantum_circuit_renders_topology_plane_gate_borders_measurement_sy
     plane_collections = [
         collection
         for collection in gate_collections
-        if to_hex(collection.get_facecolors()[0], keep_alpha=False) == "#22c55e"
+        if to_hex(collection.get_facecolors()[0], keep_alpha=False) == "#7c3aed"
     ]
     measurement_symbol_collections = [
         collection

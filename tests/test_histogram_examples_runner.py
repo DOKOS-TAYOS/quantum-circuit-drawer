@@ -213,19 +213,33 @@ def test_histogram_demo_catalog_exposes_expected_demo_ids() -> None:
 
     assert demo_ids == {
         "histogram-binary-order",
+        "histogram-cirq-result",
         "histogram-count-order",
+        "histogram-cudaq-sample",
         "histogram-interactive-large",
         "histogram-multi-register",
+        "histogram-myqlm-result",
         "histogram-uniform-reference",
+        "histogram-pennylane-probs",
         "histogram-quasi",
         "histogram-marginal",
     }
 
 
+@pytest.mark.parametrize(
+    ("demo_id", "expected_dependency", "expected_extra"),
+    [
+        ("histogram-marginal", "qiskit", "qiskit"),
+        ("histogram-myqlm-result", "qat", "myqlm"),
+    ],
+)
 def test_run_histogram_demo_reports_clear_message_when_optional_dependency_is_missing(
     monkeypatch: pytest.MonkeyPatch,
+    demo_id: str,
+    expected_dependency: str,
+    expected_extra: str,
 ) -> None:
-    spec = catalog_by_id()["histogram-marginal"]
+    spec = catalog_by_id()[demo_id]
 
     monkeypatch.setattr(run_histogram_demo_module, "find_spec", lambda name: None)
 
@@ -234,9 +248,9 @@ def test_run_histogram_demo_reports_clear_message_when_optional_dependency_is_mi
 
     message = str(exc_info.value)
 
-    assert "histogram-marginal" in message
-    assert "qiskit" in message
-    assert 'python.exe -m pip install -e ".[qiskit]"' in message
+    assert demo_id in message
+    assert expected_dependency in message
+    assert f'python.exe -m pip install -e ".[{expected_extra}]"' in message
     assert "Traceback" not in message
 
 
@@ -337,3 +351,48 @@ def test_histogram_examples_runner_can_render_qiskit_marginal_demo(
 
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("demo_id", "dependency"),
+    [
+        ("histogram-cirq-result", "cirq"),
+        ("histogram-pennylane-probs", "pennylane"),
+        ("histogram-myqlm-result", "qat"),
+        ("histogram-cudaq-sample", "cudaq"),
+    ],
+)
+def test_histogram_examples_runner_can_render_optional_framework_demo(
+    demo_id: str,
+    dependency: str,
+    sandbox_tmp_path: Path,
+) -> None:
+    if sys.platform.startswith("win") and dependency in {"cirq", "pennylane"}:
+        pytest.skip(f"{dependency} histogram demos are not reliable on native Windows")
+
+    if find_spec(dependency) is None:
+        pytest.skip(f"{dependency} is required for optional histogram demo smoke tests")
+
+    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_histogram_demo.py"
+    output_path = sandbox_tmp_path / f"{demo_id}.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--demo",
+            demo_id,
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved {demo_id} to {output_path}" in result.stdout

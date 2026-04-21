@@ -15,8 +15,8 @@ def test_normalize_style_returns_default_dark_style_for_none() -> None:
     assert normalized.font_size == DrawStyle().font_size
     assert normalized.theme.figure_facecolor == "#0b0f14"
     assert normalized.theme.axes_facecolor == "#11161d"
-    assert normalized.theme.gate_facecolor == "#161d26"
-    assert normalized.theme.accent_color == "#6cb6ff"
+    assert normalized.theme.gate_facecolor == "#171221"
+    assert normalized.theme.accent_color == "#b794f6"
 
 
 def test_normalize_style_copies_draw_style_instances() -> None:

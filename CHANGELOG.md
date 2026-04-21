@@ -13,6 +13,7 @@
 - Added a large 7-bit histogram demo that visibly exercises the interactive controls on dense state spaces
 - Added the public `HistogramStateLabelMode` enum so histograms can display binary or decimal state labels, including decimal conversion per space-separated register
 - Added a multi-register histogram demo that shows decimal labels for several classical-register groups
+- Added framework-specific histogram demos for Qiskit, Cirq, PennyLane, myQLM, and CUDA-Q result payloads
 
 ### Changed
 

@@ -65,12 +65,13 @@ def load_demo_builder(spec: HistogramDemoSpec) -> Any:
 
 def _missing_dependency_message(spec: HistogramDemoSpec) -> str:
     dependency = spec.dependency_module or "the optional framework dependency"
+    extra_name = spec.extra_name or dependency
     return (
         f"Histogram demo '{spec.demo_id}' needs optional dependency '{dependency}'.\n"
         "Install it inside your .venv and run the demo again:\n"
-        f'  .\\.venv\\Scripts\\python.exe -m pip install -e ".[{dependency}]"\n'
+        f'  .\\.venv\\Scripts\\python.exe -m pip install -e ".[{extra_name}]"\n'
         "Linux or WSL:\n"
-        f'  .venv/bin/python -m pip install -e ".[{dependency}]"'
+        f'  .venv/bin/python -m pip install -e ".[{extra_name}]"'
     )
 
 

@@ -83,9 +83,9 @@ def test_draw_quantum_circuit_attaches_lower_left_dark_topology_radio_panel(
         (0.035, 0.06, 0.2, 0.24),
         abs=1e-3,
     )
-    assert menu_state.menu_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#161d26"))
+    assert menu_state.menu_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#171221"))
     assert menu_state.menu_axes.spines["left"].get_edgecolor() == pytest.approx(
-        mcolors.to_rgba("#2a3441")
+        mcolors.to_rgba("#352a45")
     )
     assert menu_state.radio.value_selected == "line"
     assert [label.get_text() for label in menu_state.radio.labels] == [
