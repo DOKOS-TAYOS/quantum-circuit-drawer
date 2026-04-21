@@ -15,10 +15,11 @@ if TYPE_CHECKING:
     from .histogram_interactive_state import HistogramInteractiveState
     from .histogram_models import HistogramConfig
 
-_CONTROL_ORDER_BOUNDS = (0.08, 0.025, 0.20, 0.06)
-_CONTROL_LABEL_MODE_BOUNDS = (0.30, 0.025, 0.16, 0.06)
-_CONTROL_SLIDER_TOGGLE_BOUNDS = (0.48, 0.025, 0.12, 0.06)
-_CONTROL_MARGINAL_BOUNDS = (0.62, 0.025, 0.28, 0.06)
+_CONTROL_ORDER_BOUNDS = (0.08, 0.025, 0.18, 0.06)
+_CONTROL_LABEL_MODE_BOUNDS = (0.28, 0.025, 0.16, 0.06)
+_CONTROL_KIND_TOGGLE_BOUNDS = (0.46, 0.025, 0.14, 0.06)
+_CONTROL_SLIDER_TOGGLE_BOUNDS = (0.62, 0.025, 0.12, 0.06)
+_CONTROL_MARGINAL_BOUNDS = (0.76, 0.025, 0.18, 0.06)
 _HORIZONTAL_SLIDER_BOUNDS = (0.08, 0.115, 0.88, 0.045)
 
 
@@ -61,6 +62,23 @@ def attach_histogram_controls(
     label_mode_button.on_clicked(lambda _event: state.toggle_label_mode())
     state.label_mode_axes = label_mode_axes
     state.label_mode_button = label_mode_button
+
+    if state.kind_toggle_available():
+        kind_toggle_axes = state.figure.add_axes(
+            _CONTROL_KIND_TOGGLE_BOUNDS,
+            facecolor=palette.surface_facecolor,
+        )
+        _style_control_axes(kind_toggle_axes, palette=palette)
+        kind_toggle_button = Button(
+            kind_toggle_axes,
+            f"Mode: {kind_description(state.kind)}",
+            color=palette.surface_facecolor,
+            hovercolor=palette.surface_hover_facecolor,
+        )
+        kind_toggle_button.label.set_color(palette.text_color)
+        kind_toggle_button.on_clicked(lambda _event: state.toggle_kind())
+        state.kind_toggle_axes = kind_toggle_axes
+        state.kind_toggle_button = kind_toggle_button
 
     marginal_axes = state.figure.add_axes(
         _CONTROL_MARGINAL_BOUNDS,
@@ -230,6 +248,8 @@ def refresh_histogram_controls(state: HistogramInteractiveState) -> None:
         state.label_mode_button.label.set_text(
             f"Labels: {label_mode_description(state.label_mode)}"
         )
+    if state.kind_toggle_button is not None:
+        state.kind_toggle_button.label.set_text(f"Mode: {kind_description(state.kind)}")
     if state.slider_toggle_button is not None:
         slider_label = "On" if state.slider_enabled else "Off"
         state.slider_toggle_button.label.set_text(f"Slider {slider_label}")
@@ -298,6 +318,14 @@ def label_mode_description(label_mode: HistogramStateLabelMode) -> str:
     if label_mode is HistogramStateLabelMode.BINARY:
         return "Binary"
     return "Decimal"
+
+
+def kind_description(kind: HistogramKind) -> str:
+    """Describe the active histogram value mode in user-facing language."""
+
+    if kind is HistogramKind.COUNTS:
+        return "Counts"
+    return "Quasi"
 
 
 def set_slider_value_silently(slider: Slider, value: float) -> None:

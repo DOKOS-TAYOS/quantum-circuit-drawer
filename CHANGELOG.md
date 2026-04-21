@@ -28,6 +28,7 @@
 - Histogram plots now default to `HistogramMode.AUTO`, so large histograms open with managed controls in normal scripts and widget notebooks while inline notebook backends keep the static fallback
 - Histogram bin hover is now enabled by default in interactive mode and can be disabled explicitly with `hover=False`
 - Histogram interactive controls now include a label-mode button for switching between binary and decimal labels without changing the normalized result data
+- Histogram interactive controls now include a counts/quasi toggle for count-based inputs, while quasi-only inputs keep the simpler control set
 - Reduced 2D interactive redraw overhead by caching runtime notebook detection, reusing Matplotlib page projections across repeated renders, and keeping text-fit caches alive through page-window and slider redraws
 - Improved the synthetic `16 wires / 120 layers / 2 repeats` benchmark in this Windows environment from about `full_draw_seconds=0.2673` to `0.1328`, with `layout_seconds` dropping from about `0.0287` to `0.0127`
 - Reorganized the internal package into domain-focused subpackages: `drawing` for orchestration, `managed` for interactive Matplotlib state, `plots` for histogram implementation, and `export` for shared figure saving, while keeping the public imports stable

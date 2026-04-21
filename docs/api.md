@@ -214,7 +214,7 @@ Fields:
 - `STATIC`
   - draws one static histogram with the selected ordering
 - `INTERACTIVE`
-  - adds a managed slider viewport, per-bin hover, an order button that shows the current mode, a label button for binary or decimal state labels, a conditional slider button when hidden bins exist, and a marginal-qubits text box
+  - adds a managed slider viewport, per-bin hover, an order button that shows the current mode, a label button for binary or decimal state labels, a `Mode: Counts` / `Mode: Quasi` toggle when the original input is counts, a conditional slider button when hidden bins exist, and a marginal-qubits text box
   - requires a library-managed figure and cannot be combined with `ax=...`
 
 ## `HistogramStateLabelMode`
@@ -261,6 +261,7 @@ Interactive notes:
 - the order button cycles through binary ascending, binary descending, value ascending, and value descending
 - the order button label shows the current ordering mode directly
 - the label button switches the visible state labels between binary and decimal without changing `HistogramResult.state_labels`
+- the kind-toggle button only appears when interactive menus are active and the original histogram input is counts, letting you switch between raw counts and normalized quasi-probabilities
 - the slider button only appears when the current histogram distribution has more bins than the visible window can show at once
 - the marginal text box accepts comma-separated qubit indices such as `0,2,5`
 - hovering the marginal text box shows a short multi-line usage hint

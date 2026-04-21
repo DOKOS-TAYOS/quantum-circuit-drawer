@@ -151,7 +151,7 @@ result = plot_histogram(
 )
 ```
 
-In a normal `.py` run, and in notebooks using a widget backend such as `ipympl`, `widget`, or `nbagg`, histogram menus turn on automatically. The managed view adds a slider viewport, per-bin hover, an order button that shows the current mode, a label button that switches between binary and decimal state labels, a slider button when there are hidden bins to explore, and a marginal-qubits text box such as `0,2,5`.
+In a normal `.py` run, and in notebooks using a widget backend such as `ipympl`, `widget`, or `nbagg`, histogram menus turn on automatically. The managed view adds a slider viewport, per-bin hover, an order button that shows the current mode, a label button that switches between binary and decimal state labels, a `Mode: Counts` / `Mode: Quasi` toggle when the original input is counts, a slider button when there are hidden bins to explore, and a marginal-qubits text box such as `0,2,5`.
 
 If the notebook backend is inline or otherwise static, the same call falls back to a static histogram. You can still force `mode="static"` or `mode="interactive"` yourself, and disable bin hover with `hover=False`.
 

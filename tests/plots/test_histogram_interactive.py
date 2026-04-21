@@ -142,6 +142,82 @@ def test_histogram_interactive_cycle_sort_uses_short_probability_labels_for_quas
     plt.close(result.figure)
 
 
+def test_histogram_interactive_counts_show_kind_toggle_button() -> None:
+    result = plot_histogram(
+        {"00": 7, "01": 5, "10": 9, "11": 1},
+        config=HistogramConfig(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(10.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.kind_toggle_button is not None
+    assert state.kind_toggle_axes is not None
+    assert state.kind_toggle_button.label.get_text() == "Mode: Counts"
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_quasi_hides_kind_toggle_button() -> None:
+    result = plot_histogram(
+        {"00": 0.55, "01": 0.15, "10": 0.35, "11": 0.25},
+        config=HistogramConfig(
+            kind=HistogramKind.QUASI,
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(10.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.kind_toggle_button is None
+    assert state.kind_toggle_axes is None
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_kind_toggle_switches_counts_to_quasi_view() -> None:
+    result = plot_histogram(
+        {"00": 7, "01": 5, "10": 9, "11": 1},
+        config=HistogramConfig(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            sort=HistogramSort.VALUE_ASC,
+            figsize=(10.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.kind is HistogramKind.COUNTS
+    assert state.current_values == (1.0, 5.0, 7.0, 9.0)
+    assert state.kind_toggle_button is not None
+
+    state.toggle_kind()
+
+    assert state.kind is HistogramKind.QUASI
+    assert state.current_values == pytest.approx((1.0 / 22.0, 5.0 / 22.0, 7.0 / 22.0, 9.0 / 22.0))
+    assert state.kind_toggle_button.label.get_text() == "Mode: Quasi"
+    assert state.order_button.label.get_text() == "Order: Probability ascending"
+    assert result.axes.get_ylabel() == "Quasi-probability"
+
+    result.figure.canvas.draw()
+    _dispatch_motion_event(result.figure, result.axes.patches[0])
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is True
+    assert "Quasi-probability: 0.0454545" in annotation.get_text()
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_slider_toggle_expands_to_full_distribution() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),

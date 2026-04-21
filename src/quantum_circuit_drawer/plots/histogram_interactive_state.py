@@ -68,6 +68,9 @@ class HistogramInteractiveState:
     base_values_by_state: Mapping[str, float]
     bit_width: int
     kind: HistogramKind
+    counts_values_by_state: Mapping[str, float] | None
+    quasi_values_by_state: Mapping[str, float] | None
+    menus_enabled: bool
     theme: DrawTheme
     draw_style: HistogramDrawStyle
     show_uniform_reference: bool
@@ -80,10 +83,12 @@ class HistogramInteractiveState:
     message_text: Text
     order_button: Button | None = None
     label_mode_button: Button | None = None
+    kind_toggle_button: Button | None = None
     slider_toggle_button: Button | None = None
     marginal_text_box: TextBox | None = None
     order_axes: Axes | None = None
     label_mode_axes: Axes | None = None
+    kind_toggle_axes: Axes | None = None
     slider_toggle_axes: Axes | None = None
     marginal_axes: Axes | None = None
     slider_axes: Axes | None = None
@@ -116,6 +121,18 @@ class HistogramInteractiveState:
             self.label_mode = HistogramStateLabelMode.DECIMAL
         else:
             self.label_mode = HistogramStateLabelMode.BINARY
+        self._set_message("")
+        self.redraw()
+
+    def toggle_kind(self) -> None:
+        """Toggle between counts and quasi-probability views when both are available."""
+
+        if not self.kind_toggle_available():
+            return
+        if self.kind is HistogramKind.COUNTS:
+            self.kind = HistogramKind.QUASI
+        else:
+            self.kind = HistogramKind.COUNTS
         self._set_message("")
         self.redraw()
 
@@ -165,7 +182,7 @@ class HistogramInteractiveState:
             dict(precomputed_values_by_state)
             if precomputed_values_by_state is not None
             else apply_joint_marginal(
-                self.base_values_by_state,
+                self.current_base_values_by_state(),
                 qubits=self.active_qubits,
                 bit_width=self.bit_width,
             )
@@ -259,7 +276,7 @@ class HistogramInteractiveState:
         snapshot_axes = snapshot_figure.add_subplot(111)
         snapshot_figure.subplots_adjust(left=0.08, right=0.98, top=0.94, bottom=0.16)
         full_values_by_state = apply_joint_marginal(
-            self.base_values_by_state,
+            self.current_base_values_by_state(),
             qubits=self.active_qubits,
             bit_width=self.bit_width,
         )
@@ -301,6 +318,7 @@ class HistogramInteractiveState:
         for widget in (
             self.order_button,
             self.label_mode_button,
+            self.kind_toggle_button,
             self.slider_toggle_button,
             self.marginal_text_box,
         ):
@@ -311,6 +329,7 @@ class HistogramInteractiveState:
         for control_axes in (
             self.order_axes,
             self.label_mode_axes,
+            self.kind_toggle_axes,
             self.slider_toggle_axes,
             self.marginal_axes,
             self.slider_axes,
@@ -347,6 +366,24 @@ class HistogramInteractiveState:
     def _resolved_sort_cycle(self) -> tuple[HistogramSort, ...]:
         return _SORT_CYCLE
 
+    def current_base_values_by_state(self) -> Mapping[str, float]:
+        """Return the active base distribution for the current histogram kind."""
+
+        if self.kind is HistogramKind.COUNTS and self.counts_values_by_state is not None:
+            return self.counts_values_by_state
+        if self.kind is HistogramKind.QUASI and self.quasi_values_by_state is not None:
+            return self.quasi_values_by_state
+        return self.base_values_by_state
+
+    def kind_toggle_available(self) -> bool:
+        """Return whether the interactive mode switcher should be visible."""
+
+        return (
+            self.menus_enabled
+            and self.counts_values_by_state is not None
+            and self.quasi_values_by_state is not None
+        )
+
 
 def attach_histogram_interactivity(
     *,
@@ -369,12 +406,20 @@ def attach_histogram_interactivity(
         fontsize=9.5,
     )
     message_text.set_visible(False)
+    counts_values_by_state: Mapping[str, float] | None = None
+    quasi_values_by_state: Mapping[str, float] | None = None
+    if kind is HistogramKind.COUNTS:
+        counts_values_by_state = dict(values_by_state)
+        quasi_values_by_state = _normalize_counts_to_quasi_distribution(values_by_state)
     state = HistogramInteractiveState(
         figure=figure,
         axes=axes,
         base_values_by_state=dict(values_by_state),
         bit_width=bit_width,
         kind=kind,
+        counts_values_by_state=counts_values_by_state,
+        quasi_values_by_state=quasi_values_by_state,
+        menus_enabled=True,
         theme=theme,
         draw_style=config.draw_style,
         show_uniform_reference=config.show_uniform_reference,
@@ -399,6 +444,19 @@ def attach_histogram_interactivity(
     if config.output_path is not None:
         state.save_current_view(output_path=config.output_path)
     return state
+
+
+def _normalize_counts_to_quasi_distribution(
+    values_by_state: Mapping[str, float],
+) -> dict[str, float]:
+    """Normalize one counts distribution into quasi-probabilities."""
+
+    total_count = float(sum(float(value) for value in values_by_state.values()))
+    if total_count <= 0.0:
+        return {state_label: 0.0 for state_label in values_by_state}
+    return {
+        state_label: float(value) / total_count for state_label, value in values_by_state.items()
+    }
 
 
 __all__ = ["HistogramInteractiveState", "attach_histogram_interactivity"]
