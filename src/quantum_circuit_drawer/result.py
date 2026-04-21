@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .config import DrawMode
+from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -27,3 +28,24 @@ class DrawResult:
     axes: tuple[Axes, ...]
     mode: DrawMode
     page_count: int
+    diagnostics: tuple[RenderDiagnostic, ...] = ()
+    detected_framework: str | None = None
+    interactive_enabled: bool = False
+    hover_enabled: bool = False
+    saved_path: str | None = None
+
+    @property
+    def resolved_mode(self) -> DrawMode:
+        """Return the effective draw mode used for this render."""
+
+        return self.mode
+
+    @property
+    def warnings(self) -> tuple[RenderDiagnostic, ...]:
+        """Return only warning-level diagnostics for quick inspection."""
+
+        return tuple(
+            diagnostic
+            for diagnostic in self.diagnostics
+            if diagnostic.severity is DiagnosticSeverity.WARNING
+        )

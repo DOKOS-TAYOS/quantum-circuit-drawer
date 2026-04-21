@@ -20,11 +20,10 @@ def operation_label_parts(
     operation: OperationIR | MeasurementIR, style: DrawStyle
 ) -> tuple[str, str | None]:
     label = operation.label or operation.name
-    subtitle = (
-        format_parameters(operation.parameters)
-        if style.show_params and operation.parameters
-        else None
-    )
+    subtitle_value = operation.metadata.get("display_subtitle")
+    subtitle = str(subtitle_value) if isinstance(subtitle_value, str) else None
+    if subtitle is None and style.show_params and operation.parameters:
+        subtitle = format_parameters(operation.parameters)
     return label, subtitle
 
 

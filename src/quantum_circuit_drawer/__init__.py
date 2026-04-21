@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._version import __version__
-from .config import DrawConfig, DrawMode
+from .builder import CircuitBuilder
+from .circuit_compare import CircuitCompareConfig, CircuitCompareMetrics, CircuitCompareResult
+from .config import DrawConfig, DrawMode, UnsupportedPolicy
+from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 from .exceptions import (
     LayoutError,
     QuantumCircuitDrawerError,
@@ -16,6 +19,10 @@ from .exceptions import (
     UnsupportedOperationError,
 )
 from .histogram import (
+    HistogramCompareConfig,
+    HistogramCompareMetrics,
+    HistogramCompareResult,
+    HistogramCompareSort,
     HistogramConfig,
     HistogramDrawStyle,
     HistogramKind,
@@ -25,8 +32,10 @@ from .histogram import (
     HistogramStateLabelMode,
 )
 from .hover import HoverOptions
+from .presets import StylePreset
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
+from .topology import HardwareTopology
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -70,28 +79,85 @@ def plot_histogram(
     )
 
 
+def compare_histograms(
+    left_data: object,
+    right_data: object,
+    *,
+    config: HistogramCompareConfig | None = None,
+    ax: Axes | None = None,
+) -> HistogramCompareResult:
+    """Overlay two histograms on the same bins and return comparison data."""
+
+    from .histogram import compare_histograms as _compare_histograms
+
+    return _compare_histograms(
+        left_data,
+        right_data,
+        config=config,
+        ax=ax,
+    )
+
+
+def compare_circuits(
+    left_circuit: object,
+    right_circuit: object,
+    *,
+    left_config: DrawConfig | None = None,
+    right_config: DrawConfig | None = None,
+    config: CircuitCompareConfig | None = None,
+    axes: tuple[Axes, Axes] | None = None,
+) -> CircuitCompareResult:
+    """Draw two circuits side by side and return comparison metadata."""
+
+    from .circuit_compare import compare_circuits as _compare_circuits
+
+    return _compare_circuits(
+        left_circuit,
+        right_circuit,
+        left_config=left_config,
+        right_config=right_config,
+        config=config,
+        axes=axes,
+    )
+
+
 __all__ = [
+    "CircuitBuilder",
+    "CircuitCompareConfig",
+    "CircuitCompareMetrics",
+    "CircuitCompareResult",
+    "DiagnosticSeverity",
     "DrawConfig",
     "DrawMode",
     "DrawResult",
     "DrawStyle",
     "DrawTheme",
+    "HistogramCompareConfig",
+    "HistogramCompareMetrics",
+    "HistogramCompareResult",
+    "HistogramCompareSort",
     "HistogramConfig",
     "HistogramDrawStyle",
     "HistogramKind",
     "HistogramMode",
     "HistogramResult",
     "HistogramStateLabelMode",
+    "HardwareTopology",
     "HistogramSort",
     "HoverOptions",
     "LayoutError",
     "QuantumCircuitDrawerError",
     "RenderingError",
+    "RenderDiagnostic",
     "StyleValidationError",
+    "StylePreset",
     "UnsupportedBackendError",
     "UnsupportedFrameworkError",
     "UnsupportedOperationError",
+    "UnsupportedPolicy",
     "__version__",
+    "compare_circuits",
+    "compare_histograms",
     "draw_quantum_circuit",
     "plot_histogram",
 ]

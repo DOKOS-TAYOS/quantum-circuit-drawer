@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
-from ..exceptions import LayoutError
+from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
+from ..exceptions import LayoutError, UnsupportedFrameworkError
 from ..hover import HoverOptions, normalize_hover
 from ..ir.circuit import CircuitIR
 from ..style import DrawStyle, normalize_style
+from ..topology import (
+    HardwareTopology,
+    TopologyInput,
+    normalize_topology_input,
+    topology_display_name,
+)
 from ..typing import (
     LayoutEngine3DLike,
     LayoutEngineLike,
@@ -21,7 +28,6 @@ from .request import DrawPipelineOptions, TopologyMode, ViewMode
 if TYPE_CHECKING:
     from ..layout.scene import LayoutScene
     from ..layout.scene_3d import LayoutScene3D
-    from ..layout.topology_3d import TopologyName
     from ..renderers import BaseRenderer
 
 logger = logging.getLogger(__name__)
@@ -37,6 +43,8 @@ class PreparedDrawPipeline:
     paged_scene: LayoutScene | LayoutScene3D
     renderer: BaseRenderer
     draw_options: DrawPipelineOptions
+    detected_framework: str | None = None
+    diagnostics: tuple[RenderDiagnostic, ...] = ()
 
 
 def prepare_draw_pipeline(
@@ -69,18 +77,29 @@ def prepare_draw_pipeline(
     )
 
     normalized_style = normalize_style(style)
-    if isinstance(circuit, CircuitIR) and framework in {None, "ir"}:
-        ir = circuit
+    pipeline_diagnostics: list[RenderDiagnostic] = []
+    resolved_circuit, resolved_framework = _resolve_qasm_input(circuit, framework)
+    if isinstance(resolved_circuit, CircuitIR) and resolved_framework in {None, "ir"}:
+        ir = resolved_circuit
         adapter_name = "IRAdapter(fast-path)"
+        detected_framework = "ir"
     else:
-        adapter = get_adapter(circuit, framework)
-        ir = adapter.to_ir(circuit, options=adapter_options)
+        adapter = get_adapter(resolved_circuit, resolved_framework)
+        ir = adapter.to_ir(resolved_circuit, options=adapter_options)
         adapter_name = type(adapter).__name__
+        detected_framework = resolved_framework or adapter.framework_name
+        pipeline_diagnostics.extend(
+            diagnostic
+            for diagnostic in ir.metadata.get("diagnostics", ())
+            if isinstance(diagnostic, RenderDiagnostic)
+        )
     paged_scene: LayoutScene | LayoutScene3D
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     renderer: BaseRenderer
     if draw_options.view == "3d":
-        topology: TopologyName = draw_options.topology
+        draw_options, topology_diagnostics = _resolve_topology_menu_options(draw_options)
+        pipeline_diagnostics.extend(topology_diagnostics)
+        topology = draw_options.topology
         direct = draw_options.direct
         hover_enabled = draw_options.hover.enabled
         layout_engine_3d = resolve_layout_engine_3d(layout)
@@ -99,7 +118,7 @@ def prepare_draw_pipeline(
             adapter_name,
             ir.quantum_wire_count,
             len(ir.layers),
-            topology,
+            topology_display_name(topology),
         )
     else:
         layout_engine_2d = resolve_layout_engine(layout)
@@ -127,6 +146,8 @@ def prepare_draw_pipeline(
         paged_scene=paged_scene,
         renderer=renderer,
         draw_options=draw_options,
+        detected_framework=detected_framework,
+        diagnostics=tuple(pipeline_diagnostics),
     )
 
 
@@ -140,7 +161,7 @@ def coerce_pipeline_options(
     return DrawPipelineOptions(
         composite_mode=str(options.get("composite_mode", "compact")),
         view=cast(ViewMode, str(options.get("view", "2d"))),
-        topology=cast(TopologyMode, str(options.get("topology", "line"))),
+        topology=cast(TopologyMode, normalize_topology_input(options.get("topology", "line"))),
         topology_menu=bool(options.get("topology_menu", False)),
         direct=bool(options.get("direct", True)),
         hover=_normalize_hover_option(options.get("hover", False)),
@@ -205,7 +226,7 @@ def _compute_3d_scene(
     circuit: CircuitIR,
     style: DrawStyle,
     *,
-    topology_name: TopologyName,
+    topology_name: TopologyInput,
     direct: bool,
     hover_enabled: bool,
 ) -> LayoutScene3D:
@@ -228,3 +249,60 @@ def _compute_3d_scene(
 
 def _normalize_hover_option(value: object) -> HoverOptions:
     return normalize_hover(cast("bool | HoverOptions | Mapping[str, object]", value))
+
+
+def _resolve_qasm_input(
+    circuit: object,
+    framework: str | None,
+) -> tuple[object, str | None]:
+    if framework == "qasm":
+        if not isinstance(circuit, str):
+            raise UnsupportedFrameworkError("framework='qasm' requires OpenQASM 2 text input")
+        if not _looks_like_openqasm(circuit):
+            raise UnsupportedFrameworkError(
+                "framework='qasm' requires OpenQASM 2 text starting with 'OPENQASM'"
+            )
+        return _parse_openqasm_with_qiskit(circuit), "qiskit"
+    if isinstance(circuit, str) and framework is None:
+        if _looks_like_openqasm(circuit):
+            return _parse_openqasm_with_qiskit(circuit), "qiskit"
+        raise UnsupportedFrameworkError(
+            "string inputs are only supported for OpenQASM 2 text starting with 'OPENQASM'"
+        )
+    return circuit, framework
+
+
+def _looks_like_openqasm(value: str) -> bool:
+    return value.lstrip().upper().startswith("OPENQASM")
+
+
+def _parse_openqasm_with_qiskit(qasm_text: str) -> object:
+    try:
+        import qiskit
+    except ModuleNotFoundError as exc:
+        raise UnsupportedFrameworkError(
+            "OpenQASM input requires the optional dependency 'qiskit'. "
+            "Install it with 'pip install quantum-circuit-drawer[qiskit]' or 'pip install qiskit'."
+        ) from exc
+    return qiskit.QuantumCircuit.from_qasm_str(qasm_text)
+
+
+def _resolve_topology_menu_options(
+    draw_options: DrawPipelineOptions,
+) -> tuple[DrawPipelineOptions, tuple[RenderDiagnostic, ...]]:
+    topology = draw_options.topology
+    if draw_options.topology_menu and isinstance(topology, HardwareTopology):
+        return (
+            replace(draw_options, topology_menu=False),
+            (
+                RenderDiagnostic(
+                    code="topology_menu_disabled_custom_topology",
+                    message=(
+                        "Disabled topology_menu because the interactive selector is only "
+                        "available for built-in 3D topologies."
+                    ),
+                    severity=DiagnosticSeverity.INFO,
+                ),
+            ),
+        )
+    return draw_options, ()

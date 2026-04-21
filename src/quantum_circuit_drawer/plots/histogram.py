@@ -1,4 +1,4 @@
-"""Public histogram plotting API for counts and quasi-probability data."""
+"""Public histogram plotting APIs for single and comparison histograms."""
 
 from __future__ import annotations
 
@@ -8,8 +8,16 @@ from enum import StrEnum
 from itertools import product
 from typing import TYPE_CHECKING, Protocol, SupportsFloat, runtime_checkable
 
+from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..drawing.runtime import detect_runtime_context
 from ..export.figures import save_matplotlib_figure
+from ..presets import (
+    StylePreset,
+    histogram_draw_style_for_preset,
+    histogram_figsize_for_preset,
+    histogram_theme_for_preset,
+    normalize_style_preset,
+)
 from ..style.theme import resolve_theme
 
 if TYPE_CHECKING:
@@ -70,6 +78,14 @@ class HistogramDrawStyle(StrEnum):
     SOFT = "soft"
 
 
+class HistogramCompareSort(StrEnum):
+    """Public ordering modes for histogram comparison plots."""
+
+    STATE = "state"
+    STATE_DESC = "state_desc"
+    DELTA_DESC = "delta_desc"
+
+
 @dataclass(frozen=True, slots=True)
 class HistogramConfig:
     """Public configuration for ``plot_histogram``."""
@@ -81,6 +97,7 @@ class HistogramConfig:
     qubits: tuple[int, ...] | None = None
     result_index: int = 0
     data_key: str | None = None
+    preset: StylePreset | str | None = None
     theme: DrawTheme | str | None = None
     draw_style: HistogramDrawStyle = HistogramDrawStyle.SOLID
     state_label_mode: HistogramStateLabelMode = HistogramStateLabelMode.BINARY
@@ -94,8 +111,19 @@ class HistogramConfig:
         object.__setattr__(self, "kind", self._normalize_kind(self.kind))
         object.__setattr__(self, "mode", self._normalize_mode(self.mode))
         object.__setattr__(self, "sort", self._normalize_sort(self.sort))
-        object.__setattr__(self, "theme", resolve_theme(self.theme))
-        object.__setattr__(self, "draw_style", self._normalize_draw_style(self.draw_style))
+        object.__setattr__(self, "preset", normalize_style_preset(self.preset))
+        preset_theme = (
+            self.theme if self.theme is not None else histogram_theme_for_preset(self.preset)
+        )
+        preset_draw_style = (
+            self.draw_style
+            if self.draw_style is not HistogramDrawStyle.SOLID
+            else histogram_draw_style_for_preset(self.preset) or self.draw_style
+        )
+        preset_figsize = self.figsize or histogram_figsize_for_preset(self.preset)
+        object.__setattr__(self, "theme", resolve_theme(preset_theme))
+        object.__setattr__(self, "draw_style", self._normalize_draw_style(preset_draw_style))
+        object.__setattr__(self, "figsize", preset_figsize)
         object.__setattr__(
             self,
             "state_label_mode",
@@ -221,6 +249,79 @@ class HistogramResult:
     state_labels: tuple[str, ...]
     values: tuple[float, ...]
     qubits: tuple[int, ...] | None
+    diagnostics: tuple[RenderDiagnostic, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class HistogramCompareConfig:
+    """Public configuration for ``compare_histograms``."""
+
+    kind: HistogramKind = HistogramKind.AUTO
+    sort: HistogramCompareSort = HistogramCompareSort.STATE
+    top_k: int | None = None
+    qubits: tuple[int, ...] | None = None
+    result_index: int = 0
+    data_key: str | None = None
+    preset: StylePreset | str | None = None
+    theme: DrawTheme | str | None = None
+    left_label: str = "Left"
+    right_label: str = "Right"
+    show: bool = True
+    output_path: OutputPath | None = None
+    figsize: tuple[float, float] | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "kind", HistogramConfig._normalize_kind(self.kind))
+        object.__setattr__(self, "sort", self._normalize_sort(self.sort))
+        object.__setattr__(self, "preset", normalize_style_preset(self.preset))
+        preset_theme = (
+            self.theme if self.theme is not None else histogram_theme_for_preset(self.preset)
+        )
+        object.__setattr__(self, "theme", resolve_theme(preset_theme))
+        object.__setattr__(
+            self, "figsize", self.figsize or histogram_figsize_for_preset(self.preset)
+        )
+        HistogramConfig._validate_qubits(self.qubits)
+        HistogramConfig._validate_top_k(self.top_k)
+        HistogramConfig._validate_result_index(self.result_index)
+        HistogramConfig._validate_show(self.show)
+        HistogramConfig._validate_figsize(self.figsize)
+
+    @staticmethod
+    def _normalize_sort(value: HistogramCompareSort | str) -> HistogramCompareSort:
+        try:
+            return (
+                value
+                if isinstance(value, HistogramCompareSort)
+                else HistogramCompareSort(str(value))
+            )
+        except ValueError as exc:
+            choices = ", ".join(sort.value for sort in HistogramCompareSort)
+            raise ValueError(f"sort must be one of: {choices}") from exc
+
+
+@dataclass(frozen=True, slots=True)
+class HistogramCompareMetrics:
+    """Comparison metrics derived from overlaid histograms."""
+
+    total_variation_distance: float
+    max_absolute_delta: float
+
+
+@dataclass(frozen=True, slots=True)
+class HistogramCompareResult:
+    """Returned comparison plot handle and aligned histogram values."""
+
+    figure: Figure
+    axes: Axes
+    kind: HistogramKind
+    state_labels: tuple[str, ...]
+    left_values: tuple[float, ...]
+    right_values: tuple[float, ...]
+    delta_values: tuple[float, ...]
+    metrics: HistogramCompareMetrics
+    qubits: tuple[int, ...] | None
+    diagnostics: tuple[RenderDiagnostic, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +360,26 @@ def plot_histogram(
         runtime_context=runtime_context,
         ax=ax,
     )
+    diagnostics: list[RenderDiagnostic] = []
+    if resolved_config.mode is HistogramMode.AUTO:
+        diagnostics.append(
+            RenderDiagnostic(
+                code="auto_mode_resolved",
+                message=f"Resolved histogram mode {resolved_mode.value!r} from mode='auto'.",
+                severity=DiagnosticSeverity.INFO,
+            )
+        )
+        if runtime_context.is_notebook and not runtime_context.notebook_backend_active:
+            diagnostics.append(
+                RenderDiagnostic(
+                    code="histogram_auto_mode_fallback_static",
+                    message=(
+                        "Fell back to static histogram mode because the notebook backend is not "
+                        "widget-interactive."
+                    ),
+                    severity=DiagnosticSeverity.INFO,
+                )
+            )
     if (
         resolved_mode is HistogramMode.INTERACTIVE
         and runtime_context.is_notebook
@@ -343,6 +464,100 @@ def plot_histogram(
         state_labels=state_labels,
         values=values,
         qubits=resolved_config.qubits,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+def compare_histograms(
+    left_data: object,
+    right_data: object,
+    *,
+    config: HistogramCompareConfig | None = None,
+    ax: Axes | None = None,
+) -> HistogramCompareResult:
+    """Overlay two histograms on the same bins and return aligned values."""
+
+    resolved_config = config or HistogramCompareConfig()
+    if ax is not None and resolved_config.figsize is not None:
+        raise ValueError("figsize cannot be used with ax")
+
+    left_normalized = _normalize_histogram_data(
+        left_data,
+        requested_kind=resolved_config.kind,
+        result_index=resolved_config.result_index,
+        data_key=resolved_config.data_key,
+    )
+    right_normalized = _normalize_histogram_data(
+        right_data,
+        requested_kind=resolved_config.kind,
+        result_index=resolved_config.result_index,
+        data_key=resolved_config.data_key,
+    )
+    left_values_by_state = _apply_joint_marginal(
+        left_normalized.values_by_state,
+        qubits=resolved_config.qubits,
+        bit_width=left_normalized.bit_width,
+    )
+    right_values_by_state = _apply_joint_marginal(
+        right_normalized.values_by_state,
+        qubits=resolved_config.qubits,
+        bit_width=right_normalized.bit_width,
+    )
+    comparison_kind = _resolve_comparison_kind(
+        requested_kind=resolved_config.kind,
+        left_kind=left_normalized.kind,
+        right_kind=right_normalized.kind,
+    )
+    ordered_state_labels = _ordered_comparison_state_labels(
+        left_values_by_state=left_values_by_state,
+        right_values_by_state=right_values_by_state,
+        sort=resolved_config.sort,
+        top_k=resolved_config.top_k,
+    )
+    left_values = tuple(
+        float(left_values_by_state.get(state_label, 0.0)) for state_label in ordered_state_labels
+    )
+    right_values = tuple(
+        float(right_values_by_state.get(state_label, 0.0)) for state_label in ordered_state_labels
+    )
+    delta_values = tuple(
+        float(left_value - right_value)
+        for left_value, right_value in zip(left_values, right_values, strict=True)
+    )
+    metrics = HistogramCompareMetrics(
+        total_variation_distance=sum(abs(delta_value) for delta_value in delta_values) / 2.0,
+        max_absolute_delta=max((abs(delta_value) for delta_value in delta_values), default=0.0),
+    )
+
+    figure, axes = _resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
+    _draw_histogram_compare_axes(
+        figure=figure,
+        axes=axes,
+        state_labels=ordered_state_labels,
+        left_values=left_values,
+        right_values=right_values,
+        kind=comparison_kind,
+        theme=resolved_config.theme,
+        left_label=resolved_config.left_label,
+        right_label=resolved_config.right_label,
+    )
+    _save_histogram_if_requested(figure, output_path=resolved_config.output_path)
+    if resolved_config.show:
+        from ..renderers._render_support import show_figure_if_supported
+
+        show_figure_if_supported(figure, show=True)
+
+    return HistogramCompareResult(
+        figure=figure,
+        axes=axes,
+        kind=comparison_kind,
+        state_labels=ordered_state_labels,
+        left_values=left_values,
+        right_values=right_values,
+        delta_values=delta_values,
+        metrics=metrics,
+        qubits=resolved_config.qubits,
+        diagnostics=(),
     )
 
 
@@ -361,6 +576,19 @@ def _resolve_histogram_mode(
             return HistogramMode.INTERACTIVE
         return HistogramMode.STATIC
     return HistogramMode.INTERACTIVE
+
+
+def _resolve_comparison_kind(
+    *,
+    requested_kind: HistogramKind,
+    left_kind: HistogramKind,
+    right_kind: HistogramKind,
+) -> HistogramKind:
+    if requested_kind is not HistogramKind.AUTO:
+        return requested_kind
+    if left_kind is HistogramKind.QUASI or right_kind is HistogramKind.QUASI:
+        return HistogramKind.QUASI
+    return HistogramKind.COUNTS
 
 
 def _normalize_histogram_data(
@@ -885,6 +1113,121 @@ def _draw_histogram_axes(
     return bars
 
 
+def _draw_histogram_compare_axes(
+    *,
+    figure: Figure,
+    axes: Axes,
+    state_labels: tuple[str, ...],
+    left_values: tuple[float, ...],
+    right_values: tuple[float, ...],
+    kind: HistogramKind,
+    theme: DrawTheme,
+    left_label: str,
+    right_label: str,
+) -> None:
+    from matplotlib.patches import Patch
+
+    _apply_histogram_theme(figure=figure, axes=axes, theme=theme)
+    positions = tuple(range(len(state_labels)))
+    bar_width = 0.82
+    left_color = theme.accent_color
+    right_color = _comparison_secondary_color(theme)
+    legend_handles = [
+        Patch(facecolor=left_color, edgecolor=theme.gate_edgecolor, alpha=0.72, label=left_label),
+        Patch(
+            facecolor=right_color,
+            edgecolor=theme.gate_edgecolor,
+            alpha=0.72,
+            label=right_label,
+        ),
+    ]
+
+    for position, left_value, right_value in zip(positions, left_values, right_values, strict=True):
+        bars = [
+            (
+                "left",
+                float(left_value),
+                left_color,
+            ),
+            (
+                "right",
+                float(right_value),
+                right_color,
+            ),
+        ]
+        bars.sort(key=lambda item: abs(item[1]), reverse=True)
+        back_series_name, back_value, back_color = bars[0]
+        front_series_name, front_value, front_color = bars[1]
+
+        back_bar = axes.bar(
+            position,
+            (back_value,),
+            width=bar_width,
+            color=back_color,
+            edgecolor=theme.gate_edgecolor,
+            linewidth=1.6,
+            alpha=0.26,
+            zorder=2,
+        )[0]
+        front_bar = axes.bar(
+            position,
+            (front_value,),
+            width=bar_width,
+            color=front_color,
+            edgecolor=theme.gate_edgecolor,
+            linewidth=1.1,
+            alpha=0.58,
+            zorder=3,
+        )[0]
+        if front_series_name == back_series_name:
+            front_bar.set_zorder(3)
+        _draw_back_bar_top_edge(
+            axes=axes,
+            position=float(position),
+            value=back_value,
+            width=bar_width,
+            color=back_color,
+        )
+        back_bar.set_label("_nolegend_")
+        front_bar.set_label("_nolegend_")
+
+    axes.set_xlabel("State")
+    axes.set_ylabel("Counts" if kind is HistogramKind.COUNTS else "Quasi-probability")
+    if kind is HistogramKind.QUASI:
+        axes.axhline(0.0, color=_reference_line_color(theme), linewidth=1.0, linestyle="--")
+    axes.set_xticks(list(positions))
+    axes.set_xticklabels(_tick_labels_for_states(state_labels, thin=False))
+    if positions:
+        axes.set_xlim(-0.5, len(positions) - 0.5)
+    y_limits = _resolved_histogram_y_limits(
+        (*left_values, *right_values),
+        kind=kind,
+        uniform_reference_value=None,
+    )
+    axes.set_ylim(*y_limits)
+    axes.legend(handles=legend_handles, frameon=False)
+    axes.margins(x=0.02)
+
+
+def _draw_back_bar_top_edge(
+    *,
+    axes: Axes,
+    position: float,
+    value: float,
+    width: float,
+    color: str,
+) -> None:
+    half_width = width / 2.0
+    axes.plot(
+        [position - half_width, position + half_width],
+        [value, value],
+        color=color,
+        linewidth=2.2,
+        solid_capstyle="round",
+        zorder=4,
+    )
+
+
 def _bar_colors(
     *,
     values: tuple[float, ...],
@@ -916,6 +1259,37 @@ def _order_histogram_values(
     if top_k is not None:
         items = items[:top_k]
     return dict(items)
+
+
+def _ordered_comparison_state_labels(
+    *,
+    left_values_by_state: Mapping[str, float],
+    right_values_by_state: Mapping[str, float],
+    sort: HistogramCompareSort,
+    top_k: int | None,
+) -> tuple[str, ...]:
+    labels = tuple(
+        sorted(set(left_values_by_state) | set(right_values_by_state), key=_state_sort_key)
+    )
+    items = [
+        (
+            label,
+            float(left_values_by_state.get(label, 0.0)),
+            float(right_values_by_state.get(label, 0.0)),
+        )
+        for label in labels
+    ]
+    if sort is HistogramCompareSort.STATE:
+        items.sort(key=lambda item: _state_sort_key(item[0]))
+    elif sort is HistogramCompareSort.STATE_DESC:
+        items.sort(key=lambda item: _state_sort_key(item[0]), reverse=True)
+    else:
+        items.sort(
+            key=lambda item: (-abs(item[1] - item[2]), _state_sort_key(item[0])),
+        )
+    if top_k is not None:
+        items = items[:top_k]
+    return tuple(label for label, _, _ in items)
 
 
 def _tick_labels_for_states(
@@ -1044,6 +1418,14 @@ def _negative_bar_color(theme: DrawTheme) -> str:
     if theme.name == "light":
         return "#dc2626"
     return "#f87171"
+
+
+def _comparison_secondary_color(theme: DrawTheme) -> str:
+    if theme.name == "paper":
+        return "#2563eb"
+    if theme.name == "light":
+        return "#1d4ed8"
+    return "#38bdf8"
 
 
 def _apply_joint_marginal(

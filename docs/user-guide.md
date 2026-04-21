@@ -163,6 +163,12 @@ result.figures
 result.axes
 result.mode
 result.page_count
+result.detected_framework
+result.interactive_enabled
+result.hover_enabled
+result.saved_path
+result.resolved_mode
+result.warnings
 ```
 
 Typical uses:
@@ -170,3 +176,31 @@ Typical uses:
 - `result.primary_figure` for save/show logic
 - `result.figures` in notebook page mode
 - `result.page_count` to report how many pages were produced
+- `result.detected_framework` to confirm autodetection or QASM normalization
+- `result.warnings` to quickly inspect non-fatal issues
+
+## Comparing two circuits
+
+Use `compare_circuits(...)` when you want a quick before/after view, for
+example after transpilation or optimization:
+
+```python
+from quantum_circuit_drawer import CircuitCompareConfig, compare_circuits
+
+result = compare_circuits(
+    left_circuit,
+    right_circuit,
+    config=CircuitCompareConfig(
+        left_title="Before",
+        right_title="After",
+        show=False,
+    ),
+)
+```
+
+What you get back:
+
+- one figure with two subplot axes
+- one nested `DrawResult` per side
+- structural metrics such as layers, total operations, multi-qubit operations, swaps, and measurements
+- optional highlighted background bands on layers that changed

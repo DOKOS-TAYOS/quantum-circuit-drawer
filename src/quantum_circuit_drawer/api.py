@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .drawing.api import draw_quantum_circuit
+from .drawing.api import compare_circuits, draw_quantum_circuit
 
-__all__ = ["draw_quantum_circuit"]
+__all__ = ["compare_circuits", "draw_quantum_circuit"]

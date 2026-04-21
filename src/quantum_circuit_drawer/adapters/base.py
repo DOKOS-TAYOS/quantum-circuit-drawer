@@ -8,6 +8,7 @@ from collections.abc import Iterable, Mapping
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR
+from ..ir.packing import pack_operation_nodes
 
 OperationNode = OperationIR | MeasurementIR
 
@@ -24,7 +25,13 @@ class BaseAdapter(ABC):
 
     @abstractmethod
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
-        """Convert a framework object into the library's neutral ``CircuitIR``."""
+        """Convert a framework object into the library's neutral ``CircuitIR``.
+
+        Adapters should accept ``options`` as a forward-compatible mapping
+        and ignore unknown keys they do not understand. The stable keys the
+        public API guarantees today are ``"composite_mode"`` and
+        ``"explicit_matrices"``.
+        """
 
     def pack_operations(self, operations: Iterable[OperationNode]) -> tuple[LayerIR, ...]:
         """Pack operations into drawable layers without wire collisions.
@@ -34,16 +41,4 @@ class BaseAdapter(ABC):
         measurement targets.
         """
 
-        layer_operations: list[list[OperationNode]] = []
-        latest_layer_by_slot: dict[str, int] = {}
-        for operation in operations:
-            slots = tuple(dict.fromkeys(operation.occupied_wire_ids))
-            target_layer = (
-                max((latest_layer_by_slot.get(slot, -1) for slot in slots), default=-1) + 1
-            )
-            while len(layer_operations) <= target_layer:
-                layer_operations.append([])
-            layer_operations[target_layer].append(operation)
-            for slot in slots:
-                latest_layer_by_slot[slot] = target_layer
-        return tuple(LayerIR(operations=layer) for layer in layer_operations)
+        return pack_operation_nodes(operations)

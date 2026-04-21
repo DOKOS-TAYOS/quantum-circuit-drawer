@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
+from .diagnostics import RenderDiagnostic
 from .hover import HoverOptions, normalize_hover
-from .style import DrawStyle, normalize_style
+from .presets import StylePreset, apply_draw_style_preset, normalize_style_preset
+from .style import DrawStyle
+from .topology import TopologyInput, normalize_topology_input
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -16,7 +19,7 @@ if TYPE_CHECKING:
     from .typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath
 
 ViewMode = Literal["2d", "3d"]
-TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
+TopologyMode = TopologyInput
 
 
 class DrawMode(StrEnum):
@@ -27,6 +30,13 @@ class DrawMode(StrEnum):
     PAGES_CONTROLS = "pages_controls"
     SLIDER = "slider"
     FULL = "full"
+
+
+class UnsupportedPolicy(StrEnum):
+    """Public policy for recoverable unsupported operations."""
+
+    RAISE = "raise"
+    PLACEHOLDER = "placeholder"
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,8 +68,10 @@ class DrawConfig:
     show: bool = True
     output_path: OutputPath | None = None
     figsize: tuple[float, float] | None = None
+    preset: StylePreset | str | None = None
     style: DrawStyle | Mapping[str, object] | None = None
     hover: bool | HoverOptions | Mapping[str, object] = False
+    unsupported_policy: UnsupportedPolicy | str = UnsupportedPolicy.RAISE
 
     def __post_init__(self) -> None:
         """Validate and normalize the public configuration.
@@ -73,16 +85,22 @@ class DrawConfig:
         self._validate_choice("backend", self.backend, {"matplotlib"})
         self._validate_choice("view", self.view, {"2d", "3d"})
         self._validate_choice("composite_mode", self.composite_mode, {"compact", "expand"})
-        self._validate_choice(
-            "topology",
-            self.topology,
-            {"line", "grid", "star", "star_tree", "honeycomb"},
-        )
+        object.__setattr__(self, "topology", normalize_topology_input(self.topology))
         self._validate_bool("topology_menu", self.topology_menu)
         self._validate_bool("direct", self.direct)
         self._validate_bool("show", self.show)
         self._validate_figsize(self.figsize)
-        object.__setattr__(self, "style", normalize_style(self.style))
+        object.__setattr__(self, "preset", normalize_style_preset(self.preset))
+        object.__setattr__(
+            self,
+            "unsupported_policy",
+            self._normalize_unsupported_policy(self.unsupported_policy),
+        )
+        object.__setattr__(
+            self,
+            "style",
+            apply_draw_style_preset(self.style, preset=self.preset),
+        )
         object.__setattr__(self, "hover", normalize_hover(self.hover))
 
     @staticmethod
@@ -116,6 +134,14 @@ class DrawConfig:
         if not _is_positive_dimension(width) or not _is_positive_dimension(height):
             raise ValueError("figsize must be a 2-item tuple of positive numbers")
 
+    @staticmethod
+    def _normalize_unsupported_policy(value: UnsupportedPolicy | str) -> UnsupportedPolicy:
+        try:
+            return value if isinstance(value, UnsupportedPolicy) else UnsupportedPolicy(str(value))
+        except ValueError as exc:
+            choices = ", ".join(policy.value for policy in UnsupportedPolicy)
+            raise ValueError(f"unsupported_policy must be one of: {choices}") from exc
+
 
 def _is_positive_dimension(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
@@ -130,3 +156,4 @@ class ResolvedDrawConfig:
     interactive_mode_allowed: bool
     notebook_backend_active: bool
     caller_axes: Axes | None
+    diagnostics: tuple[RenderDiagnostic, ...] = ()

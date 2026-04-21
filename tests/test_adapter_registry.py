@@ -110,7 +110,7 @@ def test_get_adapter_reports_requested_framework_when_object_is_not_supported(
 ) -> None:
     registry_module = importlib.import_module("quantum_circuit_drawer.adapters.registry")
     registry = AdapterRegistry()
-    registry.register(_RequestedFrameworkAdapter)
+    registry.register(_RequestedFrameworkAdapter, replace=True)
     monkeypatch.setattr(registry_module, "registry", registry)
 
     with pytest.raises(

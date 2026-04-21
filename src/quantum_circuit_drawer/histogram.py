@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from .plots.histogram import (
+    HistogramCompareConfig,
+    HistogramCompareMetrics,
+    HistogramCompareResult,
+    HistogramCompareSort,
     HistogramConfig,
     HistogramDrawStyle,
     HistogramKind,
@@ -10,10 +14,15 @@ from .plots.histogram import (
     HistogramResult,
     HistogramSort,
     HistogramStateLabelMode,
+    compare_histograms,
     plot_histogram,
 )
 
 __all__ = [
+    "HistogramCompareConfig",
+    "HistogramCompareMetrics",
+    "HistogramCompareResult",
+    "HistogramCompareSort",
     "HistogramConfig",
     "HistogramDrawStyle",
     "HistogramKind",
@@ -21,5 +30,6 @@ __all__ = [
     "HistogramResult",
     "HistogramStateLabelMode",
     "HistogramSort",
+    "compare_histograms",
     "plot_histogram",
 ]

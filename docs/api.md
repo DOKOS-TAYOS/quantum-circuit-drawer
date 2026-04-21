@@ -10,6 +10,16 @@ draw_quantum_circuit(
     ax: Axes | None = None,
 ) -> DrawResult
 
+compare_circuits(
+    left_circuit: object,
+    right_circuit: object,
+    *,
+    left_config: DrawConfig | None = None,
+    right_config: DrawConfig | None = None,
+    config: CircuitCompareConfig | None = None,
+    axes: tuple[Axes, Axes] | None = None,
+) -> CircuitCompareResult
+
 plot_histogram(
     data: object,
     *,
@@ -18,7 +28,8 @@ plot_histogram(
 ) -> HistogramResult
 ```
 
-These are the public entry points for circuit drawing and result histograms.
+These are the public entry points for circuit drawing, side-by-side circuit
+comparison, and result histograms.
 
 ## `DrawConfig`
 
@@ -38,8 +49,10 @@ DrawConfig(
     show=True,
     output_path=None,
     figsize=None,
+    preset=None,
     style=None,
     hover=False,
+    unsupported_policy=UnsupportedPolicy.RAISE,
 )
 ```
 
@@ -95,12 +108,84 @@ Fields:
 - `axes`
 - `mode`
 - `page_count`
+- `diagnostics`
+- `detected_framework`
+- `interactive_enabled`
+- `hover_enabled`
+- `saved_path`
+
+Convenience properties:
+
+- `resolved_mode`
+- `warnings`
 
 Examples:
 
 - simple managed render: one figure and one axes
 - `pages` in a notebook: several figures, one per page
 - caller-managed `ax=...`: one figure and one axes, wrapped in `DrawResult`
+
+## Extension API
+
+For third-party extensions, the stable v1 public surface is:
+
+- `quantum_circuit_drawer.adapters` for adapter registration
+- `quantum_circuit_drawer.typing` for `LayoutEngineLike` and `LayoutEngine3DLike`
+
+The recommended public helpers for adapters are:
+
+- `register_adapter(...)`
+- `unregister_adapter(...)`
+- `available_frameworks()`
+- `detect_framework_name(...)`
+- `get_adapter(...)`
+
+See [Extension API](extensions.md) for the supported contract, examples, and the list of public vs internal modules.
+
+## `CircuitCompareConfig`
+
+```python
+CircuitCompareConfig(
+    left_title="Left",
+    right_title="Right",
+    highlight_differences=True,
+    show_summary=True,
+    show=True,
+    output_path=None,
+    figsize=None,
+)
+```
+
+Notes:
+
+- `compare_circuits(...)` is a 2D-only v1 API
+- per-side configs still control framework, preset, style, and hover
+- per-side `mode`, `show`, and `output_path` are normalized internally
+
+## `CircuitCompareResult`
+
+`compare_circuits(...)` returns one figure with two subplot axes.
+
+Fields:
+
+- `figure`
+- `axes`
+- `left_result`
+- `right_result`
+- `metrics`
+- `diagnostics`
+- `saved_path`
+
+`metrics` includes:
+
+- layer counts and `layer_delta`
+- total operation counts and `operation_delta`
+- multi-qubit counts and `multi_qubit_delta`
+- measurement counts and `measurement_delta`
+- swap counts and `swap_delta`
+- `differing_layer_count`
+- `left_only_layer_count`
+- `right_only_layer_count`
 
 ## `HistogramKind`
 
@@ -285,6 +370,20 @@ result = draw_quantum_circuit(
 result = draw_quantum_circuit(
     circuit,
     config=DrawConfig(mode=DrawMode.FULL, show=False),
+)
+```
+
+### Side-by-side circuit comparison
+
+```python
+result = compare_circuits(
+    left_circuit,
+    right_circuit,
+    config=CircuitCompareConfig(
+        left_title="Before",
+        right_title="After",
+        show=False,
+    ),
 )
 ```
 

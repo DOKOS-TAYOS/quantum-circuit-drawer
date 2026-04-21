@@ -259,6 +259,8 @@ The internal IR path is useful when:
 - you want full control over the circuit structure before rendering
 - you want to build an adapter or preprocessing step in your own code
 
+If you want to add a reusable third-party input path instead of building IR inline every time, see [Extension API](extensions.md).
+
 Import the IR types from `quantum_circuit_drawer.ir`.
 
 Example:

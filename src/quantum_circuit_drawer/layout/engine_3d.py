@@ -9,6 +9,7 @@ from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..style import DrawStyle, normalize_style
+from ..topology import TopologyInput
 from ._engine_3d_classical import append_classical_condition_connections_3d
 from ._engine_3d_metrics import _OperationMetrics3D, build_operation_metrics_3d
 from ._engine_3d_operations import (
@@ -42,7 +43,7 @@ from .scene_3d import (
     SceneTopologyPlane3D,
     SceneWire3D,
 )
-from .topology_3d import Topology3D, TopologyName, build_topology
+from .topology_3d import Topology3D, build_topology
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class LayoutEngine3D:
         circuit: CircuitIR,
         style: DrawStyle,
         *,
-        topology_name: TopologyName,
+        topology_name: TopologyInput,
         direct: bool,
         hover_enabled: bool,
     ) -> LayoutScene3D:
@@ -79,7 +80,7 @@ class LayoutEngine3D:
         circuit: CircuitIR,
         style: DrawStyle,
         *,
-        topology_name: TopologyName,
+        topology_name: TopologyInput,
         direct: bool,
         hover_enabled: bool,
     ) -> LayoutScene3D:

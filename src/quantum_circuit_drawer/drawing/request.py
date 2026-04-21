@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import UnsupportedBackendError
 from ..hover import HoverOptions, disable_hover, normalize_hover
 from ..renderers._render_support import (
@@ -14,15 +15,15 @@ from ..renderers._render_support import (
     pyplot_backend_supports_interaction,
 )
 from ..style import DrawStyle
+from ..topology import TopologyInput, normalize_topology_input
 from ..typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 ViewMode = Literal["2d", "3d"]
-TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
+TopologyMode = TopologyInput
 _VALID_VIEW_MODES = frozenset({"2d", "3d"})
-_VALID_TOPOLOGIES = frozenset({"line", "grid", "star", "star_tree", "honeycomb"})
 _VALID_COMPOSITE_MODES = frozenset({"compact", "expand"})
 
 
@@ -89,6 +90,7 @@ class DrawRequest:
     page_slider: bool
     page_window: bool
     pipeline_options: DrawPipelineOptions
+    diagnostics: tuple[RenderDiagnostic, ...] = ()
 
 
 def build_draw_request(
@@ -130,14 +132,14 @@ def build_draw_request(
         topology_menu=topology_menu,
         figsize=figsize,
     )
-    effective_hover = resolve_effective_hover(
+    resolved_hover, diagnostics = resolve_effective_hover(
         hover=normalized_hover,
         ax=ax,
         output=output,
         show=show,
         view=view,
     )
-    resolved_options = _resolved_adapter_extra_options(options, effective_hover)
+    resolved_options = _resolved_adapter_extra_options(options, resolved_hover)
     return DrawRequest(
         circuit=circuit,
         framework=framework,
@@ -153,12 +155,13 @@ def build_draw_request(
         pipeline_options=DrawPipelineOptions(
             composite_mode=composite_mode,
             view=view,
-            topology=topology,
+            topology=normalize_topology_input(topology),
             topology_menu=topology_menu,
             direct=direct,
-            hover=effective_hover,
+            hover=resolved_hover,
             extra=resolved_options,
         ),
+        diagnostics=diagnostics,
     )
 
 
@@ -177,7 +180,7 @@ def validate_public_options(
     """Validate public draw options that are not enforced by Python typing."""
 
     _validate_choice("view", view, _VALID_VIEW_MODES)
-    _validate_choice("topology", topology, _VALID_TOPOLOGIES)
+    normalize_topology_input(topology)
     _validate_choice("composite_mode", composite_mode, _VALID_COMPOSITE_MODES)
     _validate_bool("direct", direct)
     _validate_bool("show", show)
@@ -246,7 +249,7 @@ def resolve_effective_hover(
     output: OutputPath | None,
     show: bool,
     view: ViewMode,
-) -> HoverOptions:
+) -> tuple[HoverOptions, tuple[RenderDiagnostic, ...]]:
     """Resolve whether hover annotations can actually stay interactive.
 
     Hover labels are disabled for saved output and non-interactive backends.
@@ -255,17 +258,25 @@ def resolve_effective_hover(
     to build for dense circuits.
     """
 
+    diagnostics: list[RenderDiagnostic] = []
     if not hover.enabled or output is not None:
-        return disable_hover(hover)
+        return disable_hover(hover), ()
     if ax is not None:
         if figure_backend_name(ax.figure) in NON_INTERACTIVE_BACKENDS:
-            return disable_hover(hover)
-        return hover
+            return disable_hover(hover), ()
+        return hover, ()
     if view == "2d" and not show:
-        return disable_hover(hover)
+        diagnostics.append(
+            RenderDiagnostic(
+                code="hover_disabled_hidden_2d",
+                message="Disabled hover because hidden managed 2D renders are non-interactive.",
+                severity=DiagnosticSeverity.INFO,
+            )
+        )
+        return disable_hover(hover), tuple(diagnostics)
     if not pyplot_backend_supports_interaction():
-        return disable_hover(hover)
-    return hover
+        return disable_hover(hover), ()
+    return hover, ()
 
 
 def _resolved_adapter_extra_options(

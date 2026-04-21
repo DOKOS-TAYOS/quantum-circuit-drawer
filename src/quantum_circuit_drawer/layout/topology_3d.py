@@ -9,11 +9,17 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Literal
 
 from ..ir.wires import WireIR
+from ..topology import (
+    BuiltinTopologyName,
+    HardwareTopology,
+    TopologyInput,
+    builtin_topology_names,
+    is_builtin_topology,
+)
 
-TopologyName = Literal["line", "grid", "star", "star_tree", "honeycomb"]
+TopologyName = BuiltinTopologyName
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,7 +36,7 @@ class TopologyNode:
 class Topology3D:
     """Validated topology definition used by the 3D layout engine."""
 
-    name: TopologyName
+    name: str
     nodes: tuple[TopologyNode, ...]
     edges: tuple[tuple[str, str], ...]
     _positions_cache: dict[str, tuple[float, float]] = field(
@@ -103,34 +109,145 @@ class Topology3D:
                     return next_path
                 visited.add(neighbor)
                 queue.append((neighbor, next_path))
-        raise ValueError(f"topology path not found between {start_wire_id!r} and {end_wire_id!r}")
+        raise ValueError(
+            f"topology '{self.name}' has no path between {start_wire_id!r} and {end_wire_id!r}"
+        )
 
 
-def build_topology(topology: TopologyName, quantum_wires: tuple[WireIR, ...]) -> Topology3D:
-    """Build a validated topology for the provided wire ordering.
+def build_topology(topology: TopologyInput, quantum_wires: tuple[WireIR, ...]) -> Topology3D:
+    """Build a validated topology for the provided wire ordering."""
 
-    The supported topology names intentionally encode real constraints:
-    ``grid`` needs a rectangular factorization, ``star`` needs at least two
-    wires, ``star_tree`` only accepts sizes of the form ``3 * 2^d - 2``, and
-    ``honeycomb`` is currently defined for 53 wires.
-    """
-
-    if topology == "line":
-        return _build_line_topology(quantum_wires)
-    if topology == "grid":
-        return _build_grid_topology(quantum_wires)
-    if topology == "star":
-        return _build_star_topology(quantum_wires)
-    if topology == "star_tree":
-        return _build_star_tree_topology(quantum_wires)
-    if topology == "honeycomb":
-        return _build_honeycomb_topology(quantum_wires)
-    raise ValueError(f"unknown topology {topology!r}")
+    if is_builtin_topology(topology):
+        if topology == "line":
+            return _build_line_topology(quantum_wires)
+        if topology == "grid":
+            return _build_grid_topology(quantum_wires)
+        if topology == "star":
+            return _build_star_topology(quantum_wires)
+        if topology == "star_tree":
+            return _build_star_tree_topology(quantum_wires)
+        if topology == "honeycomb":
+            return _build_honeycomb_topology(quantum_wires)
+        raise ValueError(f"unknown topology {topology!r}")
+    return _build_custom_topology(topology, quantum_wires)
 
 
 def _unsupported_topology_error(topology: str, wire_count: int) -> ValueError:
     wire_label = "wire" if wire_count == 1 else "wires"
     return ValueError(f"topology '{topology}' does not support {wire_count} quantum {wire_label}")
+
+
+def _build_custom_topology(
+    topology: HardwareTopology,
+    quantum_wires: tuple[WireIR, ...],
+) -> Topology3D:
+    if len(topology.node_ids) != len(quantum_wires):
+        raise ValueError(
+            "custom topology node count must match the circuit quantum wire count: "
+            f"{len(topology.node_ids)} nodes for {len(quantum_wires)} wires"
+        )
+
+    coordinates = topology.coordinates or _autolayout_coordinates(
+        topology.node_ids,
+        topology.edges,
+    )
+    wire_id_by_node_id = {
+        node_id: quantum_wires[index].id for index, node_id in enumerate(topology.node_ids)
+    }
+    nodes = tuple(
+        TopologyNode(
+            wire_id=quantum_wires[index].id,
+            index=index,
+            x=coordinates[node_id][0],
+            y=coordinates[node_id][1],
+        )
+        for index, node_id in enumerate(topology.node_ids)
+    )
+    edges = tuple(
+        (wire_id_by_node_id[first_node], wire_id_by_node_id[second_node])
+        for first_node, second_node in topology.edges
+    )
+    return Topology3D(name=topology.name, nodes=nodes, edges=edges)
+
+
+def _autolayout_coordinates(
+    node_ids: tuple[str | int, ...],
+    edges: tuple[tuple[str | int, str | int], ...],
+) -> dict[str | int, tuple[float, float]]:
+    if len(node_ids) == 1:
+        return {node_ids[0]: (0.0, 0.0)}
+
+    radius = max(1.0, math.sqrt(float(len(node_ids))))
+    positions = {
+        node_id: (
+            radius * math.cos((2.0 * math.pi * index) / len(node_ids)),
+            radius * math.sin((2.0 * math.pi * index) / len(node_ids)),
+        )
+        for index, node_id in enumerate(node_ids)
+    }
+    k_value = max(1.1, math.sqrt((radius * radius * 4.0) / len(node_ids)))
+    edge_list = tuple(edges)
+    iterations = 64
+
+    for step in range(iterations):
+        displacements = {node_id: [0.0, 0.0] for node_id in node_ids}
+        for first_index, first_node in enumerate(node_ids):
+            first_x, first_y = positions[first_node]
+            for second_node in node_ids[first_index + 1 :]:
+                second_x, second_y = positions[second_node]
+                delta_x = first_x - second_x
+                delta_y = first_y - second_y
+                distance = math.hypot(delta_x, delta_y) or 1e-6
+                force = (k_value * k_value) / distance
+                push_x = (delta_x / distance) * force
+                push_y = (delta_y / distance) * force
+                displacements[first_node][0] += push_x
+                displacements[first_node][1] += push_y
+                displacements[second_node][0] -= push_x
+                displacements[second_node][1] -= push_y
+
+        for first_node, second_node in edge_list:
+            first_x, first_y = positions[first_node]
+            second_x, second_y = positions[second_node]
+            delta_x = first_x - second_x
+            delta_y = first_y - second_y
+            distance = math.hypot(delta_x, delta_y) or 1e-6
+            force = (distance * distance) / k_value
+            pull_x = (delta_x / distance) * force
+            pull_y = (delta_y / distance) * force
+            displacements[first_node][0] -= pull_x
+            displacements[first_node][1] -= pull_y
+            displacements[second_node][0] += pull_x
+            displacements[second_node][1] += pull_y
+
+        temperature = radius * (0.14 - (0.11 * (step / max(1, iterations - 1))))
+        for node_id in node_ids:
+            delta_x, delta_y = displacements[node_id]
+            distance = math.hypot(delta_x, delta_y)
+            if distance <= 0.0:
+                continue
+            limited_distance = min(distance, temperature)
+            current_x, current_y = positions[node_id]
+            positions[node_id] = (
+                current_x + ((delta_x / distance) * limited_distance),
+                current_y + ((delta_y / distance) * limited_distance),
+            )
+
+        mean_x = sum(position[0] for position in positions.values()) / len(node_ids)
+        mean_y = sum(position[1] for position in positions.values()) / len(node_ids)
+        for node_id in node_ids:
+            current_x, current_y = positions[node_id]
+            positions[node_id] = (current_x - mean_x, current_y - mean_y)
+
+    max_extent = (
+        max(max(abs(position[0]), abs(position[1])) for position in positions.values()) or 1.0
+    )
+    target_extent = max(1.3, math.sqrt(float(len(node_ids))) * 0.95)
+    scale = target_extent / max_extent
+    return {
+        node_id: (round(position[0] * scale, 6), round(position[1] * scale, 6))
+        for node_id, position in positions.items()
+    }
 
 
 def _build_line_topology(quantum_wires: tuple[WireIR, ...]) -> Topology3D:
@@ -378,3 +495,12 @@ def _build_honeycomb_topology(quantum_wires: tuple[WireIR, ...]) -> Topology3D:
         (quantum_wires[first].id, quantum_wires[second].id) for first, second in edge_indexes
     )
     return Topology3D(name="honeycomb", nodes=nodes, edges=edges)
+
+
+__all__ = [
+    "Topology3D",
+    "TopologyName",
+    "TopologyNode",
+    "build_topology",
+    "builtin_topology_names",
+]

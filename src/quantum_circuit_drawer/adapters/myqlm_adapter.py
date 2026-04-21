@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
+from ..config import UnsupportedPolicy
+from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
@@ -49,6 +51,18 @@ def _build_operation_type_map() -> dict[int, str]:
 
 
 _OPERATION_TYPE_BY_INT = _build_operation_type_map()
+
+
+def _unsupported_policy_from_options(options: Mapping[str, object] | None) -> UnsupportedPolicy:
+    if options is None:
+        return UnsupportedPolicy.RAISE
+    raw_policy = options.get("unsupported_policy", UnsupportedPolicy.RAISE)
+    if isinstance(raw_policy, UnsupportedPolicy):
+        return raw_policy
+    try:
+        return UnsupportedPolicy(str(raw_policy))
+    except ValueError:
+        return UnsupportedPolicy.RAISE
 
 
 class _MyQLMSyntaxLike(Protocol):
@@ -125,6 +139,8 @@ class MyQLMAdapter(BaseAdapter):
             sequential_bit_labels(classical_count)
         )
         classical_targets = {index: target for index, target in enumerate(classical_bit_targets)}
+        unsupported_policy = _unsupported_policy_from_options(options)
+        diagnostics: list[RenderDiagnostic] = []
 
         operations = expand_operation_sequence(
             typed_circuit.ops,
@@ -134,6 +150,8 @@ class MyQLMAdapter(BaseAdapter):
                 qubit_wire_ids=qubit_wire_ids,
                 classical_targets=classical_targets,
                 composite_mode=composite_mode,
+                unsupported_policy=unsupported_policy,
+                diagnostics=diagnostics,
             ),
         )
 
@@ -142,7 +160,10 @@ class MyQLMAdapter(BaseAdapter):
             classical_wires=classical_wires,
             layers=self.pack_operations(operations),
             name=typed_circuit.name,
-            metadata={"framework": self.framework_name},
+            metadata={
+                "framework": self.framework_name,
+                "diagnostics": tuple(diagnostics),
+            },
         )
 
     def _declared_quantum_count(self, circuit: _MyQLMCircuitLike) -> int:
@@ -175,35 +196,55 @@ class MyQLMAdapter(BaseAdapter):
         qubit_wire_ids: Mapping[int, str],
         classical_targets: Mapping[int, tuple[str, str]],
         composite_mode: str,
+        unsupported_policy: UnsupportedPolicy,
+        diagnostics: list[RenderDiagnostic],
     ) -> list[OperationNode]:
         operation_type = self._operation_type_name(operation.type)
-        if operation_type == "GATETYPE":
-            return self._convert_gate_application(
-                operation,
-                gate_definitions=gate_definitions,
-                qubit_wire_ids=qubit_wire_ids,
-                composite_mode=composite_mode,
-            )
-        if operation_type == "CLASSICCTRL":
-            converted = self._convert_gate_application(
-                operation,
-                gate_definitions=gate_definitions,
-                qubit_wire_ids=qubit_wire_ids,
-                composite_mode=composite_mode,
-            )
-            condition = self._classical_condition_for_operation(operation, classical_targets)
-            return [append_classical_conditions(node, (condition,)) for node in converted]
-        if operation_type == "MEASURE":
-            return self._convert_measurement(operation, qubit_wire_ids, classical_targets)
-        if operation_type == "RESET":
-            return self._convert_reset(operation, qubit_wire_ids)
-        if operation_type in {"BREAK", "CLASSIC", "REMAP"}:
+        try:
+            if operation_type == "GATETYPE":
+                return self._convert_gate_application(
+                    operation,
+                    gate_definitions=gate_definitions,
+                    qubit_wire_ids=qubit_wire_ids,
+                    composite_mode=composite_mode,
+                    unsupported_policy=unsupported_policy,
+                    diagnostics=diagnostics,
+                )
+            if operation_type == "CLASSICCTRL":
+                converted = self._convert_gate_application(
+                    operation,
+                    gate_definitions=gate_definitions,
+                    qubit_wire_ids=qubit_wire_ids,
+                    composite_mode=composite_mode,
+                    unsupported_policy=unsupported_policy,
+                    diagnostics=diagnostics,
+                )
+                condition = self._classical_condition_for_operation(operation, classical_targets)
+                return [append_classical_conditions(node, (condition,)) for node in converted]
+            if operation_type == "MEASURE":
+                return self._convert_measurement(operation, qubit_wire_ids, classical_targets)
+            if operation_type == "RESET":
+                return self._convert_reset(operation, qubit_wire_ids)
+            if operation_type in {"BREAK", "CLASSIC", "REMAP"}:
+                raise UnsupportedOperationError(
+                    f"unsupported myQLM operation type '{operation_type.lower()}'"
+                )
             raise UnsupportedOperationError(
                 f"unsupported myQLM operation type '{operation_type.lower()}'"
             )
-        raise UnsupportedOperationError(
-            f"unsupported myQLM operation type '{operation_type.lower()}'"
-        )
+        except UnsupportedOperationError as exc:
+            placeholder = self._recover_as_placeholder(
+                operation,
+                operation_type=operation_type,
+                error=exc,
+                gate_definitions=gate_definitions,
+                qubit_wire_ids=qubit_wire_ids,
+                unsupported_policy=unsupported_policy,
+                diagnostics=diagnostics,
+            )
+            if placeholder is not None:
+                return placeholder
+            raise
 
     def _convert_gate_application(
         self,
@@ -212,6 +253,8 @@ class MyQLMAdapter(BaseAdapter):
         gate_definitions: Mapping[str, _MyQLMGateDefinitionLike],
         qubit_wire_ids: Mapping[int, str],
         composite_mode: str,
+        unsupported_policy: UnsupportedPolicy,
+        diagnostics: list[RenderDiagnostic],
     ) -> list[OperationNode]:
         gate_key = operation.gate
         if gate_key is None:
@@ -230,6 +273,8 @@ class MyQLMAdapter(BaseAdapter):
                     qubit_wire_ids=target_wires,
                     classical_targets={},
                     composite_mode=composite_mode,
+                    unsupported_policy=unsupported_policy,
+                    diagnostics=diagnostics,
                 )
             return [
                 OperationIR(
@@ -282,6 +327,8 @@ class MyQLMAdapter(BaseAdapter):
         qubit_wire_ids: Mapping[int, str],
         classical_targets: Mapping[int, tuple[str, str]],
         composite_mode: str,
+        unsupported_policy: UnsupportedPolicy,
+        diagnostics: list[RenderDiagnostic],
     ) -> list[OperationNode]:
         ancilla_count = int(getattr(implementation, "ancillas", 0) or 0)
         required_qubits = int(getattr(implementation, "nbqbits", len(qubit_wire_ids)) or 0)
@@ -303,6 +350,8 @@ class MyQLMAdapter(BaseAdapter):
                 qubit_wire_ids=nested_wire_ids,
                 classical_targets=classical_targets,
                 composite_mode=composite_mode,
+                unsupported_policy=unsupported_policy,
+                diagnostics=diagnostics,
             ),
         )
 
@@ -364,6 +413,73 @@ class MyQLMAdapter(BaseAdapter):
 
         wire_id, bit_label = self._classical_target(classical_bits[0], classical_targets)
         return ClassicalConditionIR(wire_ids=(wire_id,), expression=f"if {bit_label}=1")
+
+    def _recover_as_placeholder(
+        self,
+        operation: _MyQLMOpLike,
+        *,
+        operation_type: str,
+        error: UnsupportedOperationError,
+        gate_definitions: Mapping[str, _MyQLMGateDefinitionLike],
+        qubit_wire_ids: Mapping[int, str],
+        unsupported_policy: UnsupportedPolicy,
+        diagnostics: list[RenderDiagnostic],
+    ) -> list[OperationNode] | None:
+        if unsupported_policy is not UnsupportedPolicy.PLACEHOLDER:
+            return None
+        if operation_type == "MEASURE":
+            return None
+
+        target_wires = self._placeholder_target_wires(operation, qubit_wire_ids)
+        if not target_wires:
+            return None
+
+        display_name = self._placeholder_display_name(
+            operation,
+            operation_type=operation_type,
+            gate_definitions=gate_definitions,
+        )
+        diagnostics.append(
+            RenderDiagnostic(
+                code="unsupported_operation_placeholder",
+                message=(
+                    f"Rendered unsupported myQLM operation {display_name!r} as a placeholder: "
+                    f"{error}"
+                ),
+                severity=DiagnosticSeverity.WARNING,
+            )
+        )
+        return [
+            OperationIR(
+                kind=OperationKind.GATE,
+                name=display_name,
+                label=display_name,
+                target_wires=(wire_id,),
+                metadata={"display_subtitle": "unsupported"},
+            )
+            for wire_id in target_wires
+        ]
+
+    def _placeholder_target_wires(
+        self,
+        operation: _MyQLMOpLike,
+        qubit_wire_ids: Mapping[int, str],
+    ) -> tuple[str, ...]:
+        qubit_indexes = tuple(operation.qbits)
+        if not qubit_indexes:
+            return ()
+        return tuple(self._target_wire_ids(qubit_indexes, qubit_wire_ids).values())
+
+    def _placeholder_display_name(
+        self,
+        operation: _MyQLMOpLike,
+        *,
+        operation_type: str,
+        gate_definitions: Mapping[str, _MyQLMGateDefinitionLike],
+    ) -> str:
+        if operation.gate is not None:
+            return self._gate_display_name(gate_definitions.get(operation.gate), operation.gate)
+        return operation_type
 
     def _operation_type_name(self, raw_type: object) -> str:
         if hasattr(raw_type, "name"):

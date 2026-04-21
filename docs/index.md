@@ -11,6 +11,7 @@ Use this page as the map. The README stays short; the focused guides below hold 
 - Exact function behavior: [API reference](api.md)
 - Practical workflows: [User guide](user-guide.md)
 - Framework-specific use: [Frameworks](frameworks.md)
+- Extend the library: [Extension API](extensions.md)
 - Copy-paste tasks: [Recipes](recipes.md)
 - Something went wrong: [Troubleshooting](troubleshooting.md)
 - Local development: [Development](development.md)
@@ -24,6 +25,7 @@ Use this page as the map. The README stays short; the focused guides below hold 
 | [API reference](api.md) | Public signature, parameters, return values, style options, exceptions, advanced layout protocols |
 | [User guide](user-guide.md) | How to work with scripts, notebooks, reports, wide circuits, 3D views, styling, and composite operations |
 | [Frameworks](frameworks.md) | Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR support details |
+| [Extension API](extensions.md) | Public adapter registration, custom layouts, and extension-safe modules |
 | [Recipes](recipes.md) | Small examples for common rendering tasks |
 | [Troubleshooting](troubleshooting.md) | Common install, Matplotlib, API-combination, topology, and adapter issues |
 | [Development](development.md) | Local checks, formatting, tests, build commands, and benchmarks |

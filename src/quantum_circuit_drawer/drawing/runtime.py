@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from ..config import DrawConfig, DrawMode, ResolvedDrawConfig
+from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..renderers._render_support import NOTEBOOK_INTERACTIVE_BACKENDS, pyplot_backend_name
 
 if TYPE_CHECKING:
@@ -51,6 +52,15 @@ def resolve_draw_config(
     resolved_config = DrawConfig() if config is None else config
     runtime_context = detect_runtime_context()
     mode = _resolve_draw_mode(resolved_config, runtime_context=runtime_context, ax=ax)
+    diagnostics: list[RenderDiagnostic] = []
+    if resolved_config.mode is DrawMode.AUTO:
+        diagnostics.append(
+            RenderDiagnostic(
+                code="auto_mode_resolved",
+                message=f"Resolved draw mode {mode.value!r} from mode='auto'.",
+                severity=DiagnosticSeverity.INFO,
+            )
+        )
     interactive_mode_allowed = (
         not runtime_context.is_notebook
         or runtime_context.notebook_backend_active
@@ -62,6 +72,7 @@ def resolve_draw_config(
         interactive_mode_allowed=interactive_mode_allowed,
         notebook_backend_active=runtime_context.notebook_backend_active,
         caller_axes=ax,
+        diagnostics=tuple(diagnostics),
     )
 
 
