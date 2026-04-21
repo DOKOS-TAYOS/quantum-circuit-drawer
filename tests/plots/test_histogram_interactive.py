@@ -114,6 +114,34 @@ def test_histogram_interactive_cycle_sort_updates_button_label_and_visible_label
     plt.close(result.figure)
 
 
+def test_histogram_interactive_cycle_sort_uses_short_probability_labels_for_quasi_data() -> None:
+    result = plot_histogram(
+        {"00": 0.55, "01": 0.15, "10": 0.35, "11": 0.25},
+        config=HistogramConfig(
+            kind=HistogramKind.QUASI,
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            sort=HistogramSort.STATE,
+            figsize=(10.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+
+    state.cycle_sort()
+    state.cycle_sort()
+    assert state.current_sort is HistogramSort.VALUE_ASC
+    assert state.order_button.label.get_text() == "Order: Probability ascending"
+
+    state.cycle_sort()
+    assert state.current_sort is HistogramSort.VALUE_DESC
+    assert state.order_button.label.get_text() == "Order: Probability descending"
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_slider_toggle_expands_to_full_distribution() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),

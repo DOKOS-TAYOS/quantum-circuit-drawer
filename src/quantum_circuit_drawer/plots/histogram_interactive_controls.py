@@ -286,7 +286,7 @@ def sort_description(sort: HistogramSort, kind: HistogramKind) -> str:
         return "Binary ascending"
     if sort is HistogramSort.STATE_DESC:
         return "Binary descending"
-    value_label = "Counts" if kind is HistogramKind.COUNTS else "Quasi-probability"
+    value_label = "Counts" if kind is HistogramKind.COUNTS else "Probability"
     if sort is HistogramSort.VALUE_ASC:
         return f"{value_label} ascending"
     return f"{value_label} descending"
