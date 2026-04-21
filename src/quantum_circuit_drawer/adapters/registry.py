@@ -210,6 +210,10 @@ def get_adapter(circuit: object, framework: str | None = None) -> BaseAdapter:
     if adapter.can_handle(circuit):
         return adapter
 
+    unavailable_reason = adapter.explicit_framework_unavailable_reason()
+    if unavailable_reason is not None:
+        raise UnsupportedFrameworkError(unavailable_reason)
+
     detected_framework = registry.detect_framework_name_from_registered(
         circuit,
         exclude_framework=framework,

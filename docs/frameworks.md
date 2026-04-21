@@ -36,6 +36,19 @@ The current user-facing input paths are:
 | CUDA-Q | closed CUDA-Q kernels | `cudaq` |
 | Internal IR | `CircuitIR` | none |
 
+## Support matrix
+
+Use this table as the release support contract when choosing a framework path.
+
+| Input path | Support level | Platform notes |
+| --- | --- | --- |
+| Internal IR | Strong support | Core built-in path on Windows and Linux |
+| Qiskit | Strong support | Primary external backend on Windows and Linux |
+| Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+
 Install extras as shown in [Installation](installation.md#install-optional-framework-extras).
 
 `plot_histogram(...)` also accepts several framework-native result payloads directly, not only raw `dict` data:
@@ -199,6 +212,10 @@ draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, simple single-bit classical control, and compact or expanded composite gates backed by `gateDic`.
 
 Histogram support also accepts `qat.core.Result` objects through their `raw_data` samples, so finite-shot counts and simulator probabilities can be plotted without manually rebuilding a dictionary.
+
+Support note:
+
+- MyQLM is currently a scoped adapter + contract support path rather than a first-class multiplatform CI backend.
 
 Current limits:
 

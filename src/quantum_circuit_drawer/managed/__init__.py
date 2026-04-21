@@ -1,4 +1,7 @@
-"""Managed Matplotlib rendering internals."""
+"""Internal managed-rendering compatibility facade.
+
+This package remains importable for compatibility, but it is not part of the stable public extension contract.
+"""
 
 from __future__ import annotations
 

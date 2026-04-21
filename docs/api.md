@@ -142,6 +142,14 @@ The recommended public helpers for adapters are:
 
 See [Extension API](extensions.md) for the supported contract, examples, and the list of public vs internal modules.
 
+## Internal compatibility facades
+
+These packages remain importable for compatibility and compatibility-sensitive tests, but they are not part of the stable public extension contract:
+
+- `quantum_circuit_drawer.drawing`
+- `quantum_circuit_drawer.managed`
+- `quantum_circuit_drawer.plots`
+
 ## `CircuitCompareConfig`
 
 ```python

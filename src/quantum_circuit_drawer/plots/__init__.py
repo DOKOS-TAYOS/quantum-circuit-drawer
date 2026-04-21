@@ -1,4 +1,7 @@
-"""Plotting internals."""
+"""Internal plotting compatibility facade.
+
+This package remains importable for compatibility, but it is not part of the stable public extension contract.
+"""
 
 from .histogram import (
     HistogramCompareConfig,

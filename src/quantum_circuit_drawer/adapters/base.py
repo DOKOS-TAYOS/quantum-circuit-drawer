@@ -19,6 +19,12 @@ class BaseAdapter(ABC):
     framework_name: str
 
     @classmethod
+    def explicit_framework_unavailable_reason(cls) -> str | None:
+        """Return a user-facing reason when explicit framework selection is unavailable."""
+
+        return None
+
+    @classmethod
     @abstractmethod
     def can_handle(cls, circuit: object) -> bool:
         """Return whether this adapter recognizes the given circuit object."""

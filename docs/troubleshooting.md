@@ -41,7 +41,20 @@ Linux or WSL:
 .venv/bin/python -m pip install "quantum-circuit-drawer[qiskit]"
 ```
 
-Replace `qiskit` with `cirq`, `pennylane`, `myqlm`, or `cudaq` as needed. See [Installation](installation.md#install-optional-framework-extras).
+Replace `qiskit` with `cirq`, `pennylane`, or `myqlm` as needed. Keep CUDA-Q installs on Linux or WSL2 only. See [Installation](installation.md#install-optional-framework-extras).
+
+## Support matrix
+
+Use this table to decide whether an issue is inside the strong support path or on a narrower compatibility path.
+
+| Input path | Support level | Platform notes |
+| --- | --- | --- |
+| Internal IR | Strong support | Core built-in path on Windows and Linux |
+| Qiskit | Strong support | Primary external backend on Windows and Linux |
+| Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
 ## Cirq or PennyLane demos are slow or unstable on native Windows
 

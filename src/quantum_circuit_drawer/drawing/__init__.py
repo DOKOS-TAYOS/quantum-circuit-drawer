@@ -1,4 +1,7 @@
-"""Drawing orchestration internals."""
+"""Internal drawing compatibility facade.
+
+This package remains importable for compatibility, but it is not part of the stable public extension contract.
+"""
 
 from .api import draw_quantum_circuit
 from .pages import single_page_scene, single_page_scenes

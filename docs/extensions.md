@@ -53,6 +53,8 @@ These modules are still internal implementation details:
 - `quantum_circuit_drawer.plots`
 - private modules and names that start with `_`
 
+These internal packages remain importable as compatibility facades for older internal code and compatibility-sensitive tests, but they are not stable extension points.
+
 ## Writing an adapter
 
 Adapters are explicit classes derived from `BaseAdapter`.

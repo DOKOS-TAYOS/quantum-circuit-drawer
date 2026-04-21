@@ -71,6 +71,19 @@ Install only the extras you need.
 | `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit` objects, usually produced by `Program().to_circ()` |
 | `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported closed CUDA-Q kernels on Linux or WSL2 |
 
+## Support matrix
+
+Use this table as the release support contract when choosing an install path.
+
+| Input path | Support level | Platform notes |
+| --- | --- | --- |
+| Internal IR | Strong support | Core built-in path on Windows and Linux |
+| Qiskit | Strong support | Primary external backend on Windows and Linux |
+| Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+
 Windows PowerShell examples:
 
 ```powershell

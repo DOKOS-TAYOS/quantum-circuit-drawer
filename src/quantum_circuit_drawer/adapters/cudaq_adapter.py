@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Mapping
 
 from ..exceptions import UnsupportedOperationError
@@ -18,6 +19,22 @@ class CudaqAdapter(BaseAdapter):
     """Convert CUDA-Q kernels into CircuitIR."""
 
     framework_name = "cudaq"
+
+    @classmethod
+    def explicit_framework_unavailable_reason(cls) -> str | None:
+        kernel_types = extract_dependency_types("cudaq", ("PyKernel", "PyKernelDecorator"))
+        if kernel_types:
+            return None
+        if sys.platform.startswith("win"):
+            return (
+                "CUDA-Q support is Linux/WSL2-only in this project and is not expected to work "
+                "on native Windows. Use WSL2 or Linux, then install "
+                "'quantum-circuit-drawer[cudaq]' there."
+            )
+        return (
+            "CUDA-Q support requires the optional dependency 'cudaq'. Use Linux or WSL2, then "
+            "install 'quantum-circuit-drawer[cudaq]'."
+        )
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:

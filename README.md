@@ -34,6 +34,25 @@ python -m pip install "quantum-circuit-drawer[pennylane]"
 python -m pip install "quantum-circuit-drawer[myqlm]"
 ```
 
+CUDA-Q remains a Linux or WSL2 path:
+
+```bash
+python -m pip install "quantum-circuit-drawer[cudaq]"
+```
+
+## Support matrix
+
+This is the production support contract for the current release.
+
+| Input path | Support level | Platform notes |
+| --- | --- | --- |
+| Internal IR | Strong support | Core built-in path on Windows and Linux |
+| Qiskit | Strong support | Primary external backend on Windows and Linux |
+| Cirq | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
+| PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
+| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+
 ## Basic usage
 
 ```python
