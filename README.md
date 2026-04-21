@@ -102,22 +102,39 @@ result = plot_histogram(
 
 Histogram plots also accept `theme="dark" | "light" | "paper"` so the default look now matches the circuit drawer theme family.
 
+## Decimal labels by register
+
+```python
+from quantum_circuit_drawer import HistogramConfig, HistogramStateLabelMode, plot_histogram
+
+result = plot_histogram(
+    {"10 011": 7, "01 101": 3},
+    config=HistogramConfig(
+        state_label_mode=HistogramStateLabelMode.DECIMAL,
+        show=False,
+    ),
+)
+```
+
+If a state label contains several space-separated registers, decimal mode converts each register independently, so `10 011` is shown as `2 3`.
+
 ## Interactive histogram mode
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramMode, plot_histogram
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
 
 result = plot_histogram(
     {format(index, "07b"): ((index * 17) % 41) + ((index * 5) % 13) + 3 for index in range(2**7)},
     config=HistogramConfig(
-        mode=HistogramMode.INTERACTIVE,
         show_uniform_reference=True,
         show=False,
     ),
 )
 ```
 
-Interactive histogram mode adds a slider viewport, hover labels per bin, a cyclic order button, a slider toggle button, and a marginal-qubits text box such as `0,2,5`.
+In a normal `.py` run, and in notebooks using a widget backend such as `ipympl`, `widget`, or `nbagg`, histogram menus turn on automatically. The managed view adds a slider viewport, per-bin hover, an order button that shows the current mode, a label button that switches between binary and decimal state labels, a slider button when there are hidden bins to explore, and a marginal-qubits text box such as `0,2,5`.
+
+If the notebook backend is inline or otherwise static, the same call falls back to a static histogram. You can still force `mode="static"` or `mode="interactive"` yourself, and disable bin hover with `hover=False`.
 
 ## Modes
 

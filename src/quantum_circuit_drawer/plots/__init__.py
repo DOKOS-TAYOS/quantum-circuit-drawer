@@ -7,6 +7,7 @@ from .histogram import (
     HistogramMode,
     HistogramResult,
     HistogramSort,
+    HistogramStateLabelMode,
     plot_histogram,
 )
 
@@ -16,6 +17,7 @@ __all__ = [
     "HistogramKind",
     "HistogramMode",
     "HistogramResult",
+    "HistogramStateLabelMode",
     "HistogramSort",
     "plot_histogram",
 ]

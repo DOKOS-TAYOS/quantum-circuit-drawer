@@ -10,11 +10,16 @@
 - Added interactive histogram mode with managed slider navigation, per-bin hover, cyclic sort controls, slider toggling, and a marginal-qubits text box
 - Added the public `HistogramMode` enum and the `HistogramSort.STATE_DESC` ordering mode
 - Added a large 7-bit histogram demo that visibly exercises the interactive controls on dense state spaces
+- Added the public `HistogramStateLabelMode` enum so histograms can display binary or decimal state labels, including decimal conversion per space-separated register
+- Added a multi-register histogram demo that shows decimal labels for several classical-register groups
 
 ### Changed
 
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
 - Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, draw styles, uniform-reference guides, and the new interactive controls
+- Histogram plots now default to `HistogramMode.AUTO`, so large histograms open with managed controls in normal scripts and widget notebooks while inline notebook backends keep the static fallback
+- Histogram bin hover is now enabled by default in interactive mode and can be disabled explicitly with `hover=False`
+- Histogram interactive controls now include a label-mode button for switching between binary and decimal labels without changing the normalized result data
 - Reduced 2D interactive redraw overhead by caching runtime notebook detection, reusing Matplotlib page projections across repeated renders, and keeping text-fit caches alive through page-window and slider redraws
 - Improved the synthetic `16 wires / 120 layers / 2 repeats` benchmark in this Windows environment from about `full_draw_seconds=0.2673` to `0.1328`, with `layout_seconds` dropping from about `0.0287` to `0.0127`
 - Reorganized the internal package into domain-focused subpackages: `drawing` for orchestration, `managed` for interactive Matplotlib state, `plots` for histogram implementation, and `export` for shared figure saving, while keeping the public imports stable
@@ -27,6 +32,9 @@
 - Tightened public config validation so boolean values are no longer accepted where positive numeric `figsize`, `top_k`, `result_index`, qubit-index, or hover matrix limits are required
 - `HoverOptions` now validates direct construction the same way as mapping-based hover input, preventing invalid booleans and unsupported `show_matrix` values from slipping through
 - Unified circuit and histogram output saving behind one shared export helper so directory creation, Matplotlib save handling, and wrapped `RenderingError` behavior stay consistent
+- Refined histogram managed-control layout so the slider no longer overlaps the ordering controls or state labels, and hiding the slider no longer drops the plot into the control row
+- Removed the redundant histogram status banner, moved the active ordering label into the order button itself, and added hover help to the marginal-qubits text box
+- Histogram status messages such as marginal-input validation errors are now centered horizontally above the figure controls for easier reading
 - Narrowed 2D hover hit areas for connected multi-artist gates such as `CNOT`, `CZ`, and `SWAP`, including connection-line hitboxes, so hovering no longer claims the full rectangle between separated markers or nearby empty columns
 - Rebalanced managed 3D page-window ranges for visually dense circuits so example demos like `qiskit-random` stop packing so many routed columns into one page
 - Example scripts now close rendered Matplotlib figures and trigger prompt cleanup after the window closes, which reduces the lingering shutdown lag seen most often with Cirq and PennyLane demos

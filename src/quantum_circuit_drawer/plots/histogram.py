@@ -41,8 +41,16 @@ class HistogramKind(StrEnum):
 class HistogramMode(StrEnum):
     """Public histogram render modes."""
 
+    AUTO = "auto"
     STATIC = "static"
     INTERACTIVE = "interactive"
+
+
+class HistogramStateLabelMode(StrEnum):
+    """Public histogram state-label display modes."""
+
+    BINARY = "binary"
+    DECIMAL = "decimal"
 
 
 class HistogramSort(StrEnum):
@@ -67,7 +75,7 @@ class HistogramConfig:
     """Public configuration for ``plot_histogram``."""
 
     kind: HistogramKind = HistogramKind.AUTO
-    mode: HistogramMode = HistogramMode.STATIC
+    mode: HistogramMode = HistogramMode.AUTO
     sort: HistogramSort = HistogramSort.STATE
     top_k: int | None = None
     qubits: tuple[int, ...] | None = None
@@ -75,6 +83,8 @@ class HistogramConfig:
     data_key: str | None = None
     theme: DrawTheme | str | None = None
     draw_style: HistogramDrawStyle = HistogramDrawStyle.SOLID
+    state_label_mode: HistogramStateLabelMode = HistogramStateLabelMode.BINARY
+    hover: bool = True
     show_uniform_reference: bool = False
     show: bool = True
     output_path: OutputPath | None = None
@@ -86,9 +96,15 @@ class HistogramConfig:
         object.__setattr__(self, "sort", self._normalize_sort(self.sort))
         object.__setattr__(self, "theme", resolve_theme(self.theme))
         object.__setattr__(self, "draw_style", self._normalize_draw_style(self.draw_style))
+        object.__setattr__(
+            self,
+            "state_label_mode",
+            self._normalize_state_label_mode(self.state_label_mode),
+        )
         self._validate_qubits(self.qubits)
         self._validate_top_k(self.top_k)
         self._validate_result_index(self.result_index)
+        self._validate_hover(self.hover)
         self._validate_show_uniform_reference(self.show_uniform_reference)
         self._validate_show(self.show)
         self._validate_figsize(self.figsize)
@@ -128,6 +144,20 @@ class HistogramConfig:
             raise ValueError(f"draw_style must be one of: {choices}") from exc
 
     @staticmethod
+    def _normalize_state_label_mode(
+        value: HistogramStateLabelMode | str,
+    ) -> HistogramStateLabelMode:
+        try:
+            return (
+                value
+                if isinstance(value, HistogramStateLabelMode)
+                else HistogramStateLabelMode(str(value))
+            )
+        except ValueError as exc:
+            choices = ", ".join(mode.value for mode in HistogramStateLabelMode)
+            raise ValueError(f"state_label_mode must be one of: {choices}") from exc
+
+    @staticmethod
     def _validate_qubits(qubits: tuple[int, ...] | None) -> None:
         if qubits is None:
             return
@@ -157,6 +187,12 @@ class HistogramConfig:
         if isinstance(value, bool):
             return
         raise ValueError("show_uniform_reference must be a boolean")
+
+    @staticmethod
+    def _validate_hover(value: bool) -> None:
+        if isinstance(value, bool):
+            return
+        raise ValueError("hover must be a boolean")
 
     @staticmethod
     def _validate_show(value: bool) -> None:
@@ -218,15 +254,20 @@ def plot_histogram(
     if ax is not None and resolved_config.figsize is not None:
         raise ValueError("figsize cannot be used with ax")
     runtime_context = detect_runtime_context()
+    resolved_mode = _resolve_histogram_mode(
+        resolved_config.mode,
+        runtime_context=runtime_context,
+        ax=ax,
+    )
     if (
-        resolved_config.mode is HistogramMode.INTERACTIVE
+        resolved_mode is HistogramMode.INTERACTIVE
         and runtime_context.is_notebook
         and not runtime_context.notebook_backend_active
     ):
         raise ValueError(
             "mode='interactive' requires a notebook widget backend such as nbagg, ipympl, or widget"
         )
-    if ax is not None and resolved_config.mode is HistogramMode.INTERACTIVE:
+    if ax is not None and resolved_mode is HistogramMode.INTERACTIVE:
         raise ValueError(
             "mode='interactive' requires a Matplotlib-managed figure and cannot be used with ax"
         )
@@ -262,7 +303,7 @@ def plot_histogram(
     values = tuple(float(value) for value in ordered_values_by_state.values())
     figure, axes = _resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
 
-    if resolved_config.mode is HistogramMode.INTERACTIVE:
+    if resolved_mode is HistogramMode.INTERACTIVE:
         from .histogram_interactive import attach_histogram_interactivity
 
         attach_histogram_interactivity(
@@ -278,6 +319,10 @@ def plot_histogram(
             figure=figure,
             axes=axes,
             state_labels=state_labels,
+            display_labels=_display_labels_for_states(
+                state_labels,
+                mode=resolved_config.state_label_mode,
+            ),
             values=values,
             kind=normalized.kind,
             theme=theme,
@@ -299,6 +344,23 @@ def plot_histogram(
         values=values,
         qubits=resolved_config.qubits,
     )
+
+
+def _resolve_histogram_mode(
+    mode: HistogramMode,
+    *,
+    runtime_context: object,
+    ax: Axes | None,
+) -> HistogramMode:
+    if mode is not HistogramMode.AUTO:
+        return mode
+    if ax is not None:
+        return HistogramMode.STATIC
+    if getattr(runtime_context, "is_notebook", False):
+        if getattr(runtime_context, "notebook_backend_active", False):
+            return HistogramMode.INTERACTIVE
+        return HistogramMode.STATIC
+    return HistogramMode.INTERACTIVE
 
 
 def _normalize_histogram_data(
@@ -413,7 +475,7 @@ def _normalize_distribution_mapping(
         state_label = _normalize_state_label(raw_key, bit_width=resolved_bit_width)
         normalized[state_label] = value
 
-    ordered_labels = sorted(normalized, key=lambda label: int(label, 2))
+    ordered_labels = sorted(normalized, key=_state_sort_key)
     return {label: normalized[label] for label in ordered_labels}, resolved_bit_width
 
 
@@ -423,15 +485,76 @@ def _normalize_state_label(key: object, *, bit_width: int) -> str:
             raise ValueError("histogram state keys must be non-negative")
         return format(key, f"0{bit_width}b")
     if isinstance(key, str):
-        state = key.replace(" ", "")
-        if state.startswith(("0x", "0X")):
-            state = format(int(state, 16), f"0{bit_width}b")
-        if not state:
-            raise ValueError("histogram state keys must not be empty")
-        if any(bit not in {"0", "1"} for bit in state):
-            raise ValueError("histogram state keys must be binary strings")
-        return state.zfill(bit_width)
+        return _normalize_string_state_label(key, bit_width=bit_width)
     raise TypeError("histogram state keys must be strings or integers")
+
+
+def _normalize_string_state_label(key: str, *, bit_width: int) -> str:
+    stripped_key = key.strip()
+    if not stripped_key:
+        raise ValueError("histogram state keys must not be empty")
+
+    flattened_state = _flatten_state_label(stripped_key)
+    if flattened_state.startswith(("0x", "0X")):
+        return format(int(flattened_state, 16), f"0{bit_width}b")
+    if any(bit not in {"0", "1"} for bit in flattened_state):
+        raise ValueError("histogram state keys must be binary strings")
+    if " " not in stripped_key:
+        return flattened_state.zfill(bit_width)
+
+    groups = _normalized_binary_state_groups(stripped_key)
+    total_group_width = sum(len(group) for group in groups)
+    padded_state = flattened_state.zfill(bit_width)
+    widths = (
+        len(groups[0]) + (bit_width - total_group_width),
+        *[len(group) for group in groups[1:]],
+    )
+    slices: list[str] = []
+    cursor = 0
+    for width in widths:
+        slices.append(padded_state[cursor : cursor + width])
+        cursor += width
+    return " ".join(slices)
+
+
+def _normalized_binary_state_groups(state_label: str) -> tuple[str, ...]:
+    groups = tuple(group.strip() for group in state_label.split(" ") if group.strip())
+    if not groups:
+        raise ValueError("histogram state keys must not be empty")
+    if any(any(bit not in {"0", "1"} for bit in group) for group in groups):
+        raise ValueError("histogram state keys must be binary strings")
+    return groups
+
+
+def _flatten_state_label(state_label: str) -> str:
+    return state_label.replace(" ", "")
+
+
+def _state_sort_key(state_label: str) -> int:
+    return int(_flatten_state_label(state_label), 2)
+
+
+def _display_labels_for_states(
+    state_labels: tuple[str, ...],
+    *,
+    mode: HistogramStateLabelMode,
+) -> tuple[str, ...]:
+    return tuple(_display_state_label(label, mode=mode) for label in state_labels)
+
+
+def _display_state_label(
+    state_label: str,
+    *,
+    mode: HistogramStateLabelMode,
+) -> str:
+    if mode is HistogramStateLabelMode.BINARY:
+        return state_label
+    return _decimal_state_label(state_label)
+
+
+def _decimal_state_label(state_label: str) -> str:
+    groups = state_label.split(" ") if " " in state_label else [state_label]
+    return " ".join(str(int(group, 2)) for group in groups)
 
 
 def _resolve_kind(
@@ -476,12 +599,14 @@ def _draw_histogram_axes(
     figure: Figure,
     axes: Axes,
     state_labels: tuple[str, ...],
+    display_labels: tuple[str, ...],
     values: tuple[float, ...],
     kind: HistogramKind,
     theme: DrawTheme,
     draw_style: HistogramDrawStyle,
     uniform_reference_value: float | None,
     thin_xlabels: bool,
+    y_limits: tuple[float, float] | None = None,
 ) -> BarContainer:
     _apply_histogram_theme(figure=figure, axes=axes, theme=theme)
     positions = tuple(range(len(state_labels)))
@@ -511,9 +636,16 @@ def _draw_histogram_axes(
             linestyle=":",
         )
     axes.set_xticks(list(positions))
-    axes.set_xticklabels(_tick_labels_for_states(state_labels, thin=thin_xlabels))
+    axes.set_xticklabels(_tick_labels_for_states(display_labels, thin=thin_xlabels))
     if positions:
         axes.set_xlim(-0.5, len(positions) - 0.5)
+    if y_limits is None:
+        y_limits = _resolved_histogram_y_limits(
+            values,
+            kind=kind,
+            uniform_reference_value=uniform_reference_value,
+        )
+    axes.set_ylim(*y_limits)
     axes.margins(x=0.02)
     return bars
 
@@ -539,13 +671,13 @@ def _order_histogram_values(
 ) -> dict[str, float]:
     items = list(values_by_state.items())
     if sort is HistogramSort.STATE:
-        items.sort(key=lambda item: int(item[0], 2))
+        items.sort(key=lambda item: _state_sort_key(item[0]))
     elif sort is HistogramSort.STATE_DESC:
-        items.sort(key=lambda item: int(item[0], 2), reverse=True)
+        items.sort(key=lambda item: _state_sort_key(item[0]), reverse=True)
     elif sort is HistogramSort.VALUE_DESC:
-        items.sort(key=lambda item: (-item[1], int(item[0], 2)))
+        items.sort(key=lambda item: (-item[1], _state_sort_key(item[0])))
     else:
-        items.sort(key=lambda item: (item[1], int(item[0], 2)))
+        items.sort(key=lambda item: (item[1], _state_sort_key(item[0])))
     if top_k is not None:
         items = items[:top_k]
     return dict(items)
@@ -585,6 +717,36 @@ def _uniform_reference_value(
     if kind is HistogramKind.COUNTS:
         return sum(values_by_state.values()) / float(domain_size)
     return 1.0 / float(domain_size)
+
+
+def _resolved_histogram_y_limits(
+    values: tuple[float, ...],
+    *,
+    kind: HistogramKind,
+    uniform_reference_value: float | None,
+) -> tuple[float, float]:
+    if kind is HistogramKind.COUNTS:
+        upper_bound = max((float(value) for value in values), default=0.0)
+        if uniform_reference_value is not None:
+            upper_bound = max(upper_bound, float(uniform_reference_value))
+        if upper_bound <= 0.0:
+            return 0.0, 1.0
+        return 0.0, upper_bound * 1.05
+
+    lower_bound = min((float(value) for value in values), default=0.0)
+    upper_bound = max((float(value) for value in values), default=0.0)
+    lower_bound = min(lower_bound, 0.0)
+    upper_bound = max(upper_bound, 0.0)
+    if uniform_reference_value is not None:
+        lower_bound = min(lower_bound, float(uniform_reference_value))
+        upper_bound = max(upper_bound, float(uniform_reference_value))
+    if lower_bound == upper_bound:
+        if lower_bound == 0.0:
+            return -1.0, 1.0
+        padding = abs(lower_bound) * 0.05
+        return lower_bound - padding, upper_bound + padding
+    padding = (upper_bound - lower_bound) * 0.05
+    return lower_bound - padding, upper_bound + padding
 
 
 def _apply_histogram_theme(
@@ -663,7 +825,8 @@ def _apply_joint_marginal(
     marginal_labels = _basis_state_labels(len(qubits))
     marginal = {label: 0.0 for label in marginal_labels}
     for state_label, value in values_by_state.items():
-        selected_label = "".join(state_label[-(qubit + 1)] for qubit in qubits)
+        flattened_state_label = _flatten_state_label(state_label)
+        selected_label = "".join(flattened_state_label[-(qubit + 1)] for qubit in qubits)
         marginal[selected_label] += value
     return marginal
 

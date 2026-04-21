@@ -51,6 +51,19 @@ def demo_large_counts_data(*, bit_width: int = 7) -> dict[str, int]:
     }
 
 
+def demo_multi_register_counts_data() -> dict[str, int]:
+    """Return a shared counts payload with two classical-register groups."""
+
+    return {
+        "00 000": 12,
+        "00 101": 29,
+        "01 011": 21,
+        "10 001": 37,
+        "10 111": 18,
+        "11 010": 33,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class HistogramExampleRequest:
     """Normalized render request shared by histogram example scripts."""

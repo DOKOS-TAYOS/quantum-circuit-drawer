@@ -21,7 +21,8 @@ The example scripts now cover both circuit rendering and histogram rendering.
 | ---------------------------- | ------------------------------------------------- | ---------- |
 | `histogram-binary-order`     | Counts histogram in the natural binary-state order | none |
 | `histogram-count-order`      | Counts histogram ordered from highest to lowest counts | none |
-| `histogram-interactive-large`| Large 7-bit interactive histogram with slider, hover, and marginal controls | none |
+| `histogram-interactive-large`| Large 7-bit histogram with auto controls, conditional slider, and marginal help | none |
+| `histogram-multi-register`   | Counts histogram with several registers and decimal labels per register | none |
 | `histogram-uniform-reference`| Counts histogram with the uniform reference line | none |
 | `histogram-quasi`            | Quasi-probability histogram with negative bars | none |
 | `histogram-marginal`         | Qiskit result histogram reduced to a joint marginal | qiskit |
@@ -56,6 +57,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-binary-order
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-count-order
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-interactive-large
+.\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-multi-register
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-uniform-reference
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-quasi
 .\.venv\Scripts\python.exe examples/run_histogram_demo.py --demo histogram-marginal
@@ -69,6 +71,7 @@ Linux or WSL:
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-binary-order
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-count-order
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-interactive-large
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-multi-register
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-uniform-reference
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-quasi
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-marginal

@@ -134,22 +134,39 @@ result = plot_histogram(
 )
 ```
 
+## Show decimal labels for several registers
+
+```python
+from quantum_circuit_drawer import HistogramConfig, HistogramStateLabelMode, plot_histogram
+
+result = plot_histogram(
+    {"10 011": 7, "01 101": 3},
+    config=HistogramConfig(
+        state_label_mode=HistogramStateLabelMode.DECIMAL,
+        show=False,
+    ),
+)
+```
+
+If a state label uses spaces to separate registers, decimal mode converts each register independently, so `10 011` becomes `2 3`.
+
 ## Explore a large histogram interactively
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramMode, plot_histogram
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
 
 result = plot_histogram(
     {format(index, "07b"): ((index * 17) % 41) + ((index * 5) % 13) + 3 for index in range(2**7)},
     config=HistogramConfig(
-        mode=HistogramMode.INTERACTIVE,
         show_uniform_reference=True,
         show=False,
     ),
 )
 ```
 
-This mode keeps the full ordered distribution in `result.state_labels` and `result.values`, while the figure adds a slider viewport, per-bin hover, order cycling, and a marginal-qubits text box.
+With the default `mode="auto"`, this becomes interactive in normal `.py` runs and in notebooks with a widget backend. It stays static on inline notebook backends. The interactive figure keeps the full ordered distribution in `result.state_labels` and `result.values`, while the visible view adds a slider viewport, per-bin hover, an order button that shows the current mode, a label button for binary or decimal labels, and a marginal-qubits text box. The slider button only appears when there are more bins than the current visible window can show.
+
+Set `hover=False` if you want the controls without hover labels, or force `mode="static"` if you always want a plain histogram.
 
 ## Custom widths and hover
 

@@ -21,10 +21,14 @@ from ..renderers._matplotlib_figure import (
 from .histogram import (
     HistogramKind,
     HistogramSort,
+    HistogramStateLabelMode,
     _apply_joint_marginal,
+    _display_labels_for_states,
+    _display_state_label,
     _draw_histogram_axes,
     _order_histogram_values,
     _resolved_histogram_bit_width,
+    _resolved_histogram_y_limits,
     _save_histogram_if_requested,
     _uniform_reference_value,
 )
@@ -35,17 +39,21 @@ if TYPE_CHECKING:
     from matplotlib.widgets import Button, Slider, TextBox
 
     from ..style.theme import DrawTheme
-    from .histogram import HistogramConfig, HistogramDrawStyle, HistogramKind, HistogramSort
+    from .histogram import (
+        HistogramConfig,
+        HistogramDrawStyle,
+        HistogramKind,
+        HistogramSort,
+    )
 
-
-_CONTROL_ORDER_BOUNDS = (0.08, 0.055, 0.17, 0.065)
-_CONTROL_SLIDER_TOGGLE_BOUNDS = (0.28, 0.055, 0.17, 0.065)
-_CONTROL_MARGINAL_BOUNDS = (0.58, 0.05, 0.29, 0.075)
-_HORIZONTAL_SLIDER_BOUNDS = (0.08, 0.18, 0.88, 0.05)
-_MAIN_AXES_BOUNDS = (0.08, 0.15, 0.88, 0.74)
-_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.08, 0.28, 0.88, 0.61)
-_STATUS_TEXT_POSITION = (0.08, 0.965)
-_MESSAGE_TEXT_POSITION = (0.08, 0.93)
+_CONTROL_ORDER_BOUNDS = (0.08, 0.025, 0.20, 0.06)
+_CONTROL_LABEL_MODE_BOUNDS = (0.30, 0.025, 0.16, 0.06)
+_CONTROL_SLIDER_TOGGLE_BOUNDS = (0.48, 0.025, 0.12, 0.06)
+_CONTROL_MARGINAL_BOUNDS = (0.62, 0.025, 0.28, 0.06)
+_HORIZONTAL_SLIDER_BOUNDS = (0.08, 0.115, 0.88, 0.045)
+_MAIN_AXES_BOUNDS = (0.08, 0.23, 0.88, 0.66)
+_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.08, 0.25, 0.88, 0.64)
+_MESSAGE_TEXT_POSITION = (0.5, 0.965)
 _MIN_BIN_WIDTH_PIXELS = 18.0
 _HOVER_ZORDER = 10_000
 _SORT_CYCLE: tuple[HistogramSort, ...] = (
@@ -68,23 +76,28 @@ class HistogramInteractiveState:
     theme: DrawTheme
     draw_style: HistogramDrawStyle
     show_uniform_reference: bool
+    hover_enabled: bool
+    label_mode: HistogramStateLabelMode
     top_k: int | None
     current_sort: HistogramSort
     active_qubits: tuple[int, ...] | None
     slider_enabled: bool
-    status_text: Text
     message_text: Text
     order_button: Button | None = None
+    label_mode_button: Button | None = None
     slider_toggle_button: Button | None = None
     marginal_text_box: TextBox | None = None
     order_axes: Axes | None = None
+    label_mode_axes: Axes | None = None
     slider_toggle_axes: Axes | None = None
     marginal_axes: Axes | None = None
     slider_axes: Axes | None = None
     horizontal_slider: Slider | None = None
     current_labels: tuple[str, ...] = ()
+    current_display_labels: tuple[str, ...] = ()
     current_values: tuple[float, ...] = ()
     visible_labels: tuple[str, ...] = ()
+    visible_display_labels: tuple[str, ...] = ()
     visible_values: tuple[float, ...] = ()
     visible_bin_count: int = 0
     window_start: int = 0
@@ -98,6 +111,16 @@ class HistogramInteractiveState:
         cycle = tuple(self._resolved_sort_cycle())
         current_index = cycle.index(self.current_sort)
         self.current_sort = cycle[(current_index + 1) % len(cycle)]
+        self._set_message("")
+        self.redraw()
+
+    def toggle_label_mode(self) -> None:
+        """Toggle the visible state-label format between binary and decimal."""
+
+        if self.label_mode is HistogramStateLabelMode.BINARY:
+            self.label_mode = HistogramStateLabelMode.DECIMAL
+        else:
+            self.label_mode = HistogramStateLabelMode.BINARY
         self._set_message("")
         self.redraw()
 
@@ -158,20 +181,30 @@ class HistogramInteractiveState:
             top_k=self.top_k,
         )
         self.current_labels = tuple(ordered_values_by_state)
+        self.current_display_labels = _display_labels_for_states(
+            self.current_labels,
+            mode=self.label_mode,
+        )
         self.current_values = tuple(float(value) for value in ordered_values_by_state.values())
+        slider_available = self._slider_available_for_label_count(len(self.current_labels))
         self.visible_bin_count = self._resolved_visible_bin_count()
         self.max_window_start = max(0, len(self.current_labels) - self.visible_bin_count)
         self.window_start = min(max(0, self.window_start), self.max_window_start)
 
         if self.slider_enabled:
             window_stop = self.window_start + self.visible_bin_count
-            self.visible_labels = self.current_labels[self.window_start:window_stop]
-            self.visible_values = self.current_values[self.window_start:window_stop]
+            self.visible_labels = self.current_labels[self.window_start : window_stop]
+            self.visible_display_labels = self.current_display_labels[
+                self.window_start : window_stop
+            ]
+            self.visible_values = self.current_values[self.window_start : window_stop]
         else:
             self.visible_labels = self.current_labels
+            self.visible_display_labels = self.current_display_labels
             self.visible_values = self.current_values
 
-        display_slider = self.slider_enabled and self.max_window_start > 0
+        display_slider = self.slider_enabled and slider_available
+        self._ensure_slider_toggle_control(slider_available)
         self._ensure_slider_control(display_slider)
         clear_hover_state(self.axes)
         self.axes.clear()
@@ -187,27 +220,36 @@ class HistogramInteractiveState:
             ),
             show_uniform_reference=self.show_uniform_reference,
         )
+        y_limits = _resolved_histogram_y_limits(
+            self.current_values,
+            kind=self.kind,
+            uniform_reference_value=uniform_reference_value,
+        )
         _draw_histogram_axes(
             figure=self.figure,
             axes=self.axes,
             state_labels=self.visible_labels,
+            display_labels=self.visible_display_labels,
             values=self.visible_values,
             kind=self.kind,
             theme=self.theme,
             draw_style=self.draw_style,
             uniform_reference_value=uniform_reference_value,
             thin_xlabels=True,
+            y_limits=y_limits,
         )
-        _attach_histogram_hover(
-            self.axes,
-            state_labels=self.visible_labels,
-            values=self.visible_values,
-            kind=self.kind,
-            theme=self.theme,
-        )
+        if self.hover_enabled:
+            _attach_histogram_hover(
+                self.axes,
+                state_labels=self.visible_labels,
+                values=self.visible_values,
+                kind=self.kind,
+                label_mode=self.label_mode,
+                theme=self.theme,
+            )
         self._sync_slider()
         self._sync_marginal_text_box()
-        self._refresh_status()
+        self._refresh_controls()
         canvas = getattr(self.figure, "canvas", None)
         if canvas is not None:
             canvas.draw_idle()
@@ -235,16 +277,23 @@ class HistogramInteractiveState:
             ),
             show_uniform_reference=self.show_uniform_reference,
         )
+        y_limits = _resolved_histogram_y_limits(
+            self.current_values,
+            kind=self.kind,
+            uniform_reference_value=uniform_reference_value,
+        )
         _draw_histogram_axes(
             figure=snapshot_figure,
             axes=snapshot_axes,
             state_labels=self.visible_labels,
+            display_labels=self.visible_display_labels,
             values=self.visible_values,
             kind=self.kind,
             theme=self.theme,
             draw_style=self.draw_style,
             uniform_reference_value=uniform_reference_value,
             thin_xlabels=True,
+            y_limits=y_limits,
         )
         _save_histogram_if_requested(snapshot_figure, output_path=output_path)
 
@@ -252,13 +301,21 @@ class HistogramInteractiveState:
         """Disconnect callbacks and remove interactive artists."""
 
         clear_hover_state(self.axes)
-        for widget in (self.order_button, self.slider_toggle_button, self.marginal_text_box):
+        if self.marginal_axes is not None:
+            clear_hover_state(self.marginal_axes)
+        for widget in (
+            self.order_button,
+            self.label_mode_button,
+            self.slider_toggle_button,
+            self.marginal_text_box,
+        ):
             if widget is not None and hasattr(widget, "disconnect_events"):
                 widget.disconnect_events()
         if self.horizontal_slider is not None:
             self.horizontal_slider.disconnect_events()
         for control_axes in (
             self.order_axes,
+            self.label_mode_axes,
             self.slider_toggle_axes,
             self.marginal_axes,
             self.slider_axes,
@@ -269,12 +326,61 @@ class HistogramInteractiveState:
             self.figure.canvas.mpl_disconnect(self.resize_callback_id)
 
     def _resolved_visible_bin_count(self) -> int:
-        if not self.slider_enabled or not self.current_labels:
-            return len(self.current_labels)
+        total_bin_count = len(self.current_labels)
+        if total_bin_count == 0:
+            return 0
+        if not self.slider_enabled or not self._slider_available_for_label_count(total_bin_count):
+            return total_bin_count
+        return self._resolved_slider_bin_count(total_bin_count)
+
+    def _resolved_slider_bin_count(self, total_bin_count: int) -> int:
         axes_width_fraction = _MAIN_AXES_WITH_SLIDER_BOUNDS[2]
         figure_width_pixels = self.figure.get_size_inches()[0] * float(self.figure.dpi)
         visible_count = int((figure_width_pixels * axes_width_fraction) / _MIN_BIN_WIDTH_PIXELS)
-        return min(len(self.current_labels), max(1, visible_count))
+        return min(total_bin_count, max(1, visible_count))
+
+    def _slider_available_for_label_count(self, total_bin_count: int) -> bool:
+        if total_bin_count <= 0:
+            return False
+        return total_bin_count > self._resolved_slider_bin_count(total_bin_count)
+
+    def _ensure_slider_toggle_control(self, should_show_toggle: bool) -> None:
+        if not should_show_toggle:
+            self._remove_slider_toggle_control()
+            return
+
+        if self.slider_toggle_button is not None and self.slider_toggle_axes is not None:
+            return
+
+        from matplotlib.widgets import Button
+
+        palette = managed_ui_palette(self.theme)
+        slider_toggle_axes = self.figure.add_axes(
+            _CONTROL_SLIDER_TOGGLE_BOUNDS,
+            facecolor=palette.surface_facecolor,
+        )
+        _style_control_axes(slider_toggle_axes, palette=palette)
+        slider_toggle_button = Button(
+            slider_toggle_axes,
+            "Slider On",
+            color=palette.surface_facecolor,
+            hovercolor=palette.surface_hover_facecolor,
+        )
+        slider_toggle_button.label.set_color(palette.text_color)
+        slider_toggle_button.on_clicked(lambda _event: self.toggle_slider())
+        self.slider_toggle_axes = slider_toggle_axes
+        self.slider_toggle_button = slider_toggle_button
+
+    def _remove_slider_toggle_control(self) -> None:
+        if self.slider_toggle_button is not None and hasattr(
+            self.slider_toggle_button,
+            "disconnect_events",
+        ):
+            self.slider_toggle_button.disconnect_events()
+        if self.slider_toggle_axes is not None:
+            self.slider_toggle_axes.remove()
+        self.slider_toggle_button = None
+        self.slider_toggle_axes = None
 
     def _ensure_slider_control(self, should_show_slider: bool) -> None:
         if not should_show_slider:
@@ -339,19 +445,23 @@ class HistogramInteractiveState:
         finally:
             self.is_syncing_marginal_text = False
 
-    def _refresh_status(self) -> None:
-        slider_label = "On" if self.slider_enabled else "Off"
-        marginal_label = "full register" if self.active_qubits is None else _qubit_status_label(
-            self.active_qubits
-        )
-        self.status_text.set_text(
-            f"Order: {_sort_description(self.current_sort, self.kind)} | "
-            f"Slider: {slider_label} | Marginal: {marginal_label}"
-        )
+    def _refresh_controls(self) -> None:
+        if self.order_button is not None:
+            self.order_button.label.set_text(
+                f"Order: {_sort_description(self.current_sort, self.kind)}"
+            )
+        if self.label_mode_button is not None:
+            self.label_mode_button.label.set_text(
+                f"Labels: {_label_mode_description(self.label_mode)}"
+            )
+        if self.slider_toggle_button is not None:
+            slider_label = "On" if self.slider_enabled else "Off"
+            self.slider_toggle_button.label.set_text(f"Slider {slider_label}")
 
     def _set_message(self, message: str, *, error: bool = False) -> None:
         self.message_text.set_text(message)
         self.message_text.set_color(self.theme.hover_edgecolor if error else self.theme.text_color)
+        self.message_text.set_visible(bool(message))
 
     def _resolved_sort_cycle(self) -> tuple[HistogramSort, ...]:
         return _SORT_CYCLE
@@ -371,22 +481,15 @@ def attach_histogram_interactivity(
     from matplotlib.widgets import Button, TextBox
 
     palette = managed_ui_palette(config.theme)
-    status_text = figure.text(
-        *_STATUS_TEXT_POSITION,
-        "",
-        ha="left",
-        va="top",
-        color=config.theme.text_color,
-        fontsize=10.0,
-    )
     message_text = figure.text(
         *_MESSAGE_TEXT_POSITION,
         "",
-        ha="left",
+        ha="center",
         va="top",
         color=config.theme.text_color,
         fontsize=9.5,
     )
+    message_text.set_visible(False)
     state = HistogramInteractiveState(
         figure=figure,
         axes=axes,
@@ -396,11 +499,12 @@ def attach_histogram_interactivity(
         theme=config.theme,
         draw_style=config.draw_style,
         show_uniform_reference=config.show_uniform_reference,
+        hover_enabled=config.hover,
+        label_mode=config.state_label_mode,
         top_k=config.top_k,
         current_sort=config.sort,
         active_qubits=config.qubits,
         slider_enabled=True,
-        status_text=status_text,
         message_text=message_text,
     )
 
@@ -417,21 +521,21 @@ def attach_histogram_interactivity(
     state.order_axes = order_axes
     state.order_button = order_button
 
-    slider_toggle_axes = figure.add_axes(
-        _CONTROL_SLIDER_TOGGLE_BOUNDS,
+    label_mode_axes = figure.add_axes(
+        _CONTROL_LABEL_MODE_BOUNDS,
         facecolor=palette.surface_facecolor,
     )
-    _style_control_axes(slider_toggle_axes, palette=palette)
-    slider_toggle_button = Button(
-        slider_toggle_axes,
-        "Toggle slider",
+    _style_control_axes(label_mode_axes, palette=palette)
+    label_mode_button = Button(
+        label_mode_axes,
+        "Labels: Binary",
         color=palette.surface_facecolor,
         hovercolor=palette.surface_hover_facecolor,
     )
-    slider_toggle_button.label.set_color(palette.text_color)
-    slider_toggle_button.on_clicked(lambda _event: state.toggle_slider())
-    state.slider_toggle_axes = slider_toggle_axes
-    state.slider_toggle_button = slider_toggle_button
+    label_mode_button.label.set_color(palette.text_color)
+    label_mode_button.on_clicked(lambda _event: state.toggle_label_mode())
+    state.label_mode_axes = label_mode_axes
+    state.label_mode_button = label_mode_button
 
     marginal_axes = figure.add_axes(_CONTROL_MARGINAL_BOUNDS, facecolor=palette.surface_facecolor)
     _style_control_axes(marginal_axes, palette=palette)
@@ -452,6 +556,12 @@ def attach_histogram_interactivity(
     marginal_text_box.on_submit(lambda text: _handle_marginal_submit(state, text))
     state.marginal_axes = marginal_axes
     state.marginal_text_box = marginal_text_box
+    if config.hover:
+        _attach_usage_hover(
+            marginal_axes,
+            theme=config.theme,
+            text="Use comma-separated\nqubit indices like 0,2,5.\nLeave blank for\nthe full register.",
+        )
 
     if figure.canvas is not None:
         state.resize_callback_id = figure.canvas.mpl_connect(
@@ -488,9 +598,7 @@ def _parse_marginal_qubits(text: str) -> tuple[int, ...] | None:
         return None
     pieces = [piece.strip() for piece in stripped_text.split(",")]
     if any(not piece for piece in pieces):
-        raise ValueError(
-            "Marginal qubits must be a comma-separated list of non-negative integers."
-        )
+        raise ValueError("Marginal qubits must be a comma-separated list of non-negative integers.")
     try:
         qubits = tuple(int(piece) for piece in pieces)
     except ValueError as exc:
@@ -498,9 +606,7 @@ def _parse_marginal_qubits(text: str) -> tuple[int, ...] | None:
             "Marginal qubits must be a comma-separated list of non-negative integers."
         ) from exc
     if any(qubit < 0 for qubit in qubits):
-        raise ValueError(
-            "Marginal qubits must be a comma-separated list of non-negative integers."
-        )
+        raise ValueError("Marginal qubits must be a comma-separated list of non-negative integers.")
     if len(set(qubits)) != len(qubits):
         raise ValueError("Marginal qubits must not contain duplicates.")
     return qubits
@@ -515,6 +621,67 @@ def _sort_description(sort: HistogramSort, kind: HistogramKind) -> str:
     if sort is HistogramSort.VALUE_ASC:
         return f"{value_label} ascending"
     return f"{value_label} descending"
+
+
+def _label_mode_description(label_mode: HistogramStateLabelMode) -> str:
+    if label_mode is HistogramStateLabelMode.BINARY:
+        return "Binary"
+    return "Decimal"
+
+
+def _attach_usage_hover(
+    axes: Axes,
+    *,
+    theme: DrawTheme,
+    text: str,
+) -> None:
+    annotation = axes.annotate(
+        "",
+        xy=(0.0, 0.0),
+        xycoords="figure pixels",
+        xytext=(10.0, 10.0),
+        textcoords="offset points",
+        ha="left",
+        va="bottom",
+        fontsize=max(8.0, axes.figure.dpi / 12.0),
+        color=theme.hover_text_color,
+        zorder=_HOVER_ZORDER,
+        annotation_clip=False,
+        bbox={
+            "boxstyle": "round,pad=0.18",
+            "fc": theme.hover_facecolor,
+            "ec": theme.hover_edgecolor,
+            "alpha": 0.9,
+        },
+    )
+    annotation.set_visible(False)
+    canvas = axes.figure.canvas
+    if canvas is None:
+        return
+    is_visible = False
+
+    def hide_annotation() -> None:
+        nonlocal is_visible
+        if annotation.get_visible():
+            annotation.set_visible(False)
+            is_visible = False
+            canvas.draw_idle()
+
+    def on_motion(event: Event) -> None:
+        nonlocal is_visible
+        if not isinstance(event, MouseEvent) or event.inaxes is not axes:
+            hide_annotation()
+            return
+        annotation.xy = (event.x, event.y)
+        annotation.set_text(text)
+        if is_visible:
+            return
+        annotation.set_visible(True)
+        is_visible = True
+        canvas.draw_idle()
+
+    callback_id = canvas.mpl_connect("motion_notify_event", on_motion)
+    set_hover_state(axes, HoverState(annotation=annotation, callback_id=callback_id))
 
 
 def _set_slider_value_silently(slider: Slider, value: float) -> None:
@@ -534,6 +701,7 @@ def _attach_histogram_hover(
     state_labels: tuple[str, ...],
     values: tuple[float, ...],
     kind: HistogramKind,
+    label_mode: HistogramStateLabelMode,
     theme: DrawTheme,
 ) -> None:
     annotation = axes.annotate(
@@ -581,7 +749,14 @@ def _attach_histogram_hover(
         if active_index == hovered_index:
             return
         annotation.xy = (event.x, event.y)
-        annotation.set_text(_histogram_hover_text(state_labels[hovered_index], values[hovered_index], kind))
+        annotation.set_text(
+            _histogram_hover_text(
+                state_labels[hovered_index],
+                values[hovered_index],
+                kind,
+                label_mode=label_mode,
+            )
+        )
         annotation.set_visible(True)
         active_index = hovered_index
         canvas.draw_idle()
@@ -602,9 +777,23 @@ def _histogram_hover_text(
     state_label: str,
     value: float,
     kind: HistogramKind,
+    *,
+    label_mode: HistogramStateLabelMode,
 ) -> str:
     value_label = "Counts" if kind is HistogramKind.COUNTS else "Quasi-probability"
-    return f"Bitstring: {state_label}\n{value_label}: {_formatted_histogram_value(value, kind)}"
+    if label_mode is HistogramStateLabelMode.BINARY:
+        displayed_state_label = state_label
+        state_label_name = "Bitstring"
+    else:
+        displayed_state_label = _display_state_label(
+            state_label,
+            mode=HistogramStateLabelMode.DECIMAL,
+        )
+        state_label_name = "Decimal"
+    return (
+        f"{state_label_name}: {displayed_state_label}\n"
+        f"{value_label}: {_formatted_histogram_value(value, kind)}"
+    )
 
 
 def _formatted_histogram_value(value: float, kind: HistogramKind) -> str:

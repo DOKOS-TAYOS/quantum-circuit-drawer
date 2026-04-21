@@ -22,6 +22,7 @@ from .histogram import (
     HistogramMode,
     HistogramResult,
     HistogramSort,
+    HistogramStateLabelMode,
 )
 from .hover import HoverOptions
 from .result import DrawResult
@@ -80,6 +81,7 @@ __all__ = [
     "HistogramKind",
     "HistogramMode",
     "HistogramResult",
+    "HistogramStateLabelMode",
     "HistogramSort",
     "HoverOptions",
     "LayoutError",

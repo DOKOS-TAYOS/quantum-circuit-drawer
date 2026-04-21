@@ -114,43 +114,63 @@ Examples:
 
 ## `HistogramMode`
 
+- `AUTO`
+  - normal script: `interactive`
+  - notebook widget backend such as `nbagg`, `ipympl`, or `widget`: `interactive`
+  - inline or non-widget notebook backend: `static`
 - `STATIC`
   - draws one static histogram with the selected ordering
 - `INTERACTIVE`
-  - adds a managed slider viewport, per-bin hover, order cycling, a slider toggle, and a marginal-qubits text box
+  - adds a managed slider viewport, per-bin hover, an order button that shows the current mode, a label button for binary or decimal state labels, a conditional slider button when hidden bins exist, and a marginal-qubits text box
   - requires a library-managed figure and cannot be combined with `ax=...`
+
+## `HistogramStateLabelMode`
+
+- `BINARY`
+  - keeps the normalized state labels exactly as bitstrings
+- `DECIMAL`
+  - converts each state label to decimal for display
+  - if the state contains space-separated registers, each register is converted independently
 
 ## `HistogramConfig`
 
 ```python
 HistogramConfig(
     kind=HistogramKind.AUTO,
-    mode=HistogramMode.STATIC,
+    mode=HistogramMode.AUTO,
     sort=HistogramSort.STATE,
     qubits=None,
     result_index=0,
     data_key=None,
+    state_label_mode=HistogramStateLabelMode.BINARY,
     show=True,
     output_path=None,
     figsize=None,
+    hover=True,
 )
 ```
 
 Important fields:
 
 - `kind`: `AUTO`, `COUNTS`, or `QUASI`
-- `mode`: `STATIC` or `INTERACTIVE`
+- `mode`: `AUTO`, `STATIC`, or `INTERACTIVE`
 - `sort`: `STATE`, `STATE_DESC`, `VALUE_ASC`, or `VALUE_DESC`
 - `qubits`: optional tuple for a joint marginal over a subset of qubits
 - `result_index`: which Qiskit result entry to read when the object contains several results
 - `data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
+- `state_label_mode`: `BINARY` or `DECIMAL` for the visible x-axis labels
 - `output_path`: optional file path for saving
 - `figsize`: managed figure size in inches
+- `hover`: whether histogram bin and control help hover is enabled in interactive mode
 
 Interactive notes:
 
 - the order button cycles through binary ascending, binary descending, value ascending, and value descending
+- the order button label shows the current ordering mode directly
+- the label button switches the visible state labels between binary and decimal without changing `HistogramResult.state_labels`
+- the slider button only appears when the current histogram distribution has more bins than the visible window can show at once
 - the marginal text box accepts comma-separated qubit indices such as `0,2,5`
+- hovering the marginal text box shows a short multi-line usage hint
 - saved interactive histograms omit widget chrome and keep the current visible data window
 
 ## `HistogramResult`
@@ -296,8 +316,21 @@ result = plot_histogram(
 result = plot_histogram(
     {format(index, "07b"): ((index * 17) % 41) + ((index * 5) % 13) + 3 for index in range(2**7)},
     config=HistogramConfig(
-        mode=HistogramMode.INTERACTIVE,
         show_uniform_reference=True,
+        show=False,
+    ),
+)
+```
+
+`HistogramMode.AUTO` is the default, so this becomes interactive in a normal script or widget notebook and stays static on inline notebook backends. Set `hover=False` if you want the interactive controls without hover labels.
+
+### Multi-register decimal labels
+
+```python
+result = plot_histogram(
+    {"10 011": 7, "01 101": 3},
+    config=HistogramConfig(
+        state_label_mode=HistogramStateLabelMode.DECIMAL,
         show=False,
     ),
 )

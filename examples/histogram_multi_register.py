@@ -1,4 +1,4 @@
-"""Large histogram demo for quantum-circuit-drawer with auto interactive controls."""
+"""Multi-register histogram demo for quantum-circuit-drawer."""
 
 from __future__ import annotations
 
@@ -6,45 +6,47 @@ try:
     from examples._histogram_shared import (
         HistogramDemoPayload,
         HistogramExampleRequest,
-        demo_large_counts_data,
+        demo_multi_register_counts_data,
         run_histogram_example,
     )
 except ImportError:
     from _histogram_shared import (
         HistogramDemoPayload,
         HistogramExampleRequest,
-        demo_large_counts_data,
+        demo_multi_register_counts_data,
         run_histogram_example,
     )
 
-from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramSort
+from quantum_circuit_drawer import (
+    HistogramConfig,
+    HistogramKind,
+    HistogramSort,
+    HistogramStateLabelMode,
+)
 
 
 def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
-    """Build a 7-bit counts histogram with conditional slider controls."""
+    """Build a counts histogram that uses several space-separated registers."""
 
     del request
     return HistogramDemoPayload(
-        data=demo_large_counts_data(bit_width=7),
+        data=demo_multi_register_counts_data(),
         config=HistogramConfig(
             kind=HistogramKind.COUNTS,
             sort=HistogramSort.STATE,
-            show_uniform_reference=True,
+            state_label_mode=HistogramStateLabelMode.DECIMAL,
             show=False,
         ),
     )
 
 
 def main() -> None:
-    """Run the large histogram demo."""
+    """Run the multi-register histogram demo."""
 
     run_histogram_example(
         build_demo,
-        description=(
-            "Render a 7-bit histogram demo with auto controls, a conditional slider button, "
-            "and multiline marginal help."
-        ),
-        saved_label="histogram-interactive-large",
+        description="Render a counts histogram with several registers and decimal labels per register.",
+        saved_label="histogram-multi-register",
     )
 
 

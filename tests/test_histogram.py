@@ -14,6 +14,7 @@ from quantum_circuit_drawer import (
     HistogramMode,
     HistogramResult,
     HistogramSort,
+    HistogramStateLabelMode,
 )
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.histogram import plot_histogram
@@ -27,9 +28,12 @@ def test_public_package_exports_histogram_types() -> None:
     assert quantum_circuit_drawer.HistogramKind is HistogramKind
     assert quantum_circuit_drawer.HistogramMode is HistogramMode
     assert quantum_circuit_drawer.HistogramResult is HistogramResult
+    assert quantum_circuit_drawer.HistogramStateLabelMode is HistogramStateLabelMode
     assert quantum_circuit_drawer.HistogramSort is HistogramSort
     assert HistogramConfig().kind is HistogramKind.AUTO
-    assert HistogramConfig().mode is HistogramMode.STATIC
+    assert HistogramConfig().mode is HistogramMode.AUTO
+    assert HistogramConfig().hover is True
+    assert HistogramConfig().state_label_mode is HistogramStateLabelMode.BINARY
 
 
 def test_plot_histogram_returns_histogram_result_for_counts_dict() -> None:
@@ -128,6 +132,23 @@ def test_plot_histogram_changes_joint_marginal_labels_when_qubit_order_changes()
 
     assert result.state_labels == ("00", "01", "10", "11")
     assert result.values == (0.0, 1.0, 0.0, 5.0)
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_can_display_decimal_labels_for_spaced_registers() -> None:
+    result = plot_histogram(
+        {"10 011": 7, "01 101": 3},
+        config=HistogramConfig(
+            show=False,
+            state_label_mode=HistogramStateLabelMode.DECIMAL,
+        ),
+    )
+
+    tick_labels = tuple(text.get_text() for text in result.axes.get_xticklabels())
+
+    assert result.state_labels == ("01 101", "10 011")
+    assert tick_labels == ("1 5", "2 3")
 
     plt.close(result.figure)
 
@@ -260,6 +281,66 @@ def test_plot_histogram_rejects_interactive_mode_in_non_widget_notebook(
             {"00": 5, "11": 3},
             config=HistogramConfig(show=False, mode=HistogramMode.INTERACTIVE),
         )
+
+
+def test_plot_histogram_resolves_auto_mode_to_interactive_for_scripts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from quantum_circuit_drawer.renderers._matplotlib_figure import get_histogram_state
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.plots.histogram.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=False, pyplot_backend="agg"),
+    )
+
+    result = plot_histogram(
+        {"00": 5, "11": 3},
+        config=HistogramConfig(show=False),
+    )
+
+    assert get_histogram_state(result.figure) is not None
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_resolves_auto_mode_to_interactive_for_widget_notebooks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from quantum_circuit_drawer.renderers._matplotlib_figure import get_histogram_state
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.plots.histogram.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=True, pyplot_backend="widget"),
+    )
+
+    result = plot_histogram(
+        {"00": 5, "11": 3},
+        config=HistogramConfig(show=False),
+    )
+
+    assert get_histogram_state(result.figure) is not None
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_resolves_auto_mode_to_static_for_inline_notebooks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from quantum_circuit_drawer.renderers._matplotlib_figure import get_histogram_state
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.plots.histogram.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=True, pyplot_backend="inline"),
+    )
+
+    result = plot_histogram(
+        {"00": 5, "11": 3},
+        config=HistogramConfig(show=False),
+    )
+
+    assert get_histogram_state(result.figure) is None
+
+    plt.close(result.figure)
 
 
 @pytest.mark.parametrize(

@@ -41,8 +41,14 @@ def get_demo_catalog() -> tuple[HistogramDemoSpec, ...]:
         ),
         HistogramDemoSpec(
             demo_id="histogram-interactive-large",
-            description="Large 7-bit interactive histogram with slider and control widgets",
+            description="Large 7-bit histogram with auto controls, conditional slider, and marginal help",
             module_name="examples.histogram_interactive_large",
+            builder_name="build_demo",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-multi-register",
+            description="Counts histogram with several registers and decimal labels per register",
+            module_name="examples.histogram_multi_register",
             builder_name="build_demo",
         ),
         HistogramDemoSpec(
