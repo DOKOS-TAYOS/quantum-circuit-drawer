@@ -58,6 +58,7 @@ dev = [
   "pytest-cov>=5.0",
   "ruff>=0.6",
   "mypy>=1.11",
+  "pyright>=1.1.403",
   "build>=1.2",
   "twine>=5.1",
 ]
@@ -122,6 +123,27 @@ module = [
   "qiskit.*",
 ]
 ignore_missing_imports = true
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+include = [
+  "src/quantum_circuit_drawer/typing.py",
+  "src/quantum_circuit_drawer/topology.py",
+  "src/quantum_circuit_drawer/style/defaults.py",
+  "examples/_shared.py",
+  "scripts/benchmark_render.py",
+]
+exclude = [
+  ".venv",
+  ".worktrees",
+  "tests",
+]
+reportMissingImports = "none"
+reportMissingModuleSource = "none"
+executionEnvironments = [
+  { root = ".", extraPaths = ["src"] },
+]
 
 [tool.coverage.run]
 source = ["quantum_circuit_drawer"]

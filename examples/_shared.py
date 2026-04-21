@@ -18,12 +18,9 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    DrawConfig,
-    DrawMode,
-    HoverOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer.config import DrawConfig, DrawMode  # noqa: E402
+from quantum_circuit_drawer.hover import HoverOptions  # noqa: E402
 
 ViewMode = Literal["2d", "3d"]
 RenderMode = Literal["pages", "pages_controls", "slider", "full"]
@@ -211,45 +208,37 @@ def request_from_namespace(
 ) -> ExampleRequest:
     """Normalize one parsed namespace into an example request."""
 
-    columns = int(default_columns if args.columns is None else args.columns)
-    mode = str(args.mode)
-    view = str(args.view)
-    topology = str(args.topology)
-    valid_modes = {"pages", "pages_controls", "slider", "full"}
-    valid_views = {"2d", "3d"}
+    columns = _coerce_int(default_columns if args.columns is None else args.columns, "--columns")
+    mode = _parse_render_mode(args.mode)
+    view = _parse_view_mode(args.view)
+    topology = _parse_topology_mode(args.topology)
 
     if columns < 1:
         raise SystemExit("--columns must be at least 1.")
-    if mode not in valid_modes:
-        raise SystemExit("--mode must be one of: pages, pages_controls, slider, full.")
-    if view not in valid_views:
-        raise SystemExit("--view must be one of: 2d, 3d.")
-    if topology not in SUPPORTED_TOPOLOGIES:
-        allowed_topologies = ", ".join(SUPPORTED_TOPOLOGIES)
-        raise SystemExit(f"--topology must be one of: {allowed_topologies}.")
     qubits = _resolve_request_qubits(
-        qubits=args.qubits,
+        qubits=_optional_int(getattr(args, "qubits", None), "--qubits"),
         default_qubits=default_qubits,
-        view=cast(ViewMode, view),
-        topology=cast(TopologyMode, topology),
+        view=view,
+        topology=topology,
     )
     if qubits < 1:
         raise SystemExit("--qubits must be at least 1.")
-    figure_width, figure_height = _normalize_figsize(args.figsize)
-    hover_matrix_max_qubits = int(getattr(args, "hover_matrix_max_qubits", 2))
+    figure_width, figure_height = _normalize_figsize(getattr(args, "figsize", DEFAULT_DEMO_FIGSIZE))
+    hover_matrix_max_qubits = _coerce_int(
+        getattr(args, "hover_matrix_max_qubits", 2),
+        "--hover-matrix-max-qubits",
+    )
     if hover_matrix_max_qubits < 1:
         raise SystemExit("--hover-matrix-max-qubits must be at least 1.")
-    hover_matrix = str(getattr(args, "hover_matrix", "auto"))
-    if hover_matrix not in {"never", "auto", "always"}:
-        hover_matrix = "auto"
+    hover_matrix = _parse_hover_matrix_mode(getattr(args, "hover_matrix", "auto"))
     return ExampleRequest(
         qubits=qubits,
         columns=columns,
         mode=mode,
         view=view,
         topology=topology,
-        seed=int(args.seed),
-        output=args.output,
+        seed=_coerce_int(getattr(args, "seed", 7), "--seed"),
+        output=_normalize_output_path(getattr(args, "output", None)),
         show=bool(args.show),
         figsize=(figure_width, figure_height),
         hover=bool(getattr(args, "hover", True)),
@@ -261,13 +250,13 @@ def request_from_namespace(
 
 def _resolve_request_qubits(
     *,
-    qubits: object,
+    qubits: int | None,
     default_qubits: int,
     view: ViewMode,
     topology: TopologyMode,
 ) -> int:
     if qubits is not None:
-        return int(qubits)
+        return qubits
     if view != "3d":
         return int(default_qubits)
     return _topology_compatible_default_qubits(
@@ -314,6 +303,78 @@ def _normalize_figsize(value: object) -> tuple[float, float]:
     if figure_width <= 0.0 or figure_height <= 0.0:
         raise SystemExit("--figsize values must be positive.")
     return figure_width, figure_height
+
+
+def _parse_render_mode(value: object) -> RenderMode:
+    mode = str(value)
+    if mode not in {"pages", "pages_controls", "slider", "full"}:
+        raise SystemExit("--mode must be one of: pages, pages_controls, slider, full.")
+    return cast(RenderMode, mode)
+
+
+def _parse_view_mode(value: object) -> ViewMode:
+    view = str(value)
+    if view not in {"2d", "3d"}:
+        raise SystemExit("--view must be one of: 2d, 3d.")
+    return cast(ViewMode, view)
+
+
+def _parse_topology_mode(value: object) -> TopologyMode:
+    topology = str(value)
+    if topology not in SUPPORTED_TOPOLOGIES:
+        allowed_topologies = ", ".join(SUPPORTED_TOPOLOGIES)
+        raise SystemExit(f"--topology must be one of: {allowed_topologies}.")
+    return cast(TopologyMode, topology)
+
+
+def _parse_hover_matrix_mode(value: object) -> HoverMatrixMode:
+    hover_matrix = str(value)
+    if hover_matrix not in {"never", "auto", "always"}:
+        return "auto"
+    return cast(HoverMatrixMode, hover_matrix)
+
+
+def _coerce_int(value: object, option_name: str) -> int:
+    try:
+        if isinstance(value, bool):
+            raise TypeError
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError
+            return int(value)
+        if isinstance(value, str):
+            return int(value)
+        raise TypeError
+    except (TypeError, ValueError) as error:
+        raise SystemExit(f"{option_name} must be an integer.") from error
+
+
+def _optional_int(value: object, option_name: str) -> int | None:
+    if value is None:
+        return None
+    return _coerce_int(value, option_name)
+
+
+def _normalize_output_path(value: object) -> Path | None:
+    if value is None or isinstance(value, Path):
+        return value
+    return Path(str(value))
+
+
+def _result_figures(result: object) -> tuple[object, ...]:
+    figures = getattr(result, "figures", ())
+    if figures is None:
+        return ()
+    if isinstance(figures, tuple):
+        return figures
+    if isinstance(figures, list):
+        return tuple(figures)
+    try:
+        return tuple(figures)
+    except TypeError:
+        return ()
 
 
 def demo_style(*, columns: int) -> dict[str, object]:
@@ -439,7 +500,7 @@ def run_example(
 
 
 def _set_demo_figure_titles(*, result: object, saved_label: str) -> None:
-    figures = tuple(getattr(result, "figures", ()))
+    figures = _result_figures(result)
     if not figures:
         return
 
@@ -450,8 +511,9 @@ def _set_demo_figure_titles(*, result: object, saved_label: str) -> None:
             if total_figures == 1
             else f"{saved_label} - page {page_index}/{total_figures}"
         )
-        if hasattr(figure, "set_label"):
-            figure.set_label(title)
+        set_label = getattr(figure, "set_label", None)
+        if callable(set_label):
+            set_label(title)
         _set_demo_window_title(figure=figure, title=title)
 
 
@@ -485,7 +547,7 @@ def _is_destroyed_window_error(error: Exception) -> bool:
 
 
 def _release_rendered_result(result: object) -> None:
-    figures = tuple(getattr(result, "figures", ()))
+    figures = _result_figures(result)
     if not figures:
         return
 

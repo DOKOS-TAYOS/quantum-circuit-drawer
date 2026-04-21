@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Literal, TypeAlias, TypeGuard
+from typing import Literal, TypeAlias, TypeGuard, cast
 
 BuiltinTopologyName = Literal["line", "grid", "star", "star_tree", "honeycomb"]
 HardwareNodeId: TypeAlias = str | int
@@ -96,7 +96,8 @@ class HardwareTopology:
         raw_edges: list[tuple[HardwareNodeId, HardwareNodeId]] = []
 
         if isinstance(graph, Mapping):
-            for node_id, neighbors in graph.items():
+            adjacency_map = cast(Mapping[HardwareNodeId, Iterable[HardwareNodeId]], graph)
+            for node_id, neighbors in adjacency_map.items():
                 normalized_node = _normalize_node_id(node_id)
                 if normalized_node not in ordered_nodes:
                     ordered_nodes.append(normalized_node)

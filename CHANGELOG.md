@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added project-managed `pyright` support in the `dev` extra and CI so static type checking no longer depends on a globally installed tool
+- Added Windows-safe Cirq adapter contract tests based on stubbed circuits so optional adapter coverage still runs even when the real dependency is unavailable
 - Added `plot_histogram` with public `HistogramConfig`, `HistogramKind`, and `HistogramResult` types for counts, quasi-probabilities, and joint marginals on selected qubits
 - Added support for histogram inputs from plain mappings and Qiskit 2.x result objects, including `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`
 - Added support for histogram inputs from Cirq `Result` / `ResultDict`, PennyLane probability vectors and sample arrays, MyQLM `qat.core.Result.raw_data`, CUDA-Q `SampleResult`-style containers, and direct mapping-like count objects
@@ -17,6 +19,7 @@
 
 ### Changed
 
+- Tightened internal typing around shared example helpers, benchmark request normalization, and 2D/3D benchmark execution so `pyright` can validate the intended render flow
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
 - Extended the framework guide and histogram docs so they spell out which result payloads can be passed directly from each supported framework, plus when to use `result_index`
 - Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, draw styles, uniform-reference guides, and the new interactive controls
@@ -32,6 +35,8 @@
 
 ### Fixed
 
+- Hardened custom topology validation and draw-style replacement typing so invalid graph-like inputs and optional style overrides fail more predictably under static and runtime checks
+- Example and benchmark helpers now validate builder callability earlier and clean up rendered Matplotlib figures more defensively after demo execution
 - Tightened public config validation so boolean values are no longer accepted where positive numeric `figsize`, `top_k`, `result_index`, qubit-index, or hover matrix limits are required
 - `HoverOptions` now validates direct construction the same way as mapping-based hover input, preventing invalid booleans and unsupported `show_matrix` values from slipping through
 - Unified circuit and histogram output saving behind one shared export helper so directory creation, Matplotlib save handling, and wrapped `RenderingError` behavior stay consistent

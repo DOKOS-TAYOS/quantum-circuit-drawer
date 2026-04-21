@@ -7,7 +7,7 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 from time import perf_counter
-from typing import Literal
+from typing import Literal, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -18,14 +18,18 @@ if str(SRC) not in sys.path:
 
 from examples._shared import (  # noqa: E402
     DEFAULT_DEMO_FIGSIZE,
+    ExampleBuilder,
+    ExampleRequest,
+    RenderMode,
     build_draw_config,
     demo_adapter_options,
     request_from_namespace,
 )
 from examples.demo_catalog import DemoSpec, catalog_by_id  # noqa: E402
 
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.adapters.registry import get_adapter  # noqa: E402
+from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer.config import DrawConfig  # noqa: E402
 from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
@@ -89,8 +93,10 @@ def benchmark_render(
     pipeline_options = (
         {"view": "3d", "topology": topology, "direct": True, "hover": False} if view == "3d" else {}
     )
-    layout_engine = LayoutEngine3D() if view == "3d" else LayoutEngine()
-    renderer = MatplotlibRenderer3D() if view == "3d" else MatplotlibRenderer()
+    layout_engine_2d = LayoutEngine()
+    layout_engine_3d = LayoutEngine3D()
+    renderer_2d = MatplotlibRenderer()
+    renderer_3d = MatplotlibRenderer3D()
 
     for _ in range(repeats):
         prepare_start = perf_counter()
@@ -105,7 +111,7 @@ def benchmark_render(
 
         layout_start = perf_counter()
         if view == "3d":
-            scene = layout_engine.compute(
+            scene = layout_engine_3d.compute(
                 circuit,
                 style,
                 topology_name=topology,
@@ -113,11 +119,14 @@ def benchmark_render(
                 hover_enabled=False,
             )
         else:
-            scene = layout_engine.compute(circuit, style)
+            scene = layout_engine_2d.compute(circuit, style)
         layout_seconds += perf_counter() - layout_start
 
         render_start = perf_counter()
-        figure, _ = renderer.render(scene)
+        if view == "3d":
+            figure, _ = renderer_3d.render(scene)
+        else:
+            figure, _ = renderer_2d.render(scene)
         render_seconds += perf_counter() - render_start
         figure.clear()
 
@@ -173,7 +182,7 @@ def benchmark_demo(
     demo_id: str,
     qubits: int,
     columns: int,
-    mode: str,
+    mode: RenderMode,
     repeats: int = 3,
 ) -> dict[str, float | int | str]:
     """Benchmark one real framework demo split into import, build, adapt, and draw phases."""
@@ -237,8 +246,8 @@ def _build_example_request(
     *,
     qubits: int,
     columns: int,
-    mode: str,
-) -> object:
+    mode: RenderMode,
+) -> ExampleRequest:
     return request_from_namespace(
         Namespace(
             qubits=qubits,
@@ -260,16 +269,19 @@ def _build_example_request(
     )
 
 
-def _load_demo_builder(spec: DemoSpec) -> object:
+def _load_demo_builder(spec: DemoSpec) -> ExampleBuilder:
     module = importlib.import_module(spec.module_name)
-    return getattr(module, spec.builder_name)
+    builder = getattr(module, spec.builder_name, None)
+    if not callable(builder):
+        raise TypeError(f"Demo '{spec.demo_id}' builder '{spec.builder_name}' must be callable")
+    return cast(ExampleBuilder, builder)
 
 
 def _build_ir(
     subject: object,
     *,
     framework: str | None,
-    request: object,
+    request: ExampleRequest,
 ) -> CircuitIR:
     adapter = get_adapter(subject, framework)
     return adapter.to_ir(
@@ -367,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
             demo_id=args.demo_id,
             qubits=args.qubits,
             columns=args.columns,
-            mode=args.mode,
+            mode=cast(RenderMode, args.mode),
             repeats=args.repeats,
         )
         if args.emit_json:
@@ -397,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
                     demo_id=demo_id,
                     qubits=qubits,
                     columns=columns,
-                    mode=mode,
+                    mode=cast(RenderMode, mode),
                     repeats=args.repeats,
                 )
             )

@@ -354,6 +354,26 @@ def test_benchmark_demo_scenarios_cover_expected_multi_framework_cases() -> None
     )
 
 
+def test_load_demo_builder_rejects_non_callable_builder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    benchmark_module = _load_benchmark_module()
+    fake_spec = SimpleNamespace(
+        demo_id="broken-demo",
+        module_name="examples.demo_a",
+        builder_name="build_circuit",
+    )
+
+    monkeypatch.setattr(
+        benchmark_module.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(build_circuit=object()),
+    )
+
+    with pytest.raises(TypeError, match="builder 'build_circuit' must be callable"):
+        benchmark_module._load_demo_builder(fake_spec)
+
+
 def test_main_emits_demo_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

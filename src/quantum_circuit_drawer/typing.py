@@ -32,6 +32,7 @@ class LayoutEngineLike(Protocol):
 
     def compute(self, circuit: CircuitIR, style: DrawStyle) -> LayoutScene:
         """Compute a 2D drawable scene from circuit IR and validated style."""
+        ...
 
 
 class LayoutEngine3DLike(Protocol):
@@ -51,6 +52,7 @@ class LayoutEngine3DLike(Protocol):
         hover_enabled: bool,
     ) -> LayoutScene3D:
         """Compute a 3D drawable scene from circuit IR and validated style."""
+        ...
 
 
 class _NormalizedLayoutEngine3DLike(Protocol):
@@ -66,6 +68,7 @@ class _NormalizedLayoutEngine3DLike(Protocol):
         hover_enabled: bool,
     ) -> LayoutScene3D:
         """Compute a 3D drawable scene from already-normalized style."""
+        ...
 
 
 __all__ = [
