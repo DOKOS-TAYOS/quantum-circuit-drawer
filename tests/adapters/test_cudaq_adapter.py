@@ -7,6 +7,7 @@ from types import ModuleType
 import pytest
 
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
+from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.operations import OperationKind
 from tests.support import (
     assert_axes_contains_circuit_artists,
@@ -114,17 +115,76 @@ module {
 """.strip()
 
 
-def build_unsupported_quake_mlir() -> str:
+def build_reset_quake_mlir() -> str:
     return """
 module {
-  func.func @__nvqpp__mlirgen__unsupported() attributes {"cudaq-entrypoint"} {
+  func.func @__nvqpp__mlirgen__reset() attributes {"cudaq-entrypoint"} {
     %q = quake.alloca() : !quake.qvec<1>
     %c0 = arith.constant 0 : index
     %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<1>, index) -> !quake.qref
+    quake.h %q0 : (!quake.qref) -> ()
     quake.reset %q0 : (!quake.qref) -> ()
+    %m = quake.mz %q0 : (!quake.qref) -> i1
     return
   }
 }
+""".strip()
+
+
+def build_controlled_swap_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__controlled_swap() attributes {"cudaq-entrypoint"} {
+    %q = quake.alloca() : !quake.qvec<3>
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c2 = arith.constant 2 : index
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<3>, index) -> !quake.qref
+    %q1 = quake.extract_ref %q[%c1] : (!quake.qvec<3>, index) -> !quake.qref
+    %q2 = quake.extract_ref %q[%c2] : (!quake.qvec<3>, index) -> !quake.qref
+    quake.swap [%q0] %q1, %q2 : (!quake.qref, !quake.qref, !quake.qref) -> ()
+    return
+  }
+}
+""".strip()
+
+
+def build_dynamic_size_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__dynamic_qvec() attributes {"cudaq-entrypoint"} {
+    %size = cc.load %arg0 : !cc.ptr<i64>
+    %q = quake.alloca(%size) : !quake.qvec<?>
+    return
+  }
+}
+""".strip()
+
+
+def build_control_flow_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__control_flow() attributes {"cudaq-entrypoint"} {
+    cc.if %cond {
+      return
+    }
+    return
+  }
+}
+""".strip()
+
+
+def build_unsupported_named_operation_mlir(op_name: str) -> str:
+    return f"""
+module {{
+  func.func @__nvqpp__mlirgen__{op_name}() attributes {{"cudaq-entrypoint"}} {{
+    %q = quake.alloca() : !quake.qvec<1>
+    %c0 = arith.constant 0 : index
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<1>, index) -> !quake.qref
+    quake.{op_name} %q0 : (!quake.qref) -> ()
+    return
+  }}
+}}
 """.strip()
 
 
@@ -288,6 +348,33 @@ def test_cudaq_adapter_supports_modern_colonless_veq_alloca_mlir(
     assert operations[1].target_wires == ("q1",)
 
 
+def test_cudaq_adapter_emits_semantic_ir_with_reset_and_quake_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_reset_quake_mlir())
+
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert [operation.name for operation in operations] == ["H", "RESET", "MZ"]
+    assert operations[1].kind is OperationKind.GATE
+    assert operations[1].provenance.framework == "cudaq"
+    assert operations[1].provenance.native_name == "reset"
+    assert operations[1].provenance.native_kind == "reset"
+    assert "quake: reset" in operations[1].hover_details
+    assert operations[2].provenance.native_name == "mz"
+    assert operations[2].metadata["measurement_basis"] == "z"
+
+    lowered = lower_semantic_circuit(semantic)
+    lowered_operations = [operation for layer in lowered.layers for operation in layer.operations]
+    assert lowered_operations[1].name == "RESET"
+    assert lowered_operations[1].metadata["semantic_provenance"]["native_name"] == "reset"
+    assert lowered_operations[2].metadata["measurement_basis"] == "z"
+
+
 def test_cudaq_adapter_compiles_kernel_before_reading_mlir(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -353,9 +440,44 @@ def test_cudaq_adapter_rejects_unsupported_quake_operations(
 ) -> None:
     install_fake_cudaq(monkeypatch)
     adapter_type = load_cudaq_adapter_type()
-    kernel = FakePyKernel(mlir=build_unsupported_quake_mlir())
+    kernel = FakePyKernel(mlir=build_controlled_swap_quake_mlir())
 
-    with pytest.raises(UnsupportedOperationError, match="reset"):
+    with pytest.raises(UnsupportedOperationError, match="swap operations with controls"):
+        adapter_type().to_ir(kernel)
+
+
+@pytest.mark.parametrize("op_name", ["apply", "adjoint", "compute_action"])
+def test_cudaq_adapter_rejects_named_operations_outside_supported_subset(
+    op_name: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir=build_unsupported_named_operation_mlir(op_name))
+
+    with pytest.raises(UnsupportedOperationError, match=op_name):
+        adapter_type().to_ir(kernel)
+
+
+def test_cudaq_adapter_rejects_control_flow_constructs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir=build_control_flow_quake_mlir())
+
+    with pytest.raises(UnsupportedOperationError, match="control-flow"):
+        adapter_type().to_ir(kernel)
+
+
+def test_cudaq_adapter_rejects_unresolved_dynamic_qvector_sizes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir=build_dynamic_size_quake_mlir())
+
+    with pytest.raises(UnsupportedOperationError, match="literal size"):
         adapter_type().to_ir(kernel)
 
 

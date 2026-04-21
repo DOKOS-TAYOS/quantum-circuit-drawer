@@ -9,6 +9,7 @@ from types import ModuleType
 import pytest
 
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
+from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 from tests.support import (
     FakeMyQLMCircuit,
@@ -136,6 +137,27 @@ def build_classic_control_myqlm_circuit() -> FakeMyQLMCircuit:
         nbqbits=2,
         nbcbits=2,
         name="myqlm_classic_ctrl_demo",
+    )
+
+
+def build_formula_classic_control_myqlm_circuit() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "X": FakeMyQLMGateDefinition(name="X", arity=1, syntax=FakeMyQLMSyntax(name="X")),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(
+                gate="X",
+                qbits=(0,),
+                cbits=(0, 1),
+                type="CLASSICCTRL",
+                formula="c[0] && !c[1]",
+            ),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=2,
+        name="myqlm_formula_ctrl_demo",
     )
 
 
@@ -365,6 +387,52 @@ def test_myqlm_adapter_normalizes_param_objects_to_readable_values(
     assert operations[1].parameters == (0.5,)
 
 
+def test_myqlm_adapter_emits_semantic_ir_for_composites_and_lowering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic = adapter.to_semantic_ir(build_composite_myqlm_circuit())
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].name == "QFT2"
+    assert operations[0].provenance.framework == "myqlm"
+    assert operations[0].provenance.native_kind == "composite"
+    assert operations[0].provenance.native_name == "QFT2"
+    assert operations[0].provenance.composite_label == "QFT2"
+    assert "native: QFT2" in operations[0].hover_details
+
+    lowered = lower_semantic_circuit(semantic)
+    lowered_operation = lowered.layers[0].operations[0]
+    assert lowered_operation.metadata["semantic_provenance"]["framework"] == "myqlm"
+    assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == "composite"
+    assert lowered_operation.metadata["semantic_provenance"]["composite_label"] == "QFT2"
+
+
+def test_myqlm_adapter_preserves_formula_classic_controls_in_semantic_ir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic = adapter.to_semantic_ir(build_formula_classic_control_myqlm_circuit())
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].classical_conditions[0].wire_ids == ("c0", "c0")
+    assert operations[0].classical_conditions[0].expression == "if c[0] && !c[1]"
+    assert operations[0].provenance.framework == "myqlm"
+    assert operations[0].provenance.native_kind == "classicctrl"
+
+    lowered = adapter.to_ir(build_formula_classic_control_myqlm_circuit())
+    lowered_operation = lowered.layers[0].operations[0]
+    assert lowered_operation.classical_conditions[0].expression == "if c[0] && !c[1]"
+
+
 @pytest.mark.parametrize("operation_type", ["BREAK", "CLASSIC", "REMAP"])
 def test_myqlm_adapter_rejects_unsupported_operation_types(
     operation_type: str,
@@ -394,31 +462,17 @@ def test_myqlm_adapter_rejects_unsupported_operation_types(
         adapter_type().to_ir(circuit)
 
 
-def test_myqlm_adapter_rejects_complex_classicctrl_shapes(
+def test_myqlm_adapter_supports_formula_classicctrl_shapes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_myqlm(monkeypatch)
     adapter_type = load_myqlm_adapter_type()
-    gate_dic = {
-        "X": FakeMyQLMGateDefinition(name="X", arity=1, syntax=FakeMyQLMSyntax(name="X")),
-    }
-    circuit = FakeMyQLMCircuit(
-        ops=(
-            FakeMyQLMOp(
-                gate="X",
-                qbits=(0,),
-                cbits=(0, 1),
-                type="CLASSICCTRL",
-                formula="AND 0 1",
-            ),
-        ),
-        gate_dic=gate_dic,
-        nbqbits=1,
-        nbcbits=2,
-    )
 
-    with pytest.raises(UnsupportedOperationError, match="classical control"):
-        adapter_type().to_ir(circuit)
+    ir = adapter_type().to_ir(build_formula_classic_control_myqlm_circuit())
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert operations[0].classical_conditions[0].wire_ids == ("c0", "c0")
+    assert operations[0].classical_conditions[0].expression == "if c[0] && !c[1]"
 
 
 def test_draw_quantum_circuit_accepts_myqlm_framework_override(

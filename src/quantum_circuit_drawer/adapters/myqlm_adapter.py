@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import Protocol, cast
 
 from ..config import UnsupportedPolicy
@@ -10,20 +11,22 @@ from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
-from ..ir.measurements import MeasurementIR
-from ..ir.operations import OperationIR, OperationKind
+from ..ir.lowering import lower_semantic_circuit
+from ..ir.operations import OperationKind
+from ..ir.semantic import SemanticCircuitIR, SemanticOperationIR, pack_semantic_operations
 from ..ir.wires import WireIR, WireKind
 from ._helpers import (
     CanonicalGateSpec,
-    append_classical_conditions,
+    append_semantic_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
-    expand_operation_sequence,
     extract_dependency_types,
+    normalized_detail_lines,
     resolve_composite_mode,
+    semantic_provenance,
     sequential_bit_labels,
 )
-from .base import BaseAdapter, OperationNode
+from .base import BaseAdapter
 
 _DEFAULT_OPERATION_TYPE_BY_INT: dict[int, str] = {
     0: "GATETYPE",
@@ -103,7 +106,7 @@ class _MyQLMCircuitLike(Protocol):
 
 
 class MyQLMAdapter(BaseAdapter):
-    """Convert ``qat.core.Circuit`` objects into CircuitIR."""
+    """Convert ``qat.core.Circuit`` objects into semantic IR and ``CircuitIR``."""
 
     framework_name = "myqlm"
 
@@ -113,6 +116,15 @@ class MyQLMAdapter(BaseAdapter):
         return bool(circuit_types) and isinstance(circuit, circuit_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
+        semantic_ir = self.to_semantic_ir(circuit, options=options)
+        assert semantic_ir is not None
+        return lower_semantic_circuit(semantic_ir)
+
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR:
         if not self.can_handle(circuit):
             raise TypeError("MyQLMAdapter received a non-MyQLM circuit")
 
@@ -141,29 +153,34 @@ class MyQLMAdapter(BaseAdapter):
         classical_targets = {index: target for index, target in enumerate(classical_bit_targets)}
         unsupported_policy = _unsupported_policy_from_options(options)
         diagnostics: list[RenderDiagnostic] = []
+        semantic_operations: list[SemanticOperationIR] = []
 
-        operations = expand_operation_sequence(
-            typed_circuit.ops,
-            lambda operation: self._convert_operation(
-                operation,
-                gate_definitions=typed_circuit.gateDic,
-                qubit_wire_ids=qubit_wire_ids,
-                classical_targets=classical_targets,
-                composite_mode=composite_mode,
-                unsupported_policy=unsupported_policy,
-                diagnostics=diagnostics,
-            ),
-        )
+        for operation_index, operation in enumerate(typed_circuit.ops):
+            semantic_operations.extend(
+                self._convert_operation(
+                    operation,
+                    gate_definitions=typed_circuit.gateDic,
+                    qubit_wire_ids=qubit_wire_ids,
+                    classical_targets=classical_targets,
+                    composite_mode=composite_mode,
+                    unsupported_policy=unsupported_policy,
+                    diagnostics=diagnostics,
+                    location=(operation_index,),
+                    decomposition_origin=None,
+                    composite_label=None,
+                )
+            )
 
-        return CircuitIR(
+        return SemanticCircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
-            layers=self.pack_operations(operations),
+            layers=pack_semantic_operations(semantic_operations),
             name=typed_circuit.name,
             metadata={
                 "framework": self.framework_name,
                 "diagnostics": tuple(diagnostics),
             },
+            diagnostics=tuple(diagnostics),
         )
 
     def _declared_quantum_count(self, circuit: _MyQLMCircuitLike) -> int:
@@ -198,7 +215,10 @@ class MyQLMAdapter(BaseAdapter):
         composite_mode: str,
         unsupported_policy: UnsupportedPolicy,
         diagnostics: list[RenderDiagnostic],
-    ) -> list[OperationNode]:
+        location: tuple[int, ...],
+        decomposition_origin: str | None,
+        composite_label: str | None,
+    ) -> list[SemanticOperationIR]:
         operation_type = self._operation_type_name(operation.type)
         try:
             if operation_type == "GATETYPE":
@@ -206,25 +226,63 @@ class MyQLMAdapter(BaseAdapter):
                     operation,
                     gate_definitions=gate_definitions,
                     qubit_wire_ids=qubit_wire_ids,
+                    classical_targets=classical_targets,
                     composite_mode=composite_mode,
                     unsupported_policy=unsupported_policy,
                     diagnostics=diagnostics,
+                    location=location,
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
                 )
             if operation_type == "CLASSICCTRL":
                 converted = self._convert_gate_application(
                     operation,
                     gate_definitions=gate_definitions,
                     qubit_wire_ids=qubit_wire_ids,
+                    classical_targets=classical_targets,
                     composite_mode=composite_mode,
                     unsupported_policy=unsupported_policy,
                     diagnostics=diagnostics,
+                    location=location,
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
                 )
                 condition = self._classical_condition_for_operation(operation, classical_targets)
-                return [append_classical_conditions(node, (condition,)) for node in converted]
+                return [
+                    replace(
+                        append_semantic_classical_conditions(node, (condition,)),
+                        hover_details=(
+                            *node.hover_details,
+                            f"classical control: {condition.expression}",
+                        ),
+                        provenance=semantic_provenance(
+                            framework=self.framework_name,
+                            native_name=node.provenance.native_name or node.name,
+                            native_kind="classicctrl",
+                            decomposition_origin=node.provenance.decomposition_origin,
+                            composite_label=node.provenance.composite_label,
+                            location=node.provenance.location,
+                        ),
+                    )
+                    for node in converted
+                ]
             if operation_type == "MEASURE":
-                return self._convert_measurement(operation, qubit_wire_ids, classical_targets)
+                return self._convert_measurement(
+                    operation,
+                    qubit_wire_ids,
+                    classical_targets,
+                    location=location,
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                )
             if operation_type == "RESET":
-                return self._convert_reset(operation, qubit_wire_ids)
+                return self._convert_reset(
+                    operation,
+                    qubit_wire_ids,
+                    location=location,
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                )
             if operation_type in {"BREAK", "CLASSIC", "REMAP"}:
                 raise UnsupportedOperationError(
                     f"unsupported myQLM operation type '{operation_type.lower()}'"
@@ -241,6 +299,9 @@ class MyQLMAdapter(BaseAdapter):
                 qubit_wire_ids=qubit_wire_ids,
                 unsupported_policy=unsupported_policy,
                 diagnostics=diagnostics,
+                location=location,
+                decomposition_origin=decomposition_origin,
+                composite_label=composite_label,
             )
             if placeholder is not None:
                 return placeholder
@@ -252,10 +313,14 @@ class MyQLMAdapter(BaseAdapter):
         *,
         gate_definitions: Mapping[str, _MyQLMGateDefinitionLike],
         qubit_wire_ids: Mapping[int, str],
+        classical_targets: Mapping[int, tuple[str, str]],
         composite_mode: str,
         unsupported_policy: UnsupportedPolicy,
         diagnostics: list[RenderDiagnostic],
-    ) -> list[OperationNode]:
+        location: tuple[int, ...],
+        decomposition_origin: str | None,
+        composite_label: str | None,
+    ) -> list[SemanticOperationIR]:
         gate_key = operation.gate
         if gate_key is None:
             raise UnsupportedOperationError("myQLM gate operation is missing a gate definition")
@@ -271,18 +336,33 @@ class MyQLMAdapter(BaseAdapter):
                     definition.circuit_implementation,
                     gate_definitions=gate_definitions,
                     qubit_wire_ids=target_wires,
-                    classical_targets={},
+                    classical_targets=classical_targets,
                     composite_mode=composite_mode,
                     unsupported_policy=unsupported_policy,
                     diagnostics=diagnostics,
+                    location=location,
+                    decomposition_origin=display_name,
+                    composite_label=display_name,
                 )
             return [
-                OperationIR(
+                SemanticOperationIR(
                     kind=OperationKind.GATE,
                     name=display_name,
                     label=display_name,
                     target_wires=tuple(target_wires.values()),
                     parameters=parameters,
+                    annotations=(f"native: {display_name}",),
+                    hover_details=normalized_detail_lines(
+                        f"native: {display_name}",
+                        f"composite: {display_name}",
+                    ),
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=display_name,
+                        native_kind="composite",
+                        composite_label=display_name,
+                        location=location,
+                    ),
                 )
             ]
 
@@ -295,27 +375,81 @@ class MyQLMAdapter(BaseAdapter):
                 )
             base_gate_spec = self._subgate_spec(definition, gate_definitions)
             return [
-                OperationIR(
+                SemanticOperationIR(
                     kind=OperationKind.CONTROLLED_GATE,
                     name=base_gate_spec.label,
                     canonical_family=base_gate_spec.family,
                     target_wires=ordered_wires[control_count:],
                     control_wires=ordered_wires[:control_count],
                     parameters=parameters,
+                    hover_details=normalized_detail_lines(
+                        f"native: {display_name}",
+                        (
+                            f"decomposed from: {decomposition_origin}"
+                            if decomposition_origin is not None
+                            else None
+                        ),
+                    ),
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=display_name,
+                        native_kind="controlled_gate",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=location,
+                    ),
                 )
             ]
 
         canonical_gate = canonical_gate_spec(display_name)
         ordered_wires = tuple(target_wires.values())
         if canonical_gate.label == "SWAP":
-            return [OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=ordered_wires)]
+            return [
+                SemanticOperationIR(
+                    kind=OperationKind.SWAP,
+                    name="SWAP",
+                    target_wires=ordered_wires,
+                    hover_details=normalized_detail_lines(
+                        f"native: {display_name}",
+                        (
+                            f"decomposed from: {decomposition_origin}"
+                            if decomposition_origin is not None
+                            else None
+                        ),
+                    ),
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=display_name,
+                        native_kind="swap",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=location,
+                    ),
+                )
+            ]
         return [
-            OperationIR(
+            SemanticOperationIR(
                 kind=OperationKind.GATE,
                 name=canonical_gate.label,
                 canonical_family=canonical_gate.family,
                 target_wires=ordered_wires,
                 parameters=parameters,
+                hover_details=normalized_detail_lines(
+                    f"native: {display_name}",
+                    (
+                        f"decomposed from: {decomposition_origin}"
+                        if decomposition_origin is not None
+                        else None
+                    ),
+                ),
+                provenance=semantic_provenance(
+                    framework=self.framework_name,
+                    native_name=display_name,
+                    native_kind="gate",
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                    location=location,
+                ),
             )
         ]
 
@@ -329,7 +463,10 @@ class MyQLMAdapter(BaseAdapter):
         composite_mode: str,
         unsupported_policy: UnsupportedPolicy,
         diagnostics: list[RenderDiagnostic],
-    ) -> list[OperationNode]:
+        location: tuple[int, ...],
+        decomposition_origin: str,
+        composite_label: str,
+    ) -> list[SemanticOperationIR]:
         ancilla_count = int(getattr(implementation, "ancillas", 0) or 0)
         required_qubits = int(getattr(implementation, "nbqbits", len(qubit_wire_ids)) or 0)
         if ancilla_count > 0:
@@ -342,39 +479,66 @@ class MyQLMAdapter(BaseAdapter):
             )
 
         nested_wire_ids = {index: qubit_wire_ids[index] for index in range(required_qubits)}
-        return expand_operation_sequence(
-            implementation.ops,
-            lambda nested_operation: self._convert_operation(
-                nested_operation,
-                gate_definitions=gate_definitions,
-                qubit_wire_ids=nested_wire_ids,
-                classical_targets=classical_targets,
-                composite_mode=composite_mode,
-                unsupported_policy=unsupported_policy,
-                diagnostics=diagnostics,
-            ),
-        )
+        expanded: list[SemanticOperationIR] = []
+        for nested_index, nested_operation in enumerate(implementation.ops):
+            expanded.extend(
+                self._convert_operation(
+                    nested_operation,
+                    gate_definitions=gate_definitions,
+                    qubit_wire_ids=nested_wire_ids,
+                    classical_targets=classical_targets,
+                    composite_mode=composite_mode,
+                    unsupported_policy=unsupported_policy,
+                    diagnostics=diagnostics,
+                    location=(*location, nested_index),
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                )
+            )
+        return expanded
 
     def _convert_measurement(
         self,
         operation: _MyQLMOpLike,
         qubit_wire_ids: Mapping[int, str],
         classical_targets: Mapping[int, tuple[str, str]],
-    ) -> list[OperationNode]:
+        *,
+        location: tuple[int, ...],
+        decomposition_origin: str | None,
+        composite_label: str | None,
+    ) -> list[SemanticOperationIR]:
         qubits = tuple(operation.qbits)
         classical_bits = tuple(operation.cbits or ())
         if len(qubits) != len(classical_bits):
             raise UnsupportedOperationError("myQLM measurement expects matching qubit/cbit counts")
 
-        converted_measurements: list[OperationNode] = []
-        for qubit_index, cbit_index in zip(qubits, classical_bits, strict=True):
+        converted_measurements: list[SemanticOperationIR] = []
+        for pair_index, (qubit_index, cbit_index) in enumerate(
+            zip(qubits, classical_bits, strict=True)
+        ):
             classical_target, bit_label = self._classical_target(cbit_index, classical_targets)
             converted_measurements.append(
-                MeasurementIR(
+                SemanticOperationIR(
                     kind=OperationKind.MEASUREMENT,
                     name="M",
                     target_wires=(self._wire_id_for_index(qubit_index, qubit_wire_ids),),
                     classical_target=classical_target,
+                    hover_details=normalized_detail_lines(
+                        f"classical target: {bit_label}",
+                        (
+                            f"decomposed from: {decomposition_origin}"
+                            if decomposition_origin is not None
+                            else None
+                        ),
+                    ),
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name="MEASURE",
+                        native_kind="measurement",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=(*location, pair_index),
+                    ),
                     metadata={"classical_bit_label": bit_label},
                 )
             )
@@ -384,7 +548,11 @@ class MyQLMAdapter(BaseAdapter):
         self,
         operation: _MyQLMOpLike,
         qubit_wire_ids: Mapping[int, str],
-    ) -> list[OperationIR]:
+        *,
+        location: tuple[int, ...],
+        decomposition_origin: str | None,
+        composite_label: str | None,
+    ) -> list[SemanticOperationIR]:
         if operation.formula is not None or tuple(operation.cbits or ()):
             raise UnsupportedOperationError("myQLM classical resets are not supported yet")
         qubits = tuple(operation.qbits)
@@ -392,12 +560,28 @@ class MyQLMAdapter(BaseAdapter):
             raise UnsupportedOperationError("myQLM reset operation does not reference any qubits")
 
         return [
-            OperationIR(
+            SemanticOperationIR(
                 kind=OperationKind.GATE,
                 name="RESET",
                 target_wires=(self._wire_id_for_index(qubit_index, qubit_wire_ids),),
+                hover_details=normalized_detail_lines(
+                    "native: RESET",
+                    (
+                        f"decomposed from: {decomposition_origin}"
+                        if decomposition_origin is not None
+                        else None
+                    ),
+                ),
+                provenance=semantic_provenance(
+                    framework=self.framework_name,
+                    native_name="RESET",
+                    native_kind="reset",
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                    location=(*location, reset_index),
+                ),
             )
-            for qubit_index in qubits
+            for reset_index, qubit_index in enumerate(qubits)
         ]
 
     def _classical_condition_for_operation(
@@ -406,13 +590,32 @@ class MyQLMAdapter(BaseAdapter):
         classical_targets: Mapping[int, tuple[str, str]],
     ) -> ClassicalConditionIR:
         classical_bits = tuple(operation.cbits or ())
-        if operation.formula is not None or len(classical_bits) != 1:
+        if not classical_bits:
             raise UnsupportedOperationError(
-                "myQLM classical control only supports a single control bit without formulas"
+                "myQLM classical control requires at least one classical control bit"
             )
 
-        wire_id, bit_label = self._classical_target(classical_bits[0], classical_targets)
-        return ClassicalConditionIR(wire_ids=(wire_id,), expression=f"if {bit_label}=1")
+        resolved_targets = tuple(
+            self._classical_target(classical_index, classical_targets)
+            for classical_index in classical_bits
+        )
+        wire_ids = tuple(wire_id for wire_id, _ in resolved_targets)
+        bit_labels = tuple(bit_label for _, bit_label in resolved_targets)
+
+        expression_text = (operation.formula or "").strip()
+        if not expression_text:
+            if len(bit_labels) == 1:
+                expression_text = f"{bit_labels[0]}=1"
+            else:
+                expression_text = " && ".join(f"{bit_label}=1" for bit_label in bit_labels)
+        if not expression_text.startswith("if "):
+            expression_text = f"if {expression_text}"
+
+        return ClassicalConditionIR(
+            wire_ids=wire_ids,
+            expression=expression_text,
+            metadata={"classical_bits": bit_labels},
+        )
 
     def _recover_as_placeholder(
         self,
@@ -424,7 +627,10 @@ class MyQLMAdapter(BaseAdapter):
         qubit_wire_ids: Mapping[int, str],
         unsupported_policy: UnsupportedPolicy,
         diagnostics: list[RenderDiagnostic],
-    ) -> list[OperationNode] | None:
+        location: tuple[int, ...],
+        decomposition_origin: str | None,
+        composite_label: str | None,
+    ) -> list[SemanticOperationIR] | None:
         if unsupported_policy is not UnsupportedPolicy.PLACEHOLDER:
             return None
         if operation_type == "MEASURE":
@@ -450,14 +656,31 @@ class MyQLMAdapter(BaseAdapter):
             )
         )
         return [
-            OperationIR(
+            SemanticOperationIR(
                 kind=OperationKind.GATE,
                 name=display_name,
                 label=display_name,
                 target_wires=(wire_id,),
+                hover_details=normalized_detail_lines(
+                    "unsupported placeholder",
+                    f"reason: {error}",
+                    (
+                        f"decomposed from: {decomposition_origin}"
+                        if decomposition_origin is not None
+                        else None
+                    ),
+                ),
+                provenance=semantic_provenance(
+                    framework=self.framework_name,
+                    native_name=display_name,
+                    native_kind=operation_type.lower(),
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                    location=(*location, placeholder_index),
+                ),
                 metadata={"display_subtitle": "unsupported"},
             )
-            for wire_id in target_wires
+            for placeholder_index, wire_id in enumerate(target_wires)
         ]
 
     def _placeholder_target_wires(

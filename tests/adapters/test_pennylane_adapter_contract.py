@@ -60,8 +60,39 @@ class FakeMidMeasureOperation(FakeOperation):
 
 
 class FakeMeasurement:
-    def __init__(self, wires: tuple[object, ...]) -> None:
+    def __init__(self, wires: tuple[object, ...], *, obs: object | None = None) -> None:
         self.wires = wires
+        self.obs = obs
+        self.mv = None
+
+
+class SampleMP(FakeMeasurement):
+    pass
+
+
+class ProbabilityMP(FakeMeasurement):
+    pass
+
+
+class ExpectationMP(FakeMeasurement):
+    pass
+
+
+class StateMP(FakeMeasurement):
+    pass
+
+
+class FakeObservable:
+    def __init__(
+        self,
+        *,
+        name: str,
+        wires: tuple[object, ...],
+        operands: tuple[FakeObservable, ...] = (),
+    ) -> None:
+        self.name = name
+        self.wires = wires
+        self.operands = operands
 
 
 class FakeMeasurementValue:
@@ -126,7 +157,7 @@ def build_basic_fake_tape() -> FakeQuantumTape:
                 target_wires=(1,),
             ),
         ),
-        measurements=(FakeMeasurement((1,)),),
+        measurements=(SampleMP((1,)),),
     )
 
 
@@ -139,7 +170,7 @@ def test_pennylane_adapter_contract_converts_basic_stubbed_tape(
 
     assert ir.metadata["framework"] == "pennylane"
     assert_quantum_wire_labels(ir, ["0", "1"])
-    assert_classical_wire_bundles(ir, [("c", 1)])
+    assert_classical_wire_bundles(ir, [])
     assert_operation_signatures(
         ir,
         [
@@ -159,9 +190,9 @@ def test_pennylane_adapter_contract_converts_basic_stubbed_tape(
                 ("q0",),
             ),
             OperationSignature(
-                OperationKind.MEASUREMENT,
+                OperationKind.GATE,
                 CanonicalGateFamily.CUSTOM,
-                "M",
+                "SAMPLE",
                 (),
                 ("q1",),
             ),
@@ -183,7 +214,7 @@ def test_pennylane_adapter_contract_uses_prebuilt_private_tape_without_touching_
     assert [operation.name for layer in ir.layers for operation in layer.operations] == [
         "H",
         "X",
-        "M",
+        "SAMPLE",
     ]
 
 
@@ -295,3 +326,29 @@ def test_pennylane_adapter_contract_exposes_semantic_conditional_and_decompositi
     assert semantic_ir.layers[1].operations[0].provenance.framework == "pennylane"
     assert semantic_ir.layers[1].operations[0].hover_details == ("conditional on: if c[0]=1",)
     assert semantic_ir.layers[2].operations[0].provenance.decomposition_origin == "QFT"
+
+
+def test_pennylane_adapter_contract_keeps_terminal_outputs_as_gate_like_semantic_nodes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(),
+        measurements=(
+            ExpectationMP((0,), obs=FakeObservable(name="PauliZ", wires=(0,))),
+            ProbabilityMP((0, 1)),
+            StateMP(()),
+        ),
+    )
+
+    semantic_ir = PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape))
+    operations = [operation for layer in semantic_ir.layers for operation in layer.operations]
+
+    assert semantic_ir.classical_wires == ()
+    assert [operation.name for operation in operations] == ["EXPVAL", "PROBS", "STATE"]
+    assert all(operation.kind is OperationKind.GATE for operation in operations)
+    assert operations[0].metadata["pennylane_terminal_kind"] == "expval"
+    assert operations[0].metadata["pennylane_observable_label"] == "PauliZ"
+    assert operations[1].target_wires == ("q0", "q1")
+    assert operations[2].target_wires == ("q0", "q1")

@@ -13,7 +13,7 @@ except ImportError:
 
 
 def build_circuit(request: ExampleRequest) -> object:
-    """Build a deterministic random-looking myQLM circuit."""
+    """Build a deterministic random-looking myQLM circuit for the native adapter path."""
 
     program = Program()
     qbits = program.qalloc(request.qubits)
@@ -58,7 +58,7 @@ def _angle(operation: OperationSpec) -> float:
 def main() -> None:
     run_example(
         build_circuit,
-        description="Render a configurable random myQLM circuit.",
+        description="Render a configurable random myQLM circuit with native semantic support.",
         framework="myqlm",
         saved_label="myQLM random demo",
         default_qubits=10,

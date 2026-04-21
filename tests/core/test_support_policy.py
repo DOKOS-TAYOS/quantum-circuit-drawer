@@ -68,8 +68,10 @@ def test_pennylane_docs_describe_materialized_wrapper_contract() -> None:
 
     assert "materialized `.qtape`, `.tape`, or `._tape`" in frameworks_reference
     assert "does not call `construct()`" in frameworks_reference
+    assert "compact output boxes" in frameworks_reference
     assert "materialized `.qtape`, `.tape`, or `._tape`" in troubleshooting_reference
     assert "does not call `construct()`" in troubleshooting_reference
+    assert "compact output boxes" in troubleshooting_reference
     assert "wrappers with a materialized tape" in installation_reference
 
 
@@ -80,15 +82,12 @@ def test_framework_docs_describe_semantic_consolidation_scope_for_current_and_fu
     troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
     changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "Cirq and PennyLane currently use the richer semantic adapter path." in (
+    assert "Cirq, PennyLane, MyQLM, and CUDA-Q now use the richer semantic adapter path." in (
         frameworks_reference
     )
-    assert "MyQLM and CUDA-Q continue through the legacy `to_ir(...)` path in this phase." in (
-        frameworks_reference
-    )
-    assert "future semantic migrations" in frameworks_reference
-    assert "legacy adapter path" in troubleshooting_reference
-    assert "future semantic migrations for MyQLM and CUDA-Q" in changelog_reference
+    assert "legacy `to_ir(...)` route remains a supported extension point" in (frameworks_reference)
+    assert "all use the richer semantic-adapter path internally" in troubleshooting_reference
+    assert "migrated MyQLM and CUDA-Q onto that same native semantic route" in changelog_reference
 
 
 def test_draw_quantum_circuit_reports_cudaq_windows_platform_hint(

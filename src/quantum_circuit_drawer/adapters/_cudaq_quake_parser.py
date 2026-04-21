@@ -7,10 +7,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from ..exceptions import UnsupportedOperationError
-from ..ir.measurements import MeasurementIR
-from ..ir.operations import OperationIR, OperationKind
+from ..ir.lowering import lower_semantic_operation
+from ..ir.operations import OperationKind
+from ..ir.semantic import SemanticOperationIR
 from ..ir.wires import WireIR, WireKind
 from ..utils.formatting import format_gate_name
+from ._helpers import canonical_gate_spec, normalized_detail_lines, semantic_provenance
 from .base import OperationNode
 
 _ASSIGNMENT_RE = re.compile(r"^(?:(?P<result>%[\w$.]+)\s*=\s*)?(?P<body>.+)$")
@@ -21,8 +23,6 @@ _CAST_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*arith\.(?:extsi|index_cast|trunci|sitofp|fptosi|extf|truncf)\s+"
     r"(?P<source>%[\w$.]+)\s*:\s*.+$"
 )
-# CUDA-Q historically printed `alloca() : !quake.veq<n>`; newer builds omit the colon:
-# `%0 = quake.alloca !quake.veq<2>`.
 _VECTOR_ALLOCA_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*quake\.alloca"
     r"(?:\((?P<size_arg>[^)]*)\))?"
@@ -56,8 +56,14 @@ class CudaqQuakeParser:
     _numeric_aliases: dict[str, int | float] = field(default_factory=dict)
 
     def parse(self) -> tuple[list[WireIR], list[OperationNode]]:
-        operations: list[OperationNode] = []
-        for raw_line in self.mlir.splitlines():
+        quantum_wires, semantic_operations = self.parse_semantic()
+        return quantum_wires, [
+            lower_semantic_operation(operation) for operation in semantic_operations
+        ]
+
+    def parse_semantic(self) -> tuple[list[WireIR], list[SemanticOperationIR]]:
+        operations: list[SemanticOperationIR] = []
+        for line_index, raw_line in enumerate(self.mlir.splitlines()):
             line = raw_line.strip()
             if not line or line in {"module {", "}", "return"}:
                 continue
@@ -78,7 +84,7 @@ class CudaqQuakeParser:
                 continue
             if self._parse_wrap(line):
                 continue
-            operations.extend(self._parse_operation(line))
+            operations.extend(self._parse_operation(line, location=(line_index,)))
         return self.quantum_wires, operations
 
     def _parse_numeric_alias(self, line: str) -> bool:
@@ -142,7 +148,12 @@ class CudaqQuakeParser:
     def _parse_wrap(self, line: str) -> bool:
         return _WRAP_RE.match(line) is not None
 
-    def _parse_operation(self, line: str) -> list[OperationNode]:
+    def _parse_operation(
+        self,
+        line: str,
+        *,
+        location: tuple[int, ...],
+    ) -> list[SemanticOperationIR]:
         self._reject_control_flow(line)
         assignment_match = _ASSIGNMENT_RE.match(line)
         if assignment_match is None:
@@ -159,17 +170,17 @@ class CudaqQuakeParser:
             wire_id = self._allocate_wire_id()
             self._wire_aliases[result_token] = wire_id
             return []
-        if op_name == "discriminate":
+        if op_name in {"discriminate", "dealloc"}:
             return []
-        if op_name == "dealloc":
-            return []
+
         controls, remainder = self._parse_controls(remainder)
         parameters, operand_tokens = self._parse_parameters_and_operands(remainder)
         if op_name in {"mz", "mx", "my"}:
-            measurements = self._build_measurements(op_name, operand_tokens)
-            return list(measurements)
-        target_wires = self._resolve_target_wires(operand_tokens)
-        operation: OperationIR
+            return list(self._build_measurements(op_name, operand_tokens, location=location))
+        if op_name == "reset":
+            return self._build_resets(operand_tokens, location=location)
+
+        target_wires = self._resolve_operand_wires(operand_tokens)
         if op_name == "swap":
             if controls:
                 raise UnsupportedOperationError(
@@ -179,31 +190,62 @@ class CudaqQuakeParser:
                 raise UnsupportedOperationError(
                     "CUDA-Q swap operations require exactly two targets"
                 )
-            operation = OperationIR(
-                kind=OperationKind.SWAP,
-                name="SWAP",
-                target_wires=target_wires,
-            )
-        elif controls:
-            operation = OperationIR(
+            return [
+                SemanticOperationIR(
+                    kind=OperationKind.SWAP,
+                    name="SWAP",
+                    target_wires=target_wires,
+                    hover_details=normalized_detail_lines("quake: swap"),
+                    provenance=semantic_provenance(
+                        framework="cudaq",
+                        native_name="swap",
+                        native_kind="swap",
+                        location=location,
+                    ),
+                )
+            ]
+
+        native_label = format_gate_name(op_name)
+        canonical_gate = canonical_gate_spec(native_label)
+        if controls:
+            operation = SemanticOperationIR(
                 kind=OperationKind.CONTROLLED_GATE,
-                name=format_gate_name(op_name),
+                name=canonical_gate.label,
+                canonical_family=canonical_gate.family,
                 target_wires=target_wires,
                 control_wires=tuple(self._resolve_wire_token(token) for token in controls),
                 parameters=parameters,
+                hover_details=normalized_detail_lines(f"quake: {op_name}"),
+                provenance=semantic_provenance(
+                    framework="cudaq",
+                    native_name=op_name,
+                    native_kind="controlled_gate",
+                    location=location,
+                ),
             )
-        else:
-            if len(target_wires) != 1:
-                raise UnsupportedOperationError(
-                    f"CUDA-Q operation '{op_name}' is not supported by the neutral IR"
-                )
-            operation = OperationIR(
-                kind=OperationKind.GATE,
-                name=format_gate_name(op_name),
-                target_wires=target_wires,
-                parameters=parameters,
+            if result_token is not None and len(target_wires) == 1:
+                self._wire_aliases[result_token] = target_wires[0]
+            return [operation]
+
+        if len(target_wires) != 1:
+            raise UnsupportedOperationError(
+                f"CUDA-Q operation '{op_name}' is not supported by the neutral IR"
             )
-        if result_token is not None and len(target_wires) == 1:
+        operation = SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name=canonical_gate.label,
+            canonical_family=canonical_gate.family,
+            target_wires=target_wires,
+            parameters=parameters,
+            hover_details=normalized_detail_lines(f"quake: {op_name}"),
+            provenance=semantic_provenance(
+                framework="cudaq",
+                native_name=op_name,
+                native_kind="gate",
+                location=location,
+            ),
+        )
+        if result_token is not None:
             self._wire_aliases[result_token] = target_wires[0]
         return [operation]
 
@@ -212,7 +254,7 @@ class CudaqQuakeParser:
         if match is None:
             raise UnsupportedOperationError(f"unsupported CUDA-Q Quake statement: {body}")
         op_name = match.group("name")
-        if op_name in {"reset", "apply", "compute_action", "adjoint"}:
+        if op_name in {"apply", "compute_action", "adjoint"}:
             raise UnsupportedOperationError(
                 f"CUDA-Q operation '{op_name}' is outside the supported v0.1 subset"
             )
@@ -230,7 +272,8 @@ class CudaqQuakeParser:
         return control_tokens, stripped[end_index + 1 :].strip()
 
     def _parse_parameters_and_operands(
-        self, remainder: str
+        self,
+        remainder: str,
     ) -> tuple[tuple[object, ...], tuple[str, ...]]:
         parameters: list[object] = []
         operand_tokens: list[str] = []
@@ -256,8 +299,12 @@ class CudaqQuakeParser:
         return tuple(parameters), tuple(operand_tokens)
 
     def _build_measurements(
-        self, op_name: str, operand_tokens: Sequence[str]
-    ) -> tuple[MeasurementIR, ...]:
+        self,
+        op_name: str,
+        operand_tokens: Sequence[str],
+        *,
+        location: tuple[int, ...],
+    ) -> tuple[SemanticOperationIR, ...]:
         if len(operand_tokens) != 1:
             raise UnsupportedOperationError(
                 f"CUDA-Q measurement '{op_name}' must reference exactly one wire or register"
@@ -265,16 +312,23 @@ class CudaqQuakeParser:
         targets = self._resolve_measurement_targets(operand_tokens[0])
         basis = op_name[-1]
         label = op_name.upper()
-        measurements: list[MeasurementIR] = []
-        for target_wire in targets:
+        measurements: list[SemanticOperationIR] = []
+        for measurement_index, target_wire in enumerate(targets):
             classical_index = self.measurement_count
             measurements.append(
-                MeasurementIR(
+                SemanticOperationIR(
                     kind=OperationKind.MEASUREMENT,
                     name=label,
                     label=label,
                     target_wires=(target_wire,),
                     classical_target="c0",
+                    hover_details=normalized_detail_lines(f"quake: {op_name}"),
+                    provenance=semantic_provenance(
+                        framework="cudaq",
+                        native_name=op_name,
+                        native_kind="measurement",
+                        location=(*location, measurement_index),
+                    ),
                     metadata={
                         "classical_bit_label": f"c[{classical_index}]",
                         "measurement_basis": basis,
@@ -284,8 +338,39 @@ class CudaqQuakeParser:
             self.measurement_count += 1
         return tuple(measurements)
 
-    def _resolve_target_wires(self, operand_tokens: Sequence[str]) -> tuple[str, ...]:
-        target_wires = tuple(self._resolve_wire_token(token) for token in operand_tokens)
+    def _build_resets(
+        self,
+        operand_tokens: Sequence[str],
+        *,
+        location: tuple[int, ...],
+    ) -> list[SemanticOperationIR]:
+        target_wires = self._resolve_operand_wires(operand_tokens)
+        if not target_wires:
+            raise UnsupportedOperationError("CUDA-Q reset operation requires at least one target")
+        return [
+            SemanticOperationIR(
+                kind=OperationKind.GATE,
+                name="RESET",
+                target_wires=(target_wire,),
+                hover_details=normalized_detail_lines("quake: reset"),
+                provenance=semantic_provenance(
+                    framework="cudaq",
+                    native_name="reset",
+                    native_kind="reset",
+                    location=(*location, reset_index),
+                ),
+            )
+            for reset_index, target_wire in enumerate(target_wires)
+        ]
+
+    def _resolve_operand_wires(self, operand_tokens: Sequence[str]) -> tuple[str, ...]:
+        resolved: list[str] = []
+        for token in operand_tokens:
+            if token in self._vector_aliases:
+                resolved.extend(self._vector_aliases[token])
+                continue
+            resolved.append(self._resolve_wire_token(token))
+        target_wires = tuple(resolved)
         if not target_wires:
             raise UnsupportedOperationError("CUDA-Q operation does not reference a drawable target")
         return target_wires
@@ -313,7 +398,12 @@ class CudaqQuakeParser:
             raise UnsupportedOperationError(
                 "CUDA-Q dynamic qvector sizes are not supported without a literal size"
             )
-        return self._resolve_int_token(size_arg)
+        try:
+            return self._resolve_int_token(size_arg)
+        except UnsupportedOperationError as exc:
+            raise UnsupportedOperationError(
+                "CUDA-Q dynamic qvector sizes are not supported without a literal size"
+            ) from exc
 
     def _resolve_int_token(self, token: str) -> int:
         cleaned = token.strip()

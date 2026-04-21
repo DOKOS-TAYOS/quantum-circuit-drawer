@@ -8,6 +8,8 @@ from collections.abc import Mapping
 
 from ..exceptions import UnsupportedOperationError
 from ..ir.circuit import CircuitIR
+from ..ir.lowering import lower_semantic_circuit
+from ..ir.semantic import SemanticCircuitIR, pack_semantic_operations
 from ._cudaq_quake_parser import CudaqQuakeParser
 from ._helpers import build_classical_register, extract_dependency_types, sequential_bit_labels
 from .base import BaseAdapter
@@ -16,7 +18,7 @@ _ENTRYPOINT_RE = re.compile(r"func\.func\s+@(?P<name>[^\(\s]+)\((?P<args>[^\)]*)
 
 
 class CudaqAdapter(BaseAdapter):
-    """Convert CUDA-Q kernels into CircuitIR."""
+    """Convert CUDA-Q kernels into semantic IR and ``CircuitIR``."""
 
     framework_name = "cudaq"
 
@@ -42,6 +44,15 @@ class CudaqAdapter(BaseAdapter):
         return bool(kernel_types) and isinstance(circuit, kernel_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
+        semantic_ir = self.to_semantic_ir(circuit, options=options)
+        assert semantic_ir is not None
+        return lower_semantic_circuit(semantic_ir)
+
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR:
         del options
         if not self.can_handle(circuit):
             raise TypeError("CudaqAdapter received a non-CUDA-Q kernel")
@@ -49,15 +60,15 @@ class CudaqAdapter(BaseAdapter):
         self._ensure_closed_kernel(circuit)
         mlir = self._materialize_mlir(circuit)
         parser = CudaqQuakeParser(mlir)
-        quantum_wires, operations = parser.parse()
+        quantum_wires, semantic_operations = parser.parse_semantic()
         classical_wires, _ = build_classical_register(
             sequential_bit_labels(parser.measurement_count)
         )
 
-        return CircuitIR(
+        return SemanticCircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
-            layers=self.pack_operations(operations),
+            layers=pack_semantic_operations(semantic_operations),
             name=getattr(circuit, "name", None),
             metadata={"framework": self.framework_name},
         )

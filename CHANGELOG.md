@@ -25,7 +25,10 @@
 - Clarified the production support matrix across the README and core docs, keeping IR and Qiskit as the strong paths, Cirq and PennyLane as best-effort on native Windows, MyQLM as scoped adapter support, and CUDA-Q as Linux/WSL2-only
 - Extended public-parity coverage for Cirq and PennyLane with Windows-safe mixed-framework compare tests and broader contract coverage for compact/expanded composite behavior
 - Reworked the Cirq and PennyLane adapter internals around a native-first semantic path, so comparison, hover, annotations, and diagnostics can preserve framework-specific meaning instead of flattening everything directly into the legacy render IR
-- Consolidated the shared adapter pipeline so richer semantic adapters and legacy `to_ir(...)` adapters coexist cleanly, which prepares future semantic migrations for MyQLM and CUDA-Q without widening their supported subset yet
+- Consolidated the shared adapter pipeline so richer semantic adapters and legacy `to_ir(...)` adapters coexist cleanly, then migrated MyQLM and CUDA-Q onto that same native semantic route without changing the public draw API
+- MyQLM now preserves gate provenance, composite provenance, decomposition origin, resets, and supported classical-control expressions before lowering back to the shared render IR
+- CUDA-Q now preserves Quake provenance, measurement basis, value-form wire flow, and supported `reset` operations before lowering back to the shared render IR, while still rejecting constructs without a clean shared equivalent
+- PennyLane terminal results now render as compact output boxes with preserved result kind, observable summaries, and wire-scope hover details instead of being flattened into fake per-wire projective measurements
 - Marked `quantum_circuit_drawer.drawing`, `managed`, and `plots` as compatibility facades that remain importable but are outside the stable public extension contract
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
 - Extended the framework guide and histogram docs so they spell out which result payloads can be passed directly from each supported framework, plus when to use `result_index`

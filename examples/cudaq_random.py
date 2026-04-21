@@ -13,7 +13,7 @@ except ImportError:
 
 
 def build_kernel(request: ExampleRequest) -> object:
-    """Build a deterministic random-looking CUDA-Q kernel."""
+    """Build a deterministic random-looking closed CUDA-Q kernel for the native adapter path."""
 
     kernel = cudaq.make_kernel()
     qubits = kernel.qalloc(request.qubits)
@@ -57,7 +57,7 @@ def _angle(operation: OperationSpec) -> float:
 def main() -> None:
     run_example(
         build_kernel,
-        description="Render a configurable random CUDA-Q kernel.",
+        description="Render a configurable random CUDA-Q kernel with native semantic support.",
         framework="cudaq",
         saved_label="CUDA-Q random demo",
         default_qubits=10,

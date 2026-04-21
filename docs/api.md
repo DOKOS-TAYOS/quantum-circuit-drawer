@@ -143,6 +143,8 @@ The recommended public helpers for adapters are:
 
 Adapter authors can stay on the legacy `to_ir(...)` path or add the richer optional `to_semantic_ir(...)` path when they need native grouping, provenance, or annotations to survive comparison and diagnostics longer.
 
+Today that richer semantic route is what the built-in Cirq, PennyLane, MyQLM, and CUDA-Q adapters use internally. Legacy third-party adapters that only emit `CircuitIR` still remain fully supported.
+
 See [Extension API](extensions.md) for the supported contract, examples, and the list of public vs internal modules.
 
 ## Internal compatibility facades

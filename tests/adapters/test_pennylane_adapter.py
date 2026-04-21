@@ -8,12 +8,20 @@ import pytest
 from quantum_circuit_drawer.adapters.pennylane_adapter import PennyLaneAdapter
 from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError, UnsupportedOperationError
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
+from quantum_circuit_drawer.layout.engine import LayoutEngine
+from quantum_circuit_drawer.style import DrawStyle
 from tests.support import (
     OperationSignature,
+    assert_axes_contains_circuit_artists,
     assert_classical_wire_bundles,
+    assert_figure_has_visible_content,
     assert_operation_signatures,
     assert_quantum_wire_labels,
     flatten_operations,
+    normalize_rendered_text,
+)
+from tests.support import (
+    draw_quantum_circuit_legacy as draw_quantum_circuit,
 )
 
 pytestmark = pytest.mark.optional
@@ -55,8 +63,58 @@ class FakeOperation:
 
 
 class FakeMeasurement:
-    def __init__(self, wires: tuple[object, ...]) -> None:
+    def __init__(self, wires: tuple[object, ...], *, obs: object | None = None) -> None:
         self.wires = wires
+        self.obs = obs
+        self.mv = None
+
+
+class SampleMP(FakeMeasurement):
+    pass
+
+
+class ProbabilityMP(FakeMeasurement):
+    pass
+
+
+class CountsMP(FakeMeasurement):
+    pass
+
+
+class StateMP(FakeMeasurement):
+    pass
+
+
+class DensityMatrixMP(FakeMeasurement):
+    pass
+
+
+class ExpectationMP(FakeMeasurement):
+    pass
+
+
+class VarianceMP(FakeMeasurement):
+    pass
+
+
+class FakeObservable:
+    def __init__(
+        self,
+        *,
+        name: str,
+        wires: tuple[object, ...],
+        operands: tuple[FakeObservable, ...] = (),
+    ) -> None:
+        self.name = name
+        self.wires = wires
+        self.operands = operands
+
+    def __repr__(self) -> str:
+        if not self.operands:
+            wires = ", ".join(str(wire) for wire in self.wires)
+            return f"{self.name}({wires})"
+        joined = " @ ".join(repr(operand) for operand in self.operands)
+        return f"{self.name}({joined})"
 
 
 class FakeTapeWrapper:
@@ -83,7 +141,7 @@ def build_fake_tape() -> FakeQuantumTape:
             FakeOperation(name="Hadamard", wires=(0,)),
             FakeOperation(name="CNOT", wires=(0, 1), control_wires=(0,), target_wires=(1,)),
         ),
-        measurements=(FakeMeasurement((1,)),),
+        measurements=(SampleMP((1,)),),
     )
 
 
@@ -91,11 +149,11 @@ def test_pennylane_adapter_matches_canonical_contract(monkeypatch: pytest.Monkey
     install_fake_pennylane(monkeypatch)
 
     ir = PennyLaneAdapter().to_ir(FakeTapeWrapper(build_fake_tape()))
-    measurement = flatten_operations(ir)[-1]
+    terminal_output = flatten_operations(ir)[-1]
 
     assert ir.metadata["framework"] == "pennylane"
     assert_quantum_wire_labels(ir, ["0", "1"])
-    assert_classical_wire_bundles(ir, [("c", 1)])
+    assert_classical_wire_bundles(ir, [])
     assert_operation_signatures(
         ir,
         [
@@ -115,16 +173,20 @@ def test_pennylane_adapter_matches_canonical_contract(monkeypatch: pytest.Monkey
                 ("q0",),
             ),
             OperationSignature(
-                OperationKind.MEASUREMENT,
+                OperationKind.GATE,
                 CanonicalGateFamily.CUSTOM,
-                "M",
+                "SAMPLE",
                 (),
                 ("q1",),
             ),
         ],
     )
-    assert measurement.classical_target == "c0"
-    assert measurement.metadata["classical_bit_label"] == "c[0]"
+    assert terminal_output.metadata["pennylane_terminal_kind"] == "sample"
+    assert terminal_output.metadata["pennylane_measurement_wires"] == ("q1",)
+    assert terminal_output.metadata["hover_details"] == (
+        "terminal output: sample",
+        "selected wires: 1",
+    )
 
 
 def test_pennylane_adapter_converts_tape_like_objects(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,13 +199,187 @@ def test_pennylane_adapter_converts_tape_like_objects(monkeypatch: pytest.Monkey
 
     assert ir.metadata["framework"] == "pennylane"
     assert [wire.label for wire in ir.quantum_wires] == ["0", "1"]
-    assert len(ir.classical_wires) == 1
-    assert ir.classical_wires[0].metadata["bundle_size"] == 1
+    assert len(ir.classical_wires) == 0
     assert OperationKind.GATE in kinds
     assert OperationKind.CONTROLLED_GATE in kinds
-    assert OperationKind.MEASUREMENT in kinds
+    assert OperationKind.MEASUREMENT not in kinds
     assert "H" in names
     assert "X" in names
+    assert "SAMPLE" in names
+
+
+@pytest.mark.parametrize(
+    ("measurement", "expected_name", "expected_targets", "expected_kind", "observable_label"),
+    [
+        (
+            ExpectationMP((0,), obs=FakeObservable(name="PauliZ", wires=(0,))),
+            "EXPVAL",
+            ("q0",),
+            "expval",
+            "PauliZ",
+        ),
+        (
+            VarianceMP(
+                (0, 1),
+                obs=FakeObservable(
+                    name="Prod",
+                    wires=(0, 1),
+                    operands=(
+                        FakeObservable(name="PauliX", wires=(0,)),
+                        FakeObservable(name="PauliZ", wires=(1,)),
+                    ),
+                ),
+            ),
+            "VAR",
+            ("q0", "q1"),
+            "var",
+            "PauliX @ PauliZ",
+        ),
+        (ProbabilityMP((0, 1)), "PROBS", ("q0", "q1"), "probs", None),
+        (SampleMP((1,)), "SAMPLE", ("q1",), "sample", None),
+        (CountsMP((0, 1)), "COUNTS", ("q0", "q1"), "counts", None),
+        (StateMP(()), "STATE", ("q0", "q1"), "state", None),
+        (DensityMatrixMP((1,)), "DM", ("q1",), "density_matrix", None),
+    ],
+)
+def test_pennylane_adapter_converts_terminal_outputs_to_compact_boxes(
+    monkeypatch: pytest.MonkeyPatch,
+    measurement: FakeMeasurement,
+    expected_name: str,
+    expected_targets: tuple[str, ...],
+    expected_kind: str,
+    observable_label: str | None,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(FakeOperation(name="Hadamard", wires=(0,)),),
+        measurements=(measurement,),
+    )
+
+    semantic_ir = PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape))
+    semantic_operation = next(
+        operation
+        for layer in semantic_ir.layers
+        for operation in layer.operations
+        if operation.metadata.get("pennylane_terminal_kind") == expected_kind
+    )
+    lowered_operation = next(
+        operation
+        for layer in PennyLaneAdapter().to_ir(FakeTapeWrapper(tape)).layers
+        for operation in layer.operations
+        if operation.metadata.get("pennylane_terminal_kind") == expected_kind
+    )
+
+    assert semantic_ir.classical_wires == ()
+    assert semantic_operation.kind is OperationKind.GATE
+    assert semantic_operation.name == expected_name
+    assert semantic_operation.target_wires == expected_targets
+    assert lowered_operation.kind is OperationKind.GATE
+    assert lowered_operation.name == expected_name
+    assert lowered_operation.target_wires == expected_targets
+    assert lowered_operation.metadata["pennylane_terminal_kind"] == expected_kind
+    assert lowered_operation.metadata["pennylane_measurement_wires"] == expected_targets
+    assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == expected_kind
+
+    if observable_label is None:
+        assert "pennylane_observable_label" not in lowered_operation.metadata
+    else:
+        assert lowered_operation.metadata["pennylane_observable_label"] == observable_label
+        assert f"observable: {observable_label}" in lowered_operation.metadata["hover_details"]
+
+
+def test_pennylane_adapter_uses_deterministic_fallback_for_long_observable_summaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    composite_observable = FakeObservable(
+        name="Prod",
+        wires=(0, 1, 2, 3),
+        operands=(
+            FakeObservable(name="PauliX", wires=(0,)),
+            FakeObservable(name="PauliY", wires=(1,)),
+            FakeObservable(name="PauliZ", wires=(2,)),
+            FakeObservable(name="Hadamard", wires=(3,)),
+        ),
+    )
+    tape = FakeQuantumTape(
+        wires=(0, 1, 2, 3),
+        operations=(),
+        measurements=(ExpectationMP((0, 1, 2, 3), obs=composite_observable),),
+    )
+
+    semantic_ir = PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape))
+    terminal_output = semantic_ir.layers[0].operations[0]
+
+    assert terminal_output.metadata["pennylane_observable_label"] == "composite observable"
+    assert "observable: composite observable" in terminal_output.hover_details
+
+
+def test_pennylane_adapter_mixes_mid_measure_conditionals_and_terminal_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    measured_bit = FakeOperation(name="MidMeasureMP", wires=(0,))
+    measured_bit.id = "m0"  # type: ignore[attr-defined]
+    conditional_x = SimpleNamespace(
+        base=FakeOperation(name="PauliX", wires=(1,)),
+        meas_val=SimpleNamespace(measurements=(measured_bit,), branches={(1,): True}),
+        name="PauliX",
+        wires=(1,),
+        parameters=(),
+    )
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(measured_bit, conditional_x),
+        measurements=(ProbabilityMP((0, 1)),),
+    )
+
+    ir = PennyLaneAdapter().to_ir(FakeTapeWrapper(tape))
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(ir.classical_wires) == 1
+    assert ir.classical_wires[0].metadata["bundle_size"] == 1
+    assert [operation.name for operation in operations] == ["M", "X", "PROBS"]
+    assert operations[0].kind is OperationKind.MEASUREMENT
+    assert operations[1].classical_conditions[0].expression == "if c[0]=1"
+    assert operations[2].kind is OperationKind.GATE
+    assert operations[2].metadata["pennylane_terminal_kind"] == "probs"
+
+
+def test_pennylane_terminal_outputs_render_as_gate_boxes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(FakeOperation(name="Hadamard", wires=(0,)),),
+        measurements=(ProbabilityMP((0, 1)),),
+    )
+
+    ir = PennyLaneAdapter().to_ir(FakeTapeWrapper(tape))
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert len(scene.measurements) == 0
+    gate = next(gate for gate in scene.gates if gate.label == "PROBS")
+    assert gate.kind is OperationKind.GATE
+    assert gate.hover_data is not None
+    assert gate.hover_data.details == (
+        "terminal output: probs",
+        "all wires",
+    )
+
+    figure, axes = draw_quantum_circuit(
+        FakeTapeWrapper(tape),
+        framework="pennylane",
+        show=False,
+    )
+    texts = [normalize_rendered_text(text.get_text()) for text in axes.texts]
+
+    assert "PROBS" in texts
+    assert "c" not in texts
+    assert_axes_contains_circuit_artists(axes, expected_texts={"PROBS", "0", "1"})
+    assert_figure_has_visible_content(figure)
 
 
 def test_pennylane_adapter_maps_additional_canonical_gate_names(
@@ -309,19 +545,47 @@ def test_pennylane_adapter_converts_multi_wire_terminal_measurements() -> None:
         qml.probs(wires=[0, 1])
 
     ir = PennyLaneAdapter().to_ir(tape)
-    measurements = [
+    terminal_outputs = [
         operation
         for layer in ir.layers
         for operation in layer.operations
-        if operation.kind is OperationKind.MEASUREMENT
+        if operation.name == "PROBS"
     ]
 
-    assert ir.classical_wires[0].metadata["bundle_size"] == 2
-    assert [measurement.target_wires for measurement in measurements] == [("q0",), ("q1",)]
-    assert [measurement.metadata["classical_bit_label"] for measurement in measurements] == [
-        "c[0]",
-        "c[1]",
-    ]
+    assert ir.classical_wires == ()
+    assert len(terminal_outputs) == 1
+    assert terminal_outputs[0].kind is OperationKind.GATE
+    assert terminal_outputs[0].target_wires == ("q0", "q1")
+    assert terminal_outputs[0].metadata["pennylane_terminal_kind"] == "probs"
+    assert terminal_outputs[0].metadata["hover_details"] == (
+        "terminal output: probs",
+        "selected wires: 0, 1",
+    )
+
+
+@skip_real_pennylane_on_windows
+@pytest.mark.integration
+def test_pennylane_adapter_converts_observable_terminal_outputs() -> None:
+    qml = pytest.importorskip("pennylane")
+
+    with qml.tape.QuantumTape() as tape:
+        qml.Hadamard(0)
+        qml.expval(qml.PauliZ(0))
+
+    ir = PennyLaneAdapter().to_ir(tape)
+    terminal_output = [operation for layer in ir.layers for operation in layer.operations][-1]
+
+    assert ir.classical_wires == ()
+    assert terminal_output.kind is OperationKind.GATE
+    assert terminal_output.name == "EXPVAL"
+    assert terminal_output.target_wires == ("q0",)
+    assert terminal_output.metadata["pennylane_terminal_kind"] == "expval"
+    assert terminal_output.metadata["pennylane_observable_label"] == "PauliZ"
+    assert terminal_output.metadata["hover_details"] == (
+        "terminal output: expval",
+        "observable: PauliZ",
+        "selected wires: 0",
+    )
 
 
 def test_pennylane_adapter_supports_additional_common_operations(

@@ -161,6 +161,10 @@ def build_candidate_compare_ir() -> object:
     )
 
 
+def build_single_qubit_reference_ir() -> object:
+    return CircuitBuilder(1, 1, name="single-qubit-reference").h(0).measure(0, 0).build()
+
+
 def test_public_package_exports_compare_circuit_types() -> None:
     assert quantum_circuit_drawer.compare_circuits is compare_circuits
     assert quantum_circuit_drawer.CircuitCompareConfig is CircuitCompareConfig
@@ -435,6 +439,50 @@ def test_compare_circuits_supports_mixed_pennylane_and_ir_inputs_with_windows_sa
 
     assert result.left_result.detected_framework == "pennylane"
     assert result.right_result.detected_framework == "ir"
+    assert_figure_has_visible_content(result.figure)
+
+    plt.close(result.figure)
+
+
+def test_compare_circuits_supports_mixed_myqlm_and_ir_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+
+    result = compare_circuits(
+        build_sample_myqlm_circuit(),
+        build_single_qubit_reference_ir(),
+        left_config=DrawConfig(framework="myqlm", show=False),
+        right_config=DrawConfig(show=False),
+        config=CircuitCompareConfig(show=False),
+    )
+
+    assert result.left_result.detected_framework == "myqlm"
+    assert result.right_result.detected_framework == "ir"
+    assert result.metrics.differing_layer_count > 0
+    assert_figure_has_visible_content(result.figure)
+
+    plt.close(result.figure)
+
+
+def test_compare_circuits_supports_mixed_cudaq_and_ir_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_kernel_type = install_fake_cudaq_support(monkeypatch)
+    monkeypatch.setattr(sys, "platform", "linux")
+    kernel = fake_kernel_type()
+
+    result = compare_circuits(
+        kernel,
+        build_single_qubit_reference_ir(),
+        left_config=DrawConfig(framework="cudaq", show=False),
+        right_config=DrawConfig(show=False),
+        config=CircuitCompareConfig(show=False),
+    )
+
+    assert result.left_result.detected_framework == "cudaq"
+    assert result.right_result.detected_framework == "ir"
+    assert result.metrics.differing_layer_count > 0
     assert_figure_has_visible_content(result.figure)
 
     plt.close(result.figure)

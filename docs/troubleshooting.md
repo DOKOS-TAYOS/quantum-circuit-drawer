@@ -56,7 +56,7 @@ Use this table to decide whether an issue is inside the strong support path or o
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
-At the moment, Cirq and PennyLane are the richer semantic-adapter paths. MyQLM and CUDA-Q still use the legacy adapter path while that shared base is being prepared for future migrations.
+At the moment, Cirq, PennyLane, MyQLM, and CUDA-Q all use the richer semantic-adapter path internally. Legacy `to_ir(...)` adapters still work, but framework-native provenance and annotations now survive longer for those built-in adapters before lowering to the shared render IR.
 
 ## Cirq or PennyLane demos are slow or unstable on native Windows
 
@@ -73,6 +73,8 @@ For PennyLane wrappers and QNode-like objects:
 - Pass a `QuantumTape` / `QuantumScript` directly when possible.
 - Wrapper objects are supported only when they already expose a materialized `.qtape`, `.tape`, or `._tape`.
 - The adapter does not call `construct()` or trigger lazy wrapper properties implicitly.
+- Terminal PennyLane results such as `expval`, `var`, `probs`, `sample`, `counts`, `state`, and `density_matrix` now draw as compact output boxes instead of fake projective `M` measurements.
+- Mid-circuit `qml.measure(...)` still draws as a measurement, while terminal-result boxes keep observable or wire-scope details in hover metadata.
 - When a Cirq or PennyLane-native construct has no exact shared drawing primitive, the library keeps that native meaning in hover details, annotations, comparison, or diagnostics instead of silently flattening it away.
 
 ## CUDA-Q does not install on Windows
@@ -290,6 +292,8 @@ def bell_pair() -> None:
 draw_quantum_circuit(bell_pair)
 ```
 
+For supported closed kernels, the adapter now also preserves Quake provenance, measurement basis, and `reset` operations internally. Constructs such as control flow, `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps are still outside the supported subset.
+
 ## Style validation fails
 
 Symptom:
@@ -333,3 +337,8 @@ Useful first checks:
 - Try `DrawConfig(composite_mode="expand")` if a composite operation can be decomposed.
 - Check [Frameworks](frameworks.md) for the supported subset of your framework.
 - If the operation is essential, consider building a `CircuitIR` representation for that case.
+
+Framework-specific notes:
+
+- MyQLM now supports drawable classical formulas when they can be carried as a clean display expression, but `BREAK`, `CLASSIC`, `REMAP`, and ancilla-heavy composites still raise.
+- CUDA-Q now supports `reset` in the supported closed-kernel subset, but still rejects control flow, `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps.

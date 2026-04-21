@@ -38,7 +38,7 @@ The current user-facing input paths are:
 
 Across those paths, the drawer now uses a shared internal flow that can host both adapter styles: framework object -> semantic IR -> render IR for richer adapters, or framework object -> `CircuitIR` for legacy adapters. That lets comparison, diagnostics, hover, and annotations preserve framework-native details longer where native adapters exist, without breaking narrower legacy adapters that still emit `CircuitIR` directly.
 
-Cirq and PennyLane currently use the richer semantic adapter path. MyQLM and CUDA-Q continue through the legacy `to_ir(...)` path in this phase. That shared base is already in place so future semantic migrations can happen without changing the public API first.
+Cirq, PennyLane, MyQLM, and CUDA-Q now use the richer semantic adapter path. The legacy `to_ir(...)` route remains a supported extension point for narrower adapters and third-party integrations.
 
 ## Support matrix
 
@@ -174,9 +174,11 @@ with qml.tape.QuantumTape() as tape:
 draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
 ```
 
-Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
+Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, optional expansion for decomposable composite operations such as `QFT`, and compact terminal-output boxes for `qml.expval()`, `qml.var()`, `qml.probs()`, `qml.sample()`, `qml.counts()`, `qml.state()`, and `qml.density_matrix()`.
 
-The PennyLane path now preserves conditional provenance, decomposition origin, and safe wrapper semantics internally. When a PennyLane-native construct cannot be shown as one exact shared visual primitive, the drawer keeps the native meaning in compare signatures, hover, annotations, or diagnostics.
+Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata.
+
+The PennyLane path now preserves conditional provenance, decomposition origin, safe wrapper semantics, and terminal-result meaning internally. When a PennyLane-native construct cannot be shown as one exact shared visual primitive, the drawer keeps the native meaning in compare signatures, hover, annotations, or diagnostics.
 
 For QNode-like wrappers, the adapter only reads an already-materialized tape. It does not call `construct()` or trigger lazy wrapper properties on your behalf.
 
@@ -219,19 +221,20 @@ circuit = program.to_circ()
 draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 ```
 
-Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, simple single-bit classical control, and compact or expanded composite gates backed by `gateDic`.
+Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas.
 
 Histogram support also accepts `qat.core.Result` objects through their `raw_data` samples, so finite-shot counts and simulator probabilities can be plotted without manually rebuilding a dictionary.
 
 Support note:
 
 - MyQLM is currently a scoped adapter + contract support path rather than a first-class multiplatform CI backend.
-- MyQLM remains on the legacy adapter path for now; future semantic migrations can build on the shared pipeline later without widening the current supported subset yet.
+- MyQLM now preserves gate provenance, composite provenance, decomposition origin, and supported classical-control expressions through the shared semantic adapter pipeline.
 
 Current limits:
 
 - `Program` and `QRoutine` objects are not the main adapter input; convert with `to_circ()` first.
-- Advanced classical formulas, `BREAK`, `CLASSIC`, and `REMAP` operations are not rendered yet.
+- `BREAK`, `CLASSIC`, and `REMAP` operations are not rendered yet.
+- Composite operations that require ancillas still do not have a clean shared rendering.
 - MyQLM is installed from the upstream package under its own EULA terms.
 
 See [Troubleshooting](troubleshooting.md#myqlm-program-objects-do-not-draw-directly) if a MyQLM object is not detected.
@@ -269,12 +272,16 @@ draw_quantum_circuit(bell_pair)
 
 Here, "closed" means the kernel can be inspected without additional runtime arguments.
 
+Support note:
+
+- Supported closed-kernel parsing now preserves Quake provenance, measurement basis, reset operations, and value-form wire flow through the shared semantic adapter pipeline.
+
 Current limits:
 
 - CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
 - Kernels that still require runtime arguments are not supported.
 - Advanced CUDA-Q control flow and broader advanced constructs are outside the supported subset.
-- CUDA-Q also remains on the legacy adapter path in this phase while the shared semantic pipeline is being consolidated for future backend migrations.
+- `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps are still rejected because they do not map cleanly into the current shared IR.
 
 Histogram support also accepts CUDA-Q `SampleResult`-style objects that expose count pairs through `items()`, so `cudaq.sample(...)` outputs can be passed straight into `plot_histogram(...)`.
 

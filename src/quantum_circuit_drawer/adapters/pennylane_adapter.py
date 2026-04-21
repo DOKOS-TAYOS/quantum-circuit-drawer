@@ -48,6 +48,19 @@ class _PennyLaneTapeLike(Protocol):
     measurements: Sequence[_PennyLaneMeasurementLike]
 
 
+_TERMINAL_LABEL_BY_KIND: dict[str, str] = {
+    "expval": "EXPVAL",
+    "var": "VAR",
+    "probs": "PROBS",
+    "sample": "SAMPLE",
+    "counts": "COUNTS",
+    "state": "STATE",
+    "density_matrix": "DM",
+}
+_TENSOR_OBSERVABLE_NAMES = frozenset({"prod", "tensor"})
+_OBSERVABLE_SUMMARY_LIMIT = 24
+
+
 class PennyLaneAdapter(BaseAdapter):
     """Convert tape-like PennyLane objects into CircuitIR."""
 
@@ -77,6 +90,7 @@ class PennyLaneAdapter(BaseAdapter):
         composite_mode = resolve_composite_mode(options)
         explicit_matrices = resolve_explicit_matrices(options)
         wire_ids = resolve_wire_ids(tuple(tape.wires), prefix="q")
+        wire_labels = {wire: str(wire) for wire in tape.wires}
         quantum_wires = [
             WireIR(id=wire_ids[wire], index=index, kind=WireKind.QUANTUM, label=str(wire))
             for index, wire in enumerate(tape.wires)
@@ -85,14 +99,7 @@ class PennyLaneAdapter(BaseAdapter):
         mid_measure_operations = [
             operation for operation in tape.operations if self._is_mid_measure(operation)
         ]
-        terminal_measurement_wires = tuple(
-            self._terminal_measurement_wires(measurement, tape.wires)
-            for measurement in tape.measurements
-        )
-        terminal_measurement_count = sum(len(wires) for wires in terminal_measurement_wires)
-        measurement_labels = sequential_bit_labels(
-            len(mid_measure_operations) + terminal_measurement_count
-        )
+        measurement_labels = sequential_bit_labels(len(mid_measure_operations))
         classical_wires, measurement_targets = build_classical_register(measurement_labels)
         mid_measure_targets = {
             self._mid_measure_id(operation): measurement_targets[index]
@@ -112,45 +119,26 @@ class PennyLaneAdapter(BaseAdapter):
             )
 
         terminal_measurement_operations: list[SemanticOperationIR] = []
-        target_index = len(mid_measure_operations)
-        for measured_wires in terminal_measurement_wires:
-            for measured_wire in measured_wires:
-                classical_target, classical_bit_label = measurement_targets[target_index]
-                terminal_measurement_operations.append(
-                    SemanticOperationIR(
-                        kind=OperationKind.MEASUREMENT,
-                        name="M",
-                        target_wires=(wire_ids[measured_wire],),
-                        classical_target=classical_target,
-                        hover_details=normalized_detail_lines(
-                            f"terminal measurement on: {measured_wire}"
-                        ),
-                        provenance=semantic_provenance(
-                            framework=self.framework_name,
-                            native_name="terminal_measurement",
-                            native_kind="measurement",
-                            location=(target_index,),
-                        ),
-                        metadata={"classical_bit_label": classical_bit_label},
-                    )
+        for measurement_index, measurement in enumerate(tape.measurements):
+            terminal_measurement_operations.append(
+                self._convert_terminal_measurement(
+                    measurement,
+                    tape_wires=tuple(tape.wires),
+                    wire_ids=wire_ids,
+                    wire_labels=wire_labels,
+                    location=(measurement_index,),
                 )
-                target_index += 1
+            )
 
         return SemanticCircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
-            layers=pack_semantic_operations(
-                (*semantic_operations, *terminal_measurement_operations)
+            layers=(
+                *pack_semantic_operations(semantic_operations),
+                *pack_semantic_operations(terminal_measurement_operations),
             ),
             metadata={"framework": self.framework_name},
         )
-
-    def _terminal_measurement_wires(
-        self,
-        measurement: _PennyLaneMeasurementLike,
-        tape_wires: Sequence[object],
-    ) -> tuple[object, ...]:
-        return tuple(measurement.wires) or tuple(tape_wires)
 
     def _extract_tape(self, circuit: object) -> _PennyLaneTapeLike:
         if _looks_like_tape(circuit):
@@ -333,6 +321,183 @@ class PennyLaneAdapter(BaseAdapter):
                 ),
             )
         ]
+
+    def _convert_terminal_measurement(
+        self,
+        measurement: _PennyLaneMeasurementLike,
+        *,
+        tape_wires: Sequence[object],
+        wire_ids: Mapping[object, str],
+        wire_labels: Mapping[object, str],
+        location: Sequence[int],
+    ) -> SemanticOperationIR:
+        terminal_kind = self._terminal_measurement_kind(measurement)
+        if terminal_kind is None:
+            raise UnsupportedOperationError(
+                "PennyLane terminal measurement type "
+                f"{measurement.__class__.__name__} is not currently supported for drawing"
+            )
+
+        target_native_wires = self._terminal_measurement_targets(
+            measurement,
+            tape_wires=tape_wires,
+        )
+        target_wires = tuple(wire_ids[wire] for wire in target_native_wires)
+        observable_label = self._observable_label(measurement)
+        metadata: dict[str, object] = {
+            "pennylane_terminal_kind": terminal_kind,
+            "pennylane_measurement_wires": target_wires,
+        }
+        if observable_label is not None:
+            metadata["pennylane_observable_label"] = observable_label
+
+        return SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name=_TERMINAL_LABEL_BY_KIND[terminal_kind],
+            target_wires=target_wires,
+            hover_details=self._terminal_measurement_hover_details(
+                terminal_kind,
+                observable_label=observable_label,
+                target_native_wires=target_native_wires,
+                tape_wires=tape_wires,
+                wire_labels=wire_labels,
+            ),
+            provenance=semantic_provenance(
+                framework=self.framework_name,
+                native_name=measurement.__class__.__name__,
+                native_kind=terminal_kind,
+                location=location,
+            ),
+            metadata=metadata,
+        )
+
+    def _terminal_measurement_kind(self, measurement: object) -> str | None:
+        class_name = measurement.__class__.__name__.lower()
+        if "density" in class_name:
+            return "density_matrix"
+        if "expect" in class_name:
+            return "expval"
+        if "variance" in class_name or class_name.startswith("var"):
+            return "var"
+        if "prob" in class_name:
+            return "probs"
+        if "sample" in class_name:
+            return "sample"
+        if "counts" in class_name:
+            return "counts"
+        if "state" in class_name:
+            return "state"
+
+        measurement_repr = repr(measurement).lower()
+        if measurement_repr.startswith("expval("):
+            return "expval"
+        if measurement_repr.startswith("var("):
+            return "var"
+        if measurement_repr.startswith("probs("):
+            return "probs"
+        if measurement_repr.startswith("sample("):
+            return "sample"
+        if measurement_repr.startswith("countsmp("):
+            return "counts"
+        if measurement_repr.startswith("state("):
+            return "state"
+        if hasattr(measurement, "wires") and self._measurement_observable(measurement) is None:
+            return "sample"
+        return None
+
+    def _terminal_measurement_targets(
+        self,
+        measurement: _PennyLaneMeasurementLike,
+        *,
+        tape_wires: Sequence[object],
+    ) -> tuple[object, ...]:
+        terminal_kind = self._terminal_measurement_kind(measurement)
+        assert terminal_kind is not None
+        if terminal_kind == "state":
+            return tuple(tape_wires)
+
+        measurement_wires = tuple(getattr(measurement, "wires", ()) or ())
+        observable = self._measurement_observable(measurement)
+        observable_wires = tuple(getattr(observable, "wires", ()) or ())
+        if terminal_kind in {"expval", "var"}:
+            return observable_wires or measurement_wires or tuple(tape_wires)
+        return measurement_wires or tuple(tape_wires)
+
+    def _measurement_observable(self, measurement: object) -> object | None:
+        observable = getattr(measurement, "obs", None)
+        if observable is not None:
+            return observable
+        return getattr(measurement, "observable", None)
+
+    def _observable_label(self, measurement: object) -> str | None:
+        observable = self._measurement_observable(measurement)
+        if observable is None:
+            return None
+        return self._summarize_observable(observable)
+
+    def _summarize_observable(self, observable: object) -> str:
+        operand_labels = self._tensor_operand_labels(observable)
+        if operand_labels is not None:
+            joined = " @ ".join(operand_labels)
+            if joined and len(joined) <= _OBSERVABLE_SUMMARY_LIMIT:
+                return joined
+            return "composite observable"
+
+        raw_name = getattr(observable, "name", None)
+        normalized_name = self._normalized_observable_name(raw_name)
+        if normalized_name is not None and len(normalized_name) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return normalized_name
+        return "composite observable"
+
+    def _tensor_operand_labels(self, observable: object) -> tuple[str, ...] | None:
+        operands = tuple(getattr(observable, "operands", ()) or ())
+        if not operands:
+            return None
+        raw_name = self._normalized_observable_name(getattr(observable, "name", None))
+        class_name = observable.__class__.__name__.lower()
+        if raw_name is not None and raw_name.lower() not in _TENSOR_OBSERVABLE_NAMES:
+            if class_name not in _TENSOR_OBSERVABLE_NAMES:
+                return None
+        operand_labels = tuple(self._summarize_observable(operand) for operand in operands)
+        if any(label == "composite observable" for label in operand_labels):
+            return ()
+        return operand_labels
+
+    def _normalized_observable_name(self, value: object) -> str | None:
+        if isinstance(value, str):
+            normalized = value.strip()
+            return normalized or None
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            first_name = next(
+                (str(item).strip() for item in value if str(item).strip()),
+                "",
+            )
+            return first_name or None
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    def _terminal_measurement_hover_details(
+        self,
+        terminal_kind: str,
+        *,
+        observable_label: str | None,
+        target_native_wires: Sequence[object],
+        tape_wires: Sequence[object],
+        wire_labels: Mapping[object, str],
+    ) -> tuple[str, ...]:
+        scope_detail = (
+            "all wires"
+            if tuple(target_native_wires) == tuple(tape_wires)
+            else "selected wires: "
+            + ", ".join(wire_labels.get(wire, str(wire)) for wire in target_native_wires)
+        )
+        return normalized_detail_lines(
+            f"terminal output: {terminal_kind}",
+            None if observable_label is None else f"observable: {observable_label}",
+            scope_detail,
+        )
 
     def _is_mid_measure(self, operation: object) -> bool:
         return getattr(operation, "name", None) == "MidMeasureMP"
