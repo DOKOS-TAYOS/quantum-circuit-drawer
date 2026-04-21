@@ -36,6 +36,10 @@ The current user-facing input paths are:
 | CUDA-Q | closed CUDA-Q kernels | `cudaq` |
 | Internal IR | `CircuitIR` | none |
 
+Across those paths, the drawer now uses a shared internal flow that can host both adapter styles: framework object -> semantic IR -> render IR for richer adapters, or framework object -> `CircuitIR` for legacy adapters. That lets comparison, diagnostics, hover, and annotations preserve framework-native details longer where native adapters exist, without breaking narrower legacy adapters that still emit `CircuitIR` directly.
+
+Cirq and PennyLane currently use the richer semantic adapter path. MyQLM and CUDA-Q continue through the legacy `to_ir(...)` path in this phase. That shared base is already in place so future semantic migrations can happen without changing the public API first.
+
 ## Support matrix
 
 Use this table as the release support contract when choosing a framework path.
@@ -133,6 +137,8 @@ draw_quantum_circuit(circuit, config=DrawConfig(framework="cirq"))
 
 Current support includes common gates, controlled gates, classically controlled operations, `CircuitOperation`, swap, and measurements.
 
+The Cirq path now preserves moment grouping and `CircuitOperation` provenance internally. When a native structure does not have one perfect common visual shape, the drawer keeps that detail in compare signatures, diagnostics, hover text, or lightweight annotations instead of dropping it silently.
+
 Histogram support also accepts `cirq.Result` / `cirq.ResultDict` objects through their `measurements` mapping. If several measurement keys are present, `plot_histogram(...)` keeps them as space-separated registers in the visible state labels.
 
 Use `DrawConfig(composite_mode="expand")` when you want supported `CircuitOperation` contents to appear as separate operations.
@@ -151,7 +157,7 @@ Typical inputs:
 
 - `qml.tape.QuantumTape`
 - `qml.tape.QuantumScript`
-- objects exposing `.qtape` or `.tape`
+- wrappers exposing a materialized `.qtape`, `.tape`, or `._tape`
 
 Example:
 
@@ -169,6 +175,10 @@ draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
 ```
 
 Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
+
+The PennyLane path now preserves conditional provenance, decomposition origin, and safe wrapper semantics internally. When a PennyLane-native construct cannot be shown as one exact shared visual primitive, the drawer keeps the native meaning in compare signatures, hover, annotations, or diagnostics.
+
+For QNode-like wrappers, the adapter only reads an already-materialized tape. It does not call `construct()` or trigger lazy wrapper properties on your behalf.
 
 Histogram support also accepts direct execution outputs from `qml.counts()`, `qml.probs()`, and `qml.sample()`. If a QNode returns several payloads, pass the full tuple or list and use `HistogramConfig(result_index=...)` to choose which one to plot.
 
@@ -216,6 +226,7 @@ Histogram support also accepts `qat.core.Result` objects through their `raw_data
 Support note:
 
 - MyQLM is currently a scoped adapter + contract support path rather than a first-class multiplatform CI backend.
+- MyQLM remains on the legacy adapter path for now; future semantic migrations can build on the shared pipeline later without widening the current supported subset yet.
 
 Current limits:
 
@@ -263,6 +274,7 @@ Current limits:
 - CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
 - Kernels that still require runtime arguments are not supported.
 - Advanced CUDA-Q control flow and broader advanced constructs are outside the supported subset.
+- CUDA-Q also remains on the legacy adapter path in this phase while the shared semantic pipeline is being consolidated for future backend migrations.
 
 Histogram support also accepts CUDA-Q `SampleResult`-style objects that expose count pairs through `items()`, so `cudaq.sample(...)` outputs can be passed straight into `plot_histogram(...)`.
 

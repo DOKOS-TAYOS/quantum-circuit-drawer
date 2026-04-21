@@ -13,9 +13,11 @@ from typing import TypeVar
 from ..ir.classical_conditions import ClassicalConditionIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import CanonicalGateFamily, OperationIR, infer_canonical_gate_family
+from ..ir.semantic import SemanticOperationIR, SemanticProvenanceIR
 from ..ir.wires import WireIR, WireKind
 
 OperationNode = OperationIR | MeasurementIR
+SemanticOperationNode = SemanticOperationIR
 _T = TypeVar("_T")
 
 
@@ -359,6 +361,57 @@ def append_classical_conditions(
         operation,
         classical_conditions=(*operation.classical_conditions, *conditions),
     )
+
+
+def append_semantic_classical_conditions(
+    operation: SemanticOperationNode,
+    conditions: Sequence[ClassicalConditionIR],
+) -> SemanticOperationNode:
+    """Return a copy of a semantic operation with additional classical conditions."""
+
+    return replace(
+        operation,
+        classical_conditions=(*operation.classical_conditions, *conditions),
+    )
+
+
+def resolve_wire_ids(
+    values: Sequence[object],
+    *,
+    prefix: str,
+) -> dict[object, str]:
+    """Build stable wire ids for one framework-native sequence."""
+
+    return {value: f"{prefix}{index}" for index, value in enumerate(values)}
+
+
+def semantic_provenance(
+    *,
+    framework: str,
+    native_name: str | None = None,
+    native_kind: str | None = None,
+    grouping: str | None = None,
+    decomposition_origin: str | None = None,
+    composite_label: str | None = None,
+    location: Sequence[int] = (),
+) -> SemanticProvenanceIR:
+    """Build one semantic-provenance object with normalized location."""
+
+    return SemanticProvenanceIR(
+        framework=framework,
+        native_name=native_name,
+        native_kind=native_kind,
+        grouping=grouping,
+        decomposition_origin=decomposition_origin,
+        composite_label=composite_label,
+        location=tuple(int(index) for index in location),
+    )
+
+
+def normalized_detail_lines(*values: object | None) -> tuple[str, ...]:
+    """Normalize semantic hover-detail lines while dropping empty values."""
+
+    return tuple(str(value) for value in values if value is not None and str(value))
 
 
 def expand_operation_sequence(

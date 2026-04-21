@@ -258,6 +258,14 @@ def layout_controlled_gate(
         width=metrics.width,
         target_wires=operation.target_wires,
     )
+    append_semantic_annotations(
+        builder,
+        operation=operation,
+        column=column,
+        x=x,
+        gate_y=gate_y,
+        gate_height=gate_height,
+    )
     for control_id in operation.control_wires:
         builder.controls.append(
             SceneControl(
@@ -444,6 +452,14 @@ def layout_gate(
         width=metrics.width,
         target_wires=operation.target_wires,
     )
+    append_semantic_annotations(
+        builder,
+        operation=operation,
+        column=column,
+        x=x,
+        gate_y=gate_y,
+        gate_height=gate_height,
+    )
     append_classical_condition_connections(
         builder,
         operation=operation,
@@ -498,5 +514,35 @@ def append_gate_annotations(
                 y=builder.scaffold.wire_positions[wire_id],
                 text=str(target_index),
                 font_size=builder.scaffold.draw_style.font_size * 0.56,
+            )
+        )
+
+
+def append_semantic_annotations(
+    builder: _OperationSceneBuilder,
+    *,
+    operation: OperationIR,
+    column: int,
+    x: float,
+    gate_y: float,
+    gate_height: float,
+) -> None:
+    raw_annotations = operation.metadata.get("native_annotations", ())
+    if not isinstance(raw_annotations, tuple | list):
+        return
+
+    annotation_texts = tuple(str(annotation) for annotation in raw_annotations if str(annotation))
+    if not annotation_texts:
+        return
+
+    top_y = gate_y - (gate_height / 2.0) - 0.24
+    for annotation_index, annotation_text in enumerate(annotation_texts):
+        builder.gate_annotations.append(
+            SceneGateAnnotation(
+                column=column,
+                x=x,
+                y=top_y - (annotation_index * 0.22),
+                text=annotation_text,
+                font_size=builder.scaffold.draw_style.font_size * 0.48,
             )
         )

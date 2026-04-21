@@ -3,26 +3,31 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from dataclasses import replace
 from math import isclose
 from typing import Any, Protocol, cast
 
+from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
-from ..ir.measurements import MeasurementIR
-from ..ir.operations import OperationIR, OperationKind
+from ..ir.lowering import lower_semantic_circuit
+from ..ir.operations import OperationKind
+from ..ir.semantic import SemanticCircuitIR, SemanticLayerIR, SemanticOperationIR
 from ..ir.wires import WireIR, WireKind
 from ..utils.matrix_support import square_matrix
 from ._helpers import (
     CanonicalGateSpec,
-    append_classical_conditions,
+    append_semantic_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
-    expand_operation_sequence,
     extract_dependency_types,
     is_expected_matrix_unavailable_error,
+    normalized_detail_lines,
     resolve_composite_mode,
     resolve_explicit_matrices,
+    resolve_wire_ids,
+    semantic_provenance,
     sequential_bit_labels,
 )
 from .base import BaseAdapter
@@ -53,6 +58,15 @@ class CirqAdapter(BaseAdapter):
         return bool(circuit_types) and isinstance(circuit, circuit_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
+        semantic_ir = self.to_semantic_ir(circuit, options=options)
+        assert semantic_ir is not None
+        return lower_semantic_circuit(semantic_ir)
+
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR:
         if not self.can_handle(circuit):
             raise TypeError("CirqAdapter received a non-Cirq circuit")
 
@@ -62,7 +76,7 @@ class CirqAdapter(BaseAdapter):
         composite_mode = resolve_composite_mode(options)
         explicit_matrices = resolve_explicit_matrices(options)
         qubits = sorted(typed_circuit.all_qubits(), key=str)
-        qubit_ids = {qubit: f"q{index}" for index, qubit in enumerate(qubits)}
+        qubit_ids = resolve_wire_ids(qubits, prefix="q")
         quantum_wires = [
             WireIR(id=qubit_ids[qubit], index=index, kind=WireKind.QUANTUM, label=str(qubit))
             for index, qubit in enumerate(qubits)
@@ -87,27 +101,70 @@ class CirqAdapter(BaseAdapter):
             sequential_bit_labels(len(measurement_labels))
         )
 
-        flattened_operations: list[OperationIR | MeasurementIR] = []
+        diagnostics: list[RenderDiagnostic] = []
+        semantic_layers: list[SemanticLayerIR] = []
         for moment_index, moment in enumerate(typed_circuit):
-            for operation_index, operation in enumerate(moment.operations):
-                flattened_operations.extend(
-                    self._convert_operation(
-                        cirq=cirq,
-                        operation=operation,
-                        qubit_ids=qubit_ids,
-                        measurement_slots=measurement_slots,
-                        measurement_key_targets=measurement_key_targets,
-                        operation_key=(moment_index, operation_index),
-                        composite_mode=composite_mode,
-                        explicit_matrices=explicit_matrices,
-                    )
+            semantic_layers.extend(
+                self._convert_moment(
+                    cirq=cirq,
+                    moment=moment,
+                    qubit_ids=qubit_ids,
+                    measurement_slots=measurement_slots,
+                    measurement_key_targets=measurement_key_targets,
+                    moment_index=moment_index,
+                    grouping=f"moment[{moment_index}]",
+                    composite_mode=composite_mode,
+                    explicit_matrices=explicit_matrices,
+                    diagnostics=diagnostics,
                 )
+            )
 
-        return CircuitIR(
+        return SemanticCircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
-            layers=self.pack_operations(flattened_operations),
+            layers=tuple(semantic_layers),
             metadata={"framework": self.framework_name},
+            diagnostics=tuple(diagnostics),
+        )
+
+    def _convert_moment(
+        self,
+        *,
+        cirq: Any,
+        moment: _CirqMomentLike,
+        qubit_ids: dict[object, str],
+        measurement_slots: dict[tuple[int, ...], tuple[tuple[str, str], ...]],
+        measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
+        moment_index: int,
+        grouping: str,
+        composite_mode: str,
+        explicit_matrices: bool,
+        diagnostics: list[RenderDiagnostic],
+    ) -> tuple[SemanticLayerIR, ...]:
+        grouped_operations: list[list[SemanticOperationIR]] = []
+        layer_metadata: list[dict[str, object]] = []
+        for operation_index, operation in enumerate(moment.operations):
+            converted_layers = self._convert_operation(
+                cirq=cirq,
+                operation=operation,
+                qubit_ids=qubit_ids,
+                measurement_slots=measurement_slots,
+                measurement_key_targets=measurement_key_targets,
+                operation_key=(moment_index, operation_index),
+                grouping=grouping,
+                composite_mode=composite_mode,
+                explicit_matrices=explicit_matrices,
+                diagnostics=diagnostics,
+            )
+            for layer_index, converted_layer in enumerate(converted_layers):
+                while len(grouped_operations) <= layer_index:
+                    grouped_operations.append([])
+                    layer_metadata.append(dict(converted_layer.metadata))
+                grouped_operations[layer_index].extend(converted_layer.operations)
+                layer_metadata[layer_index].update(converted_layer.metadata)
+        return tuple(
+            SemanticLayerIR(operations=operations, metadata=metadata)
+            for operations, metadata in zip(grouped_operations, layer_metadata, strict=True)
         )
 
     def _collect_measurement_targets(
@@ -174,11 +231,13 @@ class CirqAdapter(BaseAdapter):
         measurement_slots: dict[tuple[int, ...], tuple[tuple[str, str], ...]],
         measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
         operation_key: tuple[int, ...],
+        grouping: str,
         composite_mode: str,
         explicit_matrices: bool,
-    ) -> list[OperationIR | MeasurementIR]:
+        diagnostics: list[RenderDiagnostic],
+    ) -> tuple[SemanticLayerIR, ...]:
         if self._is_measurement(operation):
-            converted: list[OperationIR | MeasurementIR] = []
+            converted: list[SemanticOperationIR] = []
             slot_targets = measurement_slots.get(operation_key)
             if slot_targets is None:
                 raise UnsupportedOperationError(
@@ -190,15 +249,28 @@ class CirqAdapter(BaseAdapter):
                 strict=True,
             ):
                 converted.append(
-                    MeasurementIR(
+                    SemanticOperationIR(
                         kind=OperationKind.MEASUREMENT,
                         name="M",
                         target_wires=(qubit_ids[qubit],),
                         classical_target=classical_target,
+                        hover_details=normalized_detail_lines(f"group: {grouping}"),
+                        provenance=semantic_provenance(
+                            framework=self.framework_name,
+                            native_name="MeasurementGate",
+                            native_kind="measurement",
+                            grouping=grouping,
+                            location=operation_key,
+                        ),
                         metadata={"classical_bit_label": classical_bit_label},
                     )
                 )
-            return converted
+            return (
+                SemanticLayerIR(
+                    operations=tuple(converted),
+                    metadata={"native_group": grouping},
+                ),
+            )
 
         if isinstance(operation, cirq.ClassicallyControlledOperation):
             base_operation = cast(
@@ -216,44 +288,119 @@ class CirqAdapter(BaseAdapter):
                 measurement_slots=measurement_slots,
                 measurement_key_targets=measurement_key_targets,
                 operation_key=operation_key,
+                grouping=grouping,
                 composite_mode=composite_mode,
                 explicit_matrices=explicit_matrices,
+                diagnostics=diagnostics,
             )
-            return [append_classical_conditions(node, conditions) for node in converted]
+            conditioned_layers: list[SemanticLayerIR] = []
+            condition_details = tuple(
+                f"conditional on: {condition.expression}" for condition in conditions
+            )
+            for layer in converted:
+                conditioned_layers.append(
+                    SemanticLayerIR(
+                        operations=tuple(
+                            replace(
+                                append_semantic_classical_conditions(node, conditions),
+                                hover_details=(*node.hover_details, *condition_details),
+                            )
+                            for node in layer.operations
+                        ),
+                        metadata=layer.metadata,
+                    )
+                )
+            return tuple(conditioned_layers)
 
         if isinstance(operation, cirq.CircuitOperation):
             if composite_mode == "expand":
-                nested_operations = (
-                    (nested_moment_index, nested_operation_index, nested_operation)
-                    for nested_moment_index, moment in enumerate(operation.mapped_circuit())
-                    for nested_operation_index, nested_operation in enumerate(moment.operations)
-                )
-                return expand_operation_sequence(
-                    nested_operations,
-                    lambda item: self._convert_operation(
-                        cirq=cirq,
-                        operation=item[2],
-                        qubit_ids=qubit_ids,
-                        measurement_slots=measurement_slots,
-                        measurement_key_targets=measurement_key_targets,
-                        operation_key=(*operation_key, item[0], item[1]),
-                        composite_mode=composite_mode,
-                        explicit_matrices=explicit_matrices,
+                nested_layers: list[SemanticLayerIR] = []
+                nested_grouping = f"{grouping}/CircuitOperation[{operation_key[-1]}]"
+                for nested_moment_index, nested_moment in enumerate(operation.mapped_circuit()):
+                    nested_layers.extend(
+                        self._convert_moment(
+                            cirq=cirq,
+                            moment=nested_moment,
+                            qubit_ids=qubit_ids,
+                            measurement_slots=measurement_slots,
+                            measurement_key_targets=measurement_key_targets,
+                            moment_index=operation_key[0],
+                            grouping=f"{nested_grouping}/moment[{nested_moment_index}]",
+                            composite_mode=composite_mode,
+                            explicit_matrices=explicit_matrices,
+                            diagnostics=diagnostics,
+                        )
+                    )
+                lowered_layers: list[SemanticLayerIR] = []
+                for nested_layer in nested_layers:
+                    lowered_layers.append(
+                        SemanticLayerIR(
+                            operations=tuple(
+                                replace(
+                                    node,
+                                    hover_details=(
+                                        *node.hover_details,
+                                        *normalized_detail_lines(
+                                            "decomposed from: CircuitOperation",
+                                        ),
+                                    ),
+                                    provenance=semantic_provenance(
+                                        framework=self.framework_name,
+                                        native_name=node.provenance.native_name or node.name,
+                                        native_kind=node.provenance.native_kind,
+                                        grouping=node.provenance.grouping,
+                                        decomposition_origin="CircuitOperation",
+                                        composite_label="CircuitOperation",
+                                        location=node.provenance.location,
+                                    ),
+                                )
+                                for node in nested_layer.operations
+                            ),
+                            metadata=nested_layer.metadata,
+                        )
+                    )
+                return tuple(lowered_layers)
+            diagnostics.append(
+                RenderDiagnostic(
+                    code="cirq_circuit_operation_compact_render",
+                    message=(
+                        "Rendered a Cirq CircuitOperation as one compact box; "
+                        "use composite_mode='expand' to preserve inner structure."
                     ),
+                    severity=DiagnosticSeverity.INFO,
                 )
-            return [
-                OperationIR(
-                    kind=OperationKind.GATE,
-                    name=operation.__class__.__name__,
-                    label=operation.__class__.__name__,
-                    target_wires=tuple(qubit_ids[qubit] for qubit in operation.qubits),
-                    metadata=self._matrix_metadata(
-                        cirq=cirq,
-                        operation=operation,
-                        explicit_matrices=explicit_matrices,
+            )
+            return (
+                SemanticLayerIR(
+                    operations=(
+                        SemanticOperationIR(
+                            kind=OperationKind.GATE,
+                            name=operation.__class__.__name__,
+                            label=operation.__class__.__name__,
+                            target_wires=tuple(qubit_ids[qubit] for qubit in operation.qubits),
+                            annotations=("CircuitOperation",),
+                            hover_details=normalized_detail_lines(
+                                f"group: {grouping}",
+                                "native: CircuitOperation",
+                            ),
+                            provenance=semantic_provenance(
+                                framework=self.framework_name,
+                                native_name="CircuitOperation",
+                                native_kind="composite",
+                                grouping=grouping,
+                                composite_label="CircuitOperation",
+                                location=operation_key,
+                            ),
+                            metadata=self._matrix_metadata(
+                                cirq=cirq,
+                                operation=operation,
+                                explicit_matrices=explicit_matrices,
+                            ),
+                        ),
                     ),
-                )
-            ]
+                    metadata={"native_group": grouping},
+                ),
+            )
 
         gate = getattr(operation, "gate", None)
         class_name = (
@@ -270,88 +417,142 @@ class CirqAdapter(BaseAdapter):
             canonical_gate, parameters = self._canonical_gate_for_operation(
                 controlled_operation.sub_operation
             )
-            return [
-                OperationIR(
-                    kind=OperationKind.CONTROLLED_GATE,
-                    name=canonical_gate.label,
-                    canonical_family=canonical_gate.family,
-                    target_wires=targets,
-                    control_wires=controls,
-                    parameters=parameters,
-                    metadata=self._matrix_metadata(
-                        cirq=cirq,
-                        operation=operation,
-                        explicit_matrices=explicit_matrices,
-                    ),
-                )
-            ]
+            return self._semantic_gate_layer(
+                kind=OperationKind.CONTROLLED_GATE,
+                name=canonical_gate.label,
+                canonical_family=canonical_gate.family,
+                target_wires=targets,
+                control_wires=controls,
+                parameters=parameters,
+                grouping=grouping,
+                operation_key=operation_key,
+                native_name=self._raw_operation_name(controlled_operation.sub_operation),
+                native_kind="controlled_operation",
+                matrix_metadata=self._matrix_metadata(
+                    cirq=cirq,
+                    operation=operation,
+                    explicit_matrices=explicit_matrices,
+                ),
+            )
 
         if class_name in {"cxpowgate", "cnotpowgate", "ccxpowgate"}:
             control_count = (
                 1 if class_name in {"cxpowgate", "cnotpowgate"} else len(target_wires) - 1
             )
             canonical_gate = canonical_gate_spec("CNOT" if control_count == 1 else "TOFFOLI")
-            return [
-                OperationIR(
-                    kind=OperationKind.CONTROLLED_GATE,
-                    name=canonical_gate.label,
-                    canonical_family=canonical_gate.family,
-                    target_wires=(target_wires[-1],),
-                    control_wires=target_wires[:control_count],
-                    parameters=self._extract_parameters(gate),
-                    metadata=self._matrix_metadata(
-                        cirq=cirq,
-                        operation=operation,
-                        explicit_matrices=explicit_matrices,
-                    ),
-                )
-            ]
-        if class_name == "czpowgate":
-            canonical_gate = canonical_gate_spec("CZ")
-            return [
-                OperationIR(
-                    kind=OperationKind.CONTROLLED_GATE,
-                    name=canonical_gate.label,
-                    canonical_family=canonical_gate.family,
-                    target_wires=(target_wires[1],),
-                    control_wires=(target_wires[0],),
-                    parameters=self._extract_parameters(gate),
-                    metadata=self._matrix_metadata(
-                        cirq=cirq,
-                        operation=operation,
-                        explicit_matrices=explicit_matrices,
-                    ),
-                )
-            ]
-        if class_name == "swappowgate":
-            return [
-                OperationIR(
-                    kind=OperationKind.SWAP,
-                    name="SWAP",
-                    target_wires=target_wires,
-                    metadata=self._matrix_metadata(
-                        cirq=cirq,
-                        operation=operation,
-                        explicit_matrices=explicit_matrices,
-                    ),
-                )
-            ]
-
-        canonical_gate, parameters = self._canonical_gate_for_operation(operation)
-        return [
-            OperationIR(
-                kind=OperationKind.GATE,
+            return self._semantic_gate_layer(
+                kind=OperationKind.CONTROLLED_GATE,
                 name=canonical_gate.label,
                 canonical_family=canonical_gate.family,
-                target_wires=target_wires,
-                parameters=parameters,
-                metadata=self._matrix_metadata(
+                target_wires=(target_wires[-1],),
+                control_wires=target_wires[:control_count],
+                parameters=self._extract_parameters(gate),
+                grouping=grouping,
+                operation_key=operation_key,
+                native_name=self._raw_operation_name(operation),
+                native_kind="controlled_gate",
+                matrix_metadata=self._matrix_metadata(
                     cirq=cirq,
                     operation=operation,
                     explicit_matrices=explicit_matrices,
                 ),
             )
-        ]
+        if class_name == "czpowgate":
+            canonical_gate = canonical_gate_spec("CZ")
+            return self._semantic_gate_layer(
+                kind=OperationKind.CONTROLLED_GATE,
+                name=canonical_gate.label,
+                canonical_family=canonical_gate.family,
+                target_wires=(target_wires[1],),
+                control_wires=(target_wires[0],),
+                parameters=self._extract_parameters(gate),
+                grouping=grouping,
+                operation_key=operation_key,
+                native_name=self._raw_operation_name(operation),
+                native_kind="controlled_gate",
+                matrix_metadata=self._matrix_metadata(
+                    cirq=cirq,
+                    operation=operation,
+                    explicit_matrices=explicit_matrices,
+                ),
+            )
+        if class_name == "swappowgate":
+            return self._semantic_gate_layer(
+                kind=OperationKind.SWAP,
+                name="SWAP",
+                canonical_family=canonical_gate_spec("SWAP").family,
+                target_wires=target_wires,
+                control_wires=(),
+                parameters=(),
+                grouping=grouping,
+                operation_key=operation_key,
+                native_name=self._raw_operation_name(operation),
+                native_kind="swap",
+                matrix_metadata=self._matrix_metadata(
+                    cirq=cirq,
+                    operation=operation,
+                    explicit_matrices=explicit_matrices,
+                ),
+            )
+
+        canonical_gate, parameters = self._canonical_gate_for_operation(operation)
+        return self._semantic_gate_layer(
+            kind=OperationKind.GATE,
+            name=canonical_gate.label,
+            canonical_family=canonical_gate.family,
+            target_wires=target_wires,
+            control_wires=(),
+            parameters=parameters,
+            grouping=grouping,
+            operation_key=operation_key,
+            native_name=self._raw_operation_name(operation),
+            native_kind="gate",
+            matrix_metadata=self._matrix_metadata(
+                cirq=cirq,
+                operation=operation,
+                explicit_matrices=explicit_matrices,
+            ),
+        )
+
+    def _semantic_gate_layer(
+        self,
+        *,
+        kind: OperationKind,
+        name: str,
+        canonical_family: object,
+        target_wires: tuple[str, ...],
+        control_wires: tuple[str, ...],
+        parameters: tuple[object, ...],
+        grouping: str,
+        operation_key: tuple[int, ...],
+        native_name: str,
+        native_kind: str,
+        matrix_metadata: dict[str, object],
+    ) -> tuple[SemanticLayerIR, ...]:
+        return (
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=kind,
+                        name=name,
+                        canonical_family=canonical_family,
+                        target_wires=target_wires,
+                        control_wires=control_wires,
+                        parameters=parameters,
+                        hover_details=normalized_detail_lines(f"group: {grouping}"),
+                        provenance=semantic_provenance(
+                            framework=self.framework_name,
+                            native_name=native_name,
+                            native_kind=native_kind,
+                            grouping=grouping,
+                            location=operation_key,
+                        ),
+                        metadata=matrix_metadata,
+                    ),
+                ),
+                metadata={"native_group": grouping},
+            ),
+        )
 
     def _matrix_metadata(
         self,

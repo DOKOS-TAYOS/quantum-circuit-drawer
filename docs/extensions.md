@@ -66,6 +66,8 @@ Rules the public API guarantees today:
 - duplicate `framework_name` values fail by default
 - replacing an existing framework requires `replace=True`
 - `to_ir(..., options)` must accept `Mapping[str, object] | None`
+- `to_semantic_ir(..., options)` is optional and can preserve framework-native structure before lowering
+- `lower_semantic_circuit(...)` is the public lowerer from semantic IR back to `CircuitIR`
 - unknown option keys should be ignored for forward compatibility
 - the stable option keys guaranteed today are `composite_mode` and `explicit_matrices`
 
@@ -120,6 +122,68 @@ class DemoAdapter(BaseAdapter):
 
 register_adapter(DemoAdapter)
 ```
+
+Native-first adapter:
+
+```python
+from collections.abc import Mapping
+
+from quantum_circuit_drawer.adapters import BaseAdapter
+from quantum_circuit_drawer.ir import (
+    CircuitIR,
+    OperationKind,
+    SemanticCircuitIR,
+    SemanticLayerIR,
+    SemanticOperationIR,
+    WireIR,
+    WireKind,
+)
+
+
+class DemoSemanticAdapter(BaseAdapter):
+    framework_name = "demo_semantic"
+
+    @classmethod
+    def can_handle(cls, circuit: object) -> bool:
+        return isinstance(circuit, DemoCircuit)
+
+    def to_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> CircuitIR:
+        raise AssertionError("This adapter expects the semantic path")
+
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR:
+        del circuit, options
+        return SemanticCircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+            layers=[
+                SemanticLayerIR(
+                    operations=[
+                        SemanticOperationIR(
+                            kind=OperationKind.GATE,
+                            name="H",
+                            target_wires=("q0",),
+                            annotations=("native: demo_semantic",),
+                        )
+                    ]
+                )
+            ],
+            metadata={"framework": "demo_semantic"},
+        )
+```
+
+Use `to_semantic_ir(...)` when the framework has native grouping or provenance that should survive comparison, diagnostics, hover, or annotations. The drawer still lowers that semantic model into `CircuitIR` before layout and rendering, so existing layouts and renderer integrations stay reusable.
+
+That means both adapter styles remain valid extension points:
+
+- legacy adapters emit `CircuitIR` directly through `to_ir(...)`
+- richer adapters emit semantic IR first and rely on `lower_semantic_circuit(...)` for the shared render path
 
 Explicit use:
 
@@ -226,4 +290,5 @@ draw_quantum_circuit(
 
 - If you only need one new input type, start with one adapter and reuse the built-in layout engines.
 - If your circuit source is already converted upstream, prefer `CircuitIR` over a full adapter.
+- If your framework has native composites, moments, or conditional semantics, prefer `to_semantic_ir(...)` over flattening everything inside `to_ir(...)`.
 - If you want to override a built-in framework adapter, use `replace=True` and keep the original `framework_name`.

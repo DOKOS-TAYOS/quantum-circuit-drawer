@@ -11,6 +11,8 @@ from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import LayoutError, UnsupportedFrameworkError
 from ..hover import HoverOptions, normalize_hover
 from ..ir.circuit import CircuitIR
+from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_ir
+from ..ir.semantic import SemanticCircuitIR
 from ..style import DrawStyle, normalize_style
 from ..topology import (
     HardwareTopology,
@@ -39,6 +41,7 @@ class PreparedDrawPipeline:
 
     normalized_style: DrawStyle
     ir: CircuitIR
+    semantic_ir: SemanticCircuitIR
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     paged_scene: LayoutScene | LayoutScene3D
     renderer: BaseRenderer
@@ -81,11 +84,23 @@ def prepare_draw_pipeline(
     resolved_circuit, resolved_framework = _resolve_qasm_input(circuit, framework)
     if isinstance(resolved_circuit, CircuitIR) and resolved_framework in {None, "ir"}:
         ir = resolved_circuit
+        semantic_ir = semantic_circuit_from_circuit_ir(ir)
         adapter_name = "IRAdapter(fast-path)"
         detected_framework = "ir"
     else:
         adapter = get_adapter(resolved_circuit, resolved_framework)
-        ir = adapter.to_ir(resolved_circuit, options=adapter_options)
+        to_semantic_ir = getattr(adapter, "to_semantic_ir", None)
+        semantic_ir = (
+            to_semantic_ir(resolved_circuit, options=adapter_options)
+            if callable(to_semantic_ir)
+            else None
+        )
+        if semantic_ir is None:
+            ir = adapter.to_ir(resolved_circuit, options=adapter_options)
+            semantic_ir = semantic_circuit_from_circuit_ir(ir)
+        else:
+            ir = lower_semantic_circuit(semantic_ir)
+            pipeline_diagnostics.extend(semantic_ir.diagnostics)
         adapter_name = type(adapter).__name__
         detected_framework = resolved_framework or adapter.framework_name
         raw_diagnostics = ir.metadata.get("diagnostics", ())
@@ -144,6 +159,7 @@ def prepare_draw_pipeline(
     return PreparedDrawPipeline(
         normalized_style=normalized_style,
         ir=ir,
+        semantic_ir=semantic_ir,
         layout_engine=layout_engine,
         paged_scene=paged_scene,
         renderer=renderer,

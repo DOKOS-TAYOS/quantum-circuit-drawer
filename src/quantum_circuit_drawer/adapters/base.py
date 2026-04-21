@@ -9,6 +9,7 @@ from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR
 from ..ir.packing import pack_operation_nodes
+from ..ir.semantic import SemanticCircuitIR
 
 OperationNode = OperationIR | MeasurementIR
 
@@ -38,6 +39,20 @@ class BaseAdapter(ABC):
         public API guarantees today are ``"composite_mode"`` and
         ``"explicit_matrices"``.
         """
+
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR | None:
+        """Optionally convert a framework object into semantic IR first.
+
+        Adapters that do not override this method continue to work through the
+        legacy ``to_ir(...)`` path without any behavior change.
+        """
+
+        del circuit, options
+        return None
 
     def pack_operations(self, operations: Iterable[OperationNode]) -> tuple[LayerIR, ...]:
         """Pack operations into drawable layers without wire collisions.

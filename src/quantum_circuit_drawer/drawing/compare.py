@@ -10,6 +10,12 @@ from ..config import DrawConfig, DrawMode
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
+from ..ir.semantic import (
+    SemanticCircuitIR,
+    SemanticLayerIR,
+    SemanticOperationIR,
+    semantic_operation_signature,
+)
 from ..managed.rendering import render_draw_pipeline_on_axes
 from ..renderers._render_support import save_rendered_figure, show_figure_if_supported
 from .preparation import INTERACTIVE_COMPARE_MODES, prepare_draw_call
@@ -89,6 +95,8 @@ def compare_circuits(
     metrics, diff_summary = circuit_compare_metrics(
         left_prepared.pipeline.ir,
         right_prepared.pipeline.ir,
+        left_semantic=left_prepared.pipeline.semantic_ir,
+        right_semantic=right_prepared.pipeline.semantic_ir,
     )
     if resolved_compare_config.highlight_differences:
         highlight_compare_columns(
@@ -183,11 +191,22 @@ def shared_figure_for_compare_axes(left_axes: Axes, right_axes: Axes) -> Figure:
 def circuit_compare_metrics(
     left_ir: CircuitIR,
     right_ir: CircuitIR,
+    *,
+    left_semantic: SemanticCircuitIR | None = None,
+    right_semantic: SemanticCircuitIR | None = None,
 ) -> tuple[CircuitCompareMetrics, CircuitCompareDiffSummary]:
     """Compute comparison metrics and differing layer indices for two circuits."""
 
-    left_layer_signatures = tuple(layer_signature(left_ir, layer) for layer in left_ir.layers)
-    right_layer_signatures = tuple(layer_signature(right_ir, layer) for layer in right_ir.layers)
+    resolved_left_semantic = left_semantic or _semantic_from_ir(left_ir)
+    resolved_right_semantic = right_semantic or _semantic_from_ir(right_ir)
+    left_layer_signatures = tuple(
+        semantic_layer_signature(resolved_left_semantic, layer)
+        for layer in resolved_left_semantic.layers
+    )
+    right_layer_signatures = tuple(
+        semantic_layer_signature(resolved_right_semantic, layer)
+        for layer in resolved_right_semantic.layers
+    )
     common_layer_count = min(len(left_layer_signatures), len(right_layer_signatures))
     differing_layer_indices = tuple(
         layer_index
@@ -196,8 +215,8 @@ def circuit_compare_metrics(
     )
     left_only_layer_indices = tuple(range(common_layer_count, len(left_layer_signatures)))
     right_only_layer_indices = tuple(range(common_layer_count, len(right_layer_signatures)))
-    left_stats = circuit_stats(left_ir)
-    right_stats = circuit_stats(right_ir)
+    left_stats = semantic_circuit_stats(resolved_left_semantic)
+    right_stats = semantic_circuit_stats(resolved_right_semantic)
     metrics = CircuitCompareMetrics(
         left_layer_count=left_stats.layer_count,
         right_layer_count=right_stats.layer_count,
@@ -239,8 +258,36 @@ def circuit_stats(circuit: CircuitIR) -> _CircuitStats:
     )
 
 
+def semantic_circuit_stats(circuit: SemanticCircuitIR) -> _CircuitStats:
+    """Compute aggregate statistics for semantic-circuit comparison output."""
+
+    operations = tuple(operation for layer in circuit.layers for operation in layer.operations)
+    return _CircuitStats(
+        layer_count=len(circuit.layers),
+        operation_count=len(operations),
+        multi_qubit_count=sum(
+            1 for operation in operations if is_multi_qubit_semantic_operation(operation)
+        ),
+        measurement_count=sum(
+            1 for operation in operations if operation.kind is OperationKind.MEASUREMENT
+        ),
+        swap_count=sum(1 for operation in operations if operation.kind is OperationKind.SWAP),
+    )
+
+
 def is_multi_qubit_operation(operation: OperationIR | MeasurementIR) -> bool:
     """Return whether one operation spans multiple quantum wires."""
+
+    quantum_wire_ids = tuple(dict.fromkeys((*operation.control_wires, *operation.target_wires)))
+    if operation.kind is OperationKind.MEASUREMENT:
+        return len(tuple(operation.target_wires)) > 1
+    if operation.kind is OperationKind.BARRIER:
+        return False
+    return len(quantum_wire_ids) > 1
+
+
+def is_multi_qubit_semantic_operation(operation: SemanticOperationIR) -> bool:
+    """Return whether one semantic operation spans multiple quantum wires."""
 
     quantum_wire_ids = tuple(dict.fromkeys((*operation.control_wires, *operation.target_wires)))
     if operation.kind is OperationKind.MEASUREMENT:
@@ -258,6 +305,18 @@ def layer_signature(
 
     wire_indices = {wire.id: wire.index for wire in circuit.all_wires}
     return tuple(operation_signature(operation, wire_indices) for operation in layer.operations)
+
+
+def semantic_layer_signature(
+    circuit: SemanticCircuitIR,
+    layer: SemanticLayerIR,
+) -> tuple[tuple[object, ...], ...]:
+    """Build a stable signature for one semantic IR layer."""
+
+    wire_indices = {wire.id: wire.index for wire in circuit.all_wires}
+    return tuple(
+        semantic_operation_signature(operation, wire_indices) for operation in layer.operations
+    )
 
 
 def operation_signature(
@@ -284,6 +343,12 @@ def operation_signature(
         tuple(wire_indices[wire_id] for wire_id in operation.control_wires),
         measurement_target,
     )
+
+
+def _semantic_from_ir(circuit: CircuitIR) -> SemanticCircuitIR:
+    from ..ir.lowering import semantic_circuit_from_circuit_ir
+
+    return semantic_circuit_from_circuit_ir(circuit)
 
 
 def highlight_compare_columns(

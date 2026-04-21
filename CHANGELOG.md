@@ -6,6 +6,8 @@
 
 - Added project-managed `pyright` support in the `dev` extra and CI so static type checking no longer depends on a globally installed tool
 - Added Windows-safe Cirq adapter contract tests based on stubbed circuits so optional adapter coverage still runs even when the real dependency is unavailable
+- Added Windows-safe PennyLane adapter contract tests for tape wrappers, safe prebuilt `._tape` inputs, conditional operations, and composite expansion coverage
+- Added a public semantic IR layer under `quantum_circuit_drawer.ir`, plus an explicit lowerer back into `CircuitIR`, so richer adapters can preserve native grouping and provenance before rendering
 - Added `plot_histogram` with public `HistogramConfig`, `HistogramKind`, and `HistogramResult` types for counts, quasi-probabilities, and joint marginals on selected qubits
 - Added support for histogram inputs from plain mappings and Qiskit 2.x result objects, including `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`
 - Added support for histogram inputs from Cirq `Result` / `ResultDict`, PennyLane probability vectors and sample arrays, MyQLM `qat.core.Result.raw_data`, CUDA-Q `SampleResult`-style containers, and direct mapping-like count objects
@@ -21,6 +23,9 @@
 
 - Tightened internal typing around shared example helpers, benchmark request normalization, and 2D/3D benchmark execution so `pyright` can validate the intended render flow
 - Clarified the production support matrix across the README and core docs, keeping IR and Qiskit as the strong paths, Cirq and PennyLane as best-effort on native Windows, MyQLM as scoped adapter support, and CUDA-Q as Linux/WSL2-only
+- Extended public-parity coverage for Cirq and PennyLane with Windows-safe mixed-framework compare tests and broader contract coverage for compact/expanded composite behavior
+- Reworked the Cirq and PennyLane adapter internals around a native-first semantic path, so comparison, hover, annotations, and diagnostics can preserve framework-specific meaning instead of flattening everything directly into the legacy render IR
+- Consolidated the shared adapter pipeline so richer semantic adapters and legacy `to_ir(...)` adapters coexist cleanly, which prepares future semantic migrations for MyQLM and CUDA-Q without widening their supported subset yet
 - Marked `quantum_circuit_drawer.drawing`, `managed`, and `plots` as compatibility facades that remain importable but are outside the stable public extension contract
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
 - Extended the framework guide and histogram docs so they spell out which result payloads can be passed directly from each supported framework, plus when to use `result_index`
@@ -40,6 +45,8 @@
 
 - Hardened custom topology validation and draw-style replacement typing so invalid graph-like inputs and optional style overrides fail more predictably under static and runtime checks
 - Explicit `framework="cudaq"` requests now fail with a platform-aware message that points native Windows users to Linux or WSL2 instead of a generic framework-mismatch error
+- PennyLane wrapper detection now prefers already-materialized `._tape` inputs and avoids touching lazy `.qtape` / `.tape` properties or calling `construct()` implicitly
+- `compare_circuits(...)` no longer treats visually similar but semantically different native adapter paths as identical once semantic provenance is available
 - Example and benchmark helpers now validate builder callability earlier and clean up rendered Matplotlib figures more defensively after demo execution
 - Tightened public config validation so boolean values are no longer accepted where positive numeric `figsize`, `top_k`, `result_index`, qubit-index, or hover matrix limits are required
 - `HoverOptions` now validates direct construction the same way as mapping-based hover input, preventing invalid booleans and unsupported `show_matrix` values from slipping through

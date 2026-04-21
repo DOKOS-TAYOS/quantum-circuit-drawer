@@ -32,6 +32,7 @@ class SceneHoverData:
     gate_y: float
     gate_width: float
     gate_height: float
+    details: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)

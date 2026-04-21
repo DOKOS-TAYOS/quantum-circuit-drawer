@@ -67,7 +67,7 @@ Install only the extras you need.
 | --- | --- | --- |
 | `qiskit` | `quantum-circuit-drawer[qiskit]` | Draw `qiskit.QuantumCircuit` objects |
 | `cirq` | `quantum-circuit-drawer[cirq]` | Draw `cirq.Circuit` objects |
-| `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tape-like objects |
+| `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tapes and wrappers with a materialized tape |
 | `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit` objects, usually produced by `Program().to_circ()` |
 | `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported closed CUDA-Q kernels on Linux or WSL2 |
 

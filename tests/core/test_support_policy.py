@@ -50,11 +50,45 @@ def test_api_and_extension_docs_freeze_internal_facades_outside_public_contract(
     extensions_reference = Path("docs/extensions.md").read_text(encoding="utf-8")
 
     assert "Internal compatibility facades" in api_reference
+    assert "`quantum_circuit_drawer.ir`" in api_reference
+    assert "`lower_semantic_circuit(...)`" in api_reference
     assert "`quantum_circuit_drawer.drawing`" in api_reference
     assert "`quantum_circuit_drawer.managed`" in api_reference
     assert "`quantum_circuit_drawer.plots`" in api_reference
     assert "compatibility facades" in extensions_reference
     assert "not stable extension points" in extensions_reference
+    assert "`to_semantic_ir(..., options)` is optional" in extensions_reference
+    assert "`lower_semantic_circuit(...)`" in extensions_reference
+
+
+def test_pennylane_docs_describe_materialized_wrapper_contract() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+    installation_reference = Path("docs/installation.md").read_text(encoding="utf-8")
+
+    assert "materialized `.qtape`, `.tape`, or `._tape`" in frameworks_reference
+    assert "does not call `construct()`" in frameworks_reference
+    assert "materialized `.qtape`, `.tape`, or `._tape`" in troubleshooting_reference
+    assert "does not call `construct()`" in troubleshooting_reference
+    assert "wrappers with a materialized tape" in installation_reference
+
+
+def test_framework_docs_describe_semantic_consolidation_scope_for_current_and_future_backends() -> (
+    None
+):
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+    changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "Cirq and PennyLane currently use the richer semantic adapter path." in (
+        frameworks_reference
+    )
+    assert "MyQLM and CUDA-Q continue through the legacy `to_ir(...)` path in this phase." in (
+        frameworks_reference
+    )
+    assert "future semantic migrations" in frameworks_reference
+    assert "legacy adapter path" in troubleshooting_reference
+    assert "future semantic migrations for MyQLM and CUDA-Q" in changelog_reference
 
 
 def test_draw_quantum_circuit_reports_cudaq_windows_platform_hint(

@@ -11,6 +11,11 @@ from quantum_circuit_drawer.adapters.base import BaseAdapter
 from quantum_circuit_drawer.adapters.registry import AdapterRegistry
 from quantum_circuit_drawer.exceptions import LayoutError
 from quantum_circuit_drawer.ir.circuit import CircuitIR
+from quantum_circuit_drawer.ir.semantic import (
+    SemanticCircuitIR,
+    SemanticLayerIR,
+    SemanticOperationIR,
+)
 from quantum_circuit_drawer.layout import LayoutEngine, LayoutEngine3D
 from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.layout.scene_3d import LayoutScene3D
@@ -37,6 +42,53 @@ class _ExtensionAdapter(BaseAdapter):
 
 class _ReplacementExtensionAdapter(_ExtensionAdapter):
     pass
+
+
+class _SemanticExtensionAdapter(BaseAdapter):
+    framework_name = "semantic_extension_demo"
+
+    @classmethod
+    def can_handle(cls, circuit: object) -> bool:
+        return isinstance(circuit, _CustomCircuit)
+
+    def to_ir(self, circuit: object, options: dict[str, object] | None = None) -> CircuitIR:
+        del circuit, options
+        raise AssertionError("legacy to_ir() should not be used for semantic adapters")
+
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: dict[str, object] | None = None,
+    ) -> SemanticCircuitIR:
+        del circuit, options
+        sample_ir = build_sample_ir()
+        return SemanticCircuitIR(
+            quantum_wires=sample_ir.quantum_wires,
+            classical_wires=sample_ir.classical_wires,
+            layers=[
+                SemanticLayerIR(
+                    operations=[
+                        SemanticOperationIR(
+                            kind=operation.kind,
+                            name=operation.name,
+                            target_wires=operation.target_wires,
+                            control_wires=operation.control_wires,
+                            classical_conditions=operation.classical_conditions,
+                            parameters=operation.parameters,
+                            label=operation.label,
+                            canonical_family=operation.canonical_family,
+                            classical_target=getattr(operation, "classical_target", None),
+                            annotations=("native: semantic_extension_demo",),
+                        )
+                        for operation in layer.operations
+                    ],
+                    metadata=layer.metadata,
+                )
+                for layer in sample_ir.layers
+            ],
+            name=sample_ir.name,
+            metadata={"framework": "semantic_extension_demo"},
+        )
 
 
 class _EmptyNameAdapter(BaseAdapter):
@@ -194,6 +246,25 @@ def test_custom_adapter_draws_via_explicit_framework(
     )
 
     assert result.detected_framework == "extension_demo"
+    assert_figure_has_visible_content(result.primary_figure)
+
+    plt.close(result.primary_figure)
+
+
+def test_custom_semantic_adapter_draws_via_explicit_framework(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry_module = importlib.import_module("quantum_circuit_drawer.adapters.registry")
+    registry = AdapterRegistry()
+    monkeypatch.setattr(registry_module, "registry", registry)
+    adapters_api.register_adapter(_SemanticExtensionAdapter)
+
+    result = draw_quantum_circuit(
+        _CustomCircuit(),
+        config=DrawConfig(framework="semantic_extension_demo", mode=DrawMode.FULL, show=False),
+    )
+
+    assert result.detected_framework == "semantic_extension_demo"
     assert_figure_has_visible_content(result.primary_figure)
 
     plt.close(result.primary_figure)

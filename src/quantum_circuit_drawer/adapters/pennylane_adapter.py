@@ -1,26 +1,32 @@
-"""PennyLane adapter with conservative MVP support."""
+"""PennyLane adapter."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
+from inspect import getattr_static
 from typing import Protocol, cast
 
 from ..exceptions import UnsupportedFrameworkError, UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
-from ..ir.measurements import MeasurementIR
-from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
+from ..ir.lowering import lower_semantic_circuit
+from ..ir.operations import CanonicalGateFamily, OperationKind
+from ..ir.semantic import SemanticCircuitIR, SemanticOperationIR, pack_semantic_operations
 from ..ir.wires import WireIR, WireKind
 from ..utils.matrix_support import square_matrix
 from ._helpers import (
-    append_classical_conditions,
+    append_semantic_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
     expand_operation_sequence,
     extract_dependency_types,
     is_expected_matrix_unavailable_error,
+    normalized_detail_lines,
     resolve_composite_mode,
     resolve_explicit_matrices,
+    resolve_wire_ids,
+    semantic_provenance,
     sequential_bit_labels,
 )
 from .base import BaseAdapter
@@ -55,16 +61,22 @@ class PennyLaneAdapter(BaseAdapter):
         )
         if tape_types and isinstance(circuit, tape_types):
             return True
-        return any(
-            _looks_like_tape(getattr(circuit, attribute, None))
-            for attribute in ("qtape", "tape", "_tape")
-        )
+        return any(_looks_like_tape(tape) for tape in _safe_wrapped_tape_candidates(circuit))
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
+        semantic_ir = self.to_semantic_ir(circuit, options=options)
+        assert semantic_ir is not None
+        return lower_semantic_circuit(semantic_ir)
+
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR:
         tape = self._extract_tape(circuit)
         composite_mode = resolve_composite_mode(options)
         explicit_matrices = resolve_explicit_matrices(options)
-        wire_ids = {wire: f"q{index}" for index, wire in enumerate(tape.wires)}
+        wire_ids = resolve_wire_ids(tuple(tape.wires), prefix="q")
         quantum_wires = [
             WireIR(id=wire_ids[wire], index=index, kind=WireKind.QUANTUM, label=str(wire))
             for index, wire in enumerate(tape.wires)
@@ -87,9 +99,9 @@ class PennyLaneAdapter(BaseAdapter):
             for index, operation in enumerate(mid_measure_operations)
         }
 
-        sequential_operations: list[OperationIR | MeasurementIR] = []
+        semantic_operations: list[SemanticOperationIR] = []
         for operation in tape.operations:
-            sequential_operations.extend(
+            semantic_operations.extend(
                 self._convert_operation(
                     operation,
                     wire_ids,
@@ -99,26 +111,37 @@ class PennyLaneAdapter(BaseAdapter):
                 )
             )
 
-        terminal_measurement_operations: list[MeasurementIR] = []
+        terminal_measurement_operations: list[SemanticOperationIR] = []
         target_index = len(mid_measure_operations)
         for measured_wires in terminal_measurement_wires:
             for measured_wire in measured_wires:
                 classical_target, classical_bit_label = measurement_targets[target_index]
                 terminal_measurement_operations.append(
-                    MeasurementIR(
+                    SemanticOperationIR(
                         kind=OperationKind.MEASUREMENT,
                         name="M",
                         target_wires=(wire_ids[measured_wire],),
                         classical_target=classical_target,
+                        hover_details=normalized_detail_lines(
+                            f"terminal measurement on: {measured_wire}"
+                        ),
+                        provenance=semantic_provenance(
+                            framework=self.framework_name,
+                            native_name="terminal_measurement",
+                            native_kind="measurement",
+                            location=(target_index,),
+                        ),
                         metadata={"classical_bit_label": classical_bit_label},
                     )
                 )
                 target_index += 1
 
-        return CircuitIR(
+        return SemanticCircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
-            layers=self.pack_operations((*sequential_operations, *terminal_measurement_operations)),
+            layers=pack_semantic_operations(
+                (*semantic_operations, *terminal_measurement_operations)
+            ),
             metadata={"framework": self.framework_name},
         )
 
@@ -130,18 +153,13 @@ class PennyLaneAdapter(BaseAdapter):
         return tuple(measurement.wires) or tuple(tape_wires)
 
     def _extract_tape(self, circuit: object) -> _PennyLaneTapeLike:
-        if not self.can_handle(circuit):
-            raise UnsupportedFrameworkError(
-                "PennyLane support in v0.1 expects a QuantumTape/QuantumScript or an object exposing .qtape/.tape"
-            )
-        for attribute in ("qtape", "tape", "_tape"):
-            tape = getattr(circuit, attribute, None)
-            if _looks_like_tape(tape):
-                return cast(_PennyLaneTapeLike, tape)
         if _looks_like_tape(circuit):
             return cast(_PennyLaneTapeLike, circuit)
+        for tape in _safe_wrapped_tape_candidates(circuit):
+            if _looks_like_tape(tape):
+                return cast(_PennyLaneTapeLike, tape)
         raise UnsupportedFrameworkError(
-            "PennyLane support in v0.1 expects a QuantumTape/QuantumScript or an object exposing .qtape/.tape"
+            "PennyLane support expects a QuantumTape/QuantumScript or a wrapper exposing a materialized .qtape, .tape, or ._tape"
         )
 
     def _convert_operation(
@@ -152,7 +170,8 @@ class PennyLaneAdapter(BaseAdapter):
         mid_measure_targets: dict[str, tuple[str, str]],
         composite_mode: str,
         explicit_matrices: bool,
-    ) -> list[OperationIR | MeasurementIR]:
+        decomposition_origin: str | None = None,
+    ) -> list[SemanticOperationIR]:
         if self._is_mid_measure(operation):
             if not operation.wires:
                 raise UnsupportedOperationError(
@@ -161,11 +180,17 @@ class PennyLaneAdapter(BaseAdapter):
             measurement_id = self._mid_measure_id(operation)
             classical_target, classical_bit_label = mid_measure_targets[measurement_id]
             return [
-                MeasurementIR(
+                SemanticOperationIR(
                     kind=OperationKind.MEASUREMENT,
                     name="M",
                     target_wires=(wire_ids[operation.wires[0]],),
                     classical_target=classical_target,
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name="MidMeasureMP",
+                        native_kind="measurement",
+                        location=(0,),
+                    ),
                     metadata={"classical_bit_label": classical_bit_label},
                 )
             ]
@@ -182,8 +207,18 @@ class PennyLaneAdapter(BaseAdapter):
                 mid_measure_targets=mid_measure_targets,
                 composite_mode=composite_mode,
                 explicit_matrices=explicit_matrices,
+                decomposition_origin=decomposition_origin,
             )
-            return [append_classical_conditions(node, (condition,)) for node in converted_base]
+            return [
+                replace(
+                    append_semantic_classical_conditions(node, (condition,)),
+                    hover_details=(
+                        *node.hover_details,
+                        *normalized_detail_lines(f"conditional on: {condition.expression}"),
+                    ),
+                )
+                for node in converted_base
+            ]
 
         canonical_gate = canonical_gate_spec(
             getattr(operation, "name", operation.__class__.__name__)
@@ -199,6 +234,9 @@ class PennyLaneAdapter(BaseAdapter):
                         mid_measure_targets=mid_measure_targets,
                         composite_mode=composite_mode,
                         explicit_matrices=explicit_matrices,
+                        decomposition_origin=getattr(
+                            operation, "name", operation.__class__.__name__
+                        ),
                     ),
                 )
 
@@ -218,24 +256,53 @@ class PennyLaneAdapter(BaseAdapter):
 
         parameters = tuple(getattr(operation, "parameters", ()) or ())
         if canonical_gate.label == "SWAP":
-            return [OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=target_wires)]
+            return [
+                SemanticOperationIR(
+                    kind=OperationKind.SWAP,
+                    name="SWAP",
+                    target_wires=target_wires,
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=getattr(operation, "name", operation.__class__.__name__),
+                        native_kind="swap",
+                        decomposition_origin=decomposition_origin,
+                    ),
+                )
+            ]
         if canonical_gate.label == "BARRIER":
             return [
-                OperationIR(
+                SemanticOperationIR(
                     kind=OperationKind.BARRIER,
                     name="BARRIER",
                     target_wires=target_wires,
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=getattr(operation, "name", operation.__class__.__name__),
+                        native_kind="barrier",
+                        decomposition_origin=decomposition_origin,
+                    ),
                 )
             ]
         if control_wires:
             return [
-                OperationIR(
+                SemanticOperationIR(
                     kind=OperationKind.CONTROLLED_GATE,
                     name=canonical_gate.label,
                     canonical_family=canonical_gate.family,
                     target_wires=target_wires,
                     control_wires=control_wires,
                     parameters=parameters,
+                    hover_details=normalized_detail_lines(
+                        f"decomposed from: {decomposition_origin}"
+                        if decomposition_origin is not None
+                        else None
+                    ),
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=getattr(operation, "name", operation.__class__.__name__),
+                        native_kind="controlled_gate",
+                        decomposition_origin=decomposition_origin,
+                    ),
                     metadata=self._matrix_metadata(
                         operation,
                         explicit_matrices=explicit_matrices,
@@ -243,12 +310,23 @@ class PennyLaneAdapter(BaseAdapter):
                 )
             ]
         return [
-            OperationIR(
+            SemanticOperationIR(
                 kind=OperationKind.GATE,
                 name=canonical_gate.label,
                 canonical_family=canonical_gate.family,
                 target_wires=target_wires,
                 parameters=parameters,
+                hover_details=normalized_detail_lines(
+                    f"decomposed from: {decomposition_origin}"
+                    if decomposition_origin is not None
+                    else None
+                ),
+                provenance=semantic_provenance(
+                    framework=self.framework_name,
+                    native_name=getattr(operation, "name", operation.__class__.__name__),
+                    native_kind="gate",
+                    decomposition_origin=decomposition_origin,
+                ),
                 metadata=self._matrix_metadata(
                     operation,
                     explicit_matrices=explicit_matrices,
@@ -353,3 +431,26 @@ def _looks_like_tape(candidate: object | None) -> bool:
     return all(
         hasattr(candidate, attribute) for attribute in ("wires", "operations", "measurements")
     )
+
+
+def _safe_wrapped_tape_candidates(circuit: object) -> tuple[object, ...]:
+    candidates: list[object] = []
+    for attribute in ("_tape", "qtape", "tape"):
+        candidate = _safe_materialized_attribute(circuit, attribute)
+        if candidate is _MISSING_ATTRIBUTE:
+            continue
+        candidates.append(candidate)
+    return tuple(candidates)
+
+
+_MISSING_ATTRIBUTE = object()
+
+
+def _safe_materialized_attribute(circuit: object, attribute: str) -> object:
+    try:
+        candidate = getattr_static(circuit, attribute)
+    except AttributeError:
+        return _MISSING_ATTRIBUTE
+    if isinstance(candidate, property):
+        return _MISSING_ATTRIBUTE
+    return candidate

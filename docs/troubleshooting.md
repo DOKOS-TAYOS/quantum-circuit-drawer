@@ -56,6 +56,8 @@ Use this table to decide whether an issue is inside the strong support path or o
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
+At the moment, Cirq and PennyLane are the richer semantic-adapter paths. MyQLM and CUDA-Q still use the legacy adapter path while that shared base is being prepared for future migrations.
+
 ## Cirq or PennyLane demos are slow or unstable on native Windows
 
 On native Windows, Cirq and PennyLane can still hit upstream SciPy/HiGHS issues during import or shutdown. This project now skips eager exact-matrix extraction for those demo paths by default on Windows, so startup should be lighter than before, but the underlying framework instability can still appear.
@@ -65,6 +67,13 @@ Try this first:
 - Re-run the same demo in WSL or Linux if you need the most reliable behavior.
 - On native Windows, keep the default hover-matrix mode (`auto`) or use `never` for the lightest path.
 - Only use `--hover-matrix always` when you really need exact framework matrices in the tooltip.
+
+For PennyLane wrappers and QNode-like objects:
+
+- Pass a `QuantumTape` / `QuantumScript` directly when possible.
+- Wrapper objects are supported only when they already expose a materialized `.qtape`, `.tape`, or `._tape`.
+- The adapter does not call `construct()` or trigger lazy wrapper properties implicitly.
+- When a Cirq or PennyLane-native construct has no exact shared drawing primitive, the library keeps that native meaning in hover details, annotations, comparison, or diagnostics instead of silently flattening it away.
 
 ## CUDA-Q does not install on Windows
 

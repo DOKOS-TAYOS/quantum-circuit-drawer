@@ -64,6 +64,7 @@ def build_hover_data(
         name=name,
         qubit_labels=qubit_labels,
         other_wire_labels=other_wire_labels,
+        details=_hover_details(operation),
         matrix=matrix,
         matrix_dimension=matrix_dimension,
         gate_x=gate_x,
@@ -158,3 +159,10 @@ def hover_name(
     if control_count == 2 and operation.canonical_family is CanonicalGateFamily.X:
         return "TOFFOLI"
     return f"{'C' * control_count}{display_name}"
+
+
+def _hover_details(operation: OperationIR | MeasurementIR) -> tuple[str, ...]:
+    raw_details = operation.metadata.get("hover_details", ())
+    if not isinstance(raw_details, tuple | list):
+        return ()
+    return tuple(str(detail) for detail in raw_details if str(detail))

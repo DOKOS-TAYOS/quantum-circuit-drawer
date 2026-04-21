@@ -214,7 +214,10 @@ def test_pennylane_adapter_skips_framework_matrices_when_explicit_matrices_are_d
 def test_pennylane_adapter_rejects_non_tape_objects(monkeypatch: pytest.MonkeyPatch) -> None:
     install_fake_pennylane(monkeypatch)
 
-    with pytest.raises(UnsupportedFrameworkError, match=r"PennyLane support in v0\.1"):
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"PennyLane support expects .* materialized \.qtape, \.tape, or \._tape",
+    ):
         PennyLaneAdapter().to_ir(object())
 
 
@@ -223,7 +226,10 @@ def test_pennylane_adapter_rejects_wrappers_with_invalid_tape_payload(
 ) -> None:
     install_fake_pennylane(monkeypatch)
 
-    with pytest.raises(UnsupportedFrameworkError, match=r"PennyLane support in v0\.1"):
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"PennyLane support expects .* materialized \.qtape, \.tape, or \._tape",
+    ):
         PennyLaneAdapter().to_ir(SimpleNamespace(tape=object()))
 
 

@@ -130,6 +130,7 @@ Examples:
 For third-party extensions, the stable v1 public surface is:
 
 - `quantum_circuit_drawer.adapters` for adapter registration
+- `quantum_circuit_drawer.ir` for `CircuitIR`, semantic IR types, and `lower_semantic_circuit(...)`
 - `quantum_circuit_drawer.typing` for `LayoutEngineLike` and `LayoutEngine3DLike`
 
 The recommended public helpers for adapters are:
@@ -139,6 +140,8 @@ The recommended public helpers for adapters are:
 - `available_frameworks()`
 - `detect_framework_name(...)`
 - `get_adapter(...)`
+
+Adapter authors can stay on the legacy `to_ir(...)` path or add the richer optional `to_semantic_ir(...)` path when they need native grouping, provenance, or annotations to survive comparison and diagnostics longer.
 
 See [Extension API](extensions.md) for the supported contract, examples, and the list of public vs internal modules.
 

@@ -8,6 +8,7 @@ import pytest
 
 from quantum_circuit_drawer.adapters.cirq_adapter import CirqAdapter
 from quantum_circuit_drawer.ir.operations import OperationKind
+from quantum_circuit_drawer.ir.semantic import SemanticCircuitIR
 
 
 class FakeQubit:
@@ -77,13 +78,30 @@ class FakeClassicallyControlledOperation:
         return self._base_operation
 
 
-def install_fake_cirq(monkeypatch: pytest.MonkeyPatch) -> None:
+class CircuitOperation:
+    def __init__(
+        self,
+        mapped_circuit_value: FakeCircuit,
+        qubits: tuple[FakeQubit, ...],
+    ) -> None:
+        self._mapped_circuit_value = mapped_circuit_value
+        self.qubits = qubits
+
+    def mapped_circuit(self) -> FakeCircuit:
+        return self._mapped_circuit_value
+
+
+def install_fake_cirq(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    unitary: object | None = None,
+) -> None:
     fake_module = ModuleType("cirq")
     fake_module.Circuit = FakeCircuit
     fake_module.ClassicallyControlledOperation = FakeClassicallyControlledOperation
-    fake_module.CircuitOperation = type("CircuitOperation", (), {})
+    fake_module.CircuitOperation = CircuitOperation
     fake_module.ControlledOperation = type("ControlledOperation", (), {})
-    fake_module.unitary = lambda operation, default=None: default
+    fake_module.unitary = unitary or (lambda operation, default=None: default)
     monkeypatch.setitem(sys.modules, "cirq", fake_module)
 
 
@@ -135,3 +153,89 @@ def test_cirq_adapter_contract_converts_stubbed_classical_controls(
     assert operations[-1].name == "X"
     assert operations[-1].classical_conditions[0].wire_ids == ("c0",)
     assert operations[-1].classical_conditions[0].expression == "if c[0]=1"
+
+
+def test_cirq_adapter_contract_keeps_stubbed_circuit_operation_compact_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    nested = FakeCircuit(
+        FakeMoment(FakeOperation(HPowGate(), (q0,))),
+        FakeMoment(FakeOperation(CNotPowGate(), (q0, q1))),
+    )
+    circuit = FakeCircuit(
+        FakeMoment(CircuitOperation(nested, (q0, q1))),
+    )
+
+    ir = CirqAdapter().to_ir(circuit, options={"explicit_matrices": False})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [operation.name for operation in operations] == ["CircuitOperation"]
+
+
+def test_cirq_adapter_contract_expands_stubbed_circuit_operation_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    nested = FakeCircuit(
+        FakeMoment(FakeOperation(HPowGate(), (q0,))),
+        FakeMoment(FakeOperation(CNotPowGate(), (q0, q1))),
+    )
+    circuit = FakeCircuit(
+        FakeMoment(CircuitOperation(nested, (q0, q1))),
+    )
+
+    ir = CirqAdapter().to_ir(
+        circuit,
+        options={"composite_mode": "expand", "explicit_matrices": False},
+    )
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [operation.name for operation in operations] == ["H", "X"]
+
+
+def test_cirq_adapter_contract_skips_matrix_lookup_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def exploding_unitary(operation: object, default: object | None = None) -> object:
+        del operation, default
+        raise AssertionError("unitary lookup should not run when explicit_matrices=False")
+
+    install_fake_cirq(monkeypatch, unitary=exploding_unitary)
+    q0 = FakeQubit("q(0)")
+    circuit = FakeCircuit(FakeMoment(FakeOperation(HPowGate(), (q0,))))
+
+    ir = CirqAdapter().to_ir(circuit, options={"explicit_matrices": False})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert "matrix" not in operations[0].metadata
+
+
+def test_cirq_adapter_contract_exposes_semantic_moment_and_composite_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    nested = FakeCircuit(
+        FakeMoment(FakeOperation(HPowGate(), (q0,))),
+        FakeMoment(FakeOperation(CNotPowGate(), (q0, q1))),
+    )
+    circuit = FakeCircuit(FakeMoment(CircuitOperation(nested, (q0, q1))))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(
+        circuit,
+        options={"composite_mode": "expand", "explicit_matrices": False},
+    )
+
+    assert isinstance(semantic_ir, SemanticCircuitIR)
+    assert len(semantic_ir.layers) == 2
+    assert (
+        semantic_ir.layers[0].metadata["native_group"] == "moment[0]/CircuitOperation[0]/moment[0]"
+    )
+    assert semantic_ir.layers[0].operations[0].provenance.framework == "cirq"
+    assert semantic_ir.layers[0].operations[0].provenance.decomposition_origin == "CircuitOperation"
