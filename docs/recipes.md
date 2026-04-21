@@ -134,6 +134,23 @@ result = plot_histogram(
 )
 ```
 
+## Explore a large histogram interactively
+
+```python
+from quantum_circuit_drawer import HistogramConfig, HistogramMode, plot_histogram
+
+result = plot_histogram(
+    {format(index, "07b"): ((index * 17) % 41) + ((index * 5) % 13) + 3 for index in range(2**7)},
+    config=HistogramConfig(
+        mode=HistogramMode.INTERACTIVE,
+        show_uniform_reference=True,
+        show=False,
+    ),
+)
+```
+
+This mode keeps the full ordered distribution in `result.state_labels` and `result.values`, while the figure adds a slider viewport, per-bin hover, order cycling, and a marginal-qubits text box.
+
 ## Custom widths and hover
 
 ```python

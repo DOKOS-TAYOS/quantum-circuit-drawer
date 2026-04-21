@@ -42,6 +42,15 @@ def demo_counts_data() -> dict[str, int]:
     }
 
 
+def demo_large_counts_data(*, bit_width: int = 7) -> dict[str, int]:
+    """Return a larger deterministic counts payload across the full state space."""
+
+    return {
+        format(index, f"0{bit_width}b"): ((index * 17) % 41) + ((index * 5) % 13) + 3
+        for index in range(2**bit_width)
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class HistogramExampleRequest:
     """Normalized render request shared by histogram example scripts."""

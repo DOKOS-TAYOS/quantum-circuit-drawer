@@ -214,6 +214,7 @@ def test_histogram_demo_catalog_exposes_expected_demo_ids() -> None:
     assert demo_ids == {
         "histogram-binary-order",
         "histogram-count-order",
+        "histogram-interactive-large",
         "histogram-uniform-reference",
         "histogram-quasi",
         "histogram-marginal",
@@ -274,6 +275,7 @@ def test_run_histogram_demo_script_imports_drawer_from_local_worktree_src() -> N
     [
         "histogram-binary-order",
         "histogram-count-order",
+        "histogram-interactive-large",
         "histogram-uniform-reference",
         "histogram-quasi",
     ],

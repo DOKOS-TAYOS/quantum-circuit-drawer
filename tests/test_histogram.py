@@ -11,9 +11,11 @@ from quantum_circuit_drawer import (
     HistogramConfig,
     HistogramDrawStyle,
     HistogramKind,
+    HistogramMode,
     HistogramResult,
     HistogramSort,
 )
+from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.histogram import plot_histogram
 from quantum_circuit_drawer.style.theme import resolve_theme
 from tests.support import assert_figure_has_visible_content, assert_saved_image_has_visible_content
@@ -23,9 +25,11 @@ def test_public_package_exports_histogram_types() -> None:
     assert quantum_circuit_drawer.HistogramConfig is HistogramConfig
     assert quantum_circuit_drawer.HistogramDrawStyle is HistogramDrawStyle
     assert quantum_circuit_drawer.HistogramKind is HistogramKind
+    assert quantum_circuit_drawer.HistogramMode is HistogramMode
     assert quantum_circuit_drawer.HistogramResult is HistogramResult
     assert quantum_circuit_drawer.HistogramSort is HistogramSort
     assert HistogramConfig().kind is HistogramKind.AUTO
+    assert HistogramConfig().mode is HistogramMode.STATIC
 
 
 def test_plot_histogram_returns_histogram_result_for_counts_dict() -> None:
@@ -184,6 +188,18 @@ def test_plot_histogram_sorts_by_value_descending_with_state_tiebreak() -> None:
     plt.close(result.figure)
 
 
+def test_plot_histogram_sorts_by_state_descending() -> None:
+    result = plot_histogram(
+        {"01": 5, "10": 5, "00": 7, "11": 2},
+        config=HistogramConfig(show=False, sort=HistogramSort.STATE_DESC),
+    )
+
+    assert result.state_labels == ("11", "10", "01", "00")
+    assert result.values == (2.0, 5.0, 5.0, 7.0)
+
+    plt.close(result.figure)
+
+
 def test_plot_histogram_sorts_by_value_ascending_with_state_tiebreak() -> None:
     result = plot_histogram(
         {"01": 5, "10": 5, "00": 7, "11": 2},
@@ -216,6 +232,34 @@ def test_plot_histogram_limits_to_top_k_after_sorting() -> None:
 def test_plot_histogram_rejects_non_positive_top_k() -> None:
     with pytest.raises(ValueError, match="top_k must be a positive integer"):
         HistogramConfig(top_k=0)
+
+
+def test_plot_histogram_rejects_interactive_mode_with_existing_axes() -> None:
+    figure, axes = plt.subplots()
+
+    with pytest.raises(ValueError, match="requires a Matplotlib-managed figure"):
+        plot_histogram(
+            {"00": 5, "11": 3},
+            config=HistogramConfig(show=False, mode=HistogramMode.INTERACTIVE),
+            ax=axes,
+        )
+
+    plt.close(figure)
+
+
+def test_plot_histogram_rejects_interactive_mode_in_non_widget_notebook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.plots.histogram.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=True, pyplot_backend="inline"),
+    )
+
+    with pytest.raises(ValueError, match="requires a notebook widget backend"):
+        plot_histogram(
+            {"00": 5, "11": 3},
+            config=HistogramConfig(show=False, mode=HistogramMode.INTERACTIVE),
+        )
 
 
 @pytest.mark.parametrize(

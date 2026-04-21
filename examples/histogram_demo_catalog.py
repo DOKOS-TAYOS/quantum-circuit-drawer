@@ -40,6 +40,12 @@ def get_demo_catalog() -> tuple[HistogramDemoSpec, ...]:
             builder_name="build_demo",
         ),
         HistogramDemoSpec(
+            demo_id="histogram-interactive-large",
+            description="Large 7-bit interactive histogram with slider and control widgets",
+            module_name="examples.histogram_interactive_large",
+            builder_name="build_demo",
+        ),
+        HistogramDemoSpec(
             demo_id="histogram-uniform-reference",
             description="Counts histogram with the uniform reference line",
             module_name="examples.histogram_uniform_reference",

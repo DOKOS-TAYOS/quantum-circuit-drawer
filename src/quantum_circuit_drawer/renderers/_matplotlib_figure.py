@@ -30,6 +30,7 @@ class _ManagedFigureMetadata:
     page_slider: object | None = None
     page_window: object | None = None
     topology_menu_state: object | None = None
+    histogram_state: object | None = None
 
 
 @dataclass(slots=True)
@@ -147,6 +148,18 @@ def get_topology_menu_state(figure: Figure | SubFigure) -> object | None:
     """Return topology-menu state attached to a managed figure, if any."""
 
     return _metadata_for(figure).topology_menu_state
+
+
+def set_histogram_state(figure: Figure | SubFigure, state: object) -> None:
+    """Store managed histogram state attached to a figure."""
+
+    _metadata_for(figure).histogram_state = state
+
+
+def get_histogram_state(figure: Figure | SubFigure) -> object | None:
+    """Return managed histogram state attached to a figure, if any."""
+
+    return _metadata_for(figure).histogram_state
 
 
 def clear_topology_menu_state(figure: Figure | SubFigure) -> None:

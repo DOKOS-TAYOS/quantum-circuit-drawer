@@ -7,11 +7,14 @@
 - Added `plot_histogram` with public `HistogramConfig`, `HistogramKind`, and `HistogramResult` types for counts, quasi-probabilities, and joint marginals on selected qubits
 - Added support for histogram inputs from plain mappings and Qiskit 2.x result objects, including `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`
 - Added histogram ordering, top-k filtering, theme-aware styling, alternative bar styles, and a uniform-reference guide line based on the full state space size
+- Added interactive histogram mode with managed slider navigation, per-bin hover, cyclic sort controls, slider toggling, and a marginal-qubits text box
+- Added the public `HistogramMode` enum and the `HistogramSort.STATE_DESC` ordering mode
+- Added a large 7-bit histogram demo that visibly exercises the interactive controls on dense state spaces
 
 ### Changed
 
-- Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, and joint marginals
-- Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, top-k filtering, draw styles, and uniform-reference guides
+- Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
+- Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, draw styles, uniform-reference guides, and the new interactive controls
 - Reduced 2D interactive redraw overhead by caching runtime notebook detection, reusing Matplotlib page projections across repeated renders, and keeping text-fit caches alive through page-window and slider redraws
 - Improved the synthetic `16 wires / 120 layers / 2 repeats` benchmark in this Windows environment from about `full_draw_seconds=0.2673` to `0.1328`, with `layout_seconds` dropping from about `0.0287` to `0.0127`
 - Reorganized the internal package into domain-focused subpackages: `drawing` for orchestration, `managed` for interactive Matplotlib state, `plots` for histogram implementation, and `export` for shared figure saving, while keeping the public imports stable

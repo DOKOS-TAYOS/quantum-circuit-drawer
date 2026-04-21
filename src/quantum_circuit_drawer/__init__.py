@@ -19,6 +19,7 @@ from .histogram import (
     HistogramConfig,
     HistogramDrawStyle,
     HistogramKind,
+    HistogramMode,
     HistogramResult,
     HistogramSort,
 )
@@ -77,6 +78,7 @@ __all__ = [
     "HistogramConfig",
     "HistogramDrawStyle",
     "HistogramKind",
+    "HistogramMode",
     "HistogramResult",
     "HistogramSort",
     "HoverOptions",

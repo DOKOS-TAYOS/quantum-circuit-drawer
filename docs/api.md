@@ -112,11 +112,21 @@ Examples:
 - `QUASI`
   - accepts positive and negative weights
 
+## `HistogramMode`
+
+- `STATIC`
+  - draws one static histogram with the selected ordering
+- `INTERACTIVE`
+  - adds a managed slider viewport, per-bin hover, order cycling, a slider toggle, and a marginal-qubits text box
+  - requires a library-managed figure and cannot be combined with `ax=...`
+
 ## `HistogramConfig`
 
 ```python
 HistogramConfig(
     kind=HistogramKind.AUTO,
+    mode=HistogramMode.STATIC,
+    sort=HistogramSort.STATE,
     qubits=None,
     result_index=0,
     data_key=None,
@@ -129,11 +139,19 @@ HistogramConfig(
 Important fields:
 
 - `kind`: `AUTO`, `COUNTS`, or `QUASI`
+- `mode`: `STATIC` or `INTERACTIVE`
+- `sort`: `STATE`, `STATE_DESC`, `VALUE_ASC`, or `VALUE_DESC`
 - `qubits`: optional tuple for a joint marginal over a subset of qubits
 - `result_index`: which Qiskit result entry to read when the object contains several results
 - `data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
 - `output_path`: optional file path for saving
 - `figsize`: managed figure size in inches
+
+Interactive notes:
+
+- the order button cycles through binary ascending, binary descending, value ascending, and value descending
+- the marginal text box accepts comma-separated qubit indices such as `0,2,5`
+- saved interactive histograms omit widget chrome and keep the current visible data window
 
 ## `HistogramResult`
 
@@ -153,6 +171,7 @@ Notes:
 - direct mappings can use `str` or `int` state keys
 - Qiskit 2.x inputs include `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, and `BitArray`
 - when `qubits` is provided, the function returns one joint marginal and preserves the exact qubit order you passed
+- in interactive mode, `state_labels` and `values` still describe the full ordered histogram distribution, not just the visible slider window
 
 ## `ax`
 
@@ -268,5 +287,18 @@ result = plot_histogram(
 result = plot_histogram(
     {"101": 2, "001": 1, "111": 3},
     config=HistogramConfig(qubits=(0, 2), show=False),
+)
+```
+
+### Interactive histogram
+
+```python
+result = plot_histogram(
+    {format(index, "07b"): ((index * 17) % 41) + ((index * 5) % 13) + 3 for index in range(2**7)},
+    config=HistogramConfig(
+        mode=HistogramMode.INTERACTIVE,
+        show_uniform_reference=True,
+        show=False,
+    ),
 )
 ```

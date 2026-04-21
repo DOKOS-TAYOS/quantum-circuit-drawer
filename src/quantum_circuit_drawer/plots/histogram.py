@@ -8,6 +8,7 @@ from enum import StrEnum
 from itertools import product
 from typing import TYPE_CHECKING, Protocol, SupportsFloat, runtime_checkable
 
+from ..drawing.runtime import detect_runtime_context
 from ..export.figures import save_matplotlib_figure
 from ..style.theme import resolve_theme
 
@@ -37,10 +38,18 @@ class HistogramKind(StrEnum):
     QUASI = "quasi"
 
 
+class HistogramMode(StrEnum):
+    """Public histogram render modes."""
+
+    STATIC = "static"
+    INTERACTIVE = "interactive"
+
+
 class HistogramSort(StrEnum):
     """Public histogram ordering modes."""
 
     STATE = "state"
+    STATE_DESC = "state_desc"
     VALUE_DESC = "value_desc"
     VALUE_ASC = "value_asc"
 
@@ -58,6 +67,7 @@ class HistogramConfig:
     """Public configuration for ``plot_histogram``."""
 
     kind: HistogramKind = HistogramKind.AUTO
+    mode: HistogramMode = HistogramMode.STATIC
     sort: HistogramSort = HistogramSort.STATE
     top_k: int | None = None
     qubits: tuple[int, ...] | None = None
@@ -72,6 +82,7 @@ class HistogramConfig:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "kind", self._normalize_kind(self.kind))
+        object.__setattr__(self, "mode", self._normalize_mode(self.mode))
         object.__setattr__(self, "sort", self._normalize_sort(self.sort))
         object.__setattr__(self, "theme", resolve_theme(self.theme))
         object.__setattr__(self, "draw_style", self._normalize_draw_style(self.draw_style))
@@ -89,6 +100,14 @@ class HistogramConfig:
         except ValueError as exc:
             choices = ", ".join(kind.value for kind in HistogramKind)
             raise ValueError(f"kind must be one of: {choices}") from exc
+
+    @staticmethod
+    def _normalize_mode(value: HistogramMode | str) -> HistogramMode:
+        try:
+            return value if isinstance(value, HistogramMode) else HistogramMode(str(value))
+        except ValueError as exc:
+            choices = ", ".join(mode.value for mode in HistogramMode)
+            raise ValueError(f"mode must be one of: {choices}") from exc
 
     @staticmethod
     def _normalize_sort(value: HistogramSort | str) -> HistogramSort:
@@ -198,6 +217,19 @@ def plot_histogram(
     resolved_config = config or HistogramConfig()
     if ax is not None and resolved_config.figsize is not None:
         raise ValueError("figsize cannot be used with ax")
+    runtime_context = detect_runtime_context()
+    if (
+        resolved_config.mode is HistogramMode.INTERACTIVE
+        and runtime_context.is_notebook
+        and not runtime_context.notebook_backend_active
+    ):
+        raise ValueError(
+            "mode='interactive' requires a notebook widget backend such as nbagg, ipympl, or widget"
+        )
+    if ax is not None and resolved_config.mode is HistogramMode.INTERACTIVE:
+        raise ValueError(
+            "mode='interactive' requires a Matplotlib-managed figure and cannot be used with ax"
+        )
 
     normalized = _normalize_histogram_data(
         data,
@@ -230,34 +262,30 @@ def plot_histogram(
     values = tuple(float(value) for value in ordered_values_by_state.values())
     figure, axes = _resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
 
-    _apply_histogram_theme(figure=figure, axes=axes, theme=theme)
-    bars = axes.bar(
-        state_labels,
-        values,
-        color=_bar_colors(values=values, kind=normalized.kind, theme=theme),
-        edgecolor=theme.gate_edgecolor,
-        linewidth=1.2,
-    )
-    _apply_bar_style(
-        bars=bars,
-        values=values,
-        draw_style=resolved_config.draw_style,
-        theme=theme,
-    )
-    axes.set_xlabel("State")
-    axes.set_ylabel("Counts" if normalized.kind is HistogramKind.COUNTS else "Quasi-probability")
-    if normalized.kind is HistogramKind.QUASI:
-        axes.axhline(0.0, color=_reference_line_color(theme), linewidth=1.0, linestyle="--")
-    if uniform_reference_value is not None:
-        axes.axhline(
-            uniform_reference_value,
-            color=_reference_line_color(theme),
-            linewidth=1.2,
-            linestyle=":",
-        )
-    axes.margins(x=0.02)
+    if resolved_config.mode is HistogramMode.INTERACTIVE:
+        from .histogram_interactive import attach_histogram_interactivity
 
-    _save_histogram_if_requested(figure, output_path=resolved_config.output_path)
+        attach_histogram_interactivity(
+            figure=figure,
+            axes=axes,
+            values_by_state=normalized.values_by_state,
+            bit_width=normalized.bit_width,
+            kind=normalized.kind,
+            config=resolved_config,
+        )
+    else:
+        _draw_histogram_axes(
+            figure=figure,
+            axes=axes,
+            state_labels=state_labels,
+            values=values,
+            kind=normalized.kind,
+            theme=theme,
+            draw_style=resolved_config.draw_style,
+            uniform_reference_value=uniform_reference_value,
+            thin_xlabels=False,
+        )
+        _save_histogram_if_requested(figure, output_path=resolved_config.output_path)
     if resolved_config.show:
         from ..renderers._render_support import show_figure_if_supported
 
@@ -443,6 +471,53 @@ def _resolve_figure_and_axes(
     return plt.subplots(figsize=figsize)
 
 
+def _draw_histogram_axes(
+    *,
+    figure: Figure,
+    axes: Axes,
+    state_labels: tuple[str, ...],
+    values: tuple[float, ...],
+    kind: HistogramKind,
+    theme: DrawTheme,
+    draw_style: HistogramDrawStyle,
+    uniform_reference_value: float | None,
+    thin_xlabels: bool,
+) -> BarContainer:
+    _apply_histogram_theme(figure=figure, axes=axes, theme=theme)
+    positions = tuple(range(len(state_labels)))
+    bars = axes.bar(
+        positions,
+        values,
+        color=_bar_colors(values=values, kind=kind, theme=theme),
+        edgecolor=theme.gate_edgecolor,
+        linewidth=1.2,
+        width=0.9,
+    )
+    _apply_bar_style(
+        bars=bars,
+        values=values,
+        draw_style=draw_style,
+        theme=theme,
+    )
+    axes.set_xlabel("State")
+    axes.set_ylabel("Counts" if kind is HistogramKind.COUNTS else "Quasi-probability")
+    if kind is HistogramKind.QUASI:
+        axes.axhline(0.0, color=_reference_line_color(theme), linewidth=1.0, linestyle="--")
+    if uniform_reference_value is not None:
+        axes.axhline(
+            uniform_reference_value,
+            color=_reference_line_color(theme),
+            linewidth=1.2,
+            linestyle=":",
+        )
+    axes.set_xticks(list(positions))
+    axes.set_xticklabels(_tick_labels_for_states(state_labels, thin=thin_xlabels))
+    if positions:
+        axes.set_xlim(-0.5, len(positions) - 0.5)
+    axes.margins(x=0.02)
+    return bars
+
+
 def _bar_colors(
     *,
     values: tuple[float, ...],
@@ -465,6 +540,8 @@ def _order_histogram_values(
     items = list(values_by_state.items())
     if sort is HistogramSort.STATE:
         items.sort(key=lambda item: int(item[0], 2))
+    elif sort is HistogramSort.STATE_DESC:
+        items.sort(key=lambda item: int(item[0], 2), reverse=True)
     elif sort is HistogramSort.VALUE_DESC:
         items.sort(key=lambda item: (-item[1], int(item[0], 2)))
     else:
@@ -472,6 +549,17 @@ def _order_histogram_values(
     if top_k is not None:
         items = items[:top_k]
     return dict(items)
+
+
+def _tick_labels_for_states(
+    state_labels: tuple[str, ...],
+    *,
+    thin: bool,
+) -> tuple[str, ...]:
+    if not thin or len(state_labels) <= 16:
+        return state_labels
+    step = max(1, len(state_labels) // 12)
+    return tuple(label if index % step == 0 else "" for index, label in enumerate(state_labels))
 
 
 def _resolved_histogram_bit_width(

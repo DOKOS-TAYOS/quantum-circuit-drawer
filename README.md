@@ -102,6 +102,23 @@ result = plot_histogram(
 
 Histogram plots also accept `theme="dark" | "light" | "paper"` so the default look now matches the circuit drawer theme family.
 
+## Interactive histogram mode
+
+```python
+from quantum_circuit_drawer import HistogramConfig, HistogramMode, plot_histogram
+
+result = plot_histogram(
+    {format(index, "07b"): ((index * 17) % 41) + ((index * 5) % 13) + 3 for index in range(2**7)},
+    config=HistogramConfig(
+        mode=HistogramMode.INTERACTIVE,
+        show_uniform_reference=True,
+        show=False,
+    ),
+)
+```
+
+Interactive histogram mode adds a slider viewport, hover labels per bin, a cyclic order button, a slider toggle button, and a marginal-qubits text box such as `0,2,5`.
+
 ## Modes
 
 ```python
