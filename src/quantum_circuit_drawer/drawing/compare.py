@@ -341,6 +341,7 @@ def operation_signature(
         tuple(operation.parameters),
         tuple(wire_indices[wire_id] for wire_id in operation.target_wires),
         tuple(wire_indices[wire_id] for wire_id in operation.control_wires),
+        tuple(tuple(int(value) for value in entry) for entry in operation.control_values),
         measurement_target,
     )
 

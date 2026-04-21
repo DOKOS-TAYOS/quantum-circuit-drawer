@@ -64,15 +64,38 @@ class XPowGate:
 
 
 class FakeClassicalControl:
-    def __init__(self, key: str) -> None:
+    def __init__(self, key: str, *, index: int | None = None, value: int | None = None) -> None:
         self.key = key
+        self.index = index
+        self.value = value
+
+
+class FakeControlledOperation:
+    def __init__(
+        self,
+        *,
+        controls: tuple[FakeQubit, ...],
+        sub_operation: FakeOperation,
+        control_values: tuple[tuple[int, ...], ...],
+    ) -> None:
+        self.controls = controls
+        self.sub_operation = sub_operation
+        self.control_values = control_values
+        self.qubits = (*controls, *sub_operation.qubits)
 
 
 class FakeClassicallyControlledOperation:
-    def __init__(self, base_operation: FakeOperation, key: str) -> None:
+    def __init__(
+        self,
+        base_operation: FakeOperation,
+        key: str,
+        *,
+        index: int | None = None,
+        value: int | None = None,
+    ) -> None:
         self._base_operation = base_operation
         self.qubits = base_operation.qubits
-        self.classical_controls = (FakeClassicalControl(key),)
+        self.classical_controls = (FakeClassicalControl(key, index=index, value=value),)
 
     def without_classical_controls(self) -> FakeOperation:
         return self._base_operation
@@ -100,7 +123,7 @@ def install_fake_cirq(
     fake_module.Circuit = FakeCircuit
     fake_module.ClassicallyControlledOperation = FakeClassicallyControlledOperation
     fake_module.CircuitOperation = CircuitOperation
-    fake_module.ControlledOperation = type("ControlledOperation", (), {})
+    fake_module.ControlledOperation = FakeControlledOperation
     fake_module.unitary = unitary or (lambda operation, default=None: default)
     monkeypatch.setitem(sys.modules, "cirq", fake_module)
 
@@ -153,6 +176,47 @@ def test_cirq_adapter_contract_converts_stubbed_classical_controls(
     assert operations[-1].name == "X"
     assert operations[-1].classical_conditions[0].wire_ids == ("c0",)
     assert operations[-1].classical_conditions[0].expression == "if c[0]=1"
+
+
+def test_cirq_adapter_contract_preserves_stubbed_control_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    controlled_x = FakeControlledOperation(
+        controls=(q0,),
+        sub_operation=FakeOperation(XPowGate(), (q1,)),
+        control_values=((0,),),
+    )
+    circuit = FakeCircuit(FakeMoment(controlled_x))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.kind is OperationKind.CONTROLLED_GATE
+    assert operation.control_values == ((0,),)
+
+
+def test_cirq_adapter_contract_preserves_stubbed_key_condition_index_and_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    measured = FakeOperation(MeasurementGate("m"), (q0,))
+    controlled_x = FakeClassicallyControlledOperation(
+        FakeOperation(XPowGate(), (q1,)),
+        key="m",
+        index=0,
+        value=0,
+    )
+    circuit = FakeCircuit(FakeMoment(measured), FakeMoment(controlled_x))
+
+    ir = CirqAdapter().to_ir(circuit, options={"explicit_matrices": False})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert operations[-1].classical_conditions[0].expression == "if c[0]=0"
 
 
 def test_cirq_adapter_contract_keeps_stubbed_circuit_operation_compact_by_default(

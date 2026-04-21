@@ -37,6 +37,7 @@ class FakeOperation:
         wires: tuple[object, ...],
         parameters: tuple[object, ...] = (),
         control_wires: tuple[object, ...] = (),
+        control_values: tuple[object, ...] = (),
         target_wires: tuple[object, ...] | None = None,
         has_decomposition: bool = False,
         decomposition: tuple[object, ...] = (),
@@ -45,6 +46,7 @@ class FakeOperation:
         self.wires = wires
         self.parameters = parameters
         self.control_wires = control_wires
+        self.control_values = control_values
         self.target_wires = target_wires
         self.has_decomposition = has_decomposition
         self._decomposition = decomposition
@@ -352,3 +354,28 @@ def test_pennylane_adapter_contract_keeps_terminal_outputs_as_gate_like_semantic
     assert operations[0].metadata["pennylane_observable_label"] == "PauliZ"
     assert operations[1].target_wires == ("q0", "q1")
     assert operations[2].target_wires == ("q0", "q1")
+
+
+def test_pennylane_adapter_contract_maps_stubbed_control_values_to_semantic_ir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0, 1, 2),
+        operations=(
+            FakeOperation(
+                name="MultiControlledX",
+                wires=(0, 1, 2),
+                control_wires=(0, 1),
+                control_values=(False, True),
+                target_wires=(2,),
+            ),
+        ),
+        measurements=(),
+    )
+
+    semantic_ir = PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape))
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.kind is OperationKind.CONTROLLED_GATE
+    assert operation.control_values == ((0,), (1,))

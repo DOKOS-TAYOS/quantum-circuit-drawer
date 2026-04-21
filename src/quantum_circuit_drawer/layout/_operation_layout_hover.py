@@ -6,7 +6,13 @@ from collections.abc import Hashable
 from typing import TYPE_CHECKING
 
 from ..ir.measurements import MeasurementIR
-from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
+from ..ir.operations import (
+    CanonicalGateFamily,
+    OperationIR,
+    OperationKind,
+    binary_control_states,
+    resolved_control_values,
+)
 from ..utils.formatting import format_gate_name
 from .scene import SceneHoverData
 
@@ -64,7 +70,7 @@ def build_hover_data(
         name=name,
         qubit_labels=qubit_labels,
         other_wire_labels=other_wire_labels,
-        details=_hover_details(operation),
+        details=_hover_details(builder, operation),
         matrix=matrix,
         matrix_dimension=matrix_dimension,
         gate_x=gate_x,
@@ -103,6 +109,7 @@ def hover_matrix_cache_key(
         operation.name,
         len(operation.control_wires),
         len(operation.target_wires),
+        tuple(tuple(int(value) for value in entry) for entry in operation.control_values),
         tuple(cache_token(builder, parameter) for parameter in operation.parameters),
         explicit_matrix_key,
     )
@@ -143,11 +150,17 @@ def hover_name(
     operation: OperationIR | MeasurementIR,
     display_name: str,
 ) -> str:
-    del builder
     if operation.kind is not OperationKind.CONTROLLED_GATE:
         return display_name
     if operation.label is not None and operation.label != operation.name:
         return format_gate_name(operation.label)
+
+    simple_binary_states = binary_control_states(operation)
+    controls_are_closed = simple_binary_states is not None and all(
+        state == 1 for state in simple_binary_states
+    )
+    if not controls_are_closed:
+        return f"controlled {display_name}"
 
     control_count = len(operation.control_wires)
     if control_count == 1:
@@ -161,8 +174,55 @@ def hover_name(
     return f"{'C' * control_count}{display_name}"
 
 
-def _hover_details(operation: OperationIR | MeasurementIR) -> tuple[str, ...]:
+def _hover_details(
+    builder: _OperationSceneBuilder,
+    operation: OperationIR | MeasurementIR,
+) -> tuple[str, ...]:
     raw_details = operation.metadata.get("hover_details", ())
-    if not isinstance(raw_details, tuple | list):
+    details = (
+        tuple(str(detail) for detail in raw_details if str(detail))
+        if isinstance(raw_details, tuple | list)
+        else ()
+    )
+    return (*details, *_control_hover_details(builder, operation))
+
+
+def _control_hover_details(
+    builder: _OperationSceneBuilder,
+    operation: OperationIR | MeasurementIR,
+) -> tuple[str, ...]:
+    if operation.kind is not OperationKind.CONTROLLED_GATE or not operation.control_wires:
         return ()
-    return tuple(str(detail) for detail in raw_details if str(detail))
+
+    simple_binary_states = binary_control_states(operation)
+    if simple_binary_states is not None:
+        return (
+            "control states: "
+            + ", ".join(
+                f"{_wire_label(builder, wire_id)}={state}"
+                for wire_id, state in zip(
+                    operation.control_wires,
+                    simple_binary_states,
+                    strict=True,
+                )
+            ),
+        )
+
+    return (
+        "control values: "
+        + ", ".join(
+            f"{_wire_label(builder, wire_id)} in {{{','.join(str(value) for value in values)}}}"
+            for wire_id, values in zip(
+                operation.control_wires,
+                resolved_control_values(operation),
+                strict=True,
+            )
+        ),
+    )
+
+
+def _wire_label(builder: _OperationSceneBuilder, wire_id: str) -> str:
+    wire = builder.wire_map.get(wire_id)
+    if wire is None:
+        return wire_id
+    return wire.label or wire.id

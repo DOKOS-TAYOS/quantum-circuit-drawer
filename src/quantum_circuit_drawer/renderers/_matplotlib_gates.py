@@ -229,19 +229,43 @@ def draw_controls(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> EllipseCollection | None:
+) -> tuple[EllipseCollection, ...] | None:
     diameter = scene.style.control_radius * 2
-    offsets = [(control.x + x_offset, control.y + y_offset) for control in controls]
-    return _add_ellipse_collection(
+    control_color = scene.style.theme.control_color or scene.style.theme.wire_color
+    closed_offsets = [
+        (control.x + x_offset, control.y + y_offset) for control in controls if control.state != 0
+    ]
+    open_offsets = [
+        (control.x + x_offset, control.y + y_offset) for control in controls if control.state == 0
+    ]
+    collections: list[EllipseCollection] = []
+    closed_collection = _add_ellipse_collection(
         ax,
-        widths=[diameter] * len(offsets),
-        heights=[diameter] * len(offsets),
-        offsets=offsets,
-        facecolor=scene.style.theme.control_color or scene.style.theme.wire_color,
-        edgecolor=scene.style.theme.control_color or scene.style.theme.wire_color,
+        widths=[diameter] * len(closed_offsets),
+        heights=[diameter] * len(closed_offsets),
+        offsets=closed_offsets,
+        facecolor=control_color,
+        edgecolor=control_color,
         linewidth=resolved_connection_line_width(scene.style),
         zorder=SYMBOL_LAYER_ZORDER,
     )
+    if closed_collection is not None:
+        collections.append(closed_collection)
+    open_collection = _add_ellipse_collection(
+        ax,
+        widths=[diameter] * len(open_offsets),
+        heights=[diameter] * len(open_offsets),
+        offsets=open_offsets,
+        facecolor=scene.style.theme.axes_facecolor,
+        edgecolor=control_color,
+        linewidth=resolved_connection_line_width(scene.style),
+        zorder=SYMBOL_LAYER_ZORDER,
+    )
+    if open_collection is not None:
+        collections.append(open_collection)
+    if not collections:
+        return None
+    return tuple(collections)
 
 
 def draw_swaps(

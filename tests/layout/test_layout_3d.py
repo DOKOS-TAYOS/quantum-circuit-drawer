@@ -108,6 +108,28 @@ def _line_control_ir() -> CircuitIR:
     )
 
 
+def _open_control_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q3",),
+                        control_wires=("q0",),
+                        control_values=((0,),),
+                    )
+                ]
+            )
+        ],
+    )
+
+
 def _dense_marker_ir() -> CircuitIR:
     return CircuitIR(
         quantum_wires=[
@@ -364,6 +386,21 @@ def test_layout_engine_3d_routes_non_direct_controls_along_topology_path() -> No
     assert connection.hover_text == "2 intermediate qubits"
 
 
+def test_layout_engine_3d_marks_open_controls_with_state_zero() -> None:
+    scene = LayoutEngine3D().compute(
+        _open_control_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=False,
+    )
+
+    control_markers = [marker for marker in scene.markers if marker.style is MarkerStyle3D.CONTROL]
+
+    assert control_markers
+    assert control_markers[0].state == 0
+
+
 def test_layout_engine_3d_keeps_classical_conditions_for_controlled_x() -> None:
     circuit = CircuitIR(
         quantum_wires=[
@@ -499,6 +536,31 @@ def test_layout_engine_3d_uses_smaller_swap_x_larger_controls_and_cubic_single_g
     assert min(marker.size for marker in control_markers) > style.control_radius * 6.5
     assert single_qubit_gate.size_x == single_qubit_gate.size_y == single_qubit_gate.size_z
     assert measurement_gate.size_x == measurement_gate.size_y == measurement_gate.size_z
+
+
+def test_matplotlib_renderer_3d_renders_open_controls_as_hollow_markers() -> None:
+    figure, axes = draw_quantum_circuit(
+        _open_control_ir(),
+        view="3d",
+        topology="line",
+        show=False,
+    )
+    theme = DrawStyle().theme
+    expected_face = to_hex(theme.axes_facecolor, keep_alpha=False)
+    expected_edge = to_hex(theme.control_color or theme.control_connection_color, keep_alpha=False)
+
+    control_marker_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, PathCollection)
+        and len(collection.get_facecolors()) > 0
+        and len(collection.get_edgecolors()) > 0
+        and to_hex(collection.get_facecolors()[0], keep_alpha=False) == expected_face
+        and to_hex(collection.get_edgecolors()[0], keep_alpha=False) == expected_edge
+    ]
+
+    assert control_marker_collections
+    plt.close(figure)
 
 
 def test_layout_engine_3d_uses_compact_column_spacing() -> None:

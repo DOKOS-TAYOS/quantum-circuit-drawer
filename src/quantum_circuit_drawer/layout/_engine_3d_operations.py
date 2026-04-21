@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from ..ir.operations import CanonicalGateFamily, OperationIR
+from ..ir.operations import CanonicalGateFamily, OperationIR, binary_control_states
 from ..style import DrawStyle
 from ._engine_3d_metrics import _OperationMetrics3D
 from .scene_3d import Point3D
@@ -75,6 +75,8 @@ def connection_points_3d(
 def uses_canonical_controlled_x_target_3d(operation: OperationIR) -> bool:
     """Return whether the operation should render as an X target."""
 
+    if binary_control_states(operation) is None:
+        return False
     return (
         operation.canonical_family is CanonicalGateFamily.X
         and len(operation.target_wires) == 1
@@ -85,6 +87,8 @@ def uses_canonical_controlled_x_target_3d(operation: OperationIR) -> bool:
 def uses_canonical_controlled_z_3d(operation: OperationIR) -> bool:
     """Return whether the operation should collapse into controlled-Z markers."""
 
+    if binary_control_states(operation) is None:
+        return False
     return (
         operation.canonical_family is CanonicalGateFamily.Z
         and len(operation.target_wires) == 1

@@ -74,6 +74,7 @@ class SceneControl:
     column: int
     x: float
     y: float
+    state: int = 1
     hover_data: SceneHoverData | None = None
 
 

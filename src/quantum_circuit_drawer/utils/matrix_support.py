@@ -7,7 +7,12 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
+from ..ir.operations import (
+    CanonicalGateFamily,
+    OperationIR,
+    OperationKind,
+    resolved_control_values,
+)
 
 
 def square_matrix(matrix: object) -> np.ndarray | None:
@@ -98,8 +103,19 @@ def _controlled_operation_matrix(operation: OperationIR) -> np.ndarray | None:
     if target_matrix is None:
         return None
 
+    control_values = resolved_control_values(operation)
+    if (
+        len(control_values) != 1
+        or len(control_values[0]) != 1
+        or control_values[0][0] not in {0, 1}
+    ):
+        return None
+
     matrix = np.eye(4, dtype=np.complex128)
-    matrix[2:, 2:] = target_matrix
+    if control_values[0][0] == 0:
+        matrix[:2, :2] = target_matrix
+    else:
+        matrix[2:, 2:] = target_matrix
     return matrix
 
 

@@ -30,6 +30,7 @@
 - MyQLM now preserves gate provenance, composite provenance, decomposition origin, resets, and supported classical-control expressions before lowering back to the shared render IR
 - CUDA-Q now preserves Quake provenance, measurement basis, value-form wire flow, and supported `reset` operations before lowering back to the shared render IR, while still rejecting constructs without a clean shared equivalent
 - PennyLane terminal results now render as compact output boxes with preserved result kind, observable summaries, and wire-scope hover details instead of being flattened into fake per-wire projective measurements
+- Controlled-gate rendering now preserves explicit binary control states through semantic IR and render IR, so Qiskit, Cirq, and PennyLane can draw open controls faithfully in both 2D and 3D instead of treating every control as closed-on-`1`
 - Marked `quantum_circuit_drawer.drawing`, `managed`, and `plots` as compatibility facades that remain importable but are outside the stable public extension contract
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
 - Extended the framework guide and histogram docs so they spell out which result payloads can be passed directly from each supported framework, plus when to use `result_index`
@@ -51,6 +52,7 @@
 - Explicit `framework="cudaq"` requests now fail with a platform-aware message that points native Windows users to Linux or WSL2 instead of a generic framework-mismatch error
 - PennyLane wrapper detection now prefers already-materialized `._tape` inputs and avoids touching lazy `.qtape` / `.tape` properties or calling `construct()` implicitly
 - `compare_circuits(...)` no longer treats visually similar but semantically different native adapter paths as identical once semantic provenance is available
+- Hover matrix inference for simple controlled single-qubit gates now respects open-control states, so control-on-`0` no longer shows the wrong compact matrix in tooltips
 - Example and benchmark helpers now validate builder callability earlier and clean up rendered Matplotlib figures more defensively after demo execution
 - Tightened public config validation so boolean values are no longer accepted where positive numeric `figsize`, `top_k`, `result_index`, qubit-index, or hover matrix limits are required
 - `HoverOptions` now validates direct construction the same way as mapping-based hover input, preventing invalid booleans and unsupported `show_matrix` values from slipping through

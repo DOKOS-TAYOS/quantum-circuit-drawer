@@ -423,6 +423,7 @@ class CirqAdapter(BaseAdapter):
                 canonical_family=canonical_gate.family,
                 target_wires=targets,
                 control_wires=controls,
+                control_values=self._control_values_for_controlled_operation(controlled_operation),
                 parameters=parameters,
                 grouping=grouping,
                 operation_key=operation_key,
@@ -522,6 +523,7 @@ class CirqAdapter(BaseAdapter):
         canonical_family: object,
         target_wires: tuple[str, ...],
         control_wires: tuple[str, ...],
+        control_values: tuple[tuple[int, ...], ...] = (),
         parameters: tuple[object, ...],
         grouping: str,
         operation_key: tuple[int, ...],
@@ -538,6 +540,7 @@ class CirqAdapter(BaseAdapter):
                         canonical_family=canonical_family,
                         target_wires=target_wires,
                         control_wires=control_wires,
+                        control_values=control_values,
                         parameters=parameters,
                         hover_details=normalized_detail_lines(f"group: {grouping}"),
                         provenance=semantic_provenance(
@@ -594,14 +597,47 @@ class CirqAdapter(BaseAdapter):
             key_targets = measurement_key_targets.get(str(key))
             if key is None or not key_targets:
                 raise UnsupportedOperationError("unsupported Cirq classical condition")
-            wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
-            if len(key_targets) == 1:
-                _, bit_label = key_targets[0]
-                expression = f"if {bit_label}=1"
+            raw_value = getattr(control, "value", None)
+            value = 1 if raw_value is None else int(raw_value)
+            index = getattr(control, "index", None)
+            if index is not None:
+                index_value = int(index)
+                if index_value < 0 or index_value >= len(key_targets):
+                    raise UnsupportedOperationError("unsupported Cirq classical condition index")
+                wire_id, bit_label = key_targets[index_value]
+                wire_ids = (wire_id,)
+                expression = f"if {bit_label}={value}"
             else:
-                expression = "if c=1"
+                wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
+                if len(key_targets) == 1:
+                    _, bit_label = key_targets[0]
+                    expression = f"if {bit_label}={value}"
+                else:
+                    expression = f"if c={value}"
             conditions.append(ClassicalConditionIR(wire_ids=wire_ids, expression=expression))
         return tuple(conditions)
+
+    def _control_values_for_controlled_operation(
+        self,
+        controlled_operation: object,
+    ) -> tuple[tuple[int, ...], ...]:
+        raw_values = getattr(controlled_operation, "control_values", ())
+        expand = getattr(raw_values, "expand", None)
+        if callable(expand):
+            raw_values = expand()
+        if raw_values is None:
+            return ()
+
+        normalized_entries: list[tuple[int, ...]] = []
+        for raw_entry in tuple(raw_values):
+            if isinstance(raw_entry, Sequence) and not isinstance(raw_entry, str | bytes):
+                values = tuple(int(value) for value in raw_entry)
+            else:
+                values = (int(raw_entry),)
+            normalized_entries.append(values)
+        if all(entry == (1,) for entry in normalized_entries):
+            return ()
+        return tuple(normalized_entries)
 
     def _canonical_gate_for_operation(
         self,

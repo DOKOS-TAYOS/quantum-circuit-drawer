@@ -86,12 +86,19 @@ def draw_markers_with_hover_3d(
             )
             continue
         if marker.style is MarkerStyle3D.CONTROL:
+            control_color = (
+                scene.style.theme.control_color or scene.style.theme.control_connection_color
+            )
             artist = axes.scatter(
                 [marker.center.x],
                 [marker.center.y],
                 [marker.center.z],
                 s=marker.size * 18.0,
-                c=scene.style.theme.control_color or scene.style.theme.control_connection_color,
+                facecolors=(
+                    scene.style.theme.axes_facecolor if marker.state == 0 else control_color
+                ),
+                edgecolors=control_color,
+                linewidths=max(1.0, resolved_connection_line_width(scene.style)),
                 depthshade=False,
                 zorder=3.4,
             )
@@ -137,14 +144,41 @@ def draw_markers_batched_3d(
             zorder=3.2,
         )
 
-    control_markers = [marker for marker in scene.markers if marker.style is MarkerStyle3D.CONTROL]
-    if control_markers:
+    closed_control_markers = [
+        marker
+        for marker in scene.markers
+        if marker.style is MarkerStyle3D.CONTROL and marker.state != 0
+    ]
+    if closed_control_markers:
         axes.scatter(
-            [marker.center.x for marker in control_markers],
-            [marker.center.y for marker in control_markers],
-            [marker.center.z for marker in control_markers],
-            s=[marker.size * 18.0 for marker in control_markers],
-            c=scene.style.theme.control_color or scene.style.theme.control_connection_color,
+            [marker.center.x for marker in closed_control_markers],
+            [marker.center.y for marker in closed_control_markers],
+            [marker.center.z for marker in closed_control_markers],
+            s=[marker.size * 18.0 for marker in closed_control_markers],
+            facecolors=scene.style.theme.control_color
+            or scene.style.theme.control_connection_color,
+            edgecolors=scene.style.theme.control_color
+            or scene.style.theme.control_connection_color,
+            linewidths=max(1.0, resolved_connection_line_width(scene.style)),
+            depthshade=False,
+            zorder=3.4,
+        )
+
+    open_control_markers = [
+        marker
+        for marker in scene.markers
+        if marker.style is MarkerStyle3D.CONTROL and marker.state == 0
+    ]
+    if open_control_markers:
+        axes.scatter(
+            [marker.center.x for marker in open_control_markers],
+            [marker.center.y for marker in open_control_markers],
+            [marker.center.z for marker in open_control_markers],
+            s=[marker.size * 18.0 for marker in open_control_markers],
+            facecolors=scene.style.theme.axes_facecolor,
+            edgecolors=scene.style.theme.control_color
+            or scene.style.theme.control_connection_color,
+            linewidths=max(1.0, resolved_connection_line_width(scene.style)),
             depthshade=False,
             zorder=3.4,
         )

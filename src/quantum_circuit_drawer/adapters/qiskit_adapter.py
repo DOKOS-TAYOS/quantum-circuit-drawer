@@ -220,6 +220,10 @@ class QiskitAdapter(BaseAdapter):
                     canonical_family=canonical_gate.family,
                     target_wires=target_wires[control_count:],
                     control_wires=target_wires[:control_count],
+                    control_values=self._control_values_from_qiskit(
+                        operation,
+                        control_count=control_count,
+                    ),
                     parameters=parameters,
                     provenance=semantic_provenance(
                         framework=self.framework_name,
@@ -308,6 +312,25 @@ class QiskitAdapter(BaseAdapter):
         if square_matrix(matrix) is None:
             return {}
         return {"matrix": matrix}
+
+    def _control_values_from_qiskit(
+        self,
+        operation: object,
+        *,
+        control_count: int,
+    ) -> tuple[tuple[int, ...], ...]:
+        if control_count <= 0:
+            return ()
+        ctrl_state = getattr(operation, "ctrl_state", None)
+        if ctrl_state is None:
+            return ()
+
+        state_value = int(ctrl_state)
+        state_bits = format(state_value, f"0{control_count}b")
+        resolved = tuple((int(bit),) for bit in state_bits)
+        if all(entry == (1,) for entry in resolved):
+            return ()
+        return resolved
 
     def _convert_if_else(
         self,

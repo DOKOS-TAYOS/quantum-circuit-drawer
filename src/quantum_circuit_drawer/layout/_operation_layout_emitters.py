@@ -6,7 +6,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from ..ir.measurements import MeasurementIR
-from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
+from ..ir.operations import (
+    CanonicalGateFamily,
+    OperationIR,
+    OperationKind,
+    binary_control_states,
+)
 from ..utils.formatting import format_gate_name
 from ._classical_conditions import iter_classical_condition_anchors
 from ._layout_scaffold import _OperationMetrics
@@ -266,12 +271,16 @@ def layout_controlled_gate(
         gate_y=gate_y,
         gate_height=gate_height,
     )
-    for control_id in operation.control_wires:
+    simple_binary_states = binary_control_states(operation)
+    for control_index, control_id in enumerate(operation.control_wires):
         builder.controls.append(
             SceneControl(
                 column=column,
                 x=x,
                 y=builder.scaffold.wire_positions[control_id],
+                state=(
+                    simple_binary_states[control_index] if simple_binary_states is not None else 1
+                ),
                 hover_data=hover_data,
             )
         )
@@ -306,7 +315,7 @@ def layout_controlled_z(
     x: float,
 ) -> None:
     style = builder.scaffold.draw_style
-    control_ids = (*operation.control_wires, *operation.target_wires)
+    simple_binary_states = binary_control_states(operation)
     hover_data = builder._maybe_hover_data(
         operation=operation,
         column=column,
@@ -316,15 +325,29 @@ def layout_controlled_z(
         gate_width=style.control_radius * 2.0,
         gate_height=style.control_radius * 2.0,
     )
-    for control_id in control_ids:
+    for control_index, control_id in enumerate(operation.control_wires):
         builder.controls.append(
             SceneControl(
                 column=column,
                 x=x,
                 y=builder.scaffold.wire_positions[control_id],
+                state=(
+                    simple_binary_states[control_index] if simple_binary_states is not None else 1
+                ),
                 hover_data=hover_data,
             )
         )
+    for target_wire in operation.target_wires:
+        builder.controls.append(
+            SceneControl(
+                column=column,
+                x=x,
+                y=builder.scaffold.wire_positions[target_wire],
+                state=1,
+                hover_data=hover_data,
+            )
+        )
+    control_ids = (*operation.control_wires, *operation.target_wires)
     span_top, span_bottom = vertical_span(builder.scaffold.wire_positions, control_ids)
     builder.connections.append(
         SceneConnection(
@@ -355,6 +378,7 @@ def layout_controlled_x(
     style = builder.scaffold.draw_style
     target_wire = operation.target_wires[0]
     target_y = builder.scaffold.wire_positions[target_wire]
+    simple_binary_states = binary_control_states(operation)
     hover_data = builder._maybe_hover_data(
         operation=operation,
         column=column,
@@ -378,12 +402,15 @@ def layout_controlled_x(
             hover_data=hover_data,
         )
     )
-    for control_id in operation.control_wires:
+    for control_index, control_id in enumerate(operation.control_wires):
         builder.controls.append(
             SceneControl(
                 column=column,
                 x=x,
                 y=builder.scaffold.wire_positions[control_id],
+                state=(
+                    simple_binary_states[control_index] if simple_binary_states is not None else 1
+                ),
                 hover_data=hover_data,
             )
         )
@@ -475,6 +502,8 @@ def uses_canonical_controlled_x_target(
     operation: OperationIR,
 ) -> bool:
     del builder
+    if binary_control_states(operation) is None:
+        return False
     return (
         operation.canonical_family is CanonicalGateFamily.X
         and len(operation.target_wires) == 1
@@ -487,6 +516,8 @@ def uses_canonical_controlled_z(
     operation: OperationIR,
 ) -> bool:
     del builder
+    if binary_control_states(operation) is None:
+        return False
     return (
         operation.canonical_family is CanonicalGateFamily.Z
         and len(operation.target_wires) == 1

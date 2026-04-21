@@ -92,7 +92,7 @@ circuit.measure(1, 0)
 draw_quantum_circuit(circuit)
 ```
 
-Current support includes common gates, controlled gates, classical `if` conditions, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements.
+Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements.
 
 For Qiskit control-flow, the drawer keeps the existing expanded behavior for simple `if_test(...)` blocks without an `else`, because that path still maps cleanly onto classically conditioned gates. Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled.
 
@@ -137,9 +137,9 @@ circuit = cirq.Circuit(
 draw_quantum_circuit(circuit, config=DrawConfig(framework="cirq"))
 ```
 
-Current support includes common gates, controlled gates, classically controlled operations, `CircuitOperation`, swap, and measurements.
+Current support includes common gates, controlled gates including open controls when Cirq exposes singleton binary `control_values`, classically controlled operations, `CircuitOperation`, swap, and measurements.
 
-The Cirq path now preserves moment grouping and `CircuitOperation` provenance internally. When a native structure does not have one perfect common visual shape, the drawer keeps that detail in compare signatures, diagnostics, hover text, or lightweight annotations instead of dropping it silently.
+The Cirq path now preserves moment grouping and `CircuitOperation` provenance internally. It also preserves indexed `KeyCondition` details such as `m[0]=0` when Cirq exposes them. When a native structure does not have one perfect common visual shape, the drawer keeps that detail in compare signatures, diagnostics, hover text, or lightweight annotations instead of dropping it silently.
 
 Histogram support also accepts `cirq.Result` / `cirq.ResultDict` objects through their `measurements` mapping. If several measurement keys are present, `plot_histogram(...)` keeps them as space-separated registers in the visible state labels.
 
@@ -176,9 +176,9 @@ with qml.tape.QuantumTape() as tape:
 draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
 ```
 
-Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, optional expansion for decomposable composite operations such as `QFT`, and compact terminal-output boxes for `qml.expval()`, `qml.var()`, `qml.probs()`, `qml.sample()`, `qml.counts()`, `qml.state()`, and `qml.density_matrix()`.
+Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, controlled operations with explicit `control_values` when PennyLane exposes them, optional expansion for decomposable composite operations such as `QFT`, and compact terminal-output boxes for `qml.expval()`, `qml.var()`, `qml.probs()`, `qml.sample()`, `qml.counts()`, `qml.state()`, and `qml.density_matrix()`.
 
-Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata.
+Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata. Controlled PennyLane operations now also keep open-control states visually when the control pattern is a clean binary singleton per control wire.
 
 The PennyLane path now preserves conditional provenance, decomposition origin, safe wrapper semantics, and terminal-result meaning internally. When a PennyLane-native construct cannot be shown as one exact shared visual primitive, the drawer keeps the native meaning in compare signatures, hover, annotations, or diagnostics.
 
@@ -373,6 +373,7 @@ Useful IR rules:
 - Classical conditions reference classical wire ids through `ClassicalConditionIR`.
 - Measurements require a `classical_target`.
 - Non-barrier operations need at least one target wire.
+- Controlled operations can optionally set `control_values`; when omitted, controls default to the standard closed-on-`1` behavior.
 
 If you already built a `CircuitIR`, autodetection is enough. You can also pass `DrawConfig(framework="ir")` when you want the intent to be explicit.
 

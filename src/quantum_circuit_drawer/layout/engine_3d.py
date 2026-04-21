@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
-from ..ir.operations import OperationIR, OperationKind
+from ..ir.operations import OperationIR, OperationKind, binary_control_states
 from ..style import DrawStyle, normalize_style
 from ..topology import TopologyInput
 from ._engine_3d_classical import append_classical_condition_connections_3d
@@ -387,10 +387,11 @@ class LayoutEngine3D:
                 )
 
         if operation.kind is OperationKind.CONTROLLED_GATE:
+            simple_binary_states = binary_control_states(operation)
             anchor_wire_ids = operation.target_wires
             if self._uses_canonical_controlled_z(operation):
                 anchor_wire_ids = (*operation.control_wires[:1], *operation.target_wires)
-            for control_wire_id in operation.control_wires:
+            for control_index, control_wire_id in enumerate(operation.control_wires):
                 control_point = self._point_for_wire(
                     control_wire_id, quantum_wire_positions, gate_z
                 )
@@ -400,6 +401,11 @@ class LayoutEngine3D:
                         center=control_point,
                         style=MarkerStyle3D.CONTROL,
                         size=draw_style.control_radius * _CONTROL_MARKER_SCALE,
+                        state=(
+                            simple_binary_states[control_index]
+                            if simple_binary_states is not None
+                            else 1
+                        ),
                     )
                 )
                 candidate_anchor_wire_ids = tuple(
@@ -444,6 +450,7 @@ class LayoutEngine3D:
                         center=target_point,
                         style=MarkerStyle3D.CONTROL,
                         size=draw_style.control_radius * _CONTROL_MARKER_SCALE,
+                        state=1,
                     )
                 )
         self._append_classical_condition_connections(

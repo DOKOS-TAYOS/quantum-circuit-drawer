@@ -101,6 +101,10 @@ def _normalize_parameters(values: Sequence[object]) -> tuple[object, ...]:
     return tuple(values)
 
 
+def _normalize_control_values(values: Sequence[Sequence[int]]) -> tuple[tuple[int, ...], ...]:
+    return tuple(tuple(int(value) for value in entry) for entry in values)
+
+
 def _normalize_classical_conditions(
     values: Sequence[ClassicalConditionIR],
 ) -> tuple[ClassicalConditionIR, ...]:
@@ -125,6 +129,7 @@ class OperationIR:
     name: str
     target_wires: Sequence[str]
     control_wires: Sequence[str] = field(default_factory=tuple)
+    control_values: Sequence[Sequence[int]] = field(default_factory=tuple)
     classical_conditions: Sequence[ClassicalConditionIR] = field(default_factory=tuple)
     parameters: Sequence[object] = field(default_factory=tuple)
     label: str | None = None
@@ -136,12 +141,15 @@ class OperationIR:
         self.name = normalized_name
         self.target_wires = _normalize_wire_ids(self.target_wires)
         self.control_wires = _normalize_wire_ids(self.control_wires)
+        self.control_values = _normalize_control_values(self.control_values)
         self.classical_conditions = _normalize_classical_conditions(self.classical_conditions)
         self.parameters = _normalize_parameters(self.parameters)
         if not normalized_name:
             raise ValueError("operation name cannot be empty")
         if not self.target_wires and self.kind is not OperationKind.BARRIER:
             raise ValueError("operation must reference at least one target wire")
+        if self.control_values and len(self.control_values) != len(self.control_wires):
+            raise ValueError("control_values must align with control_wires")
         if self.label is None:
             self.label = self.name
         if self.canonical_family is CanonicalGateFamily.CUSTOM:
@@ -159,3 +167,22 @@ class OperationIR:
             wire_id for condition in self.classical_conditions for wire_id in condition.wire_ids
         )
         return tuple(dict.fromkeys((*classical_wire_ids, *self.control_wires, *self.target_wires)))
+
+
+def resolved_control_values(operation: OperationIR) -> tuple[tuple[int, ...], ...]:
+    """Return per-control accepted values, defaulting to closed controls on ``1``."""
+
+    if operation.control_values:
+        return tuple(tuple(entry) for entry in operation.control_values)
+    return tuple((1,) for _ in operation.control_wires)
+
+
+def binary_control_states(operation: OperationIR) -> tuple[int, ...] | None:
+    """Return renderable binary control states, or ``None`` when not exact."""
+
+    states: list[int] = []
+    for entry in resolved_control_values(operation):
+        if len(entry) != 1 or entry[0] not in {0, 1}:
+            return None
+        states.append(entry[0])
+    return tuple(states)

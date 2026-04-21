@@ -45,3 +45,29 @@ def test_resolved_operation_matrix_and_dimension_infers_controlled_gate_matrix()
     assert matrix_dimension == 4
     assert resolved_matrix is not None
     np.testing.assert_allclose(resolved_matrix, expected_matrix)
+
+
+def test_resolved_operation_matrix_and_dimension_infers_open_controlled_gate_matrix() -> None:
+    operation = OperationIR(
+        kind=OperationKind.CONTROLLED_GATE,
+        name="X",
+        target_wires=("q1",),
+        control_wires=("q0",),
+        control_values=((0,),),
+    )
+
+    resolved_matrix, matrix_dimension = _resolved_operation_matrix_and_dimension(operation)
+
+    expected_matrix = np.array(
+        (
+            (0.0, 1.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 0.0, 1.0, 0.0),
+            (0.0, 0.0, 0.0, 1.0),
+        ),
+        dtype=np.complex128,
+    )
+
+    assert matrix_dimension == 4
+    assert resolved_matrix is not None
+    np.testing.assert_allclose(resolved_matrix, expected_matrix)

@@ -669,6 +669,39 @@ def test_layout_engine_draws_canonical_controlled_x_as_not_target() -> None:
     assert scene.gates[0].label == "X"
 
 
+def test_layout_engine_draws_open_controlled_x_with_open_control_marker() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        control_values=((0,),),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert len(scene.gates) == 1
+    assert scene.gates[0].render_style.value == "x_target"
+    assert len(scene.controls) == 1
+    assert scene.controls[0].state == 0
+    assert scene.controls[0].hover_data is not None
+    assert scene.controls[0].hover_data.name == "controlled X"
+    assert "control states: q0=0" in scene.controls[0].hover_data.details
+
+
 def test_layout_engine_draws_canonical_cz_as_two_controls_without_box() -> None:
     circuit = CircuitIR(
         quantum_wires=[
@@ -695,6 +728,35 @@ def test_layout_engine_draws_canonical_cz_as_two_controls_without_box() -> None:
     assert len(scene.gates) == 0
     assert len(scene.controls) == 2
     assert len(scene.connections) == 1
+
+
+def test_layout_engine_draws_open_controlled_z_with_mixed_control_states() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="Z",
+                        canonical_family=CanonicalGateFamily.Z,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        control_values=((0,),),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert len(scene.gates) == 0
+    assert len(scene.controls) == 2
+    assert [control.state for control in scene.controls] == [0, 1]
 
 
 def test_layout_engine_draws_canonical_controlled_rz_with_compact_box() -> None:
@@ -795,6 +857,34 @@ def test_layout_engine_uses_controlled_gate_hover_names(
     }
 
     assert hover_names == {expected_hover_name}
+
+
+def test_layout_engine_uses_generic_hover_name_for_open_controls() -> None:
+    operation = OperationIR(
+        kind=OperationKind.CONTROLLED_GATE,
+        name="X",
+        canonical_family=CanonicalGateFamily.X,
+        target_wires=("q1",),
+        control_wires=("q0",),
+        control_values=((0,),),
+    )
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[LayerIR(operations=[operation])],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    hover_names = {
+        item.hover_data.name
+        for item in (*scene.gates, *scene.controls, *scene.connections)
+        if item.hover_data is not None
+    }
+
+    assert hover_names == {"controlled X"}
 
 
 def test_layout_engine_uses_single_connection_span_for_same_side_multicontrol() -> None:

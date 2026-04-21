@@ -235,6 +235,30 @@ def test_qiskit_adapter_maps_canonical_gate_families() -> None:
     assert (OperationKind.CONTROLLED_GATE, CanonicalGateFamily.RZ, 1, "RZ") in signatures
 
 
+def test_qiskit_adapter_decodes_open_control_state_into_control_values() -> None:
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.append(qiskit.circuit.library.XGate().control(1, ctrl_state=0), [0, 1])
+
+    semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
+    operation = flatten_semantic_operations(semantic_ir)[0]
+
+    assert operation.kind is OperationKind.CONTROLLED_GATE
+    assert operation.control_wires == ("q0",)
+    assert operation.control_values == ((0,),)
+
+
+def test_qiskit_adapter_decodes_mixed_multi_control_state_big_endian() -> None:
+    circuit = qiskit.QuantumCircuit(3)
+    circuit.append(qiskit.circuit.library.XGate().control(2, ctrl_state=1), [0, 1, 2])
+
+    semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
+    operation = flatten_semantic_operations(semantic_ir)[0]
+
+    assert operation.kind is OperationKind.CONTROLLED_GATE
+    assert operation.control_wires == ("q0", "q1")
+    assert operation.control_values == ((0,), (1,))
+
+
 def test_qiskit_adapter_maps_additional_canonical_gate_families() -> None:
     circuit = qiskit.QuantumCircuit(2)
     circuit.sdg(0)

@@ -279,6 +279,7 @@ class PennyLaneAdapter(BaseAdapter):
                     canonical_family=canonical_gate.family,
                     target_wires=target_wires,
                     control_wires=control_wires,
+                    control_values=self._control_values_for_operation(operation),
                     parameters=parameters,
                     hover_details=normalized_detail_lines(
                         f"decomposed from: {decomposition_origin}"
@@ -498,6 +499,25 @@ class PennyLaneAdapter(BaseAdapter):
             None if observable_label is None else f"observable: {observable_label}",
             scope_detail,
         )
+
+    def _control_values_for_operation(
+        self,
+        operation: object,
+    ) -> tuple[tuple[int, ...], ...]:
+        raw_values = getattr(operation, "control_values", ())
+        if raw_values is None:
+            return ()
+
+        normalized_entries: list[tuple[int, ...]] = []
+        for raw_entry in tuple(raw_values):
+            if isinstance(raw_entry, Sequence) and not isinstance(raw_entry, str | bytes):
+                values = tuple(int(value) for value in raw_entry)
+            else:
+                values = (int(raw_entry),)
+            normalized_entries.append(values)
+        if all(entry == (1,) for entry in normalized_entries):
+            return ()
+        return tuple(normalized_entries)
 
     def _is_mid_measure(self, operation: object) -> bool:
         return getattr(operation, "name", None) == "MidMeasureMP"

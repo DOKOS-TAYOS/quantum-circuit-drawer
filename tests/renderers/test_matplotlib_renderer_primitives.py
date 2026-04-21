@@ -1,4 +1,6 @@
 # ruff: noqa: F403, F405
+from matplotlib.colors import to_hex
+
 import quantum_circuit_drawer.renderers._matplotlib_axes as matplotlib_axes_module
 from tests._matplotlib_renderer_support import *
 
@@ -375,6 +377,46 @@ def test_matplotlib_renderer_batches_cx_target_and_control_markers_into_collecti
         )
     )
     assert not any(isinstance(patch, Circle) for patch in axes.patches)
+
+
+def test_matplotlib_renderer_draws_open_controls_as_hollow_ellipses() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        canonical_family=CanonicalGateFamily.X,
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        control_values=((0,),),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots(figsize=(12, 2))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    open_control_collections = [
+        collection
+        for collection in _ellipse_collections(axes)
+        if min(collection.get_widths()) == approx(scene.style.control_radius * 2.0)
+        and to_hex(collection.get_facecolors()[0], keep_alpha=False)
+        == to_hex(scene.style.theme.axes_facecolor, keep_alpha=False)
+        and to_hex(collection.get_edgecolors()[0], keep_alpha=False)
+        == to_hex(scene.style.theme.control_color or scene.style.theme.wire_color, keep_alpha=False)
+    ]
+
+    assert open_control_collections
 
 
 def test_matplotlib_renderer_uses_distinct_measurement_fill_in_dark_theme() -> None:

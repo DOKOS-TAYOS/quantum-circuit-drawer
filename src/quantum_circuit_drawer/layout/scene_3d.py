@@ -99,6 +99,7 @@ class SceneMarker3D:
     center: Point3D
     style: MarkerStyle3D
     size: float
+    state: int = 1
 
 
 @dataclass(slots=True)

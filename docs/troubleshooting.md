@@ -64,6 +64,12 @@ For Qiskit specifically, modern control-flow is preserved as compact native boxe
 - `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` now render as compact boxes with hover details;
 - those compact boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
 
+For controlled gates across Qiskit, Cirq, and PennyLane:
+
+- binary singleton control states now draw as real open/closed controls, so control-on-`0` no longer looks like control-on-`1`;
+- hover details include the resolved control states for those simple binary cases;
+- broader control-value sets that do not map cleanly to open/closed markers fall back to a compact controlled-gate drawing and keep the native control values in hover details instead of showing misleading symbols.
+
 ## Cirq or PennyLane demos are slow or unstable on native Windows
 
 On native Windows, Cirq and PennyLane can still hit upstream SciPy/HiGHS issues during import or shutdown. This project now skips eager exact-matrix extraction for those demo paths by default on Windows, so startup should be lighter than before, but the underlying framework instability can still appear.
@@ -81,6 +87,7 @@ For PennyLane wrappers and QNode-like objects:
 - The adapter does not call `construct()` or trigger lazy wrapper properties implicitly.
 - Terminal PennyLane results such as `expval`, `var`, `probs`, `sample`, `counts`, `state`, and `density_matrix` now draw as compact output boxes instead of fake projective `M` measurements.
 - Mid-circuit `qml.measure(...)` still draws as a measurement, while terminal-result boxes keep observable or wire-scope details in hover metadata.
+- Controlled PennyLane operations can now draw open controls when the tape exposes explicit binary `control_values`.
 - When a Cirq or PennyLane-native construct has no exact shared drawing primitive, the library keeps that native meaning in hover details, annotations, comparison, or diagnostics instead of silently flattening it away.
 
 ## CUDA-Q does not install on Windows
@@ -347,5 +354,6 @@ Useful first checks:
 Framework-specific notes:
 
 - Qiskit control-flow with an `else`, `switch_case`, `for_loop`, or `while_loop` is drawn compactly on purpose; the drawer preserves the native condition and branch summary in hover details instead of expanding or simulating it.
+- Open controls from Qiskit `ctrl_state`, Cirq singleton binary `control_values`, and PennyLane boolean/binary `control_values` now draw explicitly as open controls. Non-binary control patterns still degrade to a compact controlled-gate drawing with hover details instead of a fake exact symbol.
 - MyQLM now supports drawable classical formulas when they can be carried as a clean display expression, but `BREAK`, `CLASSIC`, `REMAP`, and ancilla-heavy composites still raise.
 - CUDA-Q now supports `reset` in the supported closed-kernel subset, but still rejects control flow, `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps.

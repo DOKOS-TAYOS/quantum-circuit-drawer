@@ -8,7 +8,12 @@ from dataclasses import dataclass, field
 from ..diagnostics import RenderDiagnostic
 from ..typing import Metadata
 from .classical_conditions import ClassicalConditionIR
-from .operations import CanonicalGateFamily, OperationKind, infer_canonical_gate_family
+from .operations import (
+    CanonicalGateFamily,
+    OperationKind,
+    _normalize_control_values,
+    infer_canonical_gate_family,
+)
 from .wires import WireIR
 
 
@@ -59,6 +64,7 @@ class SemanticOperationIR:
     name: str
     target_wires: Sequence[str]
     control_wires: Sequence[str] = field(default_factory=tuple)
+    control_values: Sequence[Sequence[int]] = field(default_factory=tuple)
     classical_conditions: Sequence[ClassicalConditionIR] = field(default_factory=tuple)
     parameters: Sequence[object] = field(default_factory=tuple)
     label: str | None = None
@@ -74,6 +80,7 @@ class SemanticOperationIR:
         self.name = normalized_name
         self.target_wires = _normalize_wire_ids(self.target_wires)
         self.control_wires = _normalize_wire_ids(self.control_wires)
+        self.control_values = _normalize_control_values(self.control_values)
         self.classical_conditions = _normalize_classical_conditions(self.classical_conditions)
         self.parameters = _normalize_parameters(self.parameters)
         self.annotations = _normalize_texts(self.annotations)
@@ -82,6 +89,8 @@ class SemanticOperationIR:
             raise ValueError("semantic operation name cannot be empty")
         if not self.target_wires and self.kind is not OperationKind.BARRIER:
             raise ValueError("semantic operation must reference at least one target wire")
+        if self.control_values and len(self.control_values) != len(self.control_wires):
+            raise ValueError("control_values must align with control_wires")
         if self.label is None:
             self.label = self.name
         if self.canonical_family is CanonicalGateFamily.CUSTOM:
@@ -180,6 +189,7 @@ def semantic_operation_signature(
         tuple(_parameter_signature_token(parameter) for parameter in operation.parameters),
         tuple(wire_indices[wire_id] for wire_id in operation.target_wires),
         tuple(wire_indices[wire_id] for wire_id in operation.control_wires),
+        tuple(tuple(int(value) for value in entry) for entry in operation.control_values),
         tuple(
             (
                 tuple(wire_indices.get(wire_id, wire_id) for wire_id in condition.wire_ids),

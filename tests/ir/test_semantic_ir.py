@@ -17,6 +17,7 @@ from quantum_circuit_drawer.ir.semantic import (
     SemanticLayerIR,
     SemanticOperationIR,
     SemanticProvenanceIR,
+    semantic_operation_signature,
 )
 
 
@@ -98,3 +99,52 @@ def test_semantic_circuit_from_plain_circuit_ir_keeps_legacy_contract_intact() -
     assert semantic_operation.hover_details == ()
     assert semantic_operation.provenance.framework == "ir"
     assert semantic_operation.provenance.native_name is None
+
+
+def test_lower_semantic_circuit_preserves_control_values_for_rendering() -> None:
+    semantic_circuit = SemanticCircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            SemanticLayerIR(
+                operations=[
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        control_values=((0,),),
+                    )
+                ]
+            )
+        ],
+    )
+
+    lowered = lower_semantic_circuit(semantic_circuit)
+    lowered_operation = lowered.layers[0].operations[0]
+
+    assert lowered_operation.control_values == ((0,),)
+
+
+def test_semantic_operation_signature_distinguishes_control_states() -> None:
+    wire_indices = {"q0": 0, "q1": 1}
+    open_control = SemanticOperationIR(
+        kind=OperationKind.CONTROLLED_GATE,
+        name="X",
+        target_wires=("q1",),
+        control_wires=("q0",),
+        control_values=((0,),),
+    )
+    closed_control = SemanticOperationIR(
+        kind=OperationKind.CONTROLLED_GATE,
+        name="X",
+        target_wires=("q1",),
+        control_wires=("q0",),
+        control_values=((1,),),
+    )
+
+    assert semantic_operation_signature(open_control, wire_indices) != semantic_operation_signature(
+        closed_control, wire_indices
+    )

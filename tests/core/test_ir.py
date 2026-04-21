@@ -107,6 +107,27 @@ def test_operation_ir_normalizes_tuple_fields() -> None:
     assert operation.parameters == (3.1415,)
 
 
+def test_operation_ir_normalizes_control_values_and_requires_alignment() -> None:
+    operation = OperationIR(
+        kind=OperationKind.CONTROLLED_GATE,
+        name="X",
+        target_wires=["q2"],
+        control_wires=["q0", "q1"],
+        control_values=[[0], [1]],
+    )
+
+    assert operation.control_values == ((0,), (1,))
+
+    with pytest.raises(ValueError, match="control_values must align with control_wires"):
+        OperationIR(
+            kind=OperationKind.CONTROLLED_GATE,
+            name="X",
+            target_wires=("q1",),
+            control_wires=("q0",),
+            control_values=((0,), (1,)),
+        )
+
+
 def test_classical_condition_ir_normalizes_wire_ids_and_requires_expression() -> None:
     condition = ClassicalConditionIR(wire_ids=["c0", "c1"], expression="if c=3")
 

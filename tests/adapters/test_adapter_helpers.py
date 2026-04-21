@@ -351,6 +351,27 @@ def test_resolved_operation_matrix_infers_controlled_gate_matrix() -> None:
     assert operation_matrix_dimension(operation) == 4
 
 
+def test_resolved_operation_matrix_infers_open_controlled_gate_matrix() -> None:
+    operation = OperationIR(
+        kind=OperationKind.CONTROLLED_GATE,
+        name="X",
+        target_wires=("q1",),
+        control_wires=("q0",),
+        control_values=((0,),),
+    )
+
+    matrix = resolved_operation_matrix(operation)
+
+    assert matrix is not None
+    assert matrix.tolist() == [
+        [0j, (1 + 0j), 0j, 0j],
+        [(1 + 0j), 0j, 0j, 0j],
+        [0j, 0j, (1 + 0j), 0j],
+        [0j, 0j, 0j, (1 + 0j)],
+    ]
+    assert operation_matrix_dimension(operation) == 4
+
+
 def test_resolved_operation_matrix_infers_rzx_gate_matrix() -> None:
     theta = 0.123
     operation = OperationIR(
