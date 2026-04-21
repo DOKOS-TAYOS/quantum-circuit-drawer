@@ -61,7 +61,7 @@ jobs:
       - name: Test real optional adapters with coverage
         run: |
           python -m coverage erase
-          python -m coverage run --branch -m pytest tests/test_qiskit_adapter.py tests/test_cirq_adapter.py tests/test_pennylane_adapter.py tests/test_myqlm_adapter.py tests/test_examples_runner.py
+          python -m coverage run --branch -m pytest tests/adapters/test_qiskit_adapter.py tests/adapters/test_cirq_adapter.py tests/adapters/test_pennylane_adapter.py tests/adapters/test_myqlm_adapter.py tests/examples/test_examples_runner.py
           python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
 
   test-optional-windows:
@@ -83,7 +83,7 @@ jobs:
         shell: pwsh
         run: |
           python -m coverage erase
-          python -m coverage run --branch -m pytest tests/test_qiskit_adapter.py tests/test_myqlm_adapter.py tests/test_optional_imports.py tests/test_examples_runner.py
+          python -m coverage run --branch -m pytest tests/adapters/test_qiskit_adapter.py tests/adapters/test_myqlm_adapter.py tests/core/test_optional_imports.py tests/examples/test_examples_runner.py
           python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
 
   test-cudaq-parser:
@@ -109,7 +109,7 @@ jobs:
         shell: pwsh
         run: |
           python -m coverage erase
-          python -m coverage run --branch -m pytest tests/test_cudaq_adapter.py
+          python -m coverage run --branch -m pytest tests/adapters/test_cudaq_adapter.py
           python -m coverage report --include="*/adapters/cudaq_adapter.py,*/adapters/_cudaq_quake_parser.py" --show-missing --fail-under=80
 
   test-cudaq-linux:
@@ -129,7 +129,7 @@ jobs:
           python -m pip install -e ".[dev,cudaq]"
 
       - name: Test real CUDA-Q integration
-        run: python -m pytest tests/test_cudaq_adapter.py tests/test_cudaq_adapter_integration.py
+        run: python -m pytest tests/adapters/test_cudaq_adapter.py tests/adapters/test_cudaq_adapter_integration.py
 
   build:
     runs-on: ${{ matrix.os }}
