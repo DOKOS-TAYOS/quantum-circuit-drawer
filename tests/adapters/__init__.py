@@ -1,0 +1,1 @@
+"""Adapter-domain test modules."""

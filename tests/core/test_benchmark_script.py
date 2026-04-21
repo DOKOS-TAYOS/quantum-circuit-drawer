@@ -11,10 +11,11 @@ import pytest
 
 from quantum_circuit_drawer import DrawResult
 from quantum_circuit_drawer.ir.operations import OperationKind
+from tests.paths import repo_root_for
 
 
 def _benchmark_script_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "scripts" / "benchmark_render.py"
+    return repo_root_for(Path(__file__)) / "scripts" / "benchmark_render.py"
 
 
 def _load_benchmark_module() -> ModuleType:

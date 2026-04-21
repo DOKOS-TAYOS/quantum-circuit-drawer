@@ -64,11 +64,30 @@ Most implementation now lives in focused internal subpackages:
 
 - `quantum_circuit_drawer.drawing`: draw request normalization, runtime mode resolution, page helpers, and pipeline preparation
 - `quantum_circuit_drawer.managed`: managed Matplotlib figures, sliders, fixed page windows, viewport logic, zoom scaling, and 3D view state
-- `quantum_circuit_drawer.plots`: histogram plotting implementation
+- `quantum_circuit_drawer.plots`: histogram plotting implementation, normalization, comparison, and interactive helpers
 - `quantum_circuit_drawer.export`: shared figure-saving helpers
+
+The drawing orchestration is now split more explicitly:
+
+- `quantum_circuit_drawer.drawing.api` stays as the thin public/internal entry facade for drawing
+- `quantum_circuit_drawer.drawing.preparation` owns draw-call normalization and pipeline preparation
+- `quantum_circuit_drawer.drawing.managed_modes` owns dispatch from resolved draw mode to managed rendering paths
+- `quantum_circuit_drawer.drawing.results` owns `DrawResult` construction and saved-path normalization
+- `quantum_circuit_drawer.drawing.compare` owns circuit comparison rendering and metrics
+
+The histogram stack now follows the same split-by-owner approach:
+
+- `quantum_circuit_drawer.plots.histogram` stays as the stable public/internal facade for histogram plotting
+- `quantum_circuit_drawer.plots.histogram_models` owns the public histogram enums, configs, and result dataclasses
+- `quantum_circuit_drawer.plots.histogram_normalize` owns input normalization across mappings, arrays, and supported framework result objects
+- `quantum_circuit_drawer.plots.histogram_render` owns static histogram drawing, figure resolution, state-label display, marginal reduction, and save helpers
+- `quantum_circuit_drawer.plots.histogram_compare` owns aligned comparison ordering, metrics, and overlay drawing
+- `quantum_circuit_drawer.plots.histogram_interactive` stays as the stable interactive entrypoint
+- `quantum_circuit_drawer.plots.histogram_interactive_state`, `_controls`, and `_hover` now own interactive histogram state, widget orchestration, and hover behavior
 
 The managed and 3D internals are now split more finely so the older orchestration modules can stay small and readable:
 
+- `quantum_circuit_drawer.managed.rendering` now owns the managed render lifecycle and caller-managed axes rendering
 - `quantum_circuit_drawer.managed.slider` stays as the stable internal facade for slider-related imports
 - `quantum_circuit_drawer.managed.slider_2d` now owns the real 2D slider state, viewport sizing, and control orchestration
 - `quantum_circuit_drawer.managed.controls` owns shared widget bounds, layout, and styling helpers
@@ -83,19 +102,42 @@ The managed and 3D internals are now split more finely so the older orchestratio
 - `quantum_circuit_drawer.managed.page_window_3d_controls` owns button/textbox wiring and navigation state sync
 - `quantum_circuit_drawer.managed.page_window_3d_render` owns display-axes lifecycle and rerender helpers
 
+`quantum_circuit_drawer.managed.drawing` now remains as a thin compatibility shim over these focused helper modules.
+
 The heaviest renderer and 3D layout modules follow the same pattern:
 
 - `quantum_circuit_drawer.renderers.matplotlib_primitives` stays as the stable 2D drawing facade used by the renderer and compatibility-sensitive tests
 - `quantum_circuit_drawer.renderers._matplotlib_axes`, `_matplotlib_text`, `_matplotlib_connections`, and `_matplotlib_gates` now own the private 2D Matplotlib drawing internals
 
+- `quantum_circuit_drawer.layout._operation_layout` stays as the stable internal facade used by `layout.engine` and compatibility-sensitive tests
+- `quantum_circuit_drawer.layout._operation_layout_builder`, `_operation_layout_hover`, `_operation_layout_emitters`, and `_operation_layout_collections` now own the private 2D operation-scene assembly internals
 - `quantum_circuit_drawer.layout.engine_3d` keeps the public `LayoutEngine3D` entrypoint
 - `quantum_circuit_drawer.layout._engine_3d_metrics`, `_engine_3d_topology`, `_engine_3d_operations`, and `_engine_3d_classical` hold focused private helpers used by `LayoutEngine3D`
 - `quantum_circuit_drawer.renderers.matplotlib_renderer_3d` keeps `MatplotlibRenderer3D` and `_MANAGED_3D_VIEWPORT_BOUNDS_ATTR` importable
-- `quantum_circuit_drawer.renderers._matplotlib_renderer_3d_viewport`, `_geometry`, `_text`, `_hover`, and `_segments` hold private support code for the 3D Matplotlib renderer
+- `quantum_circuit_drawer.renderers._matplotlib_renderer_3d_axes`, `_topology`, `_wires`, `_gates`, and `_markers` now own the main private 3D renderer subsystems
+- `quantum_circuit_drawer.renderers._matplotlib_renderer_3d_viewport`, `_geometry`, `_text`, `_hover`, and `_segments` remain as focused support modules used by those private 3D renderer subsystems
 
 The larger internal test modules are also split along the same lines, with shared helpers moved into support modules so domain-specific test files stay focused.
 
 Compatibility bridge modules still exist for older internal imports, but new internal code and new tests should target the focused helper modules directly.
+
+The root private compatibility shims remain intentionally small and explicit:
+
+- keep using them only for compatibility-sensitive imports and contract tests
+- route all new internal implementation imports to the real owner modules instead
+- remove only shims that have no consumers, no contract coverage, and no compatibility value
+
+The test suite is also organized by domain so the structure mirrors the package layout:
+
+- `tests/core`: public contracts, import boundaries, scripts, formatting, and cross-cutting behavior
+- `tests/drawing`: draw-request and draw-pipeline behavior
+- `tests/managed`: managed Matplotlib rendering, page windows, sliders, and zoom
+- `tests/layout`: 2D/3D layout engines and layout refactor boundaries
+- `tests/plots`: histogram plotting, comparison, and interactive behavior
+- `tests/renderers`: Matplotlib renderer primitives, hover, text, and figure helpers
+- `tests/adapters`: framework adapters and adapter registry coverage
+- `tests/examples`: example runners and example support helpers
+- `tests/support.py`, `tests/_api_managed_rendering_support.py`, and `tests/_matplotlib_renderer_support.py` stay at the test root as shared helpers
 
 ## Run checks
 

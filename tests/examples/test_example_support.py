@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.paths import external_workspace_root_for, repo_root_for
+
 
 def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) -> None:
     from examples._shared import ExampleRequest, parse_example_args
@@ -875,8 +877,8 @@ def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.Monk
 
 
 def test_shared_example_support_imports_drawer_from_local_worktree_src() -> None:
-    worktree_root = Path(__file__).resolve().parents[1]
-    workspace_root = Path(__file__).resolve().parents[3]
+    worktree_root = repo_root_for(Path(__file__))
+    workspace_root = external_workspace_root_for(Path(__file__))
     examples_dir = worktree_root / "examples"
     expected_module_path = worktree_root / "src" / "quantum_circuit_drawer" / "__init__.py"
     environment = os.environ.copy()

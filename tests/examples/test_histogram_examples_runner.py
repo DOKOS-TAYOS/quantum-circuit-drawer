@@ -22,6 +22,7 @@ from examples.histogram_demo_catalog import (
 )
 
 from quantum_circuit_drawer import HistogramConfig, HistogramKind
+from tests.paths import external_workspace_root_for, repo_root_for
 from tests.support import assert_saved_image_has_visible_content
 
 
@@ -193,7 +194,7 @@ def test_histogram_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_histogram_examples_runner_lists_all_demo_ids() -> None:
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_histogram_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
 
     result = subprocess.run(
         [sys.executable, str(script_path), "--list"],
@@ -255,8 +256,8 @@ def test_run_histogram_demo_reports_clear_message_when_optional_dependency_is_mi
 
 
 def test_run_histogram_demo_script_imports_drawer_from_local_worktree_src() -> None:
-    worktree_root = Path(__file__).resolve().parents[1]
-    workspace_root = Path(__file__).resolve().parents[3]
+    worktree_root = repo_root_for(Path(__file__))
+    workspace_root = external_workspace_root_for(Path(__file__))
     script_path = worktree_root / "examples" / "run_histogram_demo.py"
     expected_module_path = worktree_root / "src" / "quantum_circuit_drawer" / "__init__.py"
     environment = os.environ.copy()
@@ -300,7 +301,7 @@ def test_histogram_examples_runner_can_render_builtin_demo(
     demo_id: str,
     sandbox_tmp_path: Path,
 ) -> None:
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_histogram_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
     output_path = sandbox_tmp_path / f"{demo_id}.png"
 
     result = subprocess.run(
@@ -331,7 +332,7 @@ def test_histogram_examples_runner_can_render_qiskit_marginal_demo(
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the histogram marginal demo")
 
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_histogram_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
     output_path = sandbox_tmp_path / "histogram-marginal.png"
 
     result = subprocess.run(
@@ -375,7 +376,7 @@ def test_histogram_examples_runner_can_render_optional_framework_demo(
     if find_spec(dependency) is None:
         pytest.skip(f"{dependency} is required for optional histogram demo smoke tests")
 
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_histogram_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
     output_path = sandbox_tmp_path / f"{demo_id}.png"
 
     result = subprocess.run(

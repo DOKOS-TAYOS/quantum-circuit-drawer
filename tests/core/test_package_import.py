@@ -6,9 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tests.paths import repo_root_for
+
 
 def _subprocess_env() -> dict[str, str]:
-    src_path = Path(__file__).resolve().parents[1] / "src"
+    src_path = repo_root_for(Path(__file__)) / "src"
     current_pythonpath = os.environ.get("PYTHONPATH")
     pythonpath_parts = [str(src_path)]
     if current_pythonpath:

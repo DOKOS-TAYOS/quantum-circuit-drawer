@@ -25,8 +25,8 @@ from examples._shared import (  # noqa: E402
 from examples.demo_catalog import DemoSpec, catalog_by_id  # noqa: E402
 
 from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit  # noqa: E402
-from quantum_circuit_drawer._draw_pipeline import prepare_draw_pipeline  # noqa: E402
 from quantum_circuit_drawer.adapters.registry import get_adapter  # noqa: E402
+from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind  # noqa: E402

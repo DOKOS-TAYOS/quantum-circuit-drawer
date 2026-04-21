@@ -1,0 +1,160 @@
+"""Hover and cache helpers for operation layout scene building."""
+
+from __future__ import annotations
+
+from collections.abc import Hashable
+from typing import TYPE_CHECKING
+
+from ..ir.measurements import MeasurementIR
+from ..ir.operations import CanonicalGateFamily, OperationIR, OperationKind
+from ..utils.formatting import format_gate_name
+from .scene import SceneHoverData
+
+if TYPE_CHECKING:
+    from ._operation_layout import _OperationSceneBuilder
+
+
+def build_hover_data(
+    builder: _OperationSceneBuilder,
+    *,
+    operation: OperationIR,
+    column: int,
+    name: str,
+    gate_x: float,
+    gate_y: float,
+    gate_width: float,
+    gate_height: float,
+) -> SceneHoverData:
+    quantum_wire_ids = tuple(dict.fromkeys((*operation.control_wires, *operation.target_wires)))
+    other_wire_ids = [
+        wire_id
+        for condition in operation.classical_conditions
+        for wire_id in condition.wire_ids
+        if wire_id not in quantum_wire_ids
+    ]
+    if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
+        other_wire_ids.append(operation.classical_target)
+    unique_other_wire_ids = tuple(dict.fromkeys(other_wire_ids))
+    qubit_labels = tuple(
+        (builder.wire_map[wire_id].label or builder.wire_map[wire_id].id)
+        if wire_id in builder.wire_map
+        else wire_id
+        for wire_id in quantum_wire_ids
+    )
+    measurement_bit_label = (
+        str(operation.metadata.get("classical_bit_label"))
+        if isinstance(operation, MeasurementIR)
+        and operation.classical_target is not None
+        and operation.metadata.get("classical_bit_label") is not None
+        else None
+    )
+    other_wire_labels = tuple(
+        measurement_bit_label
+        if measurement_bit_label is not None
+        and isinstance(operation, MeasurementIR)
+        and operation.classical_target == wire_id
+        else (builder.wire_map[wire_id].label or builder.wire_map[wire_id].id)
+        if wire_id in builder.wire_map
+        else wire_id
+        for wire_id in unique_other_wire_ids
+    )
+    matrix, matrix_dimension = hover_matrix_and_dimension(builder, operation)
+    return SceneHoverData(
+        key=f"op-{column}-{id(operation)}",
+        name=name,
+        qubit_labels=qubit_labels,
+        other_wire_labels=other_wire_labels,
+        matrix=matrix,
+        matrix_dimension=matrix_dimension,
+        gate_x=gate_x,
+        gate_y=gate_y,
+        gate_width=gate_width,
+        gate_height=gate_height,
+    )
+
+
+def hover_matrix_and_dimension(
+    builder: _OperationSceneBuilder,
+    operation: OperationIR,
+) -> tuple[object | None, int | None]:
+    cache_key = hover_matrix_cache_key(builder, operation)
+    cached_matrix_data = builder.hover_matrix_cache.get(cache_key)
+    if cached_matrix_data is not None:
+        return cached_matrix_data
+
+    matrix_data = (
+        builder.resolved_operation_matrix_fn(operation),
+        builder.operation_matrix_dimension_fn(operation),
+    )
+    builder.hover_matrix_cache[cache_key] = matrix_data
+    return matrix_data
+
+
+def hover_matrix_cache_key(
+    builder: _OperationSceneBuilder,
+    operation: OperationIR,
+) -> tuple[object, ...]:
+    explicit_matrix = operation.metadata.get("matrix")
+    explicit_matrix_key = id(explicit_matrix) if explicit_matrix is not None else None
+    return (
+        operation.kind,
+        operation.canonical_family,
+        operation.name,
+        len(operation.control_wires),
+        len(operation.target_wires),
+        tuple(cache_token(builder, parameter) for parameter in operation.parameters),
+        explicit_matrix_key,
+    )
+
+
+def cache_token(builder: _OperationSceneBuilder, value: object) -> object:
+    del builder
+    return value if isinstance(value, Hashable) else repr(value)
+
+
+def maybe_hover_data(
+    builder: _OperationSceneBuilder,
+    *,
+    operation: OperationIR,
+    column: int,
+    name: str,
+    gate_x: float,
+    gate_y: float,
+    gate_width: float,
+    gate_height: float,
+) -> SceneHoverData | None:
+    if not builder.hover_enabled:
+        return None
+    return build_hover_data(
+        builder,
+        operation=operation,
+        column=column,
+        name=name,
+        gate_x=gate_x,
+        gate_y=gate_y,
+        gate_width=gate_width,
+        gate_height=gate_height,
+    )
+
+
+def hover_name(
+    builder: _OperationSceneBuilder,
+    operation: OperationIR | MeasurementIR,
+    display_name: str,
+) -> str:
+    del builder
+    if operation.kind is not OperationKind.CONTROLLED_GATE:
+        return display_name
+    if operation.label is not None and operation.label != operation.name:
+        return format_gate_name(operation.label)
+
+    control_count = len(operation.control_wires)
+    if control_count == 1:
+        if operation.canonical_family is CanonicalGateFamily.X:
+            return "CNOT"
+        if operation.canonical_family is CanonicalGateFamily.Z:
+            return "CZ"
+        return f"C{display_name}"
+    if control_count == 2 and operation.canonical_family is CanonicalGateFamily.X:
+        return "TOFFOLI"
+    return f"{'C' * control_count}{display_name}"

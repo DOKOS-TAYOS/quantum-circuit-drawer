@@ -97,9 +97,9 @@ select = ["E", "F", "I", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/test_cudaq_adapter_integration.py" = ["F821"]
-"tests/test_cirq_adapter.py" = ["E402"]
-"tests/test_qiskit_adapter.py" = ["E402"]
+"tests/adapters/test_cudaq_adapter_integration.py" = ["F821"]
+"tests/adapters/test_cirq_adapter.py" = ["E402"]
+"tests/adapters/test_qiskit_adapter.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"

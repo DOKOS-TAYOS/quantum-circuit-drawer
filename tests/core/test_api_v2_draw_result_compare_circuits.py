@@ -47,9 +47,9 @@ def test_public_package_exports_compare_circuit_types() -> None:
 
 def test_draw_result_exposes_runtime_metadata_and_saved_path(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    sandbox_tmp_path: Path,
 ) -> None:
-    output_path = tmp_path / "saved-circuit.png"
+    output_path = sandbox_tmp_path / "saved-circuit.png"
     monkeypatch.setattr(
         "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
         lambda: RuntimeContext(is_notebook=False, pyplot_backend="agg"),
@@ -179,10 +179,10 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
 
 
 def test_compare_circuits_uses_caller_managed_axes_and_saves_single_output(
-    tmp_path: Path,
+    sandbox_tmp_path: Path,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(9.0, 3.2))
-    output_path = tmp_path / "circuit-compare.png"
+    output_path = sandbox_tmp_path / "circuit-compare.png"
 
     result = compare_circuits(
         build_reference_compare_ir(),

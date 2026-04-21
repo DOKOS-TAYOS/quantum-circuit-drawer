@@ -156,7 +156,9 @@ def topology_display_name(value: TopologyInput) -> str:
 
     if is_builtin_topology(value):
         return value
-    return value.name
+    if is_custom_topology(value):
+        return value.name
+    raise TypeError(f"unsupported topology value {value!r}")
 
 
 def _normalize_node_id(value: HardwareNodeId) -> HardwareNodeId:

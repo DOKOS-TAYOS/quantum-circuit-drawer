@@ -23,7 +23,7 @@ from ..typing import (
     LayoutEngineLike,
     _NormalizedLayoutEngine3DLike,
 )
-from .request import DrawPipelineOptions, TopologyMode, ViewMode
+from .request import DrawPipelineOptions, ViewMode
 
 if TYPE_CHECKING:
     from ..layout.scene import LayoutScene
@@ -88,11 +88,13 @@ def prepare_draw_pipeline(
         ir = adapter.to_ir(resolved_circuit, options=adapter_options)
         adapter_name = type(adapter).__name__
         detected_framework = resolved_framework or adapter.framework_name
-        pipeline_diagnostics.extend(
-            diagnostic
-            for diagnostic in ir.metadata.get("diagnostics", ())
-            if isinstance(diagnostic, RenderDiagnostic)
-        )
+        raw_diagnostics = ir.metadata.get("diagnostics", ())
+        if isinstance(raw_diagnostics, tuple | list):
+            pipeline_diagnostics.extend(
+                diagnostic
+                for diagnostic in raw_diagnostics
+                if isinstance(diagnostic, RenderDiagnostic)
+            )
     paged_scene: LayoutScene | LayoutScene3D
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     renderer: BaseRenderer
@@ -161,7 +163,7 @@ def coerce_pipeline_options(
     return DrawPipelineOptions(
         composite_mode=str(options.get("composite_mode", "compact")),
         view=cast(ViewMode, str(options.get("view", "2d"))),
-        topology=cast(TopologyMode, normalize_topology_input(options.get("topology", "line"))),
+        topology=normalize_topology_input(options.get("topology", "line")),
         topology_menu=bool(options.get("topology_menu", False)),
         direct=bool(options.get("direct", True)),
         hover=_normalize_hover_option(options.get("hover", False)),

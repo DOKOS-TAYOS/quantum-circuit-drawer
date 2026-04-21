@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.paths import repo_root_for
+
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32", reason="clean.bat is only runnable on Windows"
 )
@@ -28,7 +30,7 @@ def _build_clean_test_repo(sandbox_tmp_path: Path) -> _CleanTestRepo:
     scripts_dir = repo_root / "scripts"
     scripts_dir.mkdir(parents=True)
 
-    source_script = Path(__file__).resolve().parents[1] / "scripts" / "clean.bat"
+    source_script = repo_root_for(Path(__file__)) / "scripts" / "clean.bat"
     target_script = scripts_dir / "clean.bat"
     shutil.copy2(source_script, target_script)
 

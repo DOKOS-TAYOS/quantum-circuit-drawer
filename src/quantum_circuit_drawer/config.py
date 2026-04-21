@@ -90,7 +90,8 @@ class DrawConfig:
         self._validate_bool("direct", self.direct)
         self._validate_bool("show", self.show)
         self._validate_figsize(self.figsize)
-        object.__setattr__(self, "preset", normalize_style_preset(self.preset))
+        normalized_preset = normalize_style_preset(self.preset)
+        object.__setattr__(self, "preset", normalized_preset)
         object.__setattr__(
             self,
             "unsupported_policy",
@@ -99,7 +100,7 @@ class DrawConfig:
         object.__setattr__(
             self,
             "style",
-            apply_draw_style_preset(self.style, preset=self.preset),
+            apply_draw_style_preset(self.style, preset=normalized_preset),
         )
         object.__setattr__(self, "hover", normalize_hover(self.hover))
 

@@ -17,6 +17,7 @@ from examples._shared import ExampleRequest
 from examples.demo_catalog import DemoSpec, catalog_by_id, examples_directory, get_demo_catalog
 from matplotlib.figure import Figure
 
+from tests.paths import external_workspace_root_for, repo_root_for
 from tests.support import assert_saved_image_has_visible_content
 
 
@@ -477,7 +478,7 @@ def test_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_examples_runner_lists_all_demo_ids() -> None:
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_demo.py"
 
     result = subprocess.run(
         [sys.executable, str(script_path), "--list"],
@@ -526,8 +527,8 @@ def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
 
 
 def test_run_demo_script_imports_drawer_from_local_worktree_src() -> None:
-    worktree_root = Path(__file__).resolve().parents[1]
-    workspace_root = Path(__file__).resolve().parents[3]
+    worktree_root = repo_root_for(Path(__file__))
+    workspace_root = external_workspace_root_for(Path(__file__))
     script_path = worktree_root / "examples" / "run_demo.py"
     expected_module_path = worktree_root / "src" / "quantum_circuit_drawer" / "__init__.py"
     environment = os.environ.copy()
@@ -621,7 +622,7 @@ def test_examples_runner_can_render_selected_optional_demo(
     if find_spec(dependency) is None:
         pytest.skip(f"{dependency} is required for optional example smoke tests")
 
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_demo.py"
     output_path = sandbox_tmp_path / f"{demo_id}.png"
 
     result = subprocess.run(
@@ -654,7 +655,7 @@ def test_examples_runner_can_render_slider_demo_for_random_qiskit(sandbox_tmp_pa
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the slider smoke test")
 
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_demo.py"
     output_path = sandbox_tmp_path / "qiskit-slider.png"
 
     result = subprocess.run(
@@ -688,7 +689,7 @@ def test_examples_runner_can_render_window_demo_for_random_qiskit(sandbox_tmp_pa
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the page-window smoke test")
 
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_demo.py"
     output_path = sandbox_tmp_path / "qiskit-window.png"
 
     result = subprocess.run(
@@ -722,7 +723,7 @@ def test_examples_runner_can_render_3d_demo_for_random_qiskit(sandbox_tmp_path: 
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the 3D smoke test")
 
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_demo.py"
     output_path = sandbox_tmp_path / "qiskit-3d.png"
 
     result = subprocess.run(
@@ -760,7 +761,7 @@ def test_examples_runner_can_render_3d_slider_demo_for_random_qiskit(
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the 3D slider smoke test")
 
-    script_path = Path(__file__).resolve().parents[1] / "examples" / "run_demo.py"
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_demo.py"
     output_path = sandbox_tmp_path / "qiskit-3d-slider.png"
 
     result = subprocess.run(

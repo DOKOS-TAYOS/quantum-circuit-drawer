@@ -129,7 +129,9 @@ def build_topology(topology: TopologyInput, quantum_wires: tuple[WireIR, ...]) -
         if topology == "honeycomb":
             return _build_honeycomb_topology(quantum_wires)
         raise ValueError(f"unknown topology {topology!r}")
-    return _build_custom_topology(topology, quantum_wires)
+    if isinstance(topology, HardwareTopology):
+        return _build_custom_topology(topology, quantum_wires)
+    raise ValueError(f"unknown topology {topology!r}")
 
 
 def _unsupported_topology_error(topology: str, wire_count: int) -> ValueError:
