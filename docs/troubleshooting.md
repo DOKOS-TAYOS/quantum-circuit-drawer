@@ -56,7 +56,13 @@ Use this table to decide whether an issue is inside the strong support path or o
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
-At the moment, Cirq, PennyLane, MyQLM, and CUDA-Q all use the richer semantic-adapter path internally. Legacy `to_ir(...)` adapters still work, but framework-native provenance and annotations now survive longer for those built-in adapters before lowering to the shared render IR.
+At the moment, all built-in framework adapters use the richer semantic-adapter path internally. Legacy `to_ir(...)` adapters still work, but framework-native provenance and annotations now survive longer for the built-in adapters before lowering to the shared render IR.
+
+For Qiskit specifically, modern control-flow is preserved as compact native boxes instead of being flattened aggressively:
+
+- simple `if_test(...)` blocks without an `else` still expand into classically conditioned gates;
+- `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` now render as compact boxes with hover details;
+- those compact boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
 
 ## Cirq or PennyLane demos are slow or unstable on native Windows
 
@@ -340,5 +346,6 @@ Useful first checks:
 
 Framework-specific notes:
 
+- Qiskit control-flow with an `else`, `switch_case`, `for_loop`, or `while_loop` is drawn compactly on purpose; the drawer preserves the native condition and branch summary in hover details instead of expanding or simulating it.
 - MyQLM now supports drawable classical formulas when they can be carried as a clean display expression, but `BREAK`, `CLASSIC`, `REMAP`, and ancilla-heavy composites still raise.
 - CUDA-Q now supports `reset` in the supported closed-kernel subset, but still rejects control flow, `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps.

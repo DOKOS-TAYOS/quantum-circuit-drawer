@@ -38,7 +38,7 @@ The current user-facing input paths are:
 
 Across those paths, the drawer now uses a shared internal flow that can host both adapter styles: framework object -> semantic IR -> render IR for richer adapters, or framework object -> `CircuitIR` for legacy adapters. That lets comparison, diagnostics, hover, and annotations preserve framework-native details longer where native adapters exist, without breaking narrower legacy adapters that still emit `CircuitIR` directly.
 
-Cirq, PennyLane, MyQLM, and CUDA-Q now use the richer semantic adapter path. The legacy `to_ir(...)` route remains a supported extension point for narrower adapters and third-party integrations.
+All built-in framework adapters now use the richer semantic adapter path. The legacy `to_ir(...)` route remains a supported extension point for narrower adapters and third-party integrations.
 
 ## Support matrix
 
@@ -92,7 +92,9 @@ circuit.measure(1, 0)
 draw_quantum_circuit(circuit)
 ```
 
-Current support includes common gates, controlled gates, classical `if` conditions, composite instructions, swap, barriers, and measurements.
+Current support includes common gates, controlled gates, classical `if` conditions, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements.
+
+For Qiskit control-flow, the drawer keeps the existing expanded behavior for simple `if_test(...)` blocks without an `else`, because that path still maps cleanly onto classically conditioned gates. Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled.
 
 Histogram support also accepts direct Qiskit result payloads such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`.
 

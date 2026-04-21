@@ -23,6 +23,7 @@
 
 - Tightened internal typing around shared example helpers, benchmark request normalization, and 2D/3D benchmark execution so `pyright` can validate the intended render flow
 - Clarified the production support matrix across the README and core docs, keeping IR and Qiskit as the strong paths, Cirq and PennyLane as best-effort on native Windows, MyQLM as scoped adapter support, and CUDA-Q as Linux/WSL2-only
+- Migrated the Qiskit adapter onto the shared semantic path as well, keeping simple `if_test(...)` expansion while rendering `if_else` with `else`, `switch_case`, `for_loop`, and `while_loop` as compact native boxes with preserved hover details instead of flattening or simulating their control flow
 - Extended public-parity coverage for Cirq and PennyLane with Windows-safe mixed-framework compare tests and broader contract coverage for compact/expanded composite behavior
 - Reworked the Cirq and PennyLane adapter internals around a native-first semantic path, so comparison, hover, annotations, and diagnostics can preserve framework-specific meaning instead of flattening everything directly into the legacy render IR
 - Consolidated the shared adapter pipeline so richer semantic adapters and legacy `to_ir(...)` adapters coexist cleanly, then migrated MyQLM and CUDA-Q onto that same native semantic route without changing the public draw API

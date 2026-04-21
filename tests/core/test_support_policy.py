@@ -82,12 +82,24 @@ def test_framework_docs_describe_semantic_consolidation_scope_for_current_and_fu
     troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
     changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "Cirq, PennyLane, MyQLM, and CUDA-Q now use the richer semantic adapter path." in (
+    assert "All built-in framework adapters now use the richer semantic adapter path." in (
         frameworks_reference
     )
     assert "legacy `to_ir(...)` route remains a supported extension point" in (frameworks_reference)
-    assert "all use the richer semantic-adapter path internally" in troubleshooting_reference
-    assert "migrated MyQLM and CUDA-Q onto that same native semantic route" in changelog_reference
+    assert "all built-in framework adapters use the richer semantic-adapter path internally" in (
+        troubleshooting_reference
+    )
+    assert "Migrated the Qiskit adapter onto the shared semantic path" in changelog_reference
+
+
+def test_qiskit_docs_describe_compact_control_flow_support() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+
+    assert "compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`" in (
+        frameworks_reference
+    )
+    assert "does not execute branches or unroll loops for display" in troubleshooting_reference
 
 
 def test_draw_quantum_circuit_reports_cudaq_windows_platform_hint(
