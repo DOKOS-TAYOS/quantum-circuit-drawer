@@ -38,6 +38,16 @@ The current user-facing input paths are:
 
 Install extras as shown in [Installation](installation.md#install-optional-framework-extras).
 
+`plot_histogram(...)` also accepts several framework-native result payloads directly, not only raw `dict` data:
+
+- Qiskit counts and quasi-distributions, plus sampler result containers
+- Cirq `Result` / `ResultDict` measurement payloads
+- PennyLane `qml.counts()` dictionaries, `qml.probs()` vectors, and `qml.sample()` arrays
+- MyQLM `qat.core.Result` objects with `raw_data`
+- CUDA-Q `SampleResult`-style count containers
+
+When a framework returns several measurement outputs at once, pass the tuple or list directly and select one entry with `HistogramConfig(result_index=...)`.
+
 ## Qiskit
 
 Install:
@@ -66,6 +76,8 @@ draw_quantum_circuit(circuit)
 ```
 
 Current support includes common gates, controlled gates, classical `if` conditions, composite instructions, swap, barriers, and measurements.
+
+Histogram support also accepts direct Qiskit result payloads such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`.
 
 Use this when you want a clear framework check:
 
@@ -108,6 +120,8 @@ draw_quantum_circuit(circuit, config=DrawConfig(framework="cirq"))
 
 Current support includes common gates, controlled gates, classically controlled operations, `CircuitOperation`, swap, and measurements.
 
+Histogram support also accepts `cirq.Result` / `cirq.ResultDict` objects through their `measurements` mapping. If several measurement keys are present, `plot_histogram(...)` keeps them as space-separated registers in the visible state labels.
+
 Use `DrawConfig(composite_mode="expand")` when you want supported `CircuitOperation` contents to appear as separate operations.
 
 On native Windows, Cirq imports and teardown can still be limited by upstream SciPy/HiGHS behavior. The bundled demos reduce exact-matrix work by default there, but WSL or Linux remains the more reliable option for repeated demo runs.
@@ -142,6 +156,8 @@ draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
 ```
 
 Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, and optional expansion for decomposable composite operations such as `QFT`.
+
+Histogram support also accepts direct execution outputs from `qml.counts()`, `qml.probs()`, and `qml.sample()`. If a QNode returns several payloads, pass the full tuple or list and use `HistogramConfig(result_index=...)` to choose which one to plot.
 
 On native Windows, PennyLane can still be limited by upstream SciPy/HiGHS behavior. The bundled demos reduce exact-matrix work by default there, but WSL or Linux remains the more reliable option for repeated demo runs.
 
@@ -181,6 +197,8 @@ draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 ```
 
 Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, simple single-bit classical control, and compact or expanded composite gates backed by `gateDic`.
+
+Histogram support also accepts `qat.core.Result` objects through their `raw_data` samples, so finite-shot counts and simulator probabilities can be plotted without manually rebuilding a dictionary.
 
 Current limits:
 
@@ -228,6 +246,8 @@ Current limits:
 - CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
 - Kernels that still require runtime arguments are not supported.
 - Advanced CUDA-Q control flow and broader advanced constructs are outside the supported subset.
+
+Histogram support also accepts CUDA-Q `SampleResult`-style objects that expose count pairs through `items()`, so `cudaq.sample(...)` outputs can be passed straight into `plot_histogram(...)`.
 
 See [Troubleshooting](troubleshooting.md#cuda-q-kernels-with-arguments-do-not-draw) for the most common CUDA-Q issue.
 

@@ -136,6 +136,19 @@ In a normal `.py` run, and in notebooks using a widget backend such as `ipympl`,
 
 If the notebook backend is inline or otherwise static, the same call falls back to a static histogram. You can still force `mode="static"` or `mode="interactive"` yourself, and disable bin hover with `hover=False`.
 
+## Histogram input compatibility
+
+`plot_histogram(...)` now accepts several common result shapes directly:
+
+- plain mappings such as `dict` or `Counter`, with binary-string or integer state keys
+- Qiskit histogram objects such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`
+- Cirq `Result` / `ResultDict` objects through their `measurements` mapping
+- PennyLane execution outputs such as `qml.counts()` dictionaries, `qml.probs()` vectors, and `qml.sample()` arrays
+- MyQLM `qat.core.Result` objects through `raw_data`
+- CUDA-Q `SampleResult`-style objects that expose histogram pairs through `items()`
+
+If a framework call returns several result payloads at once, pass the tuple or list directly and use `HistogramConfig(result_index=...)` to choose which entry to plot.
+
 ## Modes
 
 ```python

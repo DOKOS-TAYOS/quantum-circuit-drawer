@@ -6,6 +6,7 @@
 
 - Added `plot_histogram` with public `HistogramConfig`, `HistogramKind`, and `HistogramResult` types for counts, quasi-probabilities, and joint marginals on selected qubits
 - Added support for histogram inputs from plain mappings and Qiskit 2.x result objects, including `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`
+- Added support for histogram inputs from Cirq `Result` / `ResultDict`, PennyLane probability vectors and sample arrays, MyQLM `qat.core.Result.raw_data`, CUDA-Q `SampleResult`-style containers, and direct mapping-like count objects
 - Added histogram ordering, top-k filtering, theme-aware styling, alternative bar styles, and a uniform-reference guide line based on the full state space size
 - Added interactive histogram mode with managed slider navigation, per-bin hover, cyclic sort controls, slider toggling, and a marginal-qubits text box
 - Added the public `HistogramMode` enum and the `HistogramSort.STATE_DESC` ordering mode
@@ -16,6 +17,7 @@
 ### Changed
 
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
+- Extended the framework guide and histogram docs so they spell out which result payloads can be passed directly from each supported framework, plus when to use `result_index`
 - Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, draw styles, uniform-reference guides, and the new interactive controls
 - Histogram plots now default to `HistogramMode.AUTO`, so large histograms open with managed controls in normal scripts and widget notebooks while inline notebook backends keep the static fallback
 - Histogram bin hover is now enabled by default in interactive mode and can be disabled explicitly with `hover=False`

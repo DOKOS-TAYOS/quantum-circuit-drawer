@@ -156,7 +156,7 @@ Important fields:
 - `mode`: `AUTO`, `STATIC`, or `INTERACTIVE`
 - `sort`: `STATE`, `STATE_DESC`, `VALUE_ASC`, or `VALUE_DESC`
 - `qubits`: optional tuple for a joint marginal over a subset of qubits
-- `result_index`: which Qiskit result entry to read when the object contains several results
+- `result_index`: which entry to read when the input object or tuple/list contains several histogram payloads
 - `data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
 - `state_label_mode`: `BINARY` or `DECIMAL` for the visible x-axis labels
 - `output_path`: optional file path for saving
@@ -190,6 +190,11 @@ Notes:
 
 - direct mappings can use `str` or `int` state keys
 - Qiskit 2.x inputs include `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, and `BitArray`
+- Cirq result inputs can use the `measurements` mapping from `Result` / `ResultDict`; if there are several measurement keys, the plotted state labels keep one space-separated register per key
+- PennyLane execution outputs can be passed directly as `qml.counts()` dictionaries, `qml.probs()` vectors, or `qml.sample()` arrays
+- MyQLM result inputs can use `qat.core.Result.raw_data`
+- CUDA-Q sample inputs can use `SampleResult`-style objects that expose count pairs through `items()`
+- tuple or list results from frameworks can be passed directly and narrowed with `result_index`
 - when `qubits` is provided, the function returns one joint marginal and preserves the exact qubit order you passed
 - in interactive mode, `state_labels` and `values` still describe the full ordered histogram distribution, not just the visible slider window
 
@@ -323,6 +328,25 @@ result = plot_histogram(
 ```
 
 `HistogramMode.AUTO` is the default, so this becomes interactive in a normal script or widget notebook and stays static on inline notebook backends. Set `hover=False` if you want the interactive controls without hover labels.
+
+### Framework-style result payloads
+
+```python
+probabilities = [0.125, 0.375, 0.25, 0.25]  # e.g. PennyLane qml.probs(...)
+samples = [[0, 1], [1, 1], [1, 1], [0, 1]]  # e.g. PennyLane qml.sample(...)
+
+probability_result = plot_histogram(
+    probabilities,
+    config=HistogramConfig(show=False),
+)
+
+sample_result = plot_histogram(
+    samples,
+    config=HistogramConfig(show=False),
+)
+```
+
+The same entrypoint also accepts Cirq `Result` / `ResultDict`, MyQLM `qat.core.Result`, CUDA-Q `SampleResult`-style objects, and direct tuples or lists of several framework outputs when you select one with `result_index`.
 
 ### Multi-register decimal labels
 

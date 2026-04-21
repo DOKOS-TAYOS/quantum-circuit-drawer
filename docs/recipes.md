@@ -168,6 +168,27 @@ With the default `mode="auto"`, this becomes interactive in normal `.py` runs an
 
 Set `hover=False` if you want the controls without hover labels, or force `mode="static"` if you always want a plain histogram.
 
+## Plot framework-style probability vectors or samples directly
+
+```python
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+probabilities = [0.125, 0.375, 0.25, 0.25]  # e.g. PennyLane qml.probs(...)
+samples = [[0, 1], [1, 1], [1, 1], [0, 1]]  # e.g. PennyLane qml.sample(...)
+
+probability_result = plot_histogram(
+    probabilities,
+    config=HistogramConfig(show=False),
+)
+
+sample_result = plot_histogram(
+    samples,
+    config=HistogramConfig(show=False),
+)
+```
+
+This also covers Cirq `Result` / `ResultDict` objects, MyQLM `qat.core.Result`, CUDA-Q `SampleResult`-style containers, and plain tuples or lists of several framework outputs when you select one with `HistogramConfig(result_index=...)`.
+
 ## Custom widths and hover
 
 ```python

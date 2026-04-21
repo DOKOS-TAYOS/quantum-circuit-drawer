@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from itertools import product
@@ -403,6 +403,32 @@ def _extract_raw_distribution(
     if _is_bit_array(data):
         return _mapping_from_bit_array(data), _bit_width_from_bit_array(data), HistogramKind.COUNTS
 
+    items_mapping = _items_mapping_from_object(data)
+    if items_mapping is not None:
+        bit_array_fields = {
+            key: value for key, value in items_mapping.items() if _is_bit_array(value)
+        }
+        if bit_array_fields:
+            selected_field = _select_data_bin_field_from_fields(items_mapping, data_key=data_key)
+            return (
+                _mapping_from_bit_array(selected_field),
+                _bit_width_from_bit_array(selected_field),
+                HistogramKind.COUNTS,
+            )
+        return _mapping_from_distribution_object(items_mapping)
+
+    cirq_distribution = _extract_cirq_measurement_distribution(data)
+    if cirq_distribution is not None:
+        return cirq_distribution
+
+    myqlm_distribution = _extract_myqlm_raw_data_distribution(data)
+    if myqlm_distribution is not None:
+        return myqlm_distribution
+
+    array_like_distribution = _extract_array_like_distribution(data)
+    if array_like_distribution is not None:
+        return array_like_distribution
+
     if _is_data_bin_like(data):
         selected_field = _select_data_bin_field(data, data_key=data_key)
         return (
@@ -454,6 +480,215 @@ def _mapping_from_distribution_object(
         mapping = int_outcomes()
         return mapping, _infer_mapping_bit_width(mapping), HistogramKind.COUNTS
     return data, None, None
+
+
+def _items_mapping_from_object(data: object) -> dict[object, object] | None:
+    items_method = getattr(data, "items", None)
+    if not callable(items_method):
+        return None
+    try:
+        return dict(items_method())
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_cirq_measurement_distribution(
+    data: object,
+) -> tuple[Mapping[object, object], int | None, HistogramKind] | None:
+    measurements = getattr(data, "measurements", None)
+    if not isinstance(measurements, Mapping) or not measurements:
+        return None
+
+    rows_by_register: list[tuple[str, tuple[tuple[int, ...], ...]]] = []
+    repetition_count: int | None = None
+    total_width = 0
+    for register_name, raw_rows in measurements.items():
+        rows = _coerce_sample_rows(raw_rows)
+        if rows is None:
+            return None
+        if repetition_count is None:
+            repetition_count = len(rows)
+        elif len(rows) != repetition_count:
+            raise ValueError("measurement registers must contain the same number of repetitions")
+        register_width = len(rows[0]) if rows else 0
+        total_width += register_width
+        rows_by_register.append((str(register_name), rows))
+
+    if repetition_count is None or repetition_count == 0:
+        return {"0": 0.0}, 1, HistogramKind.COUNTS
+
+    counts: dict[str, float] = {}
+    for repetition_index in range(repetition_count):
+        groups = [
+            "".join(str(bit) for bit in rows[repetition_index]) for _, rows in rows_by_register
+        ]
+        state_label = " ".join(group for group in groups if group)
+        counts[state_label or "0"] = counts.get(state_label or "0", 0.0) + 1.0
+
+    return counts, max(total_width, 1), HistogramKind.COUNTS
+
+
+def _extract_myqlm_raw_data_distribution(
+    data: object,
+) -> tuple[Mapping[object, object], int | None, HistogramKind | None] | None:
+    raw_data = getattr(data, "raw_data", None)
+    if raw_data is None:
+        return None
+
+    try:
+        samples = tuple(raw_data)
+    except TypeError:
+        return None
+    if not samples:
+        return {"0": 0.0}, 1, HistogramKind.COUNTS
+
+    mapping: dict[object, float] = {}
+    for sample in samples:
+        state_key = _extract_state_like_key(getattr(sample, "state", None))
+        probability = getattr(sample, "probability", None)
+        if state_key is None or not isinstance(probability, SupportsFloat):
+            return None
+        mapping[state_key] = mapping.get(state_key, 0.0) + float(probability)
+
+    bit_width = getattr(data, "nbqbits", None)
+    resolved_bit_width = bit_width if isinstance(bit_width, int) and bit_width >= 0 else None
+    return mapping, resolved_bit_width, None
+
+
+def _extract_state_like_key(state: object) -> int | str | None:
+    if isinstance(state, int | str) and not isinstance(state, bool):
+        return state
+
+    for attribute_name in ("bitstring", "bits", "binary", "value", "int", "index", "lsb_int"):
+        attribute_value = getattr(state, attribute_name, None)
+        if isinstance(attribute_value, int | str) and not isinstance(attribute_value, bool):
+            return attribute_value
+
+    if state is None:
+        return None
+    try:
+        integer_value = int(state)
+    except (TypeError, ValueError):
+        return None
+    return integer_value
+
+
+def _extract_array_like_distribution(
+    data: object,
+) -> tuple[Mapping[object, object], int | None, HistogramKind] | None:
+    python_data = _to_python_sequence(data)
+    if python_data is None:
+        return None
+
+    if _looks_like_probability_vector(python_data):
+        return (
+            {index: float(value) for index, value in enumerate(python_data)},
+            _bit_width_from_vector_length(len(python_data)),
+            HistogramKind.QUASI,
+        )
+
+    if _looks_like_sample_vector(python_data):
+        return (
+            _mapping_from_sample_rows((int(bit),) for bit in python_data),
+            1,
+            HistogramKind.COUNTS,
+        )
+
+    sample_rows = _coerce_sample_rows(python_data)
+    if sample_rows is not None:
+        return (
+            _mapping_from_sample_rows(sample_rows),
+            max((len(sample_rows[0]) if sample_rows else 0), 1),
+            HistogramKind.COUNTS,
+        )
+    return None
+
+
+def _to_python_sequence(data: object) -> Sequence[object] | None:
+    if isinstance(data, str | bytes | Mapping):
+        return None
+    if isinstance(data, Sequence):
+        return data
+    tolist_method = getattr(data, "tolist", None)
+    if callable(tolist_method):
+        try:
+            converted = tolist_method()
+        except TypeError:
+            return None
+        if isinstance(converted, Sequence) and not isinstance(converted, str | bytes):
+            return converted
+    return None
+
+
+def _looks_like_probability_vector(data: Sequence[object]) -> bool:
+    if not data or not _bit_width_for_sequence_length(len(data)):
+        return False
+    if any(isinstance(value, Sequence) and not isinstance(value, str | bytes) for value in data):
+        return False
+    if any(not isinstance(value, SupportsFloat) for value in data):
+        return False
+
+    numeric_values = tuple(float(value) for value in data)
+    if any(value < 0.0 for value in numeric_values):
+        return True
+    if any(not value.is_integer() for value in numeric_values):
+        return True
+    return abs(sum(numeric_values) - 1.0) <= 1e-9
+
+
+def _looks_like_sample_vector(data: Sequence[object]) -> bool:
+    return bool(data) and all(_is_bit_like(value) for value in data)
+
+
+def _coerce_sample_rows(data: object) -> tuple[tuple[int, ...], ...] | None:
+    python_rows = _to_python_sequence(data)
+    if python_rows is None or not python_rows:
+        return None
+
+    rows: list[tuple[int, ...]] = []
+    row_width: int | None = None
+    for raw_row in python_rows:
+        row_values = _to_python_sequence(raw_row)
+        if (
+            row_values is None
+            or not row_values
+            or not all(_is_bit_like(value) for value in row_values)
+        ):
+            return None
+        normalized_row = tuple(int(value) for value in row_values)
+        if row_width is None:
+            row_width = len(normalized_row)
+        elif len(normalized_row) != row_width:
+            raise ValueError("sample rows must all have the same width")
+        rows.append(normalized_row)
+    return tuple(rows)
+
+
+def _mapping_from_sample_rows(sample_rows: Sequence[Sequence[int]]) -> dict[str, float]:
+    counts: dict[str, float] = {}
+    for row in sample_rows:
+        state_label = "".join(str(bit) for bit in row)
+        counts[state_label] = counts.get(state_label, 0.0) + 1.0
+    return counts
+
+
+def _is_bit_like(value: object) -> bool:
+    return isinstance(value, bool) or (
+        isinstance(value, int) and not isinstance(value, bool) and value in {0, 1}
+    )
+
+
+def _bit_width_from_vector_length(length: int) -> int:
+    bit_width = _bit_width_for_sequence_length(length)
+    if bit_width is None:
+        raise ValueError("probability vectors must have a power-of-two length")
+    return max(bit_width, 1)
+
+
+def _bit_width_for_sequence_length(length: int) -> int | None:
+    if length <= 0 or length & (length - 1):
+        return None
+    return max(length.bit_length() - 1, 1)
 
 
 def _normalize_distribution_mapping(
@@ -870,7 +1105,14 @@ def _select_data_bin_field(data_bin: object, *, data_key: str | None) -> object:
     items_method = getattr(data_bin, "items", None)
     if not callable(items_method):
         raise TypeError("data containers must provide items()")
-    fields = dict(items_method())
+    return _select_data_bin_field_from_fields(dict(items_method()), data_key=data_key)
+
+
+def _select_data_bin_field_from_fields(
+    fields: Mapping[object, object],
+    *,
+    data_key: str | None,
+) -> object:
     bit_array_fields = {key: value for key, value in fields.items() if _is_bit_array(value)}
     if data_key is not None:
         if data_key not in fields:
