@@ -5,11 +5,10 @@ import importlib
 import matplotlib.pyplot as plt
 import pytest
 
-from quantum_circuit_drawer import DrawConfig, compare_circuits
+from quantum_circuit_drawer import CircuitRenderOptions, compare_circuits
 from quantum_circuit_drawer.adapters import register_adapter
 from quantum_circuit_drawer.adapters.base import BaseAdapter
 from quantum_circuit_drawer.adapters.registry import AdapterRegistry
-from quantum_circuit_drawer.circuit_compare import CircuitCompareConfig
 from quantum_circuit_drawer.ir import (
     CircuitIR,
     LayerIR,
@@ -24,7 +23,7 @@ from quantum_circuit_drawer.ir.semantic import (
     SemanticOperationIR,
     SemanticProvenanceIR,
 )
-from tests.support import assert_figure_has_visible_content
+from tests.support import assert_figure_has_visible_content, build_public_compare_config
 
 
 class _SemanticCompareCircuit:
@@ -96,9 +95,11 @@ def test_compare_circuits_uses_semantic_signatures_when_available(
     result = compare_circuits(
         _SemanticCompareCircuit(),
         plain_ir,
-        left_config=DrawConfig(framework="semantic_compare_demo", show=False),
-        right_config=DrawConfig(show=False),
-        config=CircuitCompareConfig(show=False, highlight_differences=False),
+        config=build_public_compare_config(
+            left_render=CircuitRenderOptions(framework="semantic_compare_demo"),
+            show=False,
+            highlight_differences=False,
+        ),
     )
 
     assert result.metrics.differing_layer_count == 1

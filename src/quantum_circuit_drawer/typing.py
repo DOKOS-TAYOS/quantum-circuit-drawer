@@ -26,7 +26,7 @@ RenderResult: TypeAlias = tuple[Figure, Axes] | Axes
 class LayoutEngineLike(Protocol):
     """Protocol for custom 2D layout engines accepted by the public API.
 
-    Custom layouts are passed directly through ``DrawConfig(layout=...)``.
+    Custom layouts are passed through ``DrawConfig.side.render.layout``.
     They are not registered globally.
     """
 
@@ -38,7 +38,7 @@ class LayoutEngineLike(Protocol):
 class LayoutEngine3DLike(Protocol):
     """Protocol for custom 3D layout engines accepted by the public API.
 
-    Custom layouts are passed directly through ``DrawConfig(layout=...)``.
+    Custom layouts are passed through ``DrawConfig.side.render.layout``.
     They are not registered globally.
     """
 

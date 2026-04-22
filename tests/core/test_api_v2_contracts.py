@@ -8,7 +8,15 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import quantum_circuit_drawer
 import quantum_circuit_drawer.drawing.runtime as runtime_context_module
-from quantum_circuit_drawer import DrawConfig, DrawMode, DrawResult
+from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawResult,
+    DrawSideConfig,
+    OutputOptions,
+)
 from quantum_circuit_drawer.api import draw_quantum_circuit
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from tests.support import build_sample_ir
@@ -16,15 +24,19 @@ from tests.support import build_sample_ir
 
 def test_public_package_exports_v2_draw_types() -> None:
     assert quantum_circuit_drawer.DrawConfig is DrawConfig
+    assert quantum_circuit_drawer.DrawSideConfig is DrawSideConfig
+    assert quantum_circuit_drawer.CircuitRenderOptions is CircuitRenderOptions
+    assert quantum_circuit_drawer.CircuitAppearanceOptions is CircuitAppearanceOptions
+    assert quantum_circuit_drawer.OutputOptions is OutputOptions
     assert quantum_circuit_drawer.DrawMode is DrawMode
     assert quantum_circuit_drawer.DrawResult is DrawResult
-    assert DrawConfig().mode is DrawMode.AUTO
+    assert DrawConfig().side.render.mode is DrawMode.AUTO
 
 
 def test_draw_quantum_circuit_returns_draw_result_for_managed_render() -> None:
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(show=False),
+        config=DrawConfig(output=OutputOptions(show=False)),
     )
 
     assert isinstance(result, DrawResult)
@@ -85,7 +97,10 @@ def test_package_level_draw_quantum_circuit_forwards_config_and_axes(
     )
 
     figure, axes = plt.subplots()
-    config = DrawConfig(mode=DrawMode.FULL, show=False)
+    config = DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.FULL)),
+        output=OutputOptions(show=False),
+    )
 
     result = quantum_circuit_drawer.draw_quantum_circuit(
         build_sample_ir(),
@@ -110,7 +125,7 @@ def test_draw_quantum_circuit_resolves_auto_mode_to_pages_controls_for_scripts(
 
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(show=False),
+        config=DrawConfig(output=OutputOptions(show=False)),
     )
 
     assert result.mode is DrawMode.PAGES_CONTROLS
@@ -128,7 +143,7 @@ def test_draw_quantum_circuit_resolves_auto_mode_to_pages_for_notebooks(
 
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(show=False),
+        config=DrawConfig(output=OutputOptions(show=False)),
     )
 
     assert result.mode is DrawMode.PAGES
@@ -147,7 +162,10 @@ def test_draw_quantum_circuit_rejects_interactive_mode_in_non_widget_notebook(
     with pytest.raises(ValueError, match="requires a notebook widget backend"):
         draw_quantum_circuit(
             build_sample_ir(),
-            config=DrawConfig(mode=DrawMode.SLIDER, show=False),
+            config=DrawConfig(
+                side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.SLIDER)),
+                output=OutputOptions(show=False),
+            ),
         )
 
 
@@ -172,15 +190,19 @@ def test_runtime_context_detects_non_notebook_without_importing_ipython(
 
 def test_draw_config_validates_public_choices() -> None:
     with pytest.raises(ValueError, match="mode must be one of"):
-        DrawConfig(mode="invalid")  # type: ignore[arg-type]
+        DrawConfig(
+            side=DrawSideConfig(render=CircuitRenderOptions(mode="invalid")),  # type: ignore[arg-type]
+        )
 
     with pytest.raises(ValueError, match="view must be one of"):
-        DrawConfig(view="invalid")  # type: ignore[arg-type]
+        DrawConfig(
+            side=DrawSideConfig(render=CircuitRenderOptions(view="invalid")),  # type: ignore[arg-type]
+        )
 
 
 def test_draw_config_rejects_boolean_figsize_entries() -> None:
     with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
-        DrawConfig(figsize=(True, 2.0))
+        OutputOptions(figsize=(True, 2.0))
 
 
 def test_draw_quantum_circuit_rejects_explicit_interactive_mode_with_existing_axes() -> None:
@@ -189,7 +211,10 @@ def test_draw_quantum_circuit_rejects_explicit_interactive_mode_with_existing_ax
     with pytest.raises(ValueError, match="requires a Matplotlib-managed figure"):
         draw_quantum_circuit(
             build_sample_ir(),
-            config=DrawConfig(mode=DrawMode.SLIDER, show=False),
+            config=DrawConfig(
+                side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.SLIDER)),
+                output=OutputOptions(show=False),
+            ),
             ax=axes,
         )
 

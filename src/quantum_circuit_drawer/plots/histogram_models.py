@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from ..config import OutputOptions, validate_output_options
 from ..presets import (
     StylePreset,
     histogram_draw_style_for_preset,
@@ -73,32 +74,52 @@ class HistogramCompareSort(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class HistogramConfig:
-    """Public configuration for ``plot_histogram``."""
+class HistogramDataOptions:
+    """Histogram data selection and interpretation controls."""
 
     kind: HistogramKind = HistogramKind.AUTO
-    mode: HistogramMode = HistogramMode.AUTO
-    sort: HistogramSort = HistogramSort.STATE
     top_k: int | None = None
     qubits: tuple[int, ...] | None = None
     result_index: int = 0
     data_key: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "kind", _normalize_kind(self.kind))
+        _validate_qubits(self.qubits)
+        _validate_top_k(self.top_k)
+        _validate_result_index(self.result_index)
+
+
+@dataclass(frozen=True, slots=True)
+class HistogramViewOptions:
+    """Histogram view-specific options for single-histogram plots."""
+
+    mode: HistogramMode = HistogramMode.AUTO
+    sort: HistogramSort = HistogramSort.STATE
+    state_label_mode: HistogramStateLabelMode = HistogramStateLabelMode.BINARY
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "mode", _normalize_mode(self.mode))
+        object.__setattr__(self, "sort", _normalize_sort(self.sort))
+        object.__setattr__(
+            self,
+            "state_label_mode",
+            _normalize_state_label_mode(self.state_label_mode),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class HistogramAppearanceOptions:
+    """Histogram appearance and interaction options."""
+
     preset: StylePreset | str | None = None
     theme: DrawTheme | str | None = None
     draw_style: HistogramDrawStyle = HistogramDrawStyle.SOLID
-    state_label_mode: HistogramStateLabelMode = HistogramStateLabelMode.BINARY
     hover: bool = True
     show_uniform_reference: bool = False
-    show: bool = True
-    output_path: OutputPath | None = None
-    figsize: tuple[float, float] | None = None
 
     def __post_init__(self) -> None:
         normalized_preset = normalize_style_preset(self.preset)
-        object.__setattr__(self, "kind", self._normalize_kind(self.kind))
-        object.__setattr__(self, "mode", self._normalize_mode(self.mode))
-        object.__setattr__(self, "sort", self._normalize_sort(self.sort))
-        object.__setattr__(self, "preset", normalized_preset)
         preset_theme = (
             self.theme if self.theme is not None else histogram_theme_for_preset(normalized_preset)
         )
@@ -107,123 +128,116 @@ class HistogramConfig:
             if self.draw_style is not HistogramDrawStyle.SOLID
             else histogram_draw_style_for_preset(normalized_preset) or self.draw_style
         )
-        preset_figsize = self.figsize or histogram_figsize_for_preset(normalized_preset)
+        object.__setattr__(self, "preset", normalized_preset)
         object.__setattr__(self, "theme", resolve_theme(preset_theme))
-        object.__setattr__(self, "draw_style", self._normalize_draw_style(preset_draw_style))
-        object.__setattr__(self, "figsize", preset_figsize)
-        object.__setattr__(
-            self,
-            "state_label_mode",
-            self._normalize_state_label_mode(self.state_label_mode),
+        object.__setattr__(self, "draw_style", _normalize_draw_style(preset_draw_style))
+        _validate_hover(self.hover)
+        _validate_show_uniform_reference(self.show_uniform_reference)
+
+
+@dataclass(frozen=True, slots=True)
+class HistogramCompareOptions:
+    """Histogram-comparison specific presentation controls."""
+
+    sort: HistogramCompareSort = HistogramCompareSort.STATE
+    left_label: str = "Left"
+    right_label: str = "Right"
+    hover: bool = True
+    preset: StylePreset | str | None = None
+    theme: DrawTheme | str | None = None
+
+    def __post_init__(self) -> None:
+        normalized_preset = normalize_style_preset(self.preset)
+        preset_theme = (
+            self.theme if self.theme is not None else histogram_theme_for_preset(normalized_preset)
         )
-        self._validate_qubits(self.qubits)
-        self._validate_top_k(self.top_k)
-        self._validate_result_index(self.result_index)
-        self._validate_hover(self.hover)
-        self._validate_show_uniform_reference(self.show_uniform_reference)
-        self._validate_show(self.show)
-        self._validate_figsize(self.figsize)
+        object.__setattr__(self, "sort", _normalize_compare_sort(self.sort))
+        object.__setattr__(self, "preset", normalized_preset)
+        object.__setattr__(self, "theme", resolve_theme(preset_theme))
+        _validate_hover(self.hover)
 
-    @staticmethod
-    def _normalize_kind(value: HistogramKind | str) -> HistogramKind:
-        try:
-            return value if isinstance(value, HistogramKind) else HistogramKind(str(value))
-        except ValueError as exc:
-            choices = ", ".join(kind.value for kind in HistogramKind)
-            raise ValueError(f"kind must be one of: {choices}") from exc
 
-    @staticmethod
-    def _normalize_mode(value: HistogramMode | str) -> HistogramMode:
-        try:
-            return value if isinstance(value, HistogramMode) else HistogramMode(str(value))
-        except ValueError as exc:
-            choices = ", ".join(mode.value for mode in HistogramMode)
-            raise ValueError(f"mode must be one of: {choices}") from exc
+@dataclass(frozen=True, slots=True)
+class HistogramConfig:
+    """Public configuration for ``plot_histogram``."""
 
-    @staticmethod
-    def _normalize_sort(value: HistogramSort | str) -> HistogramSort:
-        try:
-            return value if isinstance(value, HistogramSort) else HistogramSort(str(value))
-        except ValueError as exc:
-            choices = ", ".join(sort.value for sort in HistogramSort)
-            raise ValueError(f"sort must be one of: {choices}") from exc
+    data: HistogramDataOptions = field(default_factory=HistogramDataOptions)
+    view: HistogramViewOptions = field(default_factory=HistogramViewOptions)
+    appearance: HistogramAppearanceOptions = field(default_factory=HistogramAppearanceOptions)
+    output: OutputOptions = field(default_factory=OutputOptions)
 
-    @staticmethod
-    def _normalize_draw_style(value: HistogramDrawStyle | str) -> HistogramDrawStyle:
-        try:
-            return (
-                value if isinstance(value, HistogramDrawStyle) else HistogramDrawStyle(str(value))
-            )
-        except ValueError as exc:
-            choices = ", ".join(style.value for style in HistogramDrawStyle)
-            raise ValueError(f"draw_style must be one of: {choices}") from exc
+    def __post_init__(self) -> None:
+        _validate_instance("data", self.data, HistogramDataOptions)
+        _validate_instance("view", self.view, HistogramViewOptions)
+        _validate_instance("appearance", self.appearance, HistogramAppearanceOptions)
+        validate_output_options(self.output)
+        preset_figsize = histogram_figsize_for_preset(self.appearance.preset)
+        if self.output.figsize is None and preset_figsize is not None:
+            object.__setattr__(self, "output", replace(self.output, figsize=preset_figsize))
 
-    @staticmethod
-    def _normalize_state_label_mode(
-        value: HistogramStateLabelMode | str,
-    ) -> HistogramStateLabelMode:
-        try:
-            return (
-                value
-                if isinstance(value, HistogramStateLabelMode)
-                else HistogramStateLabelMode(str(value))
-            )
-        except ValueError as exc:
-            choices = ", ".join(mode.value for mode in HistogramStateLabelMode)
-            raise ValueError(f"state_label_mode must be one of: {choices}") from exc
+    @property
+    def kind(self) -> HistogramKind:
+        return self.data.kind
 
-    @staticmethod
-    def _validate_qubits(qubits: tuple[int, ...] | None) -> None:
-        if qubits is None:
-            return
-        if not isinstance(qubits, tuple):
-            raise ValueError("qubits must be a tuple of non-negative integers")
-        if any(not _is_non_negative_integer(qubit) for qubit in qubits):
-            raise ValueError("qubits must be a tuple of non-negative integers")
-        if len(set(qubits)) != len(qubits):
-            raise ValueError("qubits must not contain duplicates")
+    @property
+    def top_k(self) -> int | None:
+        return self.data.top_k
 
-    @staticmethod
-    def _validate_top_k(value: int | None) -> None:
-        if value is None:
-            return
-        if _is_positive_integer(value):
-            return
-        raise ValueError("top_k must be a positive integer")
+    @property
+    def qubits(self) -> tuple[int, ...] | None:
+        return self.data.qubits
 
-    @staticmethod
-    def _validate_result_index(value: int) -> None:
-        if _is_non_negative_integer(value):
-            return
-        raise ValueError("result_index must be a non-negative integer")
+    @property
+    def result_index(self) -> int:
+        return self.data.result_index
 
-    @staticmethod
-    def _validate_show_uniform_reference(value: bool) -> None:
-        if isinstance(value, bool):
-            return
-        raise ValueError("show_uniform_reference must be a boolean")
+    @property
+    def data_key(self) -> str | None:
+        return self.data.data_key
 
-    @staticmethod
-    def _validate_hover(value: bool) -> None:
-        if isinstance(value, bool):
-            return
-        raise ValueError("hover must be a boolean")
+    @property
+    def mode(self) -> HistogramMode:
+        return self.view.mode
 
-    @staticmethod
-    def _validate_show(value: bool) -> None:
-        if isinstance(value, bool):
-            return
-        raise ValueError("show must be a boolean")
+    @property
+    def sort(self) -> HistogramSort:
+        return self.view.sort
 
-    @staticmethod
-    def _validate_figsize(value: tuple[float, float] | None) -> None:
-        if value is None:
-            return
-        if not isinstance(value, tuple | list) or len(value) != 2:
-            raise ValueError("figsize must be a 2-item tuple of positive numbers")
-        width, height = value
-        if not _is_positive_dimension(width) or not _is_positive_dimension(height):
-            raise ValueError("figsize must be a 2-item tuple of positive numbers")
+    @property
+    def state_label_mode(self) -> HistogramStateLabelMode:
+        return self.view.state_label_mode
+
+    @property
+    def preset(self) -> StylePreset | None:
+        return self.appearance.preset
+
+    @property
+    def theme(self) -> DrawTheme:
+        return self.appearance.theme
+
+    @property
+    def draw_style(self) -> HistogramDrawStyle:
+        return self.appearance.draw_style
+
+    @property
+    def hover(self) -> bool:
+        return self.appearance.hover
+
+    @property
+    def show_uniform_reference(self) -> bool:
+        return self.appearance.show_uniform_reference
+
+    @property
+    def show(self) -> bool:
+        return self.output.show
+
+    @property
+    def output_path(self) -> OutputPath | None:
+        return self.output.output_path
+
+    @property
+    def figsize(self) -> tuple[float, float] | None:
+        return self.output.figsize
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,53 +257,73 @@ class HistogramResult:
 class HistogramCompareConfig:
     """Public configuration for ``compare_histograms``."""
 
-    kind: HistogramKind = HistogramKind.AUTO
-    sort: HistogramCompareSort = HistogramCompareSort.STATE
-    top_k: int | None = None
-    qubits: tuple[int, ...] | None = None
-    result_index: int = 0
-    data_key: str | None = None
-    preset: StylePreset | str | None = None
-    theme: DrawTheme | str | None = None
-    left_label: str = "Left"
-    right_label: str = "Right"
-    hover: bool = True
-    show: bool = True
-    output_path: OutputPath | None = None
-    figsize: tuple[float, float] | None = None
+    data: HistogramDataOptions = field(default_factory=HistogramDataOptions)
+    compare: HistogramCompareOptions = field(default_factory=HistogramCompareOptions)
+    output: OutputOptions = field(default_factory=OutputOptions)
 
     def __post_init__(self) -> None:
-        normalized_preset = normalize_style_preset(self.preset)
-        object.__setattr__(self, "kind", HistogramConfig._normalize_kind(self.kind))
-        object.__setattr__(self, "sort", self._normalize_sort(self.sort))
-        object.__setattr__(self, "preset", normalized_preset)
-        preset_theme = (
-            self.theme if self.theme is not None else histogram_theme_for_preset(normalized_preset)
-        )
-        object.__setattr__(self, "theme", resolve_theme(preset_theme))
-        object.__setattr__(
-            self,
-            "figsize",
-            self.figsize or histogram_figsize_for_preset(normalized_preset),
-        )
-        HistogramConfig._validate_qubits(self.qubits)
-        HistogramConfig._validate_top_k(self.top_k)
-        HistogramConfig._validate_result_index(self.result_index)
-        HistogramConfig._validate_hover(self.hover)
-        HistogramConfig._validate_show(self.show)
-        HistogramConfig._validate_figsize(self.figsize)
+        _validate_instance("data", self.data, HistogramDataOptions)
+        _validate_instance("compare", self.compare, HistogramCompareOptions)
+        validate_output_options(self.output)
+        preset_figsize = histogram_figsize_for_preset(self.compare.preset)
+        if self.output.figsize is None and preset_figsize is not None:
+            object.__setattr__(self, "output", replace(self.output, figsize=preset_figsize))
 
-    @staticmethod
-    def _normalize_sort(value: HistogramCompareSort | str) -> HistogramCompareSort:
-        try:
-            return (
-                value
-                if isinstance(value, HistogramCompareSort)
-                else HistogramCompareSort(str(value))
-            )
-        except ValueError as exc:
-            choices = ", ".join(sort.value for sort in HistogramCompareSort)
-            raise ValueError(f"sort must be one of: {choices}") from exc
+    @property
+    def kind(self) -> HistogramKind:
+        return self.data.kind
+
+    @property
+    def top_k(self) -> int | None:
+        return self.data.top_k
+
+    @property
+    def qubits(self) -> tuple[int, ...] | None:
+        return self.data.qubits
+
+    @property
+    def result_index(self) -> int:
+        return self.data.result_index
+
+    @property
+    def data_key(self) -> str | None:
+        return self.data.data_key
+
+    @property
+    def sort(self) -> HistogramCompareSort:
+        return self.compare.sort
+
+    @property
+    def left_label(self) -> str:
+        return self.compare.left_label
+
+    @property
+    def right_label(self) -> str:
+        return self.compare.right_label
+
+    @property
+    def hover(self) -> bool:
+        return self.compare.hover
+
+    @property
+    def preset(self) -> StylePreset | None:
+        return self.compare.preset
+
+    @property
+    def theme(self) -> DrawTheme:
+        return self.compare.theme
+
+    @property
+    def show(self) -> bool:
+        return self.output.show
+
+    @property
+    def output_path(self) -> OutputPath | None:
+        return self.output.output_path
+
+    @property
+    def figsize(self) -> tuple[float, float] | None:
+        return self.output.figsize
 
 
 @dataclass(frozen=True, slots=True)
@@ -316,8 +350,103 @@ class HistogramCompareResult:
     diagnostics: tuple[RenderDiagnostic, ...] = ()
 
 
-def _is_positive_dimension(value: object) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
+def _normalize_kind(value: HistogramKind | str) -> HistogramKind:
+    try:
+        return value if isinstance(value, HistogramKind) else HistogramKind(str(value))
+    except ValueError as exc:
+        choices = ", ".join(kind.value for kind in HistogramKind)
+        raise ValueError(f"kind must be one of: {choices}") from exc
+
+
+def _normalize_mode(value: HistogramMode | str) -> HistogramMode:
+    try:
+        return value if isinstance(value, HistogramMode) else HistogramMode(str(value))
+    except ValueError as exc:
+        choices = ", ".join(mode.value for mode in HistogramMode)
+        raise ValueError(f"mode must be one of: {choices}") from exc
+
+
+def _normalize_sort(value: HistogramSort | str) -> HistogramSort:
+    try:
+        return value if isinstance(value, HistogramSort) else HistogramSort(str(value))
+    except ValueError as exc:
+        choices = ", ".join(sort.value for sort in HistogramSort)
+        raise ValueError(f"sort must be one of: {choices}") from exc
+
+
+def _normalize_draw_style(value: HistogramDrawStyle | str) -> HistogramDrawStyle:
+    try:
+        return value if isinstance(value, HistogramDrawStyle) else HistogramDrawStyle(str(value))
+    except ValueError as exc:
+        choices = ", ".join(style.value for style in HistogramDrawStyle)
+        raise ValueError(f"draw_style must be one of: {choices}") from exc
+
+
+def _normalize_state_label_mode(
+    value: HistogramStateLabelMode | str,
+) -> HistogramStateLabelMode:
+    try:
+        return (
+            value
+            if isinstance(value, HistogramStateLabelMode)
+            else HistogramStateLabelMode(str(value))
+        )
+    except ValueError as exc:
+        choices = ", ".join(mode.value for mode in HistogramStateLabelMode)
+        raise ValueError(f"state_label_mode must be one of: {choices}") from exc
+
+
+def _normalize_compare_sort(value: HistogramCompareSort | str) -> HistogramCompareSort:
+    try:
+        return (
+            value if isinstance(value, HistogramCompareSort) else HistogramCompareSort(str(value))
+        )
+    except ValueError as exc:
+        choices = ", ".join(sort.value for sort in HistogramCompareSort)
+        raise ValueError(f"sort must be one of: {choices}") from exc
+
+
+def _validate_qubits(qubits: tuple[int, ...] | None) -> None:
+    if qubits is None:
+        return
+    if not isinstance(qubits, tuple):
+        raise ValueError("qubits must be a tuple of non-negative integers")
+    if any(not _is_non_negative_integer(qubit) for qubit in qubits):
+        raise ValueError("qubits must be a tuple of non-negative integers")
+    if len(set(qubits)) != len(qubits):
+        raise ValueError("qubits must not contain duplicates")
+
+
+def _validate_top_k(value: int | None) -> None:
+    if value is None:
+        return
+    if _is_positive_integer(value):
+        return
+    raise ValueError("top_k must be a positive integer")
+
+
+def _validate_result_index(value: int) -> None:
+    if _is_non_negative_integer(value):
+        return
+    raise ValueError("result_index must be a non-negative integer")
+
+
+def _validate_show_uniform_reference(value: bool) -> None:
+    if isinstance(value, bool):
+        return
+    raise ValueError("show_uniform_reference must be a boolean")
+
+
+def _validate_hover(value: bool) -> None:
+    if isinstance(value, bool):
+        return
+    raise ValueError("hover must be a boolean")
+
+
+def _validate_instance(name: str, value: object, expected_type: type[object]) -> None:
+    if isinstance(value, expected_type):
+        return
+    raise TypeError(f"{name} must be a {expected_type.__name__}")
 
 
 def _is_non_negative_integer(value: object) -> bool:
@@ -329,15 +458,19 @@ def _is_positive_integer(value: object) -> bool:
 
 
 __all__ = [
+    "HistogramAppearanceOptions",
     "HistogramCompareConfig",
     "HistogramCompareMetrics",
+    "HistogramCompareOptions",
     "HistogramCompareResult",
     "HistogramCompareSort",
     "HistogramConfig",
+    "HistogramDataOptions",
     "HistogramDrawStyle",
     "HistogramKind",
     "HistogramMode",
     "HistogramResult",
     "HistogramSort",
     "HistogramStateLabelMode",
+    "HistogramViewOptions",
 ]

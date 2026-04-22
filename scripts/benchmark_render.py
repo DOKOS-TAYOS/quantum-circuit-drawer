@@ -29,7 +29,12 @@ from examples.demo_catalog import DemoSpec, catalog_by_id  # noqa: E402
 
 from quantum_circuit_drawer.adapters.registry import get_adapter  # noqa: E402
 from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
-from quantum_circuit_drawer.config import DrawConfig  # noqa: E402
+from quantum_circuit_drawer.config import (  # noqa: E402
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+)
 from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline  # noqa: E402
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR  # noqa: E402
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind  # noqa: E402
@@ -151,16 +156,23 @@ def benchmark_render(
             full_result = draw_quantum_circuit(
                 circuit,
                 config=DrawConfig(
-                    framework="ir",
-                    view="3d",
-                    topology=topology,
-                    show=False,
+                    side=DrawSideConfig(
+                        render=CircuitRenderOptions(
+                            framework="ir",
+                            view="3d",
+                            topology=topology,
+                        )
+                    ),
+                    output=OutputOptions(show=False),
                 ),
             )
         else:
             full_result = draw_quantum_circuit(
                 circuit,
-                config=DrawConfig(framework="ir", show=False),
+                config=DrawConfig(
+                    side=DrawSideConfig(render=CircuitRenderOptions(framework="ir")),
+                    output=OutputOptions(show=False),
+                ),
             )
         full_draw_seconds += perf_counter() - full_draw_start
         for figure in full_result.figures:

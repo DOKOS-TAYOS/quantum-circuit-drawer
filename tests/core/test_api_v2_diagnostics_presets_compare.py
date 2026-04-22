@@ -35,6 +35,9 @@ from tests.support import (
     FakeMyQLMOp,
     FakeMyQLMSyntax,
     assert_figure_has_visible_content,
+    build_public_draw_config,
+    build_public_histogram_compare_config,
+    build_public_histogram_config,
     build_sample_ir,
     install_fake_myqlm,
     normalize_rendered_text,
@@ -130,7 +133,7 @@ def test_draw_quantum_circuit_reports_runtime_diagnostics_for_auto_mode_and_hidd
 
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(show=False, hover=True),
+        config=build_public_draw_config(show=False, hover=True),
     )
 
     diagnostic_codes = {diagnostic.code for diagnostic in result.diagnostics}
@@ -151,7 +154,7 @@ def test_plot_histogram_reports_runtime_diagnostic_when_auto_mode_falls_back_to_
 
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert {diagnostic.code for diagnostic in result.diagnostics} == {
@@ -169,7 +172,7 @@ def test_draw_quantum_circuit_keeps_supported_myqlm_reset_drawable(
 
     result = draw_quantum_circuit(
         build_placeholder_ready_myqlm_circuit(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             framework="myqlm",
             show=False,
             unsupported_policy=UnsupportedPolicy.PLACEHOLDER,
@@ -193,7 +196,7 @@ def test_draw_quantum_circuit_uses_placeholder_for_recoverable_unsupported_myqlm
 
     result = draw_quantum_circuit(
         build_placeholder_fallback_myqlm_circuit(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             framework="myqlm",
             mode=DrawMode.FULL,
             show=False,
@@ -221,7 +224,7 @@ def test_draw_quantum_circuit_keeps_structural_errors_even_with_placeholder_poli
     with pytest.raises(UnsupportedOperationError, match="matching qubit/cbit counts"):
         draw_quantum_circuit(
             build_structurally_invalid_myqlm_measurement_circuit(),
-            config=DrawConfig(
+            config=build_public_draw_config(
                 framework="myqlm",
                 show=False,
                 unsupported_policy=UnsupportedPolicy.PLACEHOLDER,
@@ -232,11 +235,11 @@ def test_draw_quantum_circuit_keeps_structural_errors_even_with_placeholder_poli
 def test_draw_preset_applies_theme_and_explicit_style_keeps_priority() -> None:
     preset_result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(show=False, preset=StylePreset.PAPER),
+        config=build_public_draw_config(show=False, preset=StylePreset.PAPER),
     )
     override_result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             show=False,
             preset=StylePreset.PAPER,
             style={"theme": "dark"},
@@ -257,11 +260,15 @@ def test_draw_preset_applies_theme_and_explicit_style_keeps_priority() -> None:
 def test_histogram_preset_applies_theme_and_explicit_theme_keeps_priority() -> None:
     preset_result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False, preset=StylePreset.PAPER),
+        config=build_public_histogram_config(show=False, preset=StylePreset.PAPER),
     )
     override_result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False, preset=StylePreset.PAPER, theme="light"),
+        config=build_public_histogram_config(
+            show=False,
+            preset=StylePreset.PAPER,
+            theme="light",
+        ),
     )
 
     assert preset_result.figure.get_facecolor() == pytest.approx(
@@ -279,7 +286,7 @@ def test_compare_histograms_returns_overlay_result_with_metrics_and_diagnostics(
     result = compare_histograms(
         {"00": 8, "01": 2, "11": 5},
         {"00": 4, "10": 7, "11": 6},
-        config=HistogramCompareConfig(
+        config=build_public_histogram_compare_config(
             show=False,
             sort=HistogramCompareSort.DELTA_DESC,
             left_label="Reference",
@@ -310,7 +317,7 @@ def test_compare_histograms_overlay_uses_same_bin_position_colors_and_front_bar_
     result = compare_histograms(
         {"00": 3, "01": 9},
         {"00": 7, "01": 2},
-        config=HistogramCompareConfig(show=False),
+        config=build_public_histogram_compare_config(show=False),
     )
 
     grouped_patches: dict[float, list[object]] = defaultdict(list)
@@ -340,7 +347,7 @@ def test_compare_histograms_overlay_uses_same_bin_position_colors_and_front_bar_
 
 
 def test_compare_histograms_uses_theme_text_color_for_legend_in_dark_mode() -> None:
-    config = HistogramCompareConfig(
+    config = build_public_histogram_compare_config(
         show=False,
         theme="dark",
         left_label="Ideal",
@@ -367,7 +374,7 @@ def test_compare_histograms_hover_reports_both_series_values_for_one_bin() -> No
     result = compare_histograms(
         {"00": 8, "01": 2},
         {"00": 4, "01": 5},
-        config=HistogramCompareConfig(
+        config=build_public_histogram_compare_config(
             show=False,
             sort=HistogramCompareSort.STATE,
             left_label="Ideal",
@@ -394,7 +401,7 @@ def test_compare_histograms_hover_can_be_disabled() -> None:
     result = compare_histograms(
         {"00": 8, "01": 2},
         {"00": 4, "01": 5},
-        config=HistogramCompareConfig(
+        config=build_public_histogram_compare_config(
             show=False,
             hover=False,
         ),

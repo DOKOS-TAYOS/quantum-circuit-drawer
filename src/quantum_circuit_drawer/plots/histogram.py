@@ -15,17 +15,21 @@ from .histogram_compare import (
     resolve_comparison_kind,
 )
 from .histogram_models import (
+    HistogramAppearanceOptions,
     HistogramCompareConfig,
     HistogramCompareMetrics,
+    HistogramCompareOptions,
     HistogramCompareResult,
     HistogramCompareSort,
     HistogramConfig,
+    HistogramDataOptions,
     HistogramDrawStyle,
     HistogramKind,
     HistogramMode,
     HistogramResult,
     HistogramSort,
     HistogramStateLabelMode,
+    HistogramViewOptions,
 )
 from .histogram_normalize import normalize_histogram_data
 from .histogram_render import (
@@ -303,17 +307,21 @@ _uniform_reference_value = uniform_reference_value
 
 
 __all__ = [
+    "HistogramAppearanceOptions",
     "HistogramCompareConfig",
     "HistogramCompareMetrics",
+    "HistogramCompareOptions",
     "HistogramCompareResult",
     "HistogramCompareSort",
     "HistogramConfig",
+    "HistogramDataOptions",
     "HistogramDrawStyle",
     "HistogramKind",
     "HistogramMode",
     "HistogramResult",
     "HistogramSort",
     "HistogramStateLabelMode",
+    "HistogramViewOptions",
     "compare_histograms",
     "plot_histogram",
 ]

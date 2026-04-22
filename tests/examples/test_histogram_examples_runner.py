@@ -21,7 +21,12 @@ from examples.histogram_demo_catalog import (
     get_demo_catalog,
 )
 
-from quantum_circuit_drawer import HistogramConfig, HistogramKind
+from quantum_circuit_drawer import (
+    HistogramConfig,
+    HistogramDataOptions,
+    HistogramKind,
+    OutputOptions,
+)
 from tests.paths import external_workspace_root_for, repo_root_for
 from tests.support import assert_saved_image_has_visible_content
 
@@ -44,7 +49,10 @@ def test_histogram_demo_catalog_entries_are_unique_and_reference_existing_exampl
 def test_run_histogram_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = HistogramDemoPayload(
         data={"00": 5, "11": 3},
-        config=HistogramConfig(kind=HistogramKind.COUNTS, show=True),
+        config=HistogramConfig(
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            output=OutputOptions(show=True),
+        ),
     )
     builder_calls: list[HistogramExampleRequest] = []
     render_calls: list[dict[str, object]] = []
@@ -110,7 +118,10 @@ def test_run_histogram_demo_with_args_builds_payload_and_renders(
     output = sandbox_tmp_path / "runner-histogram-demo.png"
     payload = HistogramDemoPayload(
         data={"00": 5, "11": 3},
-        config=HistogramConfig(kind=HistogramKind.COUNTS, show=True),
+        config=HistogramConfig(
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            output=OutputOptions(show=True),
+        ),
     )
     builder_calls: list[HistogramExampleRequest] = []
     render_calls: list[dict[str, object]] = []

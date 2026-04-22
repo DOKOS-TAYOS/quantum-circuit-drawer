@@ -17,7 +17,15 @@ except ImportError:
         run_histogram_example,
     )
 
-from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramSort
+from quantum_circuit_drawer import (
+    HistogramAppearanceOptions,
+    HistogramConfig,
+    HistogramDataOptions,
+    HistogramKind,
+    HistogramSort,
+    HistogramViewOptions,
+    OutputOptions,
+)
 
 
 def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
@@ -27,10 +35,10 @@ def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
     return HistogramDemoPayload(
         data=demo_large_counts_data(bit_width=7),
         config=HistogramConfig(
-            kind=HistogramKind.COUNTS,
-            sort=HistogramSort.STATE,
-            show_uniform_reference=True,
-            show=False,
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            view=HistogramViewOptions(sort=HistogramSort.STATE),
+            appearance=HistogramAppearanceOptions(show_uniform_reference=True),
+            output=OutputOptions(show=False),
         ),
     )
 

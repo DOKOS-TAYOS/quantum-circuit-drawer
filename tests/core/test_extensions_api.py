@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 import quantum_circuit_drawer.adapters as adapters_api
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import DrawMode, draw_quantum_circuit
 from quantum_circuit_drawer.adapters.base import BaseAdapter
 from quantum_circuit_drawer.adapters.registry import AdapterRegistry
 from quantum_circuit_drawer.exceptions import LayoutError
@@ -21,7 +21,11 @@ from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.layout.scene_3d import LayoutScene3D
 from quantum_circuit_drawer.style import DrawStyle
 from quantum_circuit_drawer.typing import LayoutEngine3DLike, LayoutEngineLike
-from tests.support import assert_figure_has_visible_content, build_sample_ir
+from tests.support import (
+    assert_figure_has_visible_content,
+    build_public_draw_config,
+    build_sample_ir,
+)
 
 
 class _CustomCircuit:
@@ -242,7 +246,11 @@ def test_custom_adapter_draws_via_explicit_framework(
 
     result = draw_quantum_circuit(
         _CustomCircuit(),
-        config=DrawConfig(framework="extension_demo", mode=DrawMode.FULL, show=False),
+        config=build_public_draw_config(
+            framework="extension_demo",
+            mode=DrawMode.FULL,
+            show=False,
+        ),
     )
 
     assert result.detected_framework == "extension_demo"
@@ -261,7 +269,11 @@ def test_custom_semantic_adapter_draws_via_explicit_framework(
 
     result = draw_quantum_circuit(
         _CustomCircuit(),
-        config=DrawConfig(framework="semantic_extension_demo", mode=DrawMode.FULL, show=False),
+        config=build_public_draw_config(
+            framework="semantic_extension_demo",
+            mode=DrawMode.FULL,
+            show=False,
+        ),
     )
 
     assert result.detected_framework == "semantic_extension_demo"
@@ -273,7 +285,11 @@ def test_custom_semantic_adapter_draws_via_explicit_framework(
 def test_custom_layout_2d_is_accepted_through_draw_config() -> None:
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(layout=_ExampleLayout2D(), mode=DrawMode.FULL, show=False),
+        config=build_public_draw_config(
+            layout=_ExampleLayout2D(),
+            mode=DrawMode.FULL,
+            show=False,
+        ),
     )
 
     assert_figure_has_visible_content(result.primary_figure)
@@ -284,7 +300,7 @@ def test_custom_layout_2d_is_accepted_through_draw_config() -> None:
 def test_custom_layout_3d_is_accepted_through_draw_config() -> None:
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             layout=_ExampleLayout3D(),
             view="3d",
             mode=DrawMode.FULL,
@@ -301,5 +317,10 @@ def test_invalid_custom_layout_3d_still_fails_with_clear_error() -> None:
     with pytest.raises(LayoutError, match="layout must be None or expose a compute"):
         draw_quantum_circuit(
             build_sample_ir(),
-            config=DrawConfig(layout=object(), view="3d", mode=DrawMode.FULL, show=False),
+            config=build_public_draw_config(
+                layout=object(),
+                view="3d",
+                mode=DrawMode.FULL,
+                show=False,
+            ),
         )

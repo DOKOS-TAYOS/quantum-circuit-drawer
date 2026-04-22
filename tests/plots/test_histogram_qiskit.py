@@ -5,8 +5,9 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import pytest
 
-from quantum_circuit_drawer import HistogramConfig, HistogramKind
+from quantum_circuit_drawer import HistogramKind
 from quantum_circuit_drawer.histogram import plot_histogram
+from tests.support import build_public_histogram_config
 
 pytestmark = [pytest.mark.optional, pytest.mark.integration]
 
@@ -38,7 +39,7 @@ def test_plot_histogram_accepts_qiskit_counts() -> None:
 
     result = plot_histogram(
         Counts({"00": 5, "11": 3}),
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -53,7 +54,7 @@ def test_plot_histogram_accepts_qiskit_quasi_distribution() -> None:
 
     result = plot_histogram(
         QuasiDistribution({0: 0.5, 3: -0.25}),
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.QUASI
@@ -73,7 +74,7 @@ def test_plot_histogram_accepts_sampler_result_quasi_dists() -> None:
 
     result = plot_histogram(
         sampler_result,
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.QUASI
@@ -94,7 +95,7 @@ def test_plot_histogram_rejects_sampler_result_index_out_of_range() -> None:
     with pytest.raises(ValueError, match="result_index 1 is out of range"):
         plot_histogram(
             sampler_result,
-            config=HistogramConfig(show=False, result_index=1),
+            config=build_public_histogram_config(show=False, result_index=1),
         )
 
 
@@ -103,7 +104,7 @@ def test_plot_histogram_accepts_qiskit_primitive_result() -> None:
 
     result = plot_histogram(
         primitive_result,
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -119,7 +120,7 @@ def test_plot_histogram_accepts_qiskit_sampler_pub_result() -> None:
 
     result = plot_histogram(
         sampler_pub_result,
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -135,7 +136,7 @@ def test_plot_histogram_accepts_qiskit_bit_array() -> None:
 
     result = plot_histogram(
         bit_array,
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -153,7 +154,7 @@ def test_plot_histogram_requires_data_key_when_data_bin_has_multiple_bit_arrays(
     data = DataBin(alpha=alpha, beta=beta)
 
     with pytest.raises(ValueError, match="data_key"):
-        plot_histogram(data, config=HistogramConfig(show=False))
+        plot_histogram(data, config=build_public_histogram_config(show=False))
 
 
 def test_plot_histogram_uses_data_key_to_select_bit_array_from_data_bin() -> None:
@@ -165,7 +166,7 @@ def test_plot_histogram_uses_data_key_to_select_bit_array_from_data_bin() -> Non
 
     result = plot_histogram(
         data,
-        config=HistogramConfig(show=False, data_key="beta"),
+        config=build_public_histogram_config(show=False, data_key="beta"),
     )
 
     assert result.kind is HistogramKind.COUNTS

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
@@ -22,10 +22,16 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitCompareConfig,
+    CircuitCompareOptions,
+    OutputOptions,
     compare_circuits,
     compare_histograms,
 )
-from quantum_circuit_drawer.histogram import HistogramCompareConfig  # noqa: E402
+from quantum_circuit_drawer.histogram import (  # noqa: E402
+    HistogramCompareConfig,
+    HistogramCompareOptions,
+    HistogramDataOptions,
+)
 
 CompareKind = Literal["circuits", "histograms"]
 HistogramCompareSortName = Literal["state", "state_desc", "delta_desc"]
@@ -55,8 +61,6 @@ class CompareDemoPayload:
     left_data: object
     right_data: object
     config: CircuitCompareConfig | HistogramCompareConfig
-    left_config: object | None = None
-    right_config: object | None = None
 
 
 CompareDemoBuilder = Callable[[CompareExampleRequest], CompareDemoPayload]
@@ -177,8 +181,6 @@ def render_compare_example(
             result = compare_circuits(
                 payload.left_data,
                 payload.right_data,
-                left_config=payload.left_config,
-                right_config=payload.right_config,
                 config=config,
             )
         else:
@@ -220,19 +222,29 @@ def _merge_circuit_compare_config(
     *,
     request: CompareExampleRequest,
 ) -> CircuitCompareConfig:
-    return replace(
-        config,
-        left_title=request.left_label or config.left_title,
-        right_title=request.right_label or config.right_title,
-        highlight_differences=(
-            config.highlight_differences
-            if request.highlight_differences is None
-            else request.highlight_differences
+    return CircuitCompareConfig(
+        shared=config.shared,
+        left_render=config.left_render,
+        right_render=config.right_render,
+        left_appearance=config.left_appearance,
+        right_appearance=config.right_appearance,
+        compare=CircuitCompareOptions(
+            left_title=request.left_label or config.left_title,
+            right_title=request.right_label or config.right_title,
+            highlight_differences=(
+                config.highlight_differences
+                if request.highlight_differences is None
+                else request.highlight_differences
+            ),
+            show_summary=(
+                config.show_summary if request.show_summary is None else request.show_summary
+            ),
         ),
-        show_summary=config.show_summary if request.show_summary is None else request.show_summary,
-        output_path=request.output,
-        show=request.show,
-        figsize=request.figsize,
+        output=OutputOptions(
+            output_path=request.output,
+            show=request.show,
+            figsize=request.figsize,
+        ),
     )
 
 
@@ -241,15 +253,27 @@ def _merge_histogram_compare_config(
     *,
     request: CompareExampleRequest,
 ) -> HistogramCompareConfig:
-    return replace(
-        config,
-        left_label=request.left_label or config.left_label,
-        right_label=request.right_label or config.right_label,
-        sort=config.sort if request.sort is None else request.sort,
-        top_k=config.top_k if request.top_k is None else request.top_k,
-        output_path=request.output,
-        show=request.show,
-        figsize=request.figsize,
+    return HistogramCompareConfig(
+        data=HistogramDataOptions(
+            kind=config.kind,
+            top_k=config.top_k if request.top_k is None else request.top_k,
+            qubits=config.qubits,
+            result_index=config.result_index,
+            data_key=config.data_key,
+        ),
+        compare=HistogramCompareOptions(
+            sort=config.sort if request.sort is None else request.sort,
+            left_label=request.left_label or config.left_label,
+            right_label=request.right_label or config.right_label,
+            hover=config.hover,
+            preset=config.preset,
+            theme=config.theme,
+        ),
+        output=OutputOptions(
+            output_path=request.output,
+            show=request.show,
+            figsize=request.figsize,
+        ),
     )
 
 

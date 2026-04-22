@@ -19,7 +19,11 @@ from quantum_circuit_drawer import (
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.histogram import plot_histogram
 from quantum_circuit_drawer.style.theme import resolve_theme
-from tests.support import assert_figure_has_visible_content, assert_saved_image_has_visible_content
+from tests.support import (
+    assert_figure_has_visible_content,
+    assert_saved_image_has_visible_content,
+    build_public_histogram_config,
+)
 
 
 def test_public_package_exports_histogram_types() -> None:
@@ -39,7 +43,7 @@ def test_public_package_exports_histogram_types() -> None:
 def test_plot_histogram_returns_histogram_result_for_counts_dict() -> None:
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert isinstance(result, HistogramResult)
@@ -84,7 +88,7 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
     )
 
     figure, axes = plt.subplots()
-    config = HistogramConfig(show=False)
+    config = build_public_histogram_config(show=False)
 
     result = quantum_circuit_drawer.plot_histogram(
         {"0": 1},
@@ -102,7 +106,7 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
 def test_plot_histogram_normalizes_integer_state_keys_to_padded_bitstrings() -> None:
     result = plot_histogram(
         {0: 5, 3: 3},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.state_labels == ("00", "11")
@@ -114,7 +118,7 @@ def test_plot_histogram_normalizes_integer_state_keys_to_padded_bitstrings() -> 
 def test_plot_histogram_returns_joint_marginal_for_selected_qubits_in_requested_order() -> None:
     result = plot_histogram(
         {"101": 2, "001": 1, "111": 3},
-        config=HistogramConfig(show=False, qubits=(0, 2)),
+        config=build_public_histogram_config(show=False, qubits=(0, 2)),
     )
 
     assert result.qubits == (0, 2)
@@ -127,7 +131,7 @@ def test_plot_histogram_returns_joint_marginal_for_selected_qubits_in_requested_
 def test_plot_histogram_changes_joint_marginal_labels_when_qubit_order_changes() -> None:
     result = plot_histogram(
         {"101": 2, "001": 1, "111": 3},
-        config=HistogramConfig(show=False, qubits=(2, 0)),
+        config=build_public_histogram_config(show=False, qubits=(2, 0)),
     )
 
     assert result.state_labels == ("00", "01", "10", "11")
@@ -139,7 +143,7 @@ def test_plot_histogram_changes_joint_marginal_labels_when_qubit_order_changes()
 def test_plot_histogram_can_display_decimal_labels_for_spaced_registers() -> None:
     result = plot_histogram(
         {"10 011": 7, "01 101": 3},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             show=False,
             state_label_mode=HistogramStateLabelMode.DECIMAL,
         ),
@@ -155,12 +159,12 @@ def test_plot_histogram_can_display_decimal_labels_for_spaced_registers() -> Non
 
 def test_plot_histogram_rejects_duplicate_qubits() -> None:
     with pytest.raises(ValueError, match="must not contain duplicates"):
-        HistogramConfig(qubits=(1, 1))
+        build_public_histogram_config(qubits=(1, 1))
 
 
 def test_plot_histogram_rejects_negative_qubits() -> None:
     with pytest.raises(ValueError, match="non-negative integers"):
-        HistogramConfig(qubits=(0, -1))
+        build_public_histogram_config(qubits=(0, -1))
 
 
 def test_plot_histogram_rejects_figsize_with_existing_axes() -> None:
@@ -169,7 +173,7 @@ def test_plot_histogram_rejects_figsize_with_existing_axes() -> None:
     with pytest.raises(ValueError, match="figsize cannot be used with ax"):
         plot_histogram(
             {"0": 1},
-            config=HistogramConfig(show=False, figsize=(6.0, 4.0)),
+            config=build_public_histogram_config(show=False, figsize=(6.0, 4.0)),
             ax=axes,
         )
 
@@ -178,14 +182,14 @@ def test_plot_histogram_rejects_figsize_with_existing_axes() -> None:
 
 def test_plot_histogram_rejects_unsupported_objects() -> None:
     with pytest.raises(TypeError, match="does not support objects"):
-        plot_histogram(object(), config=HistogramConfig(show=False))
+        plot_histogram(object(), config=build_public_histogram_config(show=False))
 
 
 def test_plot_histogram_rejects_counts_override_for_negative_quasi_values() -> None:
     with pytest.raises(ValueError, match="non-negative integer values"):
         plot_histogram(
             {"00": 0.6, "11": -0.2},
-            config=HistogramConfig(show=False, kind=HistogramKind.COUNTS),
+            config=build_public_histogram_config(show=False, kind=HistogramKind.COUNTS),
         )
 
 
@@ -193,14 +197,14 @@ def test_plot_histogram_rejects_qubits_outside_available_state_width() -> None:
     with pytest.raises(ValueError, match="available state width"):
         plot_histogram(
             {"00": 5, "11": 3},
-            config=HistogramConfig(show=False, qubits=(2,)),
+            config=build_public_histogram_config(show=False, qubits=(2,)),
         )
 
 
 def test_plot_histogram_sorts_by_value_descending_with_state_tiebreak() -> None:
     result = plot_histogram(
         {"01": 5, "10": 5, "00": 7, "11": 2},
-        config=HistogramConfig(show=False, sort=HistogramSort.VALUE_DESC),
+        config=build_public_histogram_config(show=False, sort=HistogramSort.VALUE_DESC),
     )
 
     assert result.state_labels == ("00", "01", "10", "11")
@@ -212,7 +216,7 @@ def test_plot_histogram_sorts_by_value_descending_with_state_tiebreak() -> None:
 def test_plot_histogram_sorts_by_state_descending() -> None:
     result = plot_histogram(
         {"01": 5, "10": 5, "00": 7, "11": 2},
-        config=HistogramConfig(show=False, sort=HistogramSort.STATE_DESC),
+        config=build_public_histogram_config(show=False, sort=HistogramSort.STATE_DESC),
     )
 
     assert result.state_labels == ("11", "10", "01", "00")
@@ -224,7 +228,7 @@ def test_plot_histogram_sorts_by_state_descending() -> None:
 def test_plot_histogram_sorts_by_value_ascending_with_state_tiebreak() -> None:
     result = plot_histogram(
         {"01": 5, "10": 5, "00": 7, "11": 2},
-        config=HistogramConfig(show=False, sort=HistogramSort.VALUE_ASC),
+        config=build_public_histogram_config(show=False, sort=HistogramSort.VALUE_ASC),
     )
 
     assert result.state_labels == ("11", "01", "10", "00")
@@ -236,7 +240,7 @@ def test_plot_histogram_sorts_by_value_ascending_with_state_tiebreak() -> None:
 def test_plot_histogram_limits_to_top_k_after_sorting() -> None:
     result = plot_histogram(
         {"000": 11, "001": 7, "010": 5, "011": 3},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             show=False,
             sort=HistogramSort.VALUE_DESC,
             top_k=2,
@@ -252,7 +256,7 @@ def test_plot_histogram_limits_to_top_k_after_sorting() -> None:
 
 def test_plot_histogram_rejects_non_positive_top_k() -> None:
     with pytest.raises(ValueError, match="top_k must be a positive integer"):
-        HistogramConfig(top_k=0)
+        build_public_histogram_config(top_k=0)
 
 
 def test_plot_histogram_rejects_interactive_mode_with_existing_axes() -> None:
@@ -261,7 +265,7 @@ def test_plot_histogram_rejects_interactive_mode_with_existing_axes() -> None:
     with pytest.raises(ValueError, match="requires a Matplotlib-managed figure"):
         plot_histogram(
             {"00": 5, "11": 3},
-            config=HistogramConfig(show=False, mode=HistogramMode.INTERACTIVE),
+            config=build_public_histogram_config(show=False, mode=HistogramMode.INTERACTIVE),
             ax=axes,
         )
 
@@ -279,7 +283,7 @@ def test_plot_histogram_rejects_interactive_mode_in_non_widget_notebook(
     with pytest.raises(ValueError, match="requires a notebook widget backend"):
         plot_histogram(
             {"00": 5, "11": 3},
-            config=HistogramConfig(show=False, mode=HistogramMode.INTERACTIVE),
+            config=build_public_histogram_config(show=False, mode=HistogramMode.INTERACTIVE),
         )
 
 
@@ -295,7 +299,7 @@ def test_plot_histogram_resolves_auto_mode_to_interactive_for_scripts(
 
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert get_histogram_state(result.figure) is not None
@@ -315,7 +319,7 @@ def test_plot_histogram_resolves_auto_mode_to_interactive_for_widget_notebooks(
 
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert get_histogram_state(result.figure) is not None
@@ -335,7 +339,7 @@ def test_plot_histogram_resolves_auto_mode_to_static_for_inline_notebooks(
 
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert get_histogram_state(result.figure) is None
@@ -357,13 +361,13 @@ def test_histogram_config_rejects_boolean_numeric_values(
     message: str,
 ) -> None:
     with pytest.raises(ValueError, match=message):
-        HistogramConfig(**kwargs)
+        build_public_histogram_config(**kwargs)
 
 
 def test_plot_histogram_draws_uniform_reference_for_counts_using_full_state_space() -> None:
     result = plot_histogram(
         {"00": 5, "01": 3, "10": 1, "11": 7},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             show=False,
             sort=HistogramSort.VALUE_DESC,
             top_k=2,
@@ -381,7 +385,7 @@ def test_plot_histogram_draws_uniform_reference_for_counts_using_full_state_spac
 def test_plot_histogram_draws_uniform_reference_for_marginal_quasi_using_subset_width() -> None:
     result = plot_histogram(
         {"000": 0.30, "001": 0.20, "110": 0.15, "111": 0.35},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             show=False,
             kind=HistogramKind.QUASI,
             qubits=(2, 0),
@@ -401,7 +405,7 @@ def test_plot_histogram_draws_uniform_reference_for_marginal_quasi_using_subset_
 def test_plot_histogram_uses_dark_theme_by_default() -> None:
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     dark_theme = resolve_theme("dark")
@@ -419,7 +423,7 @@ def test_plot_histogram_uses_dark_theme_by_default() -> None:
 def test_plot_histogram_outline_style_draws_unfilled_bars() -> None:
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             show=False,
             draw_style=HistogramDrawStyle.OUTLINE,
         ),
@@ -436,7 +440,7 @@ def test_plot_histogram_outline_style_draws_unfilled_bars() -> None:
 def test_plot_histogram_draws_negative_quasi_values_below_zero() -> None:
     result = plot_histogram(
         {"00": 0.6, "11": -0.2},
-        config=HistogramConfig(show=False, kind=HistogramKind.QUASI),
+        config=build_public_histogram_config(show=False, kind=HistogramKind.QUASI),
     )
 
     bars = [patch for patch in result.axes.patches if isinstance(patch, Rectangle)]
@@ -454,7 +458,7 @@ def test_plot_histogram_saves_non_empty_output(sandbox_tmp_path) -> None:
 
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=False, output_path=output),
+        config=build_public_histogram_config(show=False, output_path=output),
     )
 
     assert_saved_image_has_visible_content(output)
@@ -479,7 +483,7 @@ def test_plot_histogram_uses_pyplot_show_for_managed_figures(
 
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=HistogramConfig(show=True),
+        config=build_public_histogram_config(show=True),
     )
 
     assert show_calls == [True]

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pytest
 from matplotlib.backend_bases import MouseEvent
 
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import DrawMode, draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
@@ -12,13 +12,13 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_page_window,
     get_topology_menu_state,
 )
-from tests.support import build_dense_rotation_ir
+from tests.support import build_dense_rotation_ir, build_public_draw_config
 
 
 def test_draw_quantum_circuit_3d_pages_controls_attaches_navigation_state() -> None:
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=12, wire_count=4),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             view="3d",
             topology="line",
@@ -63,7 +63,7 @@ def test_draw_quantum_circuit_3d_pages_controls_attaches_navigation_state() -> N
 def test_draw_quantum_circuit_3d_pages_controls_preserves_view_between_navigation() -> None:
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=12, wire_count=4),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             view="3d",
             topology="line",
@@ -116,7 +116,7 @@ def test_draw_quantum_circuit_3d_pages_controls_preserves_view_between_navigatio
 def test_draw_quantum_circuit_3d_pages_controls_supports_topology_menu() -> None:
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=12, wire_count=4),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             view="3d",
             topology="line",
@@ -148,7 +148,7 @@ def test_draw_quantum_circuit_3d_pages_controls_keeps_adapted_page_count_after_t
     circuit = build_dense_rotation_ir(layer_count=24, wire_count=4)
     result = draw_quantum_circuit(
         circuit,
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             view="3d",
             topology="line",
@@ -160,7 +160,7 @@ def test_draw_quantum_circuit_3d_pages_controls_keeps_adapted_page_count_after_t
     )
     expected_pages = draw_quantum_circuit(
         circuit,
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             view="3d",
             topology="line",
@@ -199,7 +199,7 @@ def test_draw_quantum_circuit_3d_pages_controls_keeps_honeycomb_pages_wide_enoug
 
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=120, wire_count=53),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             view="3d",
             topology="honeycomb",
@@ -228,7 +228,7 @@ def test_draw_quantum_circuit_3d_pages_controls_keeps_honeycomb_pages_wide_enoug
 def test_draw_quantum_circuit_3d_pages_controls_detaches_removed_axes_mouse_release() -> None:
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24, wire_count=4),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             view="3d",
             topology="line",
@@ -277,7 +277,7 @@ def test_draw_quantum_circuit_3d_pages_controls_caps_dense_page_visual_load() ->
 
     result = draw_quantum_circuit(
         circuit,
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             view="3d",
             topology="line",

@@ -8,7 +8,6 @@ import pytest
 import quantum_circuit_drawer
 from quantum_circuit_drawer import (
     CircuitBuilder,
-    DrawConfig,
     HardwareTopology,
     draw_quantum_circuit,
 )
@@ -31,6 +30,7 @@ from tests.support import (
     assert_classical_wire_bundles,
     assert_operation_signatures,
     assert_quantum_wire_labels,
+    build_public_draw_config,
 )
 
 
@@ -192,7 +192,7 @@ def test_draw_quantum_circuit_disables_topology_menu_for_custom_topology(
 
     result = draw_quantum_circuit(
         _build_topology_ir(2),
-        config=DrawConfig(
+        config=build_public_draw_config(
             view="3d",
             topology=topology,
             topology_menu=True,
@@ -431,9 +431,9 @@ def test_draw_quantum_circuit_qasm_requires_qiskit_when_missing(
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
     with pytest.raises(UnsupportedFrameworkError, match=r"OpenQASM input requires .*qiskit"):
-        draw_quantum_circuit(qasm, config=DrawConfig(show=False))
+        draw_quantum_circuit(qasm, config=build_public_draw_config(show=False))
 
 
 def test_draw_quantum_circuit_does_not_autodetect_arbitrary_strings_as_qasm() -> None:
     with pytest.raises(UnsupportedFrameworkError, match="string inputs are only supported"):
-        draw_quantum_circuit("hello quantum world", config=DrawConfig(show=False))
+        draw_quantum_circuit("hello quantum world", config=build_public_draw_config(show=False))

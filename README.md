@@ -34,6 +34,13 @@ The public configuration is also intentionally small:
 - `CircuitCompareConfig` for side-by-side circuit comparison
 - `HistogramCompareConfig` for histogram comparison
 
+Each public config is now grouped into typed blocks ordered by responsibility:
+
+- circuit drawing uses `DrawConfig(side=..., output=...)`
+- circuit comparison uses `CircuitCompareConfig(shared=..., compare=..., output=...)`
+- single histograms use `HistogramConfig(data=..., view=..., appearance=..., output=...)`
+- histogram comparison uses `HistogramCompareConfig(data=..., compare=..., output=...)`
+
 ## Install
 
 Inside your local `.venv`:
@@ -106,7 +113,7 @@ This is the production support contract for the current release.
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
@@ -115,7 +122,7 @@ circuit.measure(1, 0)
 
 result = draw_quantum_circuit(
     circuit,
-    config=DrawConfig(show=False),
+    config=DrawConfig(output=OutputOptions(show=False)),
 )
 
 figure = result.primary_figure
@@ -129,7 +136,7 @@ This same shape works for the supported framework objects and for the public IR 
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
@@ -138,10 +145,7 @@ circuit.measure(1, 0)
 
 draw_quantum_circuit(
     circuit,
-    config=DrawConfig(
-        output_path="bell.png",
-        show=False,
-    ),
+    config=DrawConfig(output=OutputOptions(output_path="bell.png", show=False)),
 )
 ```
 
@@ -152,15 +156,22 @@ This is the most common script workflow when you want a deterministic export wit
 ### Counts
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, plot_histogram
+from quantum_circuit_drawer import (
+    HistogramAppearanceOptions,
+    HistogramConfig,
+    HistogramDataOptions,
+    HistogramViewOptions,
+    OutputOptions,
+    plot_histogram,
+)
 
 result = plot_histogram(
     {"000": 51, "001": 14, "010": 9, "111": 49},
     config=HistogramConfig(
-        sort="value_desc",
-        top_k=3,
-        show_uniform_reference=True,
-        show=False,
+        data=HistogramDataOptions(top_k=3),
+        view=HistogramViewOptions(sort="value_desc"),
+        appearance=HistogramAppearanceOptions(show_uniform_reference=True),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -168,15 +179,24 @@ result = plot_histogram(
 ### Quasi-probabilities
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramKind, plot_histogram
+from quantum_circuit_drawer import (
+    HistogramAppearanceOptions,
+    HistogramConfig,
+    HistogramDataOptions,
+    HistogramKind,
+    OutputOptions,
+    plot_histogram,
+)
 
 result = plot_histogram(
     {0: 0.52, 3: -0.08, 4: 0.17, 7: 0.39},
     config=HistogramConfig(
-        kind=HistogramKind.QUASI,
-        draw_style="soft",
-        show_uniform_reference=True,
-        show=False,
+        data=HistogramDataOptions(kind=HistogramKind.QUASI),
+        appearance=HistogramAppearanceOptions(
+            draw_style="soft",
+            show_uniform_reference=True,
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -184,11 +204,14 @@ result = plot_histogram(
 ### Joint marginal on selected qubits
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, plot_histogram
+from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, OutputOptions, plot_histogram
 
 result = plot_histogram(
     {"101": 2, "001": 1, "111": 3},
-    config=HistogramConfig(qubits=(0, 2), show=False),
+    config=HistogramConfig(
+        data=HistogramDataOptions(qubits=(0, 2)),
+        output=OutputOptions(show=False),
+    ),
 )
 ```
 
@@ -199,7 +222,12 @@ result = plot_histogram(
 ```python
 from qiskit import QuantumCircuit, transpile
 
-from quantum_circuit_drawer import CircuitCompareConfig, compare_circuits
+from quantum_circuit_drawer import (
+    CircuitCompareConfig,
+    CircuitCompareOptions,
+    OutputOptions,
+    compare_circuits,
+)
 
 source = QuantumCircuit(3, 3)
 source.h(0)
@@ -213,9 +241,11 @@ result = compare_circuits(
     source,
     transpiled,
     config=CircuitCompareConfig(
-        left_title="Original",
-        right_title="Transpiled",
-        show=False,
+        compare=CircuitCompareOptions(
+            left_title="Original",
+            right_title="Transpiled",
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -229,7 +259,12 @@ result = compare_circuits(
 ## Compare Two Histograms
 
 ```python
-from quantum_circuit_drawer import HistogramCompareConfig, compare_histograms
+from quantum_circuit_drawer import (
+    HistogramCompareConfig,
+    HistogramCompareOptions,
+    OutputOptions,
+    compare_histograms,
+)
 
 ideal = {"00": 0.5, "11": 0.5}
 sampled = {"00": 473, "01": 19, "10": 24, "11": 484}
@@ -238,11 +273,12 @@ result = compare_histograms(
     ideal,
     sampled,
     config=HistogramCompareConfig(
-        kind="auto",
-        sort="delta_desc",
-        left_label="Ideal",
-        right_label="Sampled",
-        show=False,
+        compare=HistogramCompareOptions(
+            sort="delta_desc",
+            left_label="Ideal",
+            right_label="Sampled",
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -256,7 +292,7 @@ If you do not want to depend on a framework, you can build directly with the pub
 ### `CircuitBuilder`
 
 ```python
-from quantum_circuit_drawer import CircuitBuilder, DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import CircuitBuilder, DrawConfig, OutputOptions, draw_quantum_circuit
 
 circuit = (
     CircuitBuilder(2, 1, name="builder_demo")
@@ -266,7 +302,7 @@ circuit = (
     .build()
 )
 
-draw_quantum_circuit(circuit, config=DrawConfig(show=False))
+draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)))
 ```
 
 ### Raw `CircuitIR`

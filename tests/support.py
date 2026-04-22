@@ -13,6 +13,22 @@ import pytest
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
+    CircuitCompareConfig,
+    CircuitCompareOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    HistogramAppearanceOptions,
+    HistogramCompareConfig,
+    HistogramCompareOptions,
+    HistogramConfig,
+    HistogramDataOptions,
+    HistogramStateLabelMode,
+    HistogramViewOptions,
+    OutputOptions,
+)
 from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline
 from quantum_circuit_drawer.drawing.request import build_draw_request, validate_draw_request
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
@@ -64,6 +80,184 @@ class OperationSignature:
     parameters: tuple[object, ...]
     target_wires: tuple[str, ...]
     control_wires: tuple[str, ...] = ()
+
+
+def build_public_draw_config(
+    *,
+    framework: str | None = None,
+    backend: str = "matplotlib",
+    layout: object = None,
+    view: str = "2d",
+    mode: object = "auto",
+    composite_mode: str = "compact",
+    topology: str = "line",
+    topology_menu: bool = False,
+    direct: bool = True,
+    preset: object = None,
+    style: object = None,
+    hover: object = False,
+    unsupported_policy: object = "raise",
+    show: bool = True,
+    output_path: Path | str | None = None,
+    figsize: tuple[float, float] | None = None,
+) -> DrawConfig:
+    """Build one public draw config using the new composed API."""
+
+    return DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework=framework,
+                backend=backend,
+                layout=layout,
+                view=view,  # type: ignore[arg-type]
+                mode=mode,  # type: ignore[arg-type]
+                composite_mode=composite_mode,
+                topology=topology,  # type: ignore[arg-type]
+                topology_menu=topology_menu,
+                direct=direct,
+                unsupported_policy=unsupported_policy,  # type: ignore[arg-type]
+            ),
+            appearance=CircuitAppearanceOptions(
+                preset=preset,  # type: ignore[arg-type]
+                style=style,  # type: ignore[arg-type]
+                hover=hover,  # type: ignore[arg-type]
+            ),
+        ),
+        output=OutputOptions(
+            show=show,
+            output_path=output_path,
+            figsize=figsize,
+        ),
+    )
+
+
+def build_public_compare_config(
+    *,
+    left_title: str = "Left",
+    right_title: str = "Right",
+    highlight_differences: bool = True,
+    show_summary: bool = True,
+    show: bool = True,
+    output_path: Path | str | None = None,
+    figsize: tuple[float, float] | None = None,
+    shared: DrawSideConfig | None = None,
+    left_render: CircuitRenderOptions | None = None,
+    right_render: CircuitRenderOptions | None = None,
+    left_appearance: CircuitAppearanceOptions | None = None,
+    right_appearance: CircuitAppearanceOptions | None = None,
+) -> CircuitCompareConfig:
+    """Build one circuit-compare config using the new composed API."""
+
+    return CircuitCompareConfig(
+        shared=DrawSideConfig() if shared is None else shared,
+        left_render=left_render,
+        right_render=right_render,
+        left_appearance=left_appearance,
+        right_appearance=right_appearance,
+        compare=CircuitCompareOptions(
+            left_title=left_title,
+            right_title=right_title,
+            highlight_differences=highlight_differences,
+            show_summary=show_summary,
+        ),
+        output=OutputOptions(
+            show=show,
+            output_path=output_path,
+            figsize=figsize,
+        ),
+    )
+
+
+def build_public_histogram_config(
+    *,
+    kind: object = "auto",
+    mode: object = "auto",
+    sort: object = "state",
+    top_k: int | None = None,
+    qubits: tuple[int, ...] | None = None,
+    result_index: int = 0,
+    data_key: str | None = None,
+    preset: object = None,
+    theme: object = None,
+    draw_style: object = "solid",
+    state_label_mode: HistogramStateLabelMode | str = HistogramStateLabelMode.BINARY,
+    hover: bool = True,
+    show_uniform_reference: bool = False,
+    show: bool = True,
+    output_path: Path | str | None = None,
+    figsize: tuple[float, float] | None = None,
+) -> HistogramConfig:
+    """Build one histogram config using the new composed API."""
+
+    return HistogramConfig(
+        data=HistogramDataOptions(
+            kind=kind,  # type: ignore[arg-type]
+            top_k=top_k,
+            qubits=qubits,
+            result_index=result_index,
+            data_key=data_key,
+        ),
+        view=HistogramViewOptions(
+            mode=mode,  # type: ignore[arg-type]
+            sort=sort,  # type: ignore[arg-type]
+            state_label_mode=state_label_mode,  # type: ignore[arg-type]
+        ),
+        appearance=HistogramAppearanceOptions(
+            preset=preset,  # type: ignore[arg-type]
+            theme=theme,  # type: ignore[arg-type]
+            draw_style=draw_style,  # type: ignore[arg-type]
+            hover=hover,
+            show_uniform_reference=show_uniform_reference,
+        ),
+        output=OutputOptions(
+            show=show,
+            output_path=output_path,
+            figsize=figsize,
+        ),
+    )
+
+
+def build_public_histogram_compare_config(
+    *,
+    kind: object = "auto",
+    sort: object = "state",
+    top_k: int | None = None,
+    qubits: tuple[int, ...] | None = None,
+    result_index: int = 0,
+    data_key: str | None = None,
+    preset: object = None,
+    theme: object = None,
+    left_label: str = "Left",
+    right_label: str = "Right",
+    hover: bool = True,
+    show: bool = True,
+    output_path: Path | str | None = None,
+    figsize: tuple[float, float] | None = None,
+) -> HistogramCompareConfig:
+    """Build one histogram-compare config using the new composed API."""
+
+    return HistogramCompareConfig(
+        data=HistogramDataOptions(
+            kind=kind,  # type: ignore[arg-type]
+            top_k=top_k,
+            qubits=qubits,
+            result_index=result_index,
+            data_key=data_key,
+        ),
+        compare=HistogramCompareOptions(
+            sort=sort,  # type: ignore[arg-type]
+            left_label=left_label,
+            right_label=right_label,
+            hover=hover,
+            preset=preset,  # type: ignore[arg-type]
+            theme=theme,  # type: ignore[arg-type]
+        ),
+        output=OutputOptions(
+            show=show,
+            output_path=output_path,
+            figsize=figsize,
+        ),
+    )
 
 
 def build_sample_ir() -> CircuitIR:

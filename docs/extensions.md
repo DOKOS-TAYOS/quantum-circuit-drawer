@@ -25,7 +25,7 @@ Use `CircuitIR` directly when:
 Write an adapter when:
 
 - you want `draw_quantum_circuit(...)` to accept your framework object directly
-- you want explicit `DrawConfig(framework="...")` support
+- you want explicit `DrawConfig.side.render.framework="..."` support
 - you want autodetection for your own circuit type
 
 Use a custom layout when:
@@ -192,11 +192,20 @@ That means both adapter styles remain valid extension points:
 Explicit use:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
 
 draw_quantum_circuit(
     DemoCircuit(),
-    config=DrawConfig(framework="demo", show=False),
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="demo")),
+        output=OutputOptions(show=False),
+    ),
 )
 ```
 
@@ -210,7 +219,7 @@ register_adapter(DemoAdapter, replace=True)
 
 ## Writing A Custom Layout
 
-Custom layouts are not registered. Pass them directly through `DrawConfig(layout=...)`.
+Custom layouts are not registered. Pass them through `DrawConfig.side.render.layout`.
 
 ### 2D layout contract
 
@@ -222,7 +231,14 @@ Use `quantum_circuit_drawer.typing.LayoutEngineLike`.
 Minimal example that delegates to the built-in engine:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
 from quantum_circuit_drawer.ir import CircuitIR
 from quantum_circuit_drawer.layout import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
@@ -237,7 +253,12 @@ class DemoLayout2D(LayoutEngineLike):
 
 draw_quantum_circuit(
     circuit_ir,
-    config=DrawConfig(layout=DemoLayout2D(), mode=DrawMode.FULL, show=False),
+    config=DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(layout=DemoLayout2D(), mode=DrawMode.FULL),
+        ),
+        output=OutputOptions(show=False),
+    ),
 )
 ```
 
@@ -251,7 +272,14 @@ Use `quantum_circuit_drawer.typing.LayoutEngine3DLike`.
 Minimal example that delegates to the built-in 3D engine:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
 from quantum_circuit_drawer.ir import CircuitIR
 from quantum_circuit_drawer.layout import LayoutEngine3D
 from quantum_circuit_drawer.layout.scene_3d import LayoutScene3D
@@ -282,10 +310,14 @@ class DemoLayout3D(LayoutEngine3DLike):
 draw_quantum_circuit(
     circuit_ir,
     config=DrawConfig(
-        layout=DemoLayout3D(),
-        view="3d",
-        mode=DrawMode.FULL,
-        show=False,
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                layout=DemoLayout3D(),
+                view="3d",
+                mode=DrawMode.FULL,
+            ),
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```

@@ -8,16 +8,20 @@ try:
     from examples._compare_shared import (
         CompareDemoPayload,
         CompareExampleRequest,
-        parse_compare_example_args,
+        run_compare_example,
     )
 except ImportError:
     from _compare_shared import (
         CompareDemoPayload,
         CompareExampleRequest,
-        parse_compare_example_args,
+        run_compare_example,
     )
 
-from quantum_circuit_drawer import CircuitCompareConfig, compare_circuits
+from quantum_circuit_drawer import (
+    CircuitCompareConfig,
+    CircuitCompareOptions,
+    OutputOptions,
+)
 
 
 def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
@@ -36,9 +40,11 @@ def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
         left_data=original_circuit,
         right_data=transpiled_circuit,
         config=CircuitCompareConfig(
-            left_title="Original",
-            right_title="Transpiled",
-            show=False,
+            compare=CircuitCompareOptions(
+                left_title="Original",
+                right_title="Transpiled",
+            ),
+            output=OutputOptions(show=False),
         ),
     )
 
@@ -60,35 +66,11 @@ def build_source_circuit() -> QuantumCircuit:
 def main() -> None:
     """Run the transpilation compare demo as a normal user-facing script."""
 
-    request = parse_compare_example_args(
+    run_compare_example(
+        build_demo,
         description="Compare a Qiskit circuit before and after transpilation.",
+        saved_label="compare-circuits-qiskit-transpile",
     )
-    payload = build_demo(request)
-    base_config = payload.config
-    config = CircuitCompareConfig(
-        left_title=request.left_label or base_config.left_title,
-        right_title=request.right_label or base_config.right_title,
-        highlight_differences=(
-            base_config.highlight_differences
-            if request.highlight_differences is None
-            else request.highlight_differences
-        ),
-        show_summary=base_config.show_summary
-        if request.show_summary is None
-        else request.show_summary,
-        show=request.show,
-        output_path=request.output,
-        figsize=request.figsize,
-    )
-    result = compare_circuits(
-        payload.left_data,
-        payload.right_data,
-        config=config,
-    )
-    if hasattr(result.figure, "set_label"):
-        result.figure.set_label("compare-circuits-qiskit-transpile")
-    if request.output is not None:
-        print(f"Saved compare-circuits-qiskit-transpile to {request.output}")
 
 
 if __name__ == "__main__":

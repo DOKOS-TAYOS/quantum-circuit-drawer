@@ -13,11 +13,11 @@ The best way to think about `quantum-circuit-drawer` is:
 ### The normal script workflow
 
 ```python
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
 
 result = draw_quantum_circuit(
     circuit,
-    config=DrawConfig(show=False),
+    config=DrawConfig(output=OutputOptions(show=False)),
 )
 ```
 
@@ -75,13 +75,23 @@ Pass `ax=...` only for static rendering.
 ```python
 import matplotlib.pyplot as plt
 
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
 
 figure, axes = plt.subplots(figsize=(8, 3))
 result = draw_quantum_circuit(
     circuit,
     ax=axes,
-    config=DrawConfig(mode=DrawMode.PAGES, show=False),
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
+        output=OutputOptions(show=False),
+    ),
 )
 ```
 
@@ -95,12 +105,19 @@ Use this when the circuit is just one subplot in a larger figure. Do not combine
 - `full` saves the full unpaged scene
 
 ```python
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
 draw_quantum_circuit(
     circuit,
     config=DrawConfig(
-        mode="slider",
-        output_path="circuit.png",
-        show=False,
+        side=DrawSideConfig(render=CircuitRenderOptions(mode="slider")),
+        output=OutputOptions(output_path="circuit.png", show=False),
     ),
 )
 ```
@@ -112,15 +129,27 @@ This lets you use an interactive mode during work and still export a clean image
 3D rendering is useful when topology matters visually or when you want a hardware-layout perspective.
 
 ```python
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
 result = draw_quantum_circuit(
     circuit,
     config=DrawConfig(
-        view="3d",
-        mode="pages_controls",
-        topology="grid",
-        topology_menu=True,
-        direct=False,
-        show=False,
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                view="3d",
+                mode="pages_controls",
+                topology="grid",
+                topology_menu=True,
+                direct=False,
+            ),
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -147,13 +176,22 @@ Presets are the quickest way to change the overall feel of the output:
 They are useful when you want a sensible baseline without tuning many style fields manually.
 
 ```python
-from quantum_circuit_drawer import DrawConfig, StylePreset, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    StylePreset,
+    draw_quantum_circuit,
+)
 
 result = draw_quantum_circuit(
     circuit,
     config=DrawConfig(
-        preset=StylePreset.PRESENTATION,
-        show=False,
+        side=DrawSideConfig(
+            appearance=CircuitAppearanceOptions(preset=StylePreset.PRESENTATION),
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -163,16 +201,22 @@ result = draw_quantum_circuit(
 You can still override individual fields:
 
 ```python
+from quantum_circuit_drawer import CircuitAppearanceOptions, DrawConfig, DrawSideConfig
+
 config = DrawConfig(
-    preset="paper",
-    style={
-        "max_page_width": 9.0,
-        "wire_line_width": 1.8,
-        "classical_wire_line_width": 1.5,
-        "connection_line_width": 1.9,
-        "measurement_line_width": 1.4,
-    },
-    hover={"enabled": True, "show_size": True},
+    side=DrawSideConfig(
+        appearance=CircuitAppearanceOptions(
+            preset="paper",
+            style={
+                "max_page_width": 9.0,
+                "wire_line_width": 1.8,
+                "classical_wire_line_width": 1.5,
+                "connection_line_width": 1.9,
+                "measurement_line_width": 1.4,
+            },
+            hover={"enabled": True, "show_size": True},
+        ),
+    ),
 )
 ```
 
@@ -186,19 +230,30 @@ config = DrawConfig(
 
 ### Hover
 
-Hover is optional and public through `DrawConfig.hover`.
+Hover is optional and public through `DrawConfig.side.appearance.hover`.
 
 Typical example:
 
 ```python
+from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+)
+
 config = DrawConfig(
-    hover={
-        "enabled": True,
-        "show_size": True,
-        "show_matrix": "auto",
-        "matrix_max_qubits": 2,
-    },
-    show=False,
+    side=DrawSideConfig(
+        appearance=CircuitAppearanceOptions(
+            hover={
+                "enabled": True,
+                "show_size": True,
+                "show_matrix": "auto",
+                "matrix_max_qubits": 2,
+            },
+        ),
+    ),
+    output=OutputOptions(show=False),
 )
 ```
 
@@ -209,11 +264,19 @@ Use `show_matrix="never"` when you want the lightest path, especially for framew
 The default policy is strict:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, UnsupportedPolicy
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    UnsupportedPolicy,
+)
 
 config = DrawConfig(
-    unsupported_policy=UnsupportedPolicy.RAISE,
-    show=False,
+    side=DrawSideConfig(
+        render=CircuitRenderOptions(unsupported_policy=UnsupportedPolicy.RAISE),
+    ),
+    output=OutputOptions(show=False),
 )
 ```
 
@@ -221,8 +284,10 @@ If you prefer a best-effort drawing with placeholders for recoverable unsupporte
 
 ```python
 config = DrawConfig(
-    unsupported_policy=UnsupportedPolicy.PLACEHOLDER,
-    show=False,
+    side=DrawSideConfig(
+        render=CircuitRenderOptions(unsupported_policy=UnsupportedPolicy.PLACEHOLDER),
+    ),
+    output=OutputOptions(show=False),
 )
 ```
 
@@ -235,15 +300,22 @@ This can be useful when you are inspecting larger circuits and want to keep visu
 `compare_circuits(...)` is the quickest way to inspect structural change.
 
 ```python
-from quantum_circuit_drawer import CircuitCompareConfig, compare_circuits
+from quantum_circuit_drawer import (
+    CircuitCompareConfig,
+    CircuitCompareOptions,
+    OutputOptions,
+    compare_circuits,
+)
 
 result = compare_circuits(
     left_circuit,
     right_circuit,
     config=CircuitCompareConfig(
-        left_title="Before",
-        right_title="After",
-        show=False,
+        compare=CircuitCompareOptions(
+            left_title="Before",
+            right_title="After",
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -266,16 +338,23 @@ Use this for:
 Use `compare_histograms(...)` when you want two aligned distributions on the same state space.
 
 ```python
-from quantum_circuit_drawer import HistogramCompareConfig, compare_histograms
+from quantum_circuit_drawer import (
+    HistogramCompareConfig,
+    HistogramCompareOptions,
+    OutputOptions,
+    compare_histograms,
+)
 
 result = compare_histograms(
     left_data,
     right_data,
     config=HistogramCompareConfig(
-        left_label="Ideal",
-        right_label="Sampled",
-        sort="delta_desc",
-        show=False,
+        compare=HistogramCompareOptions(
+            left_label="Ideal",
+            right_label="Sampled",
+            sort="delta_desc",
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -291,11 +370,11 @@ This is especially useful for:
 ### Single histogram
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, plot_histogram
+from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
 
 result = plot_histogram(
     data,
-    config=HistogramConfig(show=False),
+    config=HistogramConfig(output=OutputOptions(show=False)),
 )
 ```
 
@@ -306,11 +385,11 @@ result = plot_histogram(
 You can still force the meaning:
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramKind
+from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, HistogramKind, OutputOptions
 
 config = HistogramConfig(
-    kind=HistogramKind.QUASI,
-    show=False,
+    data=HistogramDataOptions(kind=HistogramKind.QUASI),
+    output=OutputOptions(show=False),
 )
 ```
 
@@ -327,12 +406,17 @@ Useful controls:
 
 ### Marginals
 
-Use `qubits=(...)` when you want a joint marginal over selected qubits:
+Use `HistogramDataOptions(qubits=(...))` when you want a joint marginal over selected qubits:
 
 ```python
+from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, OutputOptions, plot_histogram
+
 result = plot_histogram(
     {"101": 2, "001": 1, "111": 3},
-    config=HistogramConfig(qubits=(0, 2), show=False),
+    config=HistogramConfig(
+        data=HistogramDataOptions(qubits=(0, 2)),
+        output=OutputOptions(show=False),
+    ),
 )
 ```
 
@@ -356,7 +440,7 @@ In interactive mode, the managed figure can add:
 - a slider button when hidden bins exist
 - a marginal-qubits text box
 
-Set `hover=False` if you want the interactive controls without hover labels.
+Set `HistogramAppearanceOptions(hover=False)` if you want the interactive controls without hover labels.
 
 ## Framework-Native Result Inputs
 
@@ -371,7 +455,7 @@ It also accepts:
 - MyQLM `qat.core.Result` objects through `raw_data`
 - CUDA-Q `SampleResult`-style objects through `items()`
 
-If a framework returns several payloads at once, pass the tuple or list directly and choose one entry with `HistogramConfig(result_index=...)`.
+If a framework returns several payloads at once, pass the tuple or list directly and choose one entry with `HistogramConfig(data=HistogramDataOptions(result_index=...))`.
 
 ## Working With The Result Objects
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import pytest
 
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import DrawMode, draw_quantum_circuit
 from quantum_circuit_drawer.drawing.pages import single_page_scenes
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
@@ -12,13 +12,18 @@ from quantum_circuit_drawer.renderers._matplotlib_figure import (
     get_page_window,
 )
 from quantum_circuit_drawer.style import DrawStyle
-from tests.support import build_dense_rotation_ir, build_wrapped_ir, normalize_rendered_text
+from tests.support import (
+    build_dense_rotation_ir,
+    build_public_draw_config,
+    build_wrapped_ir,
+    normalize_rendered_text,
+)
 
 
 def test_draw_quantum_circuit_pages_mode_returns_one_figure_per_wrapped_page() -> None:
     result = draw_quantum_circuit(
         build_wrapped_ir(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             style={"max_page_width": 4.0},
             show=False,
@@ -39,7 +44,7 @@ def test_draw_quantum_circuit_pages_mode_returns_one_figure_per_wrapped_page() -
 def test_draw_quantum_circuit_pages_mode_renders_only_one_page_per_figure() -> None:
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24, wire_count=1),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             style={"max_page_width": 4.0},
             show=False,
@@ -67,7 +72,7 @@ def test_draw_quantum_circuit_pages_mode_adapts_page_count_to_window_width() -> 
     circuit = build_dense_rotation_ir(layer_count=24, wire_count=4)
     narrow_result = draw_quantum_circuit(
         circuit,
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             style={"max_page_width": 4.0},
             show=False,
@@ -76,7 +81,7 @@ def test_draw_quantum_circuit_pages_mode_adapts_page_count_to_window_width() -> 
     )
     wide_result = draw_quantum_circuit(
         circuit,
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             style={"max_page_width": 4.0},
             show=False,
@@ -115,7 +120,7 @@ def test_draw_quantum_circuit_pages_mode_on_existing_axes_keeps_single_axes_resu
 
     result = draw_quantum_circuit(
         build_wrapped_ir(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             style={"max_page_width": 4.0},
             show=False,
@@ -140,7 +145,7 @@ def test_draw_quantum_circuit_pages_controls_keeps_hover_connected_when_enabled(
 
     result = draw_quantum_circuit(
         build_wrapped_ir(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES_CONTROLS,
             style={"max_page_width": 4.0},
             hover=True,
@@ -158,7 +163,7 @@ def test_draw_quantum_circuit_pages_controls_keeps_hover_connected_when_enabled(
 def test_draw_quantum_circuit_full_mode_avoids_wrapping_in_2d() -> None:
     result = draw_quantum_circuit(
         build_wrapped_ir(),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.FULL,
             style={"max_page_width": 4.0},
             show=False,

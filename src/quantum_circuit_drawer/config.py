@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
@@ -40,21 +40,21 @@ class UnsupportedPolicy(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class DrawConfig:
-    """Public draw configuration grouped by responsibility.
+class OutputOptions:
+    """Shared output controls for public drawing and plotting APIs."""
 
-    The object keeps the user-facing rendering options together so the
-    main entrypoint can stay compact and predictable.
+    show: bool = True
+    output_path: OutputPath | None = None
+    figsize: tuple[float, float] | None = None
 
-    The field order follows the public API contract:
+    def __post_init__(self) -> None:
+        _validate_bool("show", self.show)
+        _validate_figsize(self.figsize)
 
-    1. framework and backend
-    2. layout and view
-    3. mode selection
-    4. topology-related 3D options
-    5. display and saving
-    6. style and hover
-    """
+
+@dataclass(frozen=True, slots=True)
+class CircuitRenderOptions:
+    """Public circuit-rendering controls grouped by rendering responsibility."""
 
     framework: str | None = None
     backend: str = "matplotlib"
@@ -65,38 +65,34 @@ class DrawConfig:
     topology: TopologyMode = "line"
     topology_menu: bool = False
     direct: bool = True
-    show: bool = True
-    output_path: OutputPath | None = None
-    figsize: tuple[float, float] | None = None
-    preset: StylePreset | str | None = None
-    style: DrawStyle | Mapping[str, object] | None = None
-    hover: bool | HoverOptions | Mapping[str, object] = False
     unsupported_policy: UnsupportedPolicy | str = UnsupportedPolicy.RAISE
 
     def __post_init__(self) -> None:
-        """Validate and normalize the public configuration.
-
-        String-like public choices are checked immediately so invalid
-        values fail early, while ``style`` and ``hover`` are normalized
-        into their typed public objects.
-        """
-
-        object.__setattr__(self, "mode", self._normalize_mode(self.mode))
-        self._validate_choice("backend", self.backend, {"matplotlib"})
-        self._validate_choice("view", self.view, {"2d", "3d"})
-        self._validate_choice("composite_mode", self.composite_mode, {"compact", "expand"})
+        object.__setattr__(self, "mode", normalize_draw_mode(self.mode))
+        _validate_choice("backend", self.backend, {"matplotlib"})
+        _validate_choice("view", self.view, {"2d", "3d"})
+        _validate_choice("composite_mode", self.composite_mode, {"compact", "expand"})
         object.__setattr__(self, "topology", normalize_topology_input(self.topology))
-        self._validate_bool("topology_menu", self.topology_menu)
-        self._validate_bool("direct", self.direct)
-        self._validate_bool("show", self.show)
-        self._validate_figsize(self.figsize)
-        normalized_preset = normalize_style_preset(self.preset)
-        object.__setattr__(self, "preset", normalized_preset)
+        _validate_bool("topology_menu", self.topology_menu)
+        _validate_bool("direct", self.direct)
         object.__setattr__(
             self,
             "unsupported_policy",
-            self._normalize_unsupported_policy(self.unsupported_policy),
+            normalize_unsupported_policy(self.unsupported_policy),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class CircuitAppearanceOptions:
+    """Public circuit style and hover controls."""
+
+    preset: StylePreset | str | None = None
+    style: DrawStyle | Mapping[str, object] | None = None
+    hover: bool | HoverOptions | Mapping[str, object] = False
+
+    def __post_init__(self) -> None:
+        normalized_preset = normalize_style_preset(self.preset)
+        object.__setattr__(self, "preset", normalized_preset)
         object.__setattr__(
             self,
             "style",
@@ -104,48 +100,93 @@ class DrawConfig:
         )
         object.__setattr__(self, "hover", normalize_hover(self.hover))
 
-    @staticmethod
-    def _normalize_mode(value: DrawMode | str) -> DrawMode:
-        try:
-            return value if isinstance(value, DrawMode) else DrawMode(str(value))
-        except ValueError as exc:
-            choices = ", ".join(mode.value for mode in DrawMode)
-            raise ValueError(f"mode must be one of: {choices}") from exc
 
-    @staticmethod
-    def _validate_choice(name: str, value: object, allowed_values: set[str]) -> None:
-        if isinstance(value, str) and value in allowed_values:
-            return
-        choices = ", ".join(sorted(allowed_values))
-        raise ValueError(f"{name} must be one of: {choices}")
+@dataclass(frozen=True, slots=True)
+class DrawSideConfig:
+    """Public circuit-side configuration without output ownership."""
 
-    @staticmethod
-    def _validate_bool(name: str, value: object) -> None:
-        if isinstance(value, bool):
-            return
-        raise ValueError(f"{name} must be a boolean")
+    render: CircuitRenderOptions = field(default_factory=CircuitRenderOptions)
+    appearance: CircuitAppearanceOptions = field(default_factory=CircuitAppearanceOptions)
 
-    @staticmethod
-    def _validate_figsize(value: object) -> None:
-        if value is None:
-            return
-        if not isinstance(value, tuple | list) or len(value) != 2:
-            raise ValueError("figsize must be a 2-item tuple of positive numbers")
-        width, height = value
-        if not _is_positive_dimension(width) or not _is_positive_dimension(height):
-            raise ValueError("figsize must be a 2-item tuple of positive numbers")
-
-    @staticmethod
-    def _normalize_unsupported_policy(value: UnsupportedPolicy | str) -> UnsupportedPolicy:
-        try:
-            return value if isinstance(value, UnsupportedPolicy) else UnsupportedPolicy(str(value))
-        except ValueError as exc:
-            choices = ", ".join(policy.value for policy in UnsupportedPolicy)
-            raise ValueError(f"unsupported_policy must be one of: {choices}") from exc
+    def __post_init__(self) -> None:
+        _validate_instance("render", self.render, CircuitRenderOptions)
+        _validate_instance("appearance", self.appearance, CircuitAppearanceOptions)
 
 
-def _is_positive_dimension(value: object) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
+@dataclass(frozen=True, slots=True)
+class DrawConfig:
+    """Public draw configuration grouped into typed option blocks."""
+
+    side: DrawSideConfig = field(default_factory=DrawSideConfig)
+    output: OutputOptions = field(default_factory=OutputOptions)
+
+    def __post_init__(self) -> None:
+        _validate_instance("side", self.side, DrawSideConfig)
+        _validate_instance("output", self.output, OutputOptions)
+
+    @property
+    def framework(self) -> str | None:
+        return self.side.render.framework
+
+    @property
+    def backend(self) -> str:
+        return self.side.render.backend
+
+    @property
+    def layout(self) -> LayoutEngineLike | LayoutEngine3DLike | None:
+        return self.side.render.layout
+
+    @property
+    def view(self) -> ViewMode:
+        return self.side.render.view
+
+    @property
+    def mode(self) -> DrawMode:
+        return self.side.render.mode
+
+    @property
+    def composite_mode(self) -> str:
+        return self.side.render.composite_mode
+
+    @property
+    def topology(self) -> TopologyMode:
+        return self.side.render.topology
+
+    @property
+    def topology_menu(self) -> bool:
+        return self.side.render.topology_menu
+
+    @property
+    def direct(self) -> bool:
+        return self.side.render.direct
+
+    @property
+    def unsupported_policy(self) -> UnsupportedPolicy:
+        return self.side.render.unsupported_policy
+
+    @property
+    def preset(self) -> StylePreset | None:
+        return self.side.appearance.preset
+
+    @property
+    def style(self) -> DrawStyle | Mapping[str, object] | None:
+        return self.side.appearance.style
+
+    @property
+    def hover(self) -> HoverOptions:
+        return self.side.appearance.hover
+
+    @property
+    def show(self) -> bool:
+        return self.output.show
+
+    @property
+    def output_path(self) -> OutputPath | None:
+        return self.output.output_path
+
+    @property
+    def figsize(self) -> tuple[float, float] | None:
+        return self.output.figsize
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,3 +199,75 @@ class ResolvedDrawConfig:
     notebook_backend_active: bool
     caller_axes: Axes | None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
+
+
+def normalize_draw_mode(value: DrawMode | str) -> DrawMode:
+    try:
+        return value if isinstance(value, DrawMode) else DrawMode(str(value))
+    except ValueError as exc:
+        choices = ", ".join(mode.value for mode in DrawMode)
+        raise ValueError(f"mode must be one of: {choices}") from exc
+
+
+def normalize_unsupported_policy(value: UnsupportedPolicy | str) -> UnsupportedPolicy:
+    try:
+        return value if isinstance(value, UnsupportedPolicy) else UnsupportedPolicy(str(value))
+    except ValueError as exc:
+        choices = ", ".join(policy.value for policy in UnsupportedPolicy)
+        raise ValueError(f"unsupported_policy must be one of: {choices}") from exc
+
+
+def validate_output_options(output: OutputOptions) -> None:
+    """Validate one shared output block instance."""
+
+    _validate_instance("output", output, OutputOptions)
+
+
+def _validate_choice(name: str, value: object, allowed_values: set[str]) -> None:
+    if isinstance(value, str) and value in allowed_values:
+        return
+    choices = ", ".join(sorted(allowed_values))
+    raise ValueError(f"{name} must be one of: {choices}")
+
+
+def _validate_bool(name: str, value: object) -> None:
+    if isinstance(value, bool):
+        return
+    raise ValueError(f"{name} must be a boolean")
+
+
+def _validate_figsize(value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, tuple | list) or len(value) != 2:
+        raise ValueError("figsize must be a 2-item tuple of positive numbers")
+    width, height = value
+    if not _is_positive_dimension(width) or not _is_positive_dimension(height):
+        raise ValueError("figsize must be a 2-item tuple of positive numbers")
+
+
+def _validate_instance(name: str, value: object, expected_type: type[object]) -> None:
+    if isinstance(value, expected_type):
+        return
+    raise TypeError(f"{name} must be a {expected_type.__name__}")
+
+
+def _is_positive_dimension(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
+
+
+__all__ = [
+    "CircuitAppearanceOptions",
+    "CircuitRenderOptions",
+    "DrawConfig",
+    "DrawMode",
+    "DrawSideConfig",
+    "OutputOptions",
+    "ResolvedDrawConfig",
+    "TopologyMode",
+    "UnsupportedPolicy",
+    "ViewMode",
+    "normalize_draw_mode",
+    "normalize_unsupported_policy",
+    "validate_output_options",
+]

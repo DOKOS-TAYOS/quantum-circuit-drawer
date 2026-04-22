@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from ..circuit_compare import CircuitCompareConfig, CircuitCompareMetrics, CircuitCompareResult
-from ..config import DrawConfig, DrawMode
+from ..config import (
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+)
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
@@ -49,8 +56,6 @@ def compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *,
-    left_config: DrawConfig | None = None,
-    right_config: DrawConfig | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, Axes] | None = None,
 ) -> CircuitCompareResult:
@@ -71,8 +76,14 @@ def compare_circuits(
         left_axes, right_axes = axes
         figure = shared_figure_for_compare_axes(left_axes, right_axes)
 
-    normalized_left_config = normalize_compare_draw_config(left_config, side_label="left")
-    normalized_right_config = normalize_compare_draw_config(right_config, side_label="right")
+    normalized_left_config = normalize_compare_draw_config(
+        merge_compare_side_config(resolved_compare_config, side_label="left"),
+        side_label="left",
+    )
+    normalized_right_config = normalize_compare_draw_config(
+        merge_compare_side_config(resolved_compare_config, side_label="right"),
+        side_label="right",
+    )
     left_prepared = prepare_draw_call(left_circuit, config=normalized_left_config, ax=left_axes)
     right_prepared = prepare_draw_call(
         right_circuit,
@@ -155,26 +166,63 @@ def compare_circuits(
 
 
 def normalize_compare_draw_config(
-    config: DrawConfig | None,
+    config: DrawConfig,
     *,
     side_label: str,
 ) -> DrawConfig:
     """Normalize one per-side draw config for public circuit comparison."""
 
-    resolved_config = DrawConfig(show=False) if config is None else config
-    if resolved_config.view != "2d":
+    if config.view != "2d":
         raise ValueError(
-            f"compare_circuits only supports 2D rendering; {side_label}_config.view must be '2d'"
+            f"compare_circuits only supports 2D rendering; {side_label}_render.view must be '2d'"
         )
-    if resolved_config.mode in INTERACTIVE_COMPARE_MODES:
+    if config.mode in INTERACTIVE_COMPARE_MODES:
         raise ValueError("compare_circuits does not support slider or page-control modes in v1")
-    return replace(
-        resolved_config,
-        mode=DrawMode.FULL,
-        view="2d",
-        show=False,
-        output_path=None,
-        topology_menu=False,
+    return DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework=config.framework,
+                backend=config.backend,
+                layout=config.layout,
+                view="2d",
+                mode=DrawMode.FULL,
+                composite_mode=config.composite_mode,
+                topology=config.topology,
+                topology_menu=False,
+                direct=config.direct,
+                unsupported_policy=config.unsupported_policy,
+            ),
+            appearance=CircuitAppearanceOptions(
+                preset=config.preset,
+                style=config.style,
+                hover=config.hover,
+            ),
+        ),
+        output=OutputOptions(show=False),
+    )
+
+
+def merge_compare_side_config(
+    config: CircuitCompareConfig,
+    *,
+    side_label: str,
+) -> DrawConfig:
+    """Build one per-side draw config from shared options and block overrides."""
+
+    render_override = config.left_render if side_label == "left" else config.right_render
+    appearance_override = (
+        config.left_appearance if side_label == "left" else config.right_appearance
+    )
+    resolved_render = config.shared.render if render_override is None else render_override
+    resolved_appearance = (
+        config.shared.appearance if appearance_override is None else appearance_override
+    )
+    return DrawConfig(
+        side=DrawSideConfig(
+            render=resolved_render,
+            appearance=resolved_appearance,
+        ),
+        output=OutputOptions(show=False),
     )
 
 

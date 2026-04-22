@@ -16,9 +16,12 @@ except ImportError:
     )
 
 from quantum_circuit_drawer import (
+    HistogramAppearanceOptions,
     HistogramConfig,
+    HistogramDataOptions,
     HistogramDrawStyle,
     HistogramKind,
+    OutputOptions,
 )
 
 
@@ -38,10 +41,12 @@ def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
             "1111": 0.32,
         },
         config=HistogramConfig(
-            kind=HistogramKind.QUASI,
-            theme="paper",
-            draw_style=HistogramDrawStyle.SOFT,
-            show=False,
+            data=HistogramDataOptions(kind=HistogramKind.QUASI),
+            appearance=HistogramAppearanceOptions(
+                theme="paper",
+                draw_style=HistogramDrawStyle.SOFT,
+            ),
+            output=OutputOptions(show=False),
         ),
     )
 

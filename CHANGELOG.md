@@ -21,6 +21,9 @@
 
 ### Changed
 
+- Reworked the public configuration surface into nested typed blocks ordered by responsibility: `DrawConfig(side, output)`, `CircuitCompareConfig(shared, compare, output, per-side overrides)`, `HistogramConfig(data, view, appearance, output)`, and `HistogramCompareConfig(data, compare, output)`
+- Removed the old flat public config constructor style from docs, examples, and tests, and made `compare_circuits(...)` use one shared `config=` object without `left_config` / `right_config`
+- Unified public output handling around shared `OutputOptions(show, output_path, figsize)` across circuit drawing, circuit comparison, histogram plotting, and histogram comparison
 - Tightened internal typing around shared example helpers, benchmark request normalization, and 2D/3D benchmark execution so `pyright` can validate the intended render flow
 - Clarified the production support matrix across the README and core docs, keeping IR and Qiskit as the strong paths, Cirq and PennyLane as best-effort on native Windows, MyQLM as scoped adapter support, and CUDA-Q as Linux/WSL2-only
 - Migrated the Qiskit adapter onto the shared semantic path as well, keeping simple `if_test(...)` expansion while rendering `if_else` with `else`, `switch_case`, `for_loop`, and `while_loop` as compact native boxes with preserved hover details instead of flattening or simulating their control flow

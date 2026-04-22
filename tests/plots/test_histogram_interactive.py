@@ -9,7 +9,6 @@ from matplotlib.figure import Figure
 from matplotlib.text import Annotation
 
 from quantum_circuit_drawer import (
-    HistogramConfig,
     HistogramKind,
     HistogramMode,
     HistogramSort,
@@ -18,7 +17,7 @@ from quantum_circuit_drawer import (
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.histogram import plot_histogram
 from quantum_circuit_drawer.renderers._matplotlib_figure import get_histogram_state, get_hover_state
-from tests.support import assert_saved_image_has_visible_content
+from tests.support import assert_saved_image_has_visible_content, build_public_histogram_config
 
 
 def _dense_histogram_counts(*, bit_width: int = 7) -> dict[str, int]:
@@ -54,7 +53,7 @@ def _dispatch_motion_event_at_axes_center(figure: Figure, axes: object) -> None:
 def test_plot_histogram_interactive_mode_attaches_controls_and_windowed_view() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(8.0, 4.0),
@@ -82,7 +81,7 @@ def test_plot_histogram_interactive_mode_attaches_controls_and_windowed_view() -
 def test_histogram_interactive_cycle_sort_updates_button_label_and_visible_labels() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             sort=HistogramSort.STATE,
@@ -117,7 +116,7 @@ def test_histogram_interactive_cycle_sort_updates_button_label_and_visible_label
 def test_histogram_interactive_cycle_sort_uses_short_probability_labels_for_quasi_data() -> None:
     result = plot_histogram(
         {"00": 0.55, "01": 0.15, "10": 0.35, "11": 0.25},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             kind=HistogramKind.QUASI,
             mode=HistogramMode.INTERACTIVE,
             show=False,
@@ -145,7 +144,7 @@ def test_histogram_interactive_cycle_sort_uses_short_probability_labels_for_quas
 def test_histogram_interactive_order_button_keeps_probability_label_inside_bounds() -> None:
     result = plot_histogram(
         {"00": 0.55, "01": 0.15, "10": 0.35, "11": 0.25},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             kind=HistogramKind.QUASI,
             mode=HistogramMode.INTERACTIVE,
             show=False,
@@ -176,7 +175,7 @@ def test_histogram_interactive_order_button_keeps_probability_label_inside_bound
 def test_histogram_interactive_counts_show_kind_toggle_button() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -196,7 +195,7 @@ def test_histogram_interactive_counts_show_kind_toggle_button() -> None:
 def test_histogram_interactive_quasi_hides_kind_toggle_button() -> None:
     result = plot_histogram(
         {"00": 0.55, "01": 0.15, "10": 0.35, "11": 0.25},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             kind=HistogramKind.QUASI,
             mode=HistogramMode.INTERACTIVE,
             show=False,
@@ -216,7 +215,7 @@ def test_histogram_interactive_quasi_hides_kind_toggle_button() -> None:
 def test_histogram_interactive_kind_toggle_switches_counts_to_quasi_view() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             sort=HistogramSort.VALUE_ASC,
@@ -252,7 +251,7 @@ def test_histogram_interactive_kind_toggle_switches_counts_to_quasi_view() -> No
 def test_histogram_interactive_slider_toggle_expands_to_full_distribution() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(8.0, 4.0),
@@ -281,7 +280,7 @@ def test_histogram_interactive_marginal_text_updates_distribution_and_preserves_
 ):
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -328,7 +327,7 @@ def test_histogram_interactive_hover_reports_bitstring_and_value(
 ) -> None:
     result = plot_histogram(
         data,
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             kind=kind,
             mode=HistogramMode.INTERACTIVE,
             show=False,
@@ -353,7 +352,7 @@ def test_histogram_interactive_hover_reports_bitstring_and_value(
 def test_histogram_interactive_label_button_toggles_decimal_labels_and_hover() -> None:
     result = plot_histogram(
         {"10 011": 7, "01 101": 3},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -394,7 +393,7 @@ def test_histogram_hover_is_enabled_by_default_and_can_be_disabled(
 
     default_result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
     default_state = get_histogram_state(default_result.figure)
 
@@ -403,7 +402,11 @@ def test_histogram_hover_is_enabled_by_default_and_can_be_disabled(
 
     disabled_result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(mode=HistogramMode.INTERACTIVE, hover=False, show=False),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            hover=False,
+            show=False,
+        ),
     )
     disabled_state = get_histogram_state(disabled_result.figure)
 
@@ -417,7 +420,7 @@ def test_histogram_hover_is_enabled_by_default_and_can_be_disabled(
 def test_histogram_interactive_layout_keeps_slider_below_state_labels() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(8.0, 4.0),
@@ -449,7 +452,7 @@ def test_histogram_interactive_slider_keeps_fixed_y_scale_across_windows() -> No
 
     result = plot_histogram(
         data,
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(8.0, 4.0),
@@ -478,7 +481,7 @@ def test_histogram_interactive_slider_keeps_fixed_y_scale_across_windows() -> No
 def test_histogram_interactive_layout_keeps_plot_clear_of_controls_when_slider_is_off() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(8.0, 4.0),
@@ -509,7 +512,7 @@ def test_histogram_interactive_layout_keeps_plot_clear_of_controls_when_slider_i
 def test_histogram_interactive_hides_slider_button_when_slider_would_never_appear() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -528,7 +531,7 @@ def test_histogram_interactive_hides_slider_button_when_slider_would_never_appea
 def test_histogram_interactive_hides_slider_button_after_reducing_to_small_marginal() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -551,7 +554,7 @@ def test_histogram_interactive_hides_slider_button_after_reducing_to_small_margi
 def test_histogram_interactive_removes_status_text_from_top_of_figure() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -566,7 +569,7 @@ def test_histogram_interactive_removes_status_text_from_top_of_figure() -> None:
 def test_histogram_interactive_marginal_box_hover_shows_usage_help() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -593,7 +596,7 @@ def test_histogram_interactive_marginal_box_hover_shows_usage_help() -> None:
 def test_histogram_interactive_marginal_box_matches_other_control_heights() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             show=False,
             figsize=(10.0, 4.0),
@@ -632,7 +635,7 @@ def test_plot_histogram_saves_interactive_view_without_widgets(
 
     result = plot_histogram(
         _dense_histogram_counts(),
-        config=HistogramConfig(
+        config=build_public_histogram_config(
             mode=HistogramMode.INTERACTIVE,
             output_path=output,
             show=False,

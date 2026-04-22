@@ -10,7 +10,7 @@ from quantum_circuit_drawer import draw_quantum_circuit
 draw_quantum_circuit(circuit)
 ```
 
-Use `DrawConfig(framework=...)` only when you want to be explicit or when a wrapper object makes autodetection ambiguous.
+Set `DrawConfig.side.render.framework` only when you want to be explicit or when a wrapper object makes autodetection ambiguous.
 
 ## Overview
 
@@ -50,7 +50,7 @@ Use this table as the release support contract when choosing a framework path.
 - MyQLM `qat.core.Result` objects with `raw_data`
 - CUDA-Q `SampleResult`-style count containers
 
-When a framework returns several measurement outputs at once, pass the tuple or list directly and select one entry with `HistogramConfig(result_index=...)`.
+When a framework returns several measurement outputs at once, pass the tuple or list directly and select one entry with `HistogramConfig(data=HistogramDataOptions(result_index=...))`.
 
 ## Choosing Between Native Frameworks And IR
 
@@ -129,7 +129,12 @@ from cirq.circuits import Circuit, Moment
 from cirq.devices import LineQubit
 from cirq.ops import CNOT, H, measure
 
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    draw_quantum_circuit,
+)
 
 q0, q1 = LineQubit.range(2)
 circuit = Circuit(
@@ -138,7 +143,12 @@ circuit = Circuit(
     Moment(measure(q1, key="m")),
 )
 
-draw_quantum_circuit(circuit, config=DrawConfig(framework="cirq"))
+draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="cirq")),
+    ),
+)
 ```
 
 Current support includes common gates, controlled gates including open controls when Cirq exposes singleton binary `control_values`, classically controlled operations with safe hover fallback for non-normalizable conditions, `CircuitOperation`, swap, measurements, and native tags preserved in hover metadata.
@@ -152,7 +162,7 @@ Bundled demos:
 
 Histogram support also accepts `cirq.Result` / `cirq.ResultDict` objects through their `measurements` mapping. If several measurement keys are present, `plot_histogram(...)` keeps them as space-separated registers in the visible state labels.
 
-Use `DrawConfig(composite_mode="expand")` when you want supported `CircuitOperation` contents to appear as separate operations.
+Use `CircuitRenderOptions(composite_mode="expand")` inside `DrawConfig.side.render` when you want supported `CircuitOperation` contents to appear as separate operations.
 
 On native Windows, Cirq imports and teardown can still be limited by upstream SciPy/HiGHS behavior. The bundled demos reduce exact-matrix work by default there, but WSL or Linux remains the more reliable option for repeated demo runs.
 
@@ -177,14 +187,24 @@ from pennylane.measurements import ProbabilityMP
 from pennylane.ops import CNOT, Hadamard
 from pennylane.tape import QuantumTape
 
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    draw_quantum_circuit,
+)
 
 with QuantumTape() as tape:
     Hadamard(wires=0)
     CNOT(wires=[0, 1])
     ProbabilityMP(wires=[1])
 
-draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
+draw_quantum_circuit(
+    tape,
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="pennylane")),
+    ),
+)
 ```
 
 Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, controlled operations with explicit `control_values` when PennyLane exposes them, optional expansion for decomposable composite operations such as `QFT`, and compact terminal-output boxes for `qml.expval()`, `qml.var()`, `qml.probs()`, `qml.sample()`, `qml.counts()`, `qml.state()`, and `qml.density_matrix()`.
@@ -200,7 +220,7 @@ Bundled demos:
 - `pennylane-terminal-outputs-showcase` is the best first demo for `qml.measure(...)`, `qml.cond(...)`, and compact output boxes.
 - `pennylane-random` and `pennylane-qaoa` remain useful when you want broader layout stress tests.
 
-Histogram support also accepts direct execution outputs from `qml.counts()`, `qml.probs()`, and `qml.sample()`. If a QNode returns several payloads, pass the full tuple or list and use `HistogramConfig(result_index=...)` to choose which one to plot.
+Histogram support also accepts direct execution outputs from `qml.counts()`, `qml.probs()`, and `qml.sample()`. If a QNode returns several payloads, pass the full tuple or list and use `HistogramConfig(data=HistogramDataOptions(result_index=...))` to choose which one to plot.
 
 On native Windows, PennyLane can still be limited by upstream SciPy/HiGHS behavior. The bundled demos reduce exact-matrix work by default there, but WSL or Linux remains the more reliable option for repeated demo runs.
 
@@ -227,7 +247,12 @@ Example:
 ```python
 from qat.lang.AQASM import CNOT, H, Program
 
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    draw_quantum_circuit,
+)
 
 program = Program()
 qbits = program.qalloc(2)
@@ -236,7 +261,12 @@ H(qbits[0])
 CNOT(qbits[0], qbits[1])
 
 circuit = program.to_circ()
-draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
+draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="myqlm")),
+    ),
+)
 ```
 
 Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, drawable `BREAK` / `CLASSIC` classical boxes on the bundled classical register, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas. Qubit-targeted quantum resets keep drawing even when MyQLM attaches extra classical metadata, with those raw classical details preserved in hover instead of raising.
@@ -327,7 +357,7 @@ Import the IR types from `quantum_circuit_drawer.ir`.
 Example:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
 from quantum_circuit_drawer.ir import (
     ClassicalConditionIR,
     CircuitIR,
@@ -387,7 +417,7 @@ ir = CircuitIR(
     name="bell_pair_ir",
 )
 
-draw_quantum_circuit(ir, config=DrawConfig(show=False))
+draw_quantum_circuit(ir, config=DrawConfig(output=OutputOptions(show=False)))
 ```
 
 Useful IR rules:

@@ -20,7 +20,14 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import HistogramConfig, plot_histogram  # noqa: E402
+from quantum_circuit_drawer import (  # noqa: E402
+    HistogramAppearanceOptions,
+    HistogramConfig,
+    HistogramDataOptions,
+    HistogramViewOptions,
+    OutputOptions,
+    plot_histogram,
+)
 
 DEFAULT_HISTOGRAM_FIGSIZE = (10.5, 5.6)
 HistogramModeName = Literal["auto", "static", "interactive"]
@@ -302,37 +309,63 @@ def build_histogram_config(
 ) -> HistogramConfig:
     """Merge one request into a histogram config while keeping demo defaults."""
 
-    return replace(
-        base_config,
-        **_request_overrides(request),
+    resolved_data = replace(
+        base_config.data,
+        top_k=base_config.top_k if request.top_k is None else request.top_k,
+        qubits=base_config.qubits if request.qubits is None else request.qubits,
+        result_index=(
+            base_config.result_index if request.result_index is None else request.result_index
+        ),
+        data_key=base_config.data_key if request.data_key is None else request.data_key,
     )
-
-
-def _request_overrides(request: HistogramExampleRequest) -> dict[str, object]:
-    overrides: dict[str, object] = {
-        "output_path": request.output,
-        "show": request.show,
-        "figsize": request.figsize,
-    }
-    optional_fields = (
-        "mode",
-        "sort",
-        "top_k",
-        "qubits",
-        "result_index",
-        "data_key",
-        "preset",
-        "theme",
-        "draw_style",
-        "state_label_mode",
-        "hover",
-        "show_uniform_reference",
+    resolved_view = replace(
+        base_config.view,
+        mode=base_config.mode if request.mode is None else request.mode,
+        sort=base_config.sort if request.sort is None else request.sort,
+        state_label_mode=(
+            base_config.state_label_mode
+            if request.state_label_mode is None
+            else request.state_label_mode
+        ),
     )
-    for field_name in optional_fields:
-        value = getattr(request, field_name)
-        if value is not None:
-            overrides[field_name] = value
-    return overrides
+    resolved_appearance = replace(
+        base_config.appearance,
+        preset=base_config.preset if request.preset is None else request.preset,
+        theme=base_config.theme if request.theme is None else request.theme,
+        draw_style=base_config.draw_style if request.draw_style is None else request.draw_style,
+        hover=base_config.hover if request.hover is None else request.hover,
+        show_uniform_reference=(
+            base_config.show_uniform_reference
+            if request.show_uniform_reference is None
+            else request.show_uniform_reference
+        ),
+    )
+    return HistogramConfig(
+        data=HistogramDataOptions(
+            kind=resolved_data.kind,
+            top_k=resolved_data.top_k,
+            qubits=resolved_data.qubits,
+            result_index=resolved_data.result_index,
+            data_key=resolved_data.data_key,
+        ),
+        view=HistogramViewOptions(
+            mode=resolved_view.mode,
+            sort=resolved_view.sort,
+            state_label_mode=resolved_view.state_label_mode,
+        ),
+        appearance=HistogramAppearanceOptions(
+            preset=resolved_appearance.preset,
+            theme=resolved_appearance.theme,
+            draw_style=resolved_appearance.draw_style,
+            hover=resolved_appearance.hover,
+            show_uniform_reference=resolved_appearance.show_uniform_reference,
+        ),
+        output=OutputOptions(
+            output_path=request.output,
+            show=request.show,
+            figsize=request.figsize,
+        ),
+    )
 
 
 def _optional_histogram_mode(value: object) -> HistogramModeName | None:

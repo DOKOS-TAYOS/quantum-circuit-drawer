@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
-from tests.support import build_dense_rotation_ir
+from quantum_circuit_drawer import DrawMode, draw_quantum_circuit
+from tests.support import build_dense_rotation_ir, build_public_draw_config
 
 
 def test_draw_quantum_circuit_pages_mode_returns_one_3d_figure_per_window() -> None:
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=12, wire_count=4),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             view="3d",
             topology="line",
@@ -30,7 +30,7 @@ def test_draw_quantum_circuit_pages_mode_returns_one_3d_figure_per_window() -> N
 def test_draw_quantum_circuit_full_mode_keeps_single_3d_figure() -> None:
     result = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=12, wire_count=4),
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.FULL,
             view="3d",
             topology="line",
@@ -51,7 +51,7 @@ def test_draw_quantum_circuit_3d_pages_mode_adapts_page_count_to_window_width() 
     circuit = build_dense_rotation_ir(layer_count=24, wire_count=4)
     narrow_result = draw_quantum_circuit(
         circuit,
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             view="3d",
             topology="line",
@@ -62,7 +62,7 @@ def test_draw_quantum_circuit_3d_pages_mode_adapts_page_count_to_window_width() 
     )
     wide_result = draw_quantum_circuit(
         circuit,
-        config=DrawConfig(
+        config=build_public_draw_config(
             mode=DrawMode.PAGES,
             view="3d",
             topology="line",

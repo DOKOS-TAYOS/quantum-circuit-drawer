@@ -11,14 +11,19 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import quantum_circuit_drawer
 from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
     CircuitBuilder,
     CircuitCompareConfig,
     CircuitCompareMetrics,
+    CircuitCompareOptions,
     CircuitCompareResult,
+    CircuitRenderOptions,
     DiagnosticSeverity,
     DrawConfig,
     DrawMode,
     DrawResult,
+    DrawSideConfig,
+    OutputOptions,
     RenderDiagnostic,
     compare_circuits,
     draw_quantum_circuit,
@@ -184,7 +189,10 @@ def test_draw_result_exposes_runtime_metadata_and_saved_path(
 
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(show=False, hover=True, output_path=output_path),
+        config=DrawConfig(
+            side=DrawSideConfig(appearance=CircuitAppearanceOptions(hover=True)),
+            output=OutputOptions(show=False, output_path=output_path),
+        ),
     )
 
     assert result.detected_framework == "ir"
@@ -218,9 +226,8 @@ def test_draw_quantum_circuit_logs_managed_cleanup_failures_without_breaking_pag
     result = draw_quantum_circuit(
         build_sample_ir(),
         config=DrawConfig(
-            mode=DrawMode.PAGES,
-            show=False,
-            output_path=output_path,
+            side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
+            output=OutputOptions(show=False, output_path=output_path),
         ),
     )
 
@@ -253,7 +260,13 @@ def test_draw_result_marks_interactive_hover_when_caller_axes_support_it(
 
     result = draw_quantum_circuit(
         build_sample_ir(),
-        config=DrawConfig(mode=DrawMode.FULL, hover=True, show=False),
+        config=DrawConfig(
+            side=DrawSideConfig(
+                render=CircuitRenderOptions(mode=DrawMode.FULL),
+                appearance=CircuitAppearanceOptions(hover=True),
+            ),
+            output=OutputOptions(show=False),
+        ),
         ax=axes,
     )
 
@@ -271,7 +284,12 @@ def test_draw_quantum_circuit_supports_myqlm_input_through_public_v2_api(
 
     result = draw_quantum_circuit(
         build_sample_myqlm_circuit(),
-        config=DrawConfig(framework="myqlm", mode=DrawMode.FULL, show=False),
+        config=DrawConfig(
+            side=DrawSideConfig(
+                render=CircuitRenderOptions(framework="myqlm", mode=DrawMode.FULL),
+            ),
+            output=OutputOptions(show=False),
+        ),
     )
 
     assert result.detected_framework == "myqlm"
@@ -288,7 +306,12 @@ def test_draw_quantum_circuit_supports_cudaq_input_through_public_v2_api(
 
     result = draw_quantum_circuit(
         fake_kernel_type(),
-        config=DrawConfig(framework="cudaq", mode=DrawMode.FULL, show=False),
+        config=DrawConfig(
+            side=DrawSideConfig(
+                render=CircuitRenderOptions(framework="cudaq", mode=DrawMode.FULL),
+            ),
+            output=OutputOptions(show=False),
+        ),
     )
 
     assert result.detected_framework == "cudaq"
@@ -326,9 +349,11 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
         build_reference_compare_ir(),
         build_candidate_compare_ir(),
         config=CircuitCompareConfig(
-            left_title="Before",
-            right_title="After",
-            show=False,
+            compare=CircuitCompareOptions(
+                left_title="Before",
+                right_title="After",
+            ),
+            output=OutputOptions(show=False),
         ),
     )
 
@@ -385,7 +410,9 @@ def test_compare_circuits_uses_caller_managed_axes_and_saves_single_output(
     result = compare_circuits(
         build_reference_compare_ir(),
         build_candidate_compare_ir(),
-        config=CircuitCompareConfig(show=False, output_path=output_path),
+        config=CircuitCompareConfig(
+            output=OutputOptions(show=False, output_path=output_path),
+        ),
         axes=(axes[0], axes[1]),
     )
 
@@ -409,9 +436,11 @@ def test_compare_circuits_supports_mixed_qiskit_and_ir_inputs() -> None:
     result = compare_circuits(
         qiskit_circuit,
         build_reference_compare_ir(),
-        left_config=DrawConfig(framework="qiskit", show=False),
-        right_config=DrawConfig(show=False),
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(),
+            left_render=CircuitRenderOptions(framework="qiskit"),
+            output=OutputOptions(show=False),
+        ),
     )
 
     assert result.left_result.detected_framework == "qiskit"
@@ -435,9 +464,11 @@ def test_compare_circuits_supports_mixed_cirq_and_ir_inputs_with_windows_safe_co
     result = compare_circuits(
         cirq_circuit,
         build_reference_compare_ir(),
-        left_config=DrawConfig(framework="cirq", show=False),
-        right_config=DrawConfig(show=False),
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(),
+            left_render=CircuitRenderOptions(framework="cirq"),
+            output=OutputOptions(show=False),
+        ),
     )
 
     assert result.left_result.detected_framework == "cirq"
@@ -470,9 +501,11 @@ def test_compare_circuits_supports_mixed_pennylane_and_ir_inputs_with_windows_sa
     result = compare_circuits(
         wrapper,
         build_reference_compare_ir(),
-        left_config=DrawConfig(framework="pennylane", show=False),
-        right_config=DrawConfig(show=False),
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(),
+            left_render=CircuitRenderOptions(framework="pennylane"),
+            output=OutputOptions(show=False),
+        ),
     )
 
     assert result.left_result.detected_framework == "pennylane"
@@ -490,9 +523,11 @@ def test_compare_circuits_supports_mixed_myqlm_and_ir_inputs(
     result = compare_circuits(
         build_sample_myqlm_circuit(),
         build_single_qubit_reference_ir(),
-        left_config=DrawConfig(framework="myqlm", show=False),
-        right_config=DrawConfig(show=False),
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(),
+            left_render=CircuitRenderOptions(framework="myqlm"),
+            output=OutputOptions(show=False),
+        ),
     )
 
     assert result.left_result.detected_framework == "myqlm"
@@ -513,9 +548,11 @@ def test_compare_circuits_supports_mixed_cudaq_and_ir_inputs(
     result = compare_circuits(
         kernel,
         build_single_qubit_reference_ir(),
-        left_config=DrawConfig(framework="cudaq", show=False),
-        right_config=DrawConfig(show=False),
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(),
+            left_render=CircuitRenderOptions(framework="cudaq"),
+            output=OutputOptions(show=False),
+        ),
     )
 
     assert result.left_result.detected_framework == "cudaq"
@@ -527,23 +564,25 @@ def test_compare_circuits_supports_mixed_cudaq_and_ir_inputs(
 
 
 @pytest.mark.parametrize(
-    ("config_side", "draw_config"),
+    ("config_side", "render_options"),
     [
-        ("left", DrawConfig(view="3d", show=False)),
-        ("right", DrawConfig(mode=DrawMode.SLIDER, show=False)),
+        ("left", CircuitRenderOptions(view="3d")),
+        ("right", CircuitRenderOptions(mode=DrawMode.SLIDER)),
     ],
 )
 def test_compare_circuits_rejects_unsupported_draw_modes_for_v1(
     config_side: str,
-    draw_config: DrawConfig,
+    render_options: CircuitRenderOptions,
 ) -> None:
-    kwargs = {"left_config": None, "right_config": None}
-    kwargs[f"{config_side}_config"] = draw_config
+    kwargs = {"left_render": None, "right_render": None}
+    kwargs[f"{config_side}_render"] = render_options
 
     with pytest.raises(ValueError, match="compare_circuits"):
         compare_circuits(
             build_reference_compare_ir(),
             build_candidate_compare_ir(),
-            config=CircuitCompareConfig(show=False),
-            **kwargs,
+            config=CircuitCompareConfig(
+                output=OutputOptions(show=False),
+                **kwargs,
+            ),
         )

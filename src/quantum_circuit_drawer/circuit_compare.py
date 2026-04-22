@@ -2,53 +2,100 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from .config import (
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawSideConfig,
+    OutputOptions,
+    validate_output_options,
+)
 from .result import DrawResult
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
-    from .config import DrawConfig
     from .diagnostics import RenderDiagnostic
     from .typing import OutputPath
+
+
+@dataclass(frozen=True, slots=True)
+class CircuitCompareOptions:
+    """Public comparison-only controls for ``compare_circuits``."""
+
+    left_title: str = "Left"
+    right_title: str = "Right"
+    highlight_differences: bool = True
+    show_summary: bool = True
+
+    def __post_init__(self) -> None:
+        _validate_bool("highlight_differences", self.highlight_differences)
+        _validate_bool("show_summary", self.show_summary)
 
 
 @dataclass(frozen=True, slots=True)
 class CircuitCompareConfig:
     """Public configuration for ``compare_circuits``."""
 
-    left_title: str = "Left"
-    right_title: str = "Right"
-    highlight_differences: bool = True
-    show_summary: bool = True
-    show: bool = True
-    output_path: OutputPath | None = None
-    figsize: tuple[float, float] | None = None
+    shared: DrawSideConfig = field(default_factory=DrawSideConfig)
+    left_render: CircuitRenderOptions | None = None
+    right_render: CircuitRenderOptions | None = None
+    left_appearance: CircuitAppearanceOptions | None = None
+    right_appearance: CircuitAppearanceOptions | None = None
+    compare: CircuitCompareOptions = field(default_factory=CircuitCompareOptions)
+    output: OutputOptions = field(default_factory=OutputOptions)
 
     def __post_init__(self) -> None:
-        self._validate_bool("highlight_differences", self.highlight_differences)
-        self._validate_bool("show_summary", self.show_summary)
-        self._validate_bool("show", self.show)
-        self._validate_figsize(self.figsize)
+        _validate_instance("shared", self.shared, DrawSideConfig)
+        if self.left_render is not None:
+            _validate_instance("left_render", self.left_render, CircuitRenderOptions)
+        if self.right_render is not None:
+            _validate_instance("right_render", self.right_render, CircuitRenderOptions)
+        if self.left_appearance is not None:
+            _validate_instance(
+                "left_appearance",
+                self.left_appearance,
+                CircuitAppearanceOptions,
+            )
+        if self.right_appearance is not None:
+            _validate_instance(
+                "right_appearance",
+                self.right_appearance,
+                CircuitAppearanceOptions,
+            )
+        _validate_instance("compare", self.compare, CircuitCompareOptions)
+        validate_output_options(self.output)
 
-    @staticmethod
-    def _validate_bool(name: str, value: object) -> None:
-        if isinstance(value, bool):
-            return
-        raise ValueError(f"{name} must be a boolean")
+    @property
+    def left_title(self) -> str:
+        return self.compare.left_title
 
-    @staticmethod
-    def _validate_figsize(value: tuple[float, float] | None) -> None:
-        if value is None:
-            return
-        if not isinstance(value, tuple | list) or len(value) != 2:
-            raise ValueError("figsize must be a 2-item tuple of positive numbers")
-        width, height = value
-        if not _is_positive_dimension(width) or not _is_positive_dimension(height):
-            raise ValueError("figsize must be a 2-item tuple of positive numbers")
+    @property
+    def right_title(self) -> str:
+        return self.compare.right_title
+
+    @property
+    def highlight_differences(self) -> bool:
+        return self.compare.highlight_differences
+
+    @property
+    def show_summary(self) -> bool:
+        return self.compare.show_summary
+
+    @property
+    def show(self) -> bool:
+        return self.output.show
+
+    @property
+    def output_path(self) -> OutputPath | None:
+        return self.output.output_path
+
+    @property
+    def figsize(self) -> tuple[float, float] | None:
+        return self.output.figsize
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,8 +139,6 @@ def compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *,
-    left_config: DrawConfig | None = None,
-    right_config: DrawConfig | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, Axes] | None = None,
 ) -> CircuitCompareResult:
@@ -104,12 +149,27 @@ def compare_circuits(
     return _compare_circuits(
         left_circuit,
         right_circuit,
-        left_config=left_config,
-        right_config=right_config,
         config=config,
         axes=axes,
     )
 
 
-def _is_positive_dimension(value: object) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
+def _validate_bool(name: str, value: object) -> None:
+    if isinstance(value, bool):
+        return
+    raise ValueError(f"{name} must be a boolean")
+
+
+def _validate_instance(name: str, value: object, expected_type: type[object]) -> None:
+    if isinstance(value, expected_type):
+        return
+    raise TypeError(f"{name} must be a {expected_type.__name__}")
+
+
+__all__ = [
+    "CircuitCompareConfig",
+    "CircuitCompareMetrics",
+    "CircuitCompareOptions",
+    "CircuitCompareResult",
+    "compare_circuits",
+]

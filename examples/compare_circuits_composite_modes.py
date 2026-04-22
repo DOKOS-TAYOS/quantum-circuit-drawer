@@ -9,16 +9,21 @@ try:
     from examples._compare_shared import (
         CompareDemoPayload,
         CompareExampleRequest,
-        parse_compare_example_args,
+        run_compare_example,
     )
 except ImportError:
     from _compare_shared import (
         CompareDemoPayload,
         CompareExampleRequest,
-        parse_compare_example_args,
+        run_compare_example,
     )
 
-from quantum_circuit_drawer import CircuitCompareConfig, DrawConfig, compare_circuits
+from quantum_circuit_drawer import (
+    CircuitCompareConfig,
+    CircuitCompareOptions,
+    CircuitRenderOptions,
+    OutputOptions,
+)
 
 
 def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
@@ -31,12 +36,20 @@ def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
         left_data=circuit,
         right_data=circuit,
         config=CircuitCompareConfig(
-            left_title="Compact composites",
-            right_title="Expanded composites",
-            show=False,
+            left_render=CircuitRenderOptions(
+                framework="qiskit",
+                composite_mode="compact",
+            ),
+            right_render=CircuitRenderOptions(
+                framework="qiskit",
+                composite_mode="expand",
+            ),
+            compare=CircuitCompareOptions(
+                left_title="Compact composites",
+                right_title="Expanded composites",
+            ),
+            output=OutputOptions(show=False),
         ),
-        left_config=DrawConfig(framework="qiskit", show=False, composite_mode="compact"),
-        right_config=DrawConfig(framework="qiskit", show=False, composite_mode="expand"),
     )
 
 
@@ -55,37 +68,11 @@ def build_workflow_circuit() -> QuantumCircuit:
 def main() -> None:
     """Run the composite-modes compare demo as a normal user-facing script."""
 
-    request = parse_compare_example_args(
+    run_compare_example(
+        build_demo,
         description="Compare compact and expanded composite handling in Qiskit.",
+        saved_label="compare-circuits-composite-modes",
     )
-    payload = build_demo(request)
-    base_config = payload.config
-    config = CircuitCompareConfig(
-        left_title=request.left_label or base_config.left_title,
-        right_title=request.right_label or base_config.right_title,
-        highlight_differences=(
-            base_config.highlight_differences
-            if request.highlight_differences is None
-            else request.highlight_differences
-        ),
-        show_summary=base_config.show_summary
-        if request.show_summary is None
-        else request.show_summary,
-        show=request.show,
-        output_path=request.output,
-        figsize=request.figsize,
-    )
-    result = compare_circuits(
-        payload.left_data,
-        payload.right_data,
-        left_config=payload.left_config,
-        right_config=payload.right_config,
-        config=config,
-    )
-    if hasattr(result.figure, "set_label"):
-        result.figure.set_label("compare-circuits-composite-modes")
-    if request.output is not None:
-        print(f"Saved compare-circuits-composite-modes to {request.output}")
 
 
 if __name__ == "__main__":

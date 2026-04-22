@@ -120,7 +120,13 @@ def test_render_histogram_example_plots_and_reports_saved_output(
         render_histogram_example,
     )
 
-    from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramResult
+    from quantum_circuit_drawer import (
+        HistogramConfig,
+        HistogramDataOptions,
+        HistogramKind,
+        HistogramResult,
+        OutputOptions,
+    )
 
     output = sandbox_tmp_path / "render-histogram-demo.png"
     plot_calls: list[dict[str, object]] = []
@@ -189,7 +195,10 @@ def test_render_histogram_example_plots_and_reports_saved_output(
     )
     payload = HistogramDemoPayload(
         data={"00": 5, "11": 3},
-        config=HistogramConfig(kind=HistogramKind.COUNTS, show=True),
+        config=HistogramConfig(
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            output=OutputOptions(show=True),
+        ),
     )
 
     render_histogram_example(
@@ -233,7 +242,13 @@ def test_render_histogram_example_closes_rendered_figure(
         render_histogram_example,
     )
 
-    from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramResult
+    from quantum_circuit_drawer import (
+        HistogramConfig,
+        HistogramDataOptions,
+        HistogramKind,
+        HistogramResult,
+        OutputOptions,
+    )
 
     def fake_plot_histogram(
         data: object,
@@ -257,7 +272,10 @@ def test_render_histogram_example_closes_rendered_figure(
     request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
     payload = HistogramDemoPayload(
         data={"00": 5, "11": 3},
-        config=HistogramConfig(kind=HistogramKind.COUNTS, show=False),
+        config=HistogramConfig(
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            output=OutputOptions(show=False),
+        ),
     )
 
     plt.close("all")
@@ -282,7 +300,13 @@ def test_render_histogram_example_ignores_destroyed_window_title_errors_and_clos
         render_histogram_example,
     )
 
-    from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramResult
+    from quantum_circuit_drawer import (
+        HistogramConfig,
+        HistogramDataOptions,
+        HistogramKind,
+        HistogramResult,
+        OutputOptions,
+    )
 
     class TclError(RuntimeError):
         pass
@@ -319,7 +343,10 @@ def test_render_histogram_example_ignores_destroyed_window_title_errors_and_clos
     request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
     payload = HistogramDemoPayload(
         data={"00": 5, "11": 3},
-        config=HistogramConfig(kind=HistogramKind.COUNTS, show=False),
+        config=HistogramConfig(
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            output=OutputOptions(show=False),
+        ),
     )
 
     plt.close("all")
@@ -346,7 +373,13 @@ def test_render_histogram_example_reraises_unexpected_window_title_errors_and_cl
         render_histogram_example,
     )
 
-    from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramResult
+    from quantum_circuit_drawer import (
+        HistogramConfig,
+        HistogramDataOptions,
+        HistogramKind,
+        HistogramResult,
+        OutputOptions,
+    )
 
     figure, axes = plt.subplots()
     manager = figure.canvas.manager
@@ -379,7 +412,10 @@ def test_render_histogram_example_reraises_unexpected_window_title_errors_and_cl
     request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
     payload = HistogramDemoPayload(
         data={"00": 5, "11": 3},
-        config=HistogramConfig(kind=HistogramKind.COUNTS, show=False),
+        config=HistogramConfig(
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            output=OutputOptions(show=False),
+        ),
     )
 
     plt.close("all")

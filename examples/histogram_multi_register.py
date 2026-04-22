@@ -19,9 +19,12 @@ except ImportError:
 
 from quantum_circuit_drawer import (
     HistogramConfig,
+    HistogramDataOptions,
     HistogramKind,
     HistogramSort,
     HistogramStateLabelMode,
+    HistogramViewOptions,
+    OutputOptions,
 )
 
 
@@ -32,10 +35,12 @@ def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
     return HistogramDemoPayload(
         data=demo_multi_register_counts_data(),
         config=HistogramConfig(
-            kind=HistogramKind.COUNTS,
-            sort=HistogramSort.STATE,
-            state_label_mode=HistogramStateLabelMode.DECIMAL,
-            show=False,
+            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
+            view=HistogramViewOptions(
+                sort=HistogramSort.STATE,
+                state_label_mode=HistogramStateLabelMode.DECIMAL,
+            ),
+            output=OutputOptions(show=False),
         ),
     )
 

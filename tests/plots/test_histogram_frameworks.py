@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 
-from quantum_circuit_drawer import HistogramConfig, HistogramKind
+from quantum_circuit_drawer import HistogramKind
 from quantum_circuit_drawer.histogram import plot_histogram
+from tests.support import build_public_histogram_config
 
 
 class FakeCudaqSampleResult:
@@ -40,7 +41,7 @@ class FakeMyQLMResult:
 def test_plot_histogram_accepts_cudaq_sample_result_like_objects() -> None:
     result = plot_histogram(
         FakeCudaqSampleResult({"00": 6, "11": 2}),
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -58,7 +59,7 @@ def test_plot_histogram_accepts_cirq_like_measurement_results_with_multiple_regi
                 "beta": [[1], [0], [0]],
             }
         ),
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -71,7 +72,7 @@ def test_plot_histogram_accepts_cirq_like_measurement_results_with_multiple_regi
 def test_plot_histogram_accepts_probability_vectors_from_framework_outputs() -> None:
     result = plot_histogram(
         [0.125, 0.375, 0.25, 0.25],
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.QUASI
@@ -84,7 +85,7 @@ def test_plot_histogram_accepts_probability_vectors_from_framework_outputs() -> 
 def test_plot_histogram_accepts_single_wire_sample_vectors_from_framework_outputs() -> None:
     result = plot_histogram(
         [0, 1, 1, 0, 1],
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -97,7 +98,7 @@ def test_plot_histogram_accepts_single_wire_sample_vectors_from_framework_output
 def test_plot_histogram_accepts_multi_wire_sample_matrices_from_framework_outputs() -> None:
     result = plot_histogram(
         [[0, 1], [1, 1], [1, 1], [0, 1]],
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -116,7 +117,7 @@ def test_plot_histogram_accepts_myqlm_result_like_raw_data() -> None:
             ),
             nbqbits=2,
         ),
-        config=HistogramConfig(show=False),
+        config=build_public_histogram_config(show=False),
     )
 
     assert result.kind is HistogramKind.COUNTS
@@ -132,7 +133,7 @@ def test_plot_histogram_result_index_still_selects_array_like_entries() -> None:
             [0.2, 0.8],
             {"0": 4, "1": 1},
         ),
-        config=HistogramConfig(show=False, result_index=0),
+        config=build_public_histogram_config(show=False, result_index=0),
     )
 
     assert result.kind is HistogramKind.QUASI

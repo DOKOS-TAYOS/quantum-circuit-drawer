@@ -35,8 +35,6 @@ def compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *,
-    left_config: DrawConfig | None = None,
-    right_config: DrawConfig | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, Axes] | None = None,
 ) -> CircuitCompareResult:
@@ -47,8 +45,6 @@ def compare_circuits(
     return _compare_circuits(
         left_circuit,
         right_circuit,
-        left_config=left_config,
-        right_config=right_config,
         config=config,
         axes=axes,
     )

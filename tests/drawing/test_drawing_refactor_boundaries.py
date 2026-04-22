@@ -4,7 +4,15 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from quantum_circuit_drawer import CircuitBuilder, DrawConfig, DrawMode, DrawResult
+from quantum_circuit_drawer import (
+    CircuitBuilder,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawResult,
+    DrawSideConfig,
+    OutputOptions,
+)
 from quantum_circuit_drawer.circuit_compare import CircuitCompareMetrics
 from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline
 from quantum_circuit_drawer.drawing.request import build_draw_request
@@ -27,7 +35,10 @@ def test_preparation_module_builds_prepared_draw_call() -> None:
 
     prepared = prepare_draw_call(
         build_sample_ir(),
-        config=DrawConfig(mode=DrawMode.FULL, show=False),
+        config=DrawConfig(
+            side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.FULL)),
+            output=OutputOptions(show=False),
+        ),
         ax=None,
     )
 

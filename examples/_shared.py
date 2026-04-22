@@ -27,7 +27,14 @@ except ImportError:
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
-from quantum_circuit_drawer.config import DrawConfig, DrawMode  # noqa: E402
+from quantum_circuit_drawer.config import (  # noqa: E402
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+)
 from quantum_circuit_drawer.hover import HoverOptions  # noqa: E402
 
 ViewMode = Literal["2d", "3d"]
@@ -458,20 +465,28 @@ def build_draw_config(
     """Build the public draw configuration for one example render."""
 
     return DrawConfig(
-        framework=framework,
-        view=request.view,
-        mode=DrawMode(request.mode),
-        composite_mode=request.composite_mode,
-        topology=request.topology,
-        topology_menu=request.view == "3d" and request.mode in {"pages_controls", "slider"},
-        direct=False if request.view == "3d" else True,
-        show=request.show,
-        output_path=request.output,
-        figsize=request.figsize,
-        preset=request.preset,
-        style=demo_style(columns=request.columns),
-        hover=demo_hover_options(request),
-        unsupported_policy=request.unsupported_policy,
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework=framework,
+                view=request.view,
+                mode=DrawMode(request.mode),
+                composite_mode=request.composite_mode,
+                topology=request.topology,
+                topology_menu=request.view == "3d" and request.mode in {"pages_controls", "slider"},
+                direct=False if request.view == "3d" else True,
+                unsupported_policy=request.unsupported_policy,
+            ),
+            appearance=CircuitAppearanceOptions(
+                preset=request.preset,
+                style=demo_style(columns=request.columns),
+                hover=demo_hover_options(request),
+            ),
+        ),
+        output=OutputOptions(
+            show=request.show,
+            output_path=request.output,
+            figsize=request.figsize,
+        ),
     )
 
 

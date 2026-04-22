@@ -2,14 +2,14 @@
 
 This page documents the current public API surface.
 
-The library intentionally keeps the entry points small:
+The public entry points stay intentionally small:
 
-- one API for drawing circuits
-- one API for comparing circuits
-- one API for plotting histograms
-- one API for comparing histograms
+- `draw_quantum_circuit(...)`
+- `compare_circuits(...)`
+- `plot_histogram(...)`
+- `compare_histograms(...)`
 
-## Main Functions
+## Main functions
 
 ```python
 draw_quantum_circuit(
@@ -23,8 +23,6 @@ compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *,
-    left_config: DrawConfig | None = None,
-    right_config: DrawConfig | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, Axes] | None = None,
 ) -> CircuitCompareResult
@@ -45,62 +43,59 @@ compare_histograms(
 ) -> HistogramCompareResult
 ```
 
-## Circuit Drawing API
+## Circuit drawing
 
 ### `DrawConfig`
 
-`DrawConfig` groups the public drawing options in one stable object:
+`DrawConfig` groups circuit options into one side block plus one output block:
 
 ```python
 DrawConfig(
-    framework=None,
-    backend="matplotlib",
-    layout=None,
-    view="2d",
-    mode=DrawMode.AUTO,
-    composite_mode="compact",
-    topology="line",
-    topology_menu=False,
-    direct=True,
-    show=True,
-    output_path=None,
-    figsize=None,
-    preset=None,
-    style=None,
-    hover=False,
-    unsupported_policy=UnsupportedPolicy.RAISE,
+    side=DrawSideConfig(
+        render=CircuitRenderOptions(
+            framework=None,
+            backend="matplotlib",
+            layout=None,
+            view="2d",
+            mode=DrawMode.AUTO,
+            composite_mode="compact",
+            topology="line",
+            topology_menu=False,
+            direct=True,
+            unsupported_policy=UnsupportedPolicy.RAISE,
+        ),
+        appearance=CircuitAppearanceOptions(
+            preset=None,
+            style=None,
+            hover=False,
+        ),
+    ),
+    output=OutputOptions(
+        show=True,
+        output_path=None,
+        figsize=None,
+    ),
 )
 ```
 
-#### Field order
+Important fields:
 
-The fields are ordered by responsibility:
-
-1. framework and backend
-2. layout and view
-3. mode selection
-4. topology-related 3D options
-5. display and saving
-6. style and hover
-
-#### Important fields
-
-- `framework`: optional explicit framework name such as `"qiskit"` or `"ir"`
-- `backend`: currently `"matplotlib"`
-- `layout`: optional custom 2D or 3D layout engine
-- `view`: `"2d"` or `"3d"`
-- `mode`: `DrawMode.AUTO`, `PAGES`, `PAGES_CONTROLS`, `SLIDER`, or `FULL`
-- `composite_mode`: `"compact"` or `"expand"`
-- `topology`: only used in 3D
-- `topology_menu`: managed interactive 3D topology selector
-- `direct`: 3D layout flag for topology routing behavior
-- `show`: whether the library should call `pyplot.show()` when appropriate
-- `output_path`: optional file path for saving
-- `figsize`: managed figure size in inches
-- `preset`: shared style preset baseline
-- `style`: `DrawStyle`, mapping, or `None`
-- `hover`: `bool`, `HoverOptions`, mapping, or `None`
-- `unsupported_policy`: `UnsupportedPolicy.RAISE` or `UnsupportedPolicy.PLACEHOLDER`
+- `side.render.framework`: optional explicit framework name such as `"qiskit"` or `"ir"`
+- `side.render.backend`: currently `"matplotlib"`
+- `side.render.layout`: optional custom 2D or 3D layout engine
+- `side.render.view`: `"2d"` or `"3d"`
+- `side.render.mode`: `DrawMode.AUTO`, `PAGES`, `PAGES_CONTROLS`, `SLIDER`, or `FULL`
+- `side.render.composite_mode`: `"compact"` or `"expand"`
+- `side.render.topology`: only used in 3D
+- `side.render.topology_menu`: managed interactive 3D topology selector
+- `side.render.direct`: 3D layout flag for topology routing behavior
+- `side.render.unsupported_policy`: `UnsupportedPolicy.RAISE` or `UnsupportedPolicy.PLACEHOLDER`
+- `side.appearance.preset`: shared style preset baseline
+- `side.appearance.style`: `DrawStyle`, mapping, or `None`
+- `side.appearance.hover`: `bool`, `HoverOptions`, mapping, or `None`
+- `output.show`: whether the library should call `pyplot.show()` when appropriate
+- `output.output_path`: optional file path for saving
+- `output.figsize`: managed figure size in inches
 
 ### `DrawMode`
 
@@ -158,27 +153,40 @@ Convenience properties:
 - `resolved_mode`
 - `warnings`
 
-## Comparison APIs
+## Circuit comparison
 
 ### `CircuitCompareConfig`
 
+`CircuitCompareConfig` keeps one shared side baseline, optional per-side block overrides, one compare block, and one output block:
+
 ```python
 CircuitCompareConfig(
-    left_title="Left",
-    right_title="Right",
-    highlight_differences=True,
-    show_summary=True,
-    show=True,
-    output_path=None,
-    figsize=None,
+    shared=DrawSideConfig(),
+    left_render=None,
+    right_render=None,
+    left_appearance=None,
+    right_appearance=None,
+    compare=CircuitCompareOptions(
+        left_title="Left",
+        right_title="Right",
+        highlight_differences=True,
+        show_summary=True,
+    ),
+    output=OutputOptions(
+        show=True,
+        output_path=None,
+        figsize=None,
+    ),
 )
 ```
 
 Notes:
 
 - `compare_circuits(...)` is a 2D-only public API
-- per-side configs still control framework, preset, style, hover, and unsupported policy
-- per-side `mode`, `show`, and `output_path` are normalized internally
+- `shared` provides the baseline `DrawSideConfig` used on both sides
+- `left_render` / `right_render` override only the render block on one side
+- `left_appearance` / `right_appearance` override only the appearance block on one side
+- per-side interactive modes and output ownership are normalized internally
 
 ### `CircuitCompareResult`
 
@@ -205,59 +213,7 @@ Fields:
 - `left_only_layer_count`
 - `right_only_layer_count`
 
-### `HistogramCompareConfig`
-
-```python
-HistogramCompareConfig(
-    kind=HistogramKind.AUTO,
-    sort=HistogramCompareSort.STATE,
-    top_k=None,
-    qubits=None,
-    result_index=0,
-    data_key=None,
-    preset=None,
-    theme=None,
-    left_label="Left",
-    right_label="Right",
-    show=True,
-    output_path=None,
-    figsize=None,
-)
-```
-
-Important fields:
-
-- `kind`: `AUTO`, `COUNTS`, or `QUASI`
-- `sort`: `STATE`, `STATE_DESC`, or `DELTA_DESC`
-- `top_k`: keep only the largest states after sorting
-- `qubits`: optional joint marginal over selected qubits
-- `result_index`: choose one entry when the input is a tuple or list of results
-- `data_key`: choose one Qiskit `DataBin` field when several exist
-- `preset`: shared preset baseline
-- `theme`: histogram theme override
-- `left_label` and `right_label`: legend labels
-
-### `HistogramCompareResult`
-
-Fields:
-
-- `figure`
-- `axes`
-- `kind`
-- `state_labels`
-- `left_values`
-- `right_values`
-- `delta_values`
-- `metrics`
-- `qubits`
-- `diagnostics`
-
-`metrics` includes:
-
-- `total_variation_distance`
-- `max_absolute_delta`
-
-## Histogram APIs
+## Histograms
 
 ### `HistogramKind`
 
@@ -304,44 +260,54 @@ Fields:
 
 ### `HistogramConfig`
 
+`HistogramConfig` separates data selection, view, appearance, and output:
+
 ```python
 HistogramConfig(
-    kind=HistogramKind.AUTO,
-    mode=HistogramMode.AUTO,
-    sort=HistogramSort.STATE,
-    top_k=None,
-    qubits=None,
-    result_index=0,
-    data_key=None,
-    preset=None,
-    theme=None,
-    draw_style=HistogramDrawStyle.SOLID,
-    state_label_mode=HistogramStateLabelMode.BINARY,
-    hover=True,
-    show_uniform_reference=False,
-    show=True,
-    output_path=None,
-    figsize=None,
+    data=HistogramDataOptions(
+        kind=HistogramKind.AUTO,
+        top_k=None,
+        qubits=None,
+        result_index=0,
+        data_key=None,
+    ),
+    view=HistogramViewOptions(
+        mode=HistogramMode.AUTO,
+        sort=HistogramSort.STATE,
+        state_label_mode=HistogramStateLabelMode.BINARY,
+    ),
+    appearance=HistogramAppearanceOptions(
+        preset=None,
+        theme=None,
+        draw_style=HistogramDrawStyle.SOLID,
+        hover=True,
+        show_uniform_reference=False,
+    ),
+    output=OutputOptions(
+        show=True,
+        output_path=None,
+        figsize=None,
+    ),
 )
 ```
 
 Important fields:
 
-- `kind`: `AUTO`, `COUNTS`, or `QUASI`
-- `mode`: `AUTO`, `STATIC`, or `INTERACTIVE`
-- `sort`: `STATE`, `STATE_DESC`, `VALUE_DESC`, or `VALUE_ASC`
-- `top_k`: keep only the highest-ranked bins after sorting
-- `qubits`: joint marginal over a subset of qubits
-- `result_index`: which entry to read when the input object or tuple/list contains several histogram payloads
-- `data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
-- `preset`: shared preset baseline
-- `theme`: explicit theme override
-- `draw_style`: `SOLID`, `OUTLINE`, or `SOFT`
-- `state_label_mode`: `BINARY` or `DECIMAL`
-- `hover`: whether histogram bin and control-help hover is enabled in interactive mode
-- `show_uniform_reference`: draw a uniform reference line for easier visual comparison
-- `output_path`: optional file path for saving
-- `figsize`: managed figure size in inches
+- `data.kind`: `AUTO`, `COUNTS`, or `QUASI`
+- `view.mode`: `AUTO`, `STATIC`, or `INTERACTIVE`
+- `view.sort`: `STATE`, `STATE_DESC`, `VALUE_DESC`, or `VALUE_ASC`
+- `data.top_k`: keep only the highest-ranked bins after sorting
+- `data.qubits`: joint marginal over a subset of qubits
+- `data.result_index`: which entry to read when the input object or tuple/list contains several histogram payloads
+- `data.data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
+- `appearance.preset`: shared preset baseline
+- `appearance.theme`: explicit theme override
+- `appearance.draw_style`: `SOLID`, `OUTLINE`, or `SOFT`
+- `view.state_label_mode`: `BINARY` or `DECIMAL`
+- `appearance.hover`: whether histogram bin and control-help hover is enabled in interactive mode
+- `appearance.show_uniform_reference`: draw a uniform reference line for easier visual comparison
+- `output.output_path`: optional file path for saving
+- `output.figsize`: managed figure size in inches
 
 Interactive notes:
 
@@ -353,6 +319,47 @@ Interactive notes:
 - the marginal text box accepts comma-separated qubit indices such as `0,2,5`
 - hovering the marginal text box shows a short multi-line usage hint
 - saved interactive histograms omit widget chrome and keep the current visible data window
+
+### `HistogramCompareConfig`
+
+`HistogramCompareConfig` keeps data selection in `data`, comparison presentation in `compare`, and shared output in `output`:
+
+```python
+HistogramCompareConfig(
+    data=HistogramDataOptions(
+        kind=HistogramKind.AUTO,
+        top_k=None,
+        qubits=None,
+        result_index=0,
+        data_key=None,
+    ),
+    compare=HistogramCompareOptions(
+        sort=HistogramCompareSort.STATE,
+        left_label="Left",
+        right_label="Right",
+        hover=True,
+        preset=None,
+        theme=None,
+    ),
+    output=OutputOptions(
+        show=True,
+        output_path=None,
+        figsize=None,
+    ),
+)
+```
+
+Important fields:
+
+- `data.kind`: `AUTO`, `COUNTS`, or `QUASI`
+- `compare.sort`: `STATE`, `STATE_DESC`, or `DELTA_DESC`
+- `data.top_k`: keep only the largest states after sorting
+- `data.qubits`: optional joint marginal over selected qubits
+- `data.result_index`: choose one entry when the input is a tuple or list of results
+- `data.data_key`: choose one Qiskit `DataBin` field when several exist
+- `compare.preset`: shared preset baseline
+- `compare.theme`: histogram theme override
+- `compare.left_label` and `compare.right_label`: legend labels
 
 ### `HistogramResult`
 
@@ -376,11 +383,31 @@ Notes:
 - PennyLane execution outputs can be passed directly as `qml.counts()` dictionaries, `qml.probs()` vectors, or `qml.sample()` arrays
 - MyQLM result inputs can use `qat.core.Result.raw_data`
 - CUDA-Q sample inputs can use `SampleResult`-style objects that expose count pairs through `items()`
-- tuple or list results from frameworks can be passed directly and narrowed with `result_index`
+- tuple or list results from frameworks can be passed directly and narrowed with `HistogramDataOptions(result_index=...)`
 - when `qubits` is provided, the function returns one joint marginal and preserves the exact qubit order you passed
 - in interactive mode, `state_labels` and `values` still describe the full ordered histogram distribution, not just the visible slider window
 
-## Builder And IR APIs
+### `HistogramCompareResult`
+
+Fields:
+
+- `figure`
+- `axes`
+- `kind`
+- `state_labels`
+- `left_values`
+- `right_values`
+- `delta_values`
+- `metrics`
+- `qubits`
+- `diagnostics`
+
+`metrics` includes:
+
+- `total_variation_distance`
+- `max_absolute_delta`
+
+## Builder and IR APIs
 
 ### `CircuitBuilder`
 
@@ -420,7 +447,7 @@ Import it when you want:
 - a framework-free intermediate representation
 - a base for your own preprocessing or adapter work
 
-## `ax` And `axes`
+## `ax` and `axes`
 
 ### `ax` for `draw_quantum_circuit(...)` and `plot_histogram(...)`
 
@@ -441,7 +468,7 @@ For histograms:
 
 `compare_circuits(...)` accepts `axes=(left_axes, right_axes)` when you want to embed the comparison in your own Matplotlib figure.
 
-## Style And Theme
+## Style and theme
 
 `DrawStyle` controls geometry, spacing, and line widths. The main stroke families are:
 
@@ -466,16 +493,20 @@ For histograms:
 
 ## Hover
 
-`HoverOptions` stays public and is always nested under `DrawConfig.hover`.
+`HoverOptions` stays public and is nested under `DrawConfig.side.appearance.hover`.
 
 ```python
 DrawConfig(
-    hover={
-        "enabled": True,
-        "show_size": True,
-        "show_matrix": "auto",
-        "matrix_max_qubits": 2,
-    }
+    side=DrawSideConfig(
+        appearance=CircuitAppearanceOptions(
+            hover={
+                "enabled": True,
+                "show_size": True,
+                "show_matrix": "auto",
+                "matrix_max_qubits": 2,
+            }
+        )
+    )
 )
 ```
 
@@ -497,8 +528,6 @@ The recommended public helpers for adapters are:
 - `get_adapter(...)`
 
 Adapter authors can stay on the legacy `to_ir(...)` path or add the richer optional `to_semantic_ir(...)` path when they need native grouping, provenance, or annotations to survive comparison and diagnostics longer.
-
-Today that richer semantic route is what the built-in Cirq, PennyLane, MyQLM, and CUDA-Q adapters use internally. Legacy third-party adapters that only emit `CircuitIR` still remain fully supported.
 
 See [Extension API](extensions.md) for the supported contract, examples, and the list of public vs internal modules.
 

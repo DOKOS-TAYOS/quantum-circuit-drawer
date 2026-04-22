@@ -20,7 +20,12 @@ except ImportError:
         run_histogram_example,
     )
 
-from quantum_circuit_drawer import HistogramConfig, HistogramStateLabelMode
+from quantum_circuit_drawer import (
+    HistogramConfig,
+    HistogramStateLabelMode,
+    HistogramViewOptions,
+    OutputOptions,
+)
 
 
 def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
@@ -39,8 +44,8 @@ def build_demo(request: HistogramExampleRequest) -> HistogramDemoPayload:
     return HistogramDemoPayload(
         data=result,
         config=HistogramConfig(
-            state_label_mode=HistogramStateLabelMode.DECIMAL,
-            show=False,
+            view=HistogramViewOptions(state_label_mode=HistogramStateLabelMode.DECIMAL),
+            output=OutputOptions(show=False),
         ),
     )
 

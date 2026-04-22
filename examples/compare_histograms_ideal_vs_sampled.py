@@ -6,16 +6,20 @@ try:
     from examples._compare_shared import (
         CompareDemoPayload,
         CompareExampleRequest,
-        parse_compare_example_args,
+        run_compare_example,
     )
 except ImportError:
     from _compare_shared import (
         CompareDemoPayload,
         CompareExampleRequest,
-        parse_compare_example_args,
+        run_compare_example,
     )
 
-from quantum_circuit_drawer import HistogramCompareConfig, compare_histograms
+from quantum_circuit_drawer import (
+    HistogramCompareConfig,
+    HistogramCompareOptions,
+    OutputOptions,
+)
 
 
 def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
@@ -45,10 +49,12 @@ def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
             "111": 14,
         },
         config=HistogramCompareConfig(
-            left_label="Ideal",
-            right_label="Sampled",
-            sort="delta_desc",
-            show=False,
+            compare=HistogramCompareOptions(
+                left_label="Ideal",
+                right_label="Sampled",
+                sort="delta_desc",
+            ),
+            output=OutputOptions(show=False),
         ),
     )
 
@@ -56,29 +62,11 @@ def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
 def main() -> None:
     """Run the histogram compare demo as a normal user-facing script."""
 
-    request = parse_compare_example_args(
+    run_compare_example(
+        build_demo,
         description="Compare an ideal distribution against sampled counts.",
+        saved_label="compare-histograms-ideal-vs-sampled",
     )
-    payload = build_demo(request)
-    base_config = payload.config
-    config = HistogramCompareConfig(
-        left_label=request.left_label or base_config.left_label,
-        right_label=request.right_label or base_config.right_label,
-        sort=base_config.sort if request.sort is None else request.sort,
-        top_k=base_config.top_k if request.top_k is None else request.top_k,
-        show=request.show,
-        output_path=request.output,
-        figsize=request.figsize,
-    )
-    result = compare_histograms(
-        payload.left_data,
-        payload.right_data,
-        config=config,
-    )
-    if hasattr(result.figure, "set_label"):
-        result.figure.set_label("compare-histograms-ideal-vs-sampled")
-    if request.output is not None:
-        print(f"Saved compare-histograms-ideal-vs-sampled to {request.output}")
 
 
 if __name__ == "__main__":

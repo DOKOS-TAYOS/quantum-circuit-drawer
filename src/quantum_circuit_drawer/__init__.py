@@ -6,8 +6,21 @@ from typing import TYPE_CHECKING
 
 from ._version import __version__
 from .builder import CircuitBuilder
-from .circuit_compare import CircuitCompareConfig, CircuitCompareMetrics, CircuitCompareResult
-from .config import DrawConfig, DrawMode, UnsupportedPolicy
+from .circuit_compare import (
+    CircuitCompareConfig,
+    CircuitCompareMetrics,
+    CircuitCompareOptions,
+    CircuitCompareResult,
+)
+from .config import (
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+    UnsupportedPolicy,
+)
 from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 from .exceptions import (
     LayoutError,
@@ -28,17 +41,21 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
     from .histogram import (
+        HistogramAppearanceOptions,
         HistogramCompareConfig,
         HistogramCompareMetrics,
+        HistogramCompareOptions,
         HistogramCompareResult,
         HistogramCompareSort,
         HistogramConfig,
+        HistogramDataOptions,
         HistogramDrawStyle,
         HistogramKind,
         HistogramMode,
         HistogramResult,
         HistogramSort,
         HistogramStateLabelMode,
+        HistogramViewOptions,
     )
 
 
@@ -103,8 +120,6 @@ def compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *,
-    left_config: DrawConfig | None = None,
-    right_config: DrawConfig | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, Axes] | None = None,
 ) -> CircuitCompareResult:
@@ -115,8 +130,6 @@ def compare_circuits(
     return _compare_circuits(
         left_circuit,
         right_circuit,
-        left_config=left_config,
-        right_config=right_config,
         config=config,
         axes=axes,
     )
@@ -124,20 +137,27 @@ def compare_circuits(
 
 __all__ = [
     "CircuitBuilder",
+    "CircuitAppearanceOptions",
     "CircuitCompareConfig",
     "CircuitCompareMetrics",
+    "CircuitCompareOptions",
     "CircuitCompareResult",
+    "CircuitRenderOptions",
     "DiagnosticSeverity",
     "DrawConfig",
     "DrawMode",
     "DrawResult",
+    "DrawSideConfig",
     "DrawStyle",
     "DrawTheme",
+    "HistogramAppearanceOptions",
     "HistogramCompareConfig",
     "HistogramCompareMetrics",
+    "HistogramCompareOptions",
     "HistogramCompareResult",
     "HistogramCompareSort",
     "HistogramConfig",
+    "HistogramDataOptions",
     "HistogramDrawStyle",
     "HistogramKind",
     "HistogramMode",
@@ -145,8 +165,10 @@ __all__ = [
     "HistogramStateLabelMode",
     "HardwareTopology",
     "HistogramSort",
+    "HistogramViewOptions",
     "HoverOptions",
     "LayoutError",
+    "OutputOptions",
     "QuantumCircuitDrawerError",
     "RenderingError",
     "RenderDiagnostic",
@@ -166,17 +188,21 @@ __all__ = [
 
 def __getattr__(name: str) -> object:
     histogram_exports = {
+        "HistogramAppearanceOptions",
         "HistogramCompareConfig",
         "HistogramCompareMetrics",
+        "HistogramCompareOptions",
         "HistogramCompareResult",
         "HistogramCompareSort",
         "HistogramConfig",
+        "HistogramDataOptions",
         "HistogramDrawStyle",
         "HistogramKind",
         "HistogramMode",
         "HistogramResult",
         "HistogramSort",
         "HistogramStateLabelMode",
+        "HistogramViewOptions",
         "compare_histograms",
         "plot_histogram",
     }

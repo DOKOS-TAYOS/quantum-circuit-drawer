@@ -9,7 +9,7 @@ from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 
 import quantum_circuit_drawer
-from quantum_circuit_drawer import DrawConfig, DrawMode
+from quantum_circuit_drawer import DrawMode
 from quantum_circuit_drawer.exceptions import (
     RenderingError,
     StyleValidationError,
@@ -21,6 +21,7 @@ from tests.support import (
     assert_axes_contains_circuit_artists,
     assert_figure_has_visible_content,
     assert_saved_image_has_visible_content,
+    build_public_draw_config,
     build_sample_ir,
     build_sample_myqlm_circuit,
     install_fake_cudaq,
@@ -239,7 +240,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
     monkeypatch.setattr(
         "quantum_circuit_drawer.api.draw_quantum_circuit", fake_draw_quantum_circuit
     )
-    config = DrawConfig(
+    config = build_public_draw_config(
         show=False,
         figsize=(8.0, 3.0),
         mode=DrawMode.PAGES_CONTROLS,

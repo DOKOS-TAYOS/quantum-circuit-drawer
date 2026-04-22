@@ -17,7 +17,7 @@ from examples.compare_demo_catalog import (
     get_demo_catalog,
 )
 
-from quantum_circuit_drawer import CircuitCompareConfig
+from quantum_circuit_drawer import CircuitCompareConfig, OutputOptions
 from tests.paths import repo_root_for
 from tests.support import assert_saved_image_has_visible_content
 
@@ -43,7 +43,7 @@ def test_run_compare_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) ->
         compare_kind="circuits",
         left_data={"kind": "left"},
         right_data={"kind": "right"},
-        config=CircuitCompareConfig(show=True),
+        config=CircuitCompareConfig(output=OutputOptions(show=True)),
     )
     builder_calls: list[CompareExampleRequest] = []
     render_calls: list[dict[str, object]] = []

@@ -60,7 +60,7 @@ def test_render_compare_example_dispatches_circuit_compare(
         render_compare_example,
     )
 
-    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult
+    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult, OutputOptions
 
     output = sandbox_tmp_path / "compare-circuits.png"
     compare_calls: list[dict[str, object]] = []
@@ -90,8 +90,6 @@ def test_render_compare_example_dispatches_circuit_compare(
         left_circuit: object,
         right_circuit: object,
         *,
-        left_config: object = None,
-        right_config: object = None,
         config: CircuitCompareConfig | None = None,
         axes: object = None,
     ) -> CircuitCompareResult:
@@ -99,8 +97,6 @@ def test_render_compare_example_dispatches_circuit_compare(
             {
                 "left_circuit": left_circuit,
                 "right_circuit": right_circuit,
-                "left_config": left_config,
-                "right_config": right_config,
                 "config": config,
                 "axes": axes,
             }
@@ -130,7 +126,7 @@ def test_render_compare_example_dispatches_circuit_compare(
         compare_kind="circuits",
         left_data={"kind": "left"},
         right_data={"kind": "right"},
-        config=CircuitCompareConfig(show=True),
+        config=CircuitCompareConfig(output=OutputOptions(show=True)),
     )
 
     render_compare_example(
@@ -168,7 +164,11 @@ def test_render_compare_example_dispatches_histogram_compare(
         render_compare_example,
     )
 
-    from quantum_circuit_drawer import HistogramCompareConfig, HistogramCompareResult
+    from quantum_circuit_drawer import (
+        HistogramCompareConfig,
+        HistogramCompareResult,
+        OutputOptions,
+    )
 
     compare_calls: list[dict[str, object]] = []
 
@@ -231,7 +231,7 @@ def test_render_compare_example_dispatches_histogram_compare(
         compare_kind="histograms",
         left_data={"00": 12},
         right_data={"00": 10},
-        config=HistogramCompareConfig(show=True),
+        config=HistogramCompareConfig(output=OutputOptions(show=True)),
     )
 
     render_compare_example(
@@ -263,18 +263,16 @@ def test_render_compare_example_closes_rendered_figure(
         render_compare_example,
     )
 
-    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult
+    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult, OutputOptions
 
     def fake_compare_circuits(
         left_circuit: object,
         right_circuit: object,
         *,
-        left_config: object = None,
-        right_config: object = None,
         config: CircuitCompareConfig | None = None,
         axes: object = None,
     ) -> CircuitCompareResult:
-        del left_circuit, right_circuit, left_config, right_config, config, axes
+        del left_circuit, right_circuit, config, axes
         figure, subplot_axes = plt.subplots(1, 2)
         return CircuitCompareResult(
             figure=figure,
@@ -291,7 +289,7 @@ def test_render_compare_example_closes_rendered_figure(
         compare_kind="circuits",
         left_data={"kind": "left"},
         right_data={"kind": "right"},
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
     )
 
     plt.close("all")
@@ -316,7 +314,7 @@ def test_render_compare_example_ignores_destroyed_window_title_errors_and_closes
         render_compare_example,
     )
 
-    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult
+    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult, OutputOptions
 
     class TclError(RuntimeError):
         pass
@@ -336,12 +334,10 @@ def test_render_compare_example_ignores_destroyed_window_title_errors_and_closes
         left_circuit: object,
         right_circuit: object,
         *,
-        left_config: object = None,
-        right_config: object = None,
         config: CircuitCompareConfig | None = None,
         axes: object = None,
     ) -> CircuitCompareResult:
-        del left_circuit, right_circuit, left_config, right_config, config, axes
+        del left_circuit, right_circuit, config, axes
         return CircuitCompareResult(
             figure=figure,
             axes=(subplot_axes[0], subplot_axes[1]),
@@ -357,7 +353,7 @@ def test_render_compare_example_ignores_destroyed_window_title_errors_and_closes
         compare_kind="circuits",
         left_data={"kind": "left"},
         right_data={"kind": "right"},
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
     )
 
     plt.close("all")
@@ -384,7 +380,7 @@ def test_render_compare_example_reraises_unexpected_window_title_errors_and_clos
         render_compare_example,
     )
 
-    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult
+    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult, OutputOptions
 
     figure, subplot_axes = plt.subplots(1, 2)
     manager = figure.canvas.manager
@@ -400,12 +396,10 @@ def test_render_compare_example_reraises_unexpected_window_title_errors_and_clos
         left_circuit: object,
         right_circuit: object,
         *,
-        left_config: object = None,
-        right_config: object = None,
         config: CircuitCompareConfig | None = None,
         axes: object = None,
     ) -> CircuitCompareResult:
-        del left_circuit, right_circuit, left_config, right_config, config, axes
+        del left_circuit, right_circuit, config, axes
         return CircuitCompareResult(
             figure=figure,
             axes=(subplot_axes[0], subplot_axes[1]),
@@ -421,7 +415,7 @@ def test_render_compare_example_reraises_unexpected_window_title_errors_and_clos
         compare_kind="circuits",
         left_data={"kind": "left"},
         right_data={"kind": "right"},
-        config=CircuitCompareConfig(show=False),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
     )
 
     plt.close("all")
