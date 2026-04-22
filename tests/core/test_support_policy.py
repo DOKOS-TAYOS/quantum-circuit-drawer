@@ -112,6 +112,17 @@ def test_myqlm_docs_describe_break_and_classic_classical_box_support() -> None:
     assert "raw formula in hover instead of raising" in troubleshooting_reference
 
 
+def test_cudaq_docs_describe_controlled_swap_support() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+
+    assert "Controlled `swap` now renders as a compact controlled `SWAP` box" in (
+        frameworks_reference
+    )
+    assert "controlled `swap` as a compact controlled `SWAP` box" in troubleshooting_reference
+    assert "CUDA-Q now supports `reset`, controlled `swap`" in troubleshooting_reference
+
+
 def test_draw_quantum_circuit_reports_cudaq_windows_platform_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
