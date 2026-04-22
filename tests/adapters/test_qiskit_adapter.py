@@ -591,9 +591,7 @@ def test_qiskit_adapter_keeps_while_loop_as_compact_semantic_control_flow() -> N
     )
 
 
-def test_qiskit_adapter_normalizes_modern_while_loop_conditions() -> (
-    None
-):
+def test_qiskit_adapter_normalizes_modern_while_loop_conditions() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(2, "c")
     circuit = qiskit.QuantumCircuit(quantum, classical)
