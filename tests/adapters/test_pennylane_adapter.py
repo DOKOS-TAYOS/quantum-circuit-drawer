@@ -104,17 +104,49 @@ class FakeObservable:
         name: str,
         wires: tuple[object, ...],
         operands: tuple[FakeObservable, ...] = (),
+        scalar: float | int | None = None,
+        base: FakeObservable | None = None,
+        coeffs: tuple[float | int, ...] = (),
     ) -> None:
         self.name = name
         self.wires = wires
         self.operands = operands
+        self.scalar = scalar
+        self.base = base
+        self.coeffs = coeffs
 
     def __repr__(self) -> str:
+        if self.base is not None and self.scalar is not None:
+            base_repr = repr(self.base)
+            if getattr(self.base, "operands", ()) or getattr(self.base, "base", None) is not None:
+                base_repr = f"({base_repr})"
+            return f"{self.scalar:g} * {base_repr}"
         if not self.operands:
             wires = ", ".join(str(wire) for wire in self.wires)
             return f"{self.name}({wires})"
-        joined = " @ ".join(repr(operand) for operand in self.operands)
+        separator = " @ " if self.name in {"Prod", "Tensor"} else " + "
+        joined = separator.join(repr(operand) for operand in self.operands)
         return f"{self.name}({joined})"
+
+
+class ProdObservable(FakeObservable):
+    pass
+
+
+class SProdObservable(FakeObservable):
+    pass
+
+
+class SumObservable(FakeObservable):
+    pass
+
+
+class HamiltonianObservable(FakeObservable):
+    pass
+
+
+class OpaqueObservable(FakeObservable):
+    pass
 
 
 class FakeTapeWrapper:
@@ -293,7 +325,7 @@ def test_pennylane_adapter_uses_deterministic_fallback_for_long_observable_summa
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_pennylane(monkeypatch)
-    composite_observable = FakeObservable(
+    composite_observable = ProdObservable(
         name="Prod",
         wires=(0, 1, 2, 3),
         operands=(
@@ -312,8 +344,194 @@ def test_pennylane_adapter_uses_deterministic_fallback_for_long_observable_summa
     semantic_ir = PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape))
     terminal_output = semantic_ir.layers[0].operations[0]
 
-    assert terminal_output.metadata["pennylane_observable_label"] == "composite observable"
-    assert "observable: composite observable" in terminal_output.hover_details
+    assert terminal_output.metadata["pennylane_observable_label"] == "PauliX @ PauliY @ ..."
+    assert terminal_output.hover_details == (
+        "terminal output: expval",
+        "observable: PauliX @ PauliY @ ...",
+        "observable type: Prod",
+        "observable operands: 4",
+        "observable summary: truncated",
+        "all wires",
+    )
+
+
+def test_pennylane_adapter_flattens_nested_prod_observables_in_hover(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    observable = ProdObservable(
+        name="Prod",
+        wires=(0, 1, 2),
+        operands=(
+            FakeObservable(name="PauliX", wires=(0,)),
+            ProdObservable(
+                name="Prod",
+                wires=(1, 2),
+                operands=(
+                    FakeObservable(name="PauliY", wires=(1,)),
+                    FakeObservable(name="PauliZ", wires=(2,)),
+                ),
+            ),
+        ),
+    )
+    tape = FakeQuantumTape(
+        wires=(0, 1, 2),
+        operations=(),
+        measurements=(VarianceMP((0, 1, 2), obs=observable),),
+    )
+
+    terminal_output = (
+        PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape)).layers[0].operations[0]
+    )
+
+    assert terminal_output.metadata["pennylane_observable_label"] == "PauliX @ PauliY @ PauliZ"
+    assert terminal_output.hover_details == (
+        "terminal output: var",
+        "observable: PauliX @ PauliY @ PauliZ",
+        "observable type: Prod",
+        "observable operands: 3",
+        "all wires",
+    )
+
+
+def test_pennylane_adapter_summarizes_scaled_products_in_hover(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    base = ProdObservable(
+        name="Prod",
+        wires=(0, 1),
+        operands=(
+            FakeObservable(name="PauliX", wires=(0,)),
+            FakeObservable(name="PauliZ", wires=(1,)),
+        ),
+    )
+    observable = SProdObservable(
+        name="SProd",
+        wires=(0, 1),
+        scalar=0.5,
+        base=base,
+    )
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(),
+        measurements=(ExpectationMP((0, 1), obs=observable),),
+    )
+
+    terminal_output = (
+        PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape)).layers[0].operations[0]
+    )
+
+    assert terminal_output.metadata["pennylane_observable_label"] == "0.5 * (PauliX @ PauliZ)"
+    assert terminal_output.hover_details == (
+        "terminal output: expval",
+        "observable: 0.5 * (PauliX @ PauliZ)",
+        "observable type: SProd",
+        "observable terms: 1",
+        "all wires",
+    )
+
+
+def test_pennylane_adapter_truncates_linear_combinations_informatively(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    observable = SumObservable(
+        name="LinearCombination",
+        wires=(0, 1, 2),
+        operands=(
+            FakeObservable(name="PauliX", wires=(0,)),
+            ProdObservable(
+                name="Prod",
+                wires=(1, 2),
+                operands=(
+                    FakeObservable(name="PauliZ", wires=(1,)),
+                    FakeObservable(name="PauliY", wires=(2,)),
+                ),
+            ),
+        ),
+        coeffs=(0.5, -1.25),
+    )
+    tape = FakeQuantumTape(
+        wires=(0, 1, 2),
+        operations=(),
+        measurements=(ExpectationMP((0, 1, 2), obs=observable),),
+    )
+
+    terminal_output = (
+        PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape)).layers[0].operations[0]
+    )
+
+    assert terminal_output.metadata["pennylane_observable_label"] == "0.5 * PauliX + ..."
+    assert terminal_output.hover_details == (
+        "terminal output: expval",
+        "observable: 0.5 * PauliX + ...",
+        "observable type: LinearCombination",
+        "observable terms: 2",
+        "observable summary: truncated",
+        "all wires",
+    )
+
+
+def test_pennylane_adapter_uses_structural_fallback_for_large_hamiltonians(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    observable = HamiltonianObservable(
+        name="Hamiltonian",
+        wires=(0, 1, 2, 3, 4),
+        operands=(
+            FakeObservable(name="VeryLongObservableAlpha", wires=(0,)),
+            FakeObservable(name="VeryLongObservableBeta", wires=(1,)),
+            FakeObservable(name="VeryLongObservableGamma", wires=(2,)),
+            FakeObservable(name="VeryLongObservableDelta", wires=(3,)),
+            FakeObservable(name="VeryLongObservableEpsilon", wires=(4,)),
+        ),
+        coeffs=(1, 1, 1, 1, 1),
+    )
+    tape = FakeQuantumTape(
+        wires=(0, 1, 2, 3, 4),
+        operations=(),
+        measurements=(ExpectationMP((0, 1, 2, 3, 4), obs=observable),),
+    )
+
+    terminal_output = (
+        PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape)).layers[0].operations[0]
+    )
+
+    assert terminal_output.metadata["pennylane_observable_label"] == "Hamiltonian[5 terms]"
+    assert terminal_output.hover_details == (
+        "terminal output: expval",
+        "observable: Hamiltonian[5 terms]",
+        "observable type: Hamiltonian",
+        "observable terms: 5",
+        "observable summary: truncated",
+        "all wires",
+    )
+
+
+def test_pennylane_adapter_uses_class_name_for_opaque_observable_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    observable = OpaqueObservable(name="", wires=(0,))
+    tape = FakeQuantumTape(
+        wires=(0,),
+        operations=(),
+        measurements=(ExpectationMP((0,), obs=observable),),
+    )
+
+    terminal_output = (
+        PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape)).layers[0].operations[0]
+    )
+
+    assert terminal_output.metadata["pennylane_observable_label"] == "OpaqueObservable"
+    assert terminal_output.hover_details == (
+        "terminal output: expval",
+        "observable: OpaqueObservable",
+        "observable type: OpaqueObservable",
+        "all wires",
+    )
 
 
 def test_pennylane_adapter_mixes_mid_measure_conditionals_and_terminal_outputs(
@@ -584,7 +802,62 @@ def test_pennylane_adapter_converts_observable_terminal_outputs() -> None:
     assert terminal_output.metadata["hover_details"] == (
         "terminal output: expval",
         "observable: PauliZ",
+        "observable type: PauliZ",
         "selected wires: 0",
+    )
+
+
+@skip_real_pennylane_on_windows
+@pytest.mark.integration
+def test_pennylane_adapter_converts_scaled_prod_terminal_outputs() -> None:
+    qml = pytest.importorskip("pennylane")
+
+    with qml.tape.QuantumTape() as tape:
+        qml.expval(0.5 * (qml.PauliX(0) @ qml.PauliZ(1)))
+
+    ir = PennyLaneAdapter().to_ir(tape)
+    terminal_output = [operation for layer in ir.layers for operation in layer.operations][-1]
+
+    assert terminal_output.kind is OperationKind.GATE
+    assert terminal_output.name == "EXPVAL"
+    assert terminal_output.target_wires == ("q0", "q1")
+    assert terminal_output.metadata["pennylane_observable_label"] == "0.5 * (PauliX @ PauliZ)"
+    assert terminal_output.metadata["hover_details"] == (
+        "terminal output: expval",
+        "observable: 0.5 * (PauliX @ PauliZ)",
+        "observable type: SProd",
+        "observable terms: 1",
+        "all wires",
+    )
+
+
+@skip_real_pennylane_on_windows
+@pytest.mark.integration
+def test_pennylane_adapter_truncates_real_linear_combination_observables() -> None:
+    qml = pytest.importorskip("pennylane")
+
+    with qml.tape.QuantumTape() as tape:
+        qml.expval(
+            qml.dot(
+                [0.5, -1.25],
+                [qml.PauliX(0), qml.PauliZ(1) @ qml.PauliY(2)],
+            )
+        )
+
+    ir = PennyLaneAdapter().to_ir(tape)
+    terminal_output = [operation for layer in ir.layers for operation in layer.operations][-1]
+
+    assert terminal_output.kind is OperationKind.GATE
+    assert terminal_output.name == "EXPVAL"
+    assert terminal_output.target_wires == ("q0", "q1", "q2")
+    assert terminal_output.metadata["pennylane_observable_label"] == "0.5 * PauliX + ..."
+    assert terminal_output.metadata["hover_details"] == (
+        "terminal output: expval",
+        "observable: 0.5 * PauliX + ...",
+        "observable type: Sum",
+        "observable terms: 2",
+        "observable summary: truncated",
+        "all wires",
     )
 
 

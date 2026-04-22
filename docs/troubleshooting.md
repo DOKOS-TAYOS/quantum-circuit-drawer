@@ -95,6 +95,7 @@ For PennyLane wrappers and QNode-like objects:
 - The adapter does not call `construct()` or trigger lazy wrapper properties implicitly.
 - Terminal PennyLane results such as `expval`, `var`, `probs`, `sample`, `counts`, `state`, and `density_matrix` now draw as compact output boxes instead of fake projective `M` measurements.
 - Mid-circuit `qml.measure(...)` still draws as a measurement, while terminal-result boxes keep observable or wire-scope details in hover metadata.
+- Composite PennyLane observables such as `Tensor` / `Prod`, `SProd`, and Hamiltonian-like linear combinations now keep readable compact summaries with deterministic truncation before falling back to a generic label.
 - Controlled PennyLane operations can now draw open controls when the tape exposes explicit binary `control_values`.
 - When a Cirq or PennyLane-native construct has no exact shared drawing primitive, the library keeps that native meaning in hover details, annotations, comparison, or diagnostics instead of silently flattening it away.
 

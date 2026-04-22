@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from inspect import getattr_static
 from typing import Protocol, cast
 
@@ -58,7 +58,19 @@ _TERMINAL_LABEL_BY_KIND: dict[str, str] = {
     "density_matrix": "DM",
 }
 _TENSOR_OBSERVABLE_NAMES = frozenset({"prod", "tensor"})
+_LINEAR_COMBINATION_OBSERVABLE_NAMES = frozenset({"sum", "hamiltonian", "linearcombination"})
+_SCALED_OBSERVABLE_NAMES = frozenset({"sprod"})
 _OBSERVABLE_SUMMARY_LIMIT = 24
+
+
+@dataclass(frozen=True)
+class _ObservableSummary:
+    label: str
+    native_type: str
+    component_count: int | None = None
+    component_label: str | None = None
+    truncated: bool = False
+    structure: str = "simple"
 
 
 class PennyLaneAdapter(BaseAdapter):
@@ -344,13 +356,13 @@ class PennyLaneAdapter(BaseAdapter):
             tape_wires=tape_wires,
         )
         target_wires = tuple(wire_ids[wire] for wire in target_native_wires)
-        observable_label = self._observable_label(measurement)
+        observable_summary = self._measurement_observable_summary(measurement)
         metadata: dict[str, object] = {
             "pennylane_terminal_kind": terminal_kind,
             "pennylane_measurement_wires": target_wires,
         }
-        if observable_label is not None:
-            metadata["pennylane_observable_label"] = observable_label
+        if observable_summary is not None:
+            metadata["pennylane_observable_label"] = observable_summary.label
 
         return SemanticOperationIR(
             kind=OperationKind.GATE,
@@ -358,7 +370,7 @@ class PennyLaneAdapter(BaseAdapter):
             target_wires=target_wires,
             hover_details=self._terminal_measurement_hover_details(
                 terminal_kind,
-                observable_label=observable_label,
+                observable_summary=observable_summary,
                 target_native_wires=target_native_wires,
                 tape_wires=tape_wires,
                 wire_labels=wire_labels,
@@ -430,39 +442,308 @@ class PennyLaneAdapter(BaseAdapter):
             return observable
         return getattr(measurement, "observable", None)
 
-    def _observable_label(self, measurement: object) -> str | None:
+    def _measurement_observable_summary(self, measurement: object) -> _ObservableSummary | None:
         observable = self._measurement_observable(measurement)
         if observable is None:
             return None
         return self._summarize_observable(observable)
 
-    def _summarize_observable(self, observable: object) -> str:
-        operand_labels = self._tensor_operand_labels(observable)
-        if operand_labels is not None:
-            joined = " @ ".join(operand_labels)
-            if joined and len(joined) <= _OBSERVABLE_SUMMARY_LIMIT:
-                return joined
-            return "composite observable"
+    def _summarize_observable(self, observable: object) -> _ObservableSummary:
+        scaled_summary = self._scaled_observable_summary(observable)
+        if scaled_summary is not None:
+            return scaled_summary
 
-        raw_name = getattr(observable, "name", None)
-        normalized_name = self._normalized_observable_name(raw_name)
-        if normalized_name is not None and len(normalized_name) <= _OBSERVABLE_SUMMARY_LIMIT:
-            return normalized_name
-        return "composite observable"
+        linear_combination_summary = self._linear_combination_summary(observable)
+        if linear_combination_summary is not None:
+            return linear_combination_summary
 
-    def _tensor_operand_labels(self, observable: object) -> tuple[str, ...] | None:
+        product_summary = self._product_observable_summary(observable)
+        if product_summary is not None:
+            return product_summary
+
+        return self._simple_observable_summary(observable)
+
+    def _product_observable_summary(self, observable: object) -> _ObservableSummary | None:
+        if not self._observable_matches(observable, _TENSOR_OBSERVABLE_NAMES):
+            return None
+        operands = self._flatten_product_operands(observable)
+        if not operands:
+            return None
+        operand_summaries = tuple(self._summarize_observable(operand) for operand in operands)
+        return self._joined_observable_summary(
+            native_type=self._observable_native_type(observable),
+            components=operand_summaries,
+            separator=" @ ",
+            truncated_suffix=" @ ...",
+            component_label="operands",
+            structural_suffix="ops",
+            structure="product",
+        )
+
+    def _scaled_observable_summary(self, observable: object) -> _ObservableSummary | None:
+        if not self._observable_matches(observable, _SCALED_OBSERVABLE_NAMES):
+            return None
+
+        scalar = getattr(observable, "scalar", None)
+        base = getattr(observable, "base", None)
+        if base is None:
+            terms = self._observable_terms(observable)
+            if terms is None or len(terms) != 1:
+                return None
+            scalar, base = terms[0]
+
+        base_summary = self._summarize_observable(base)
+        base_label = self._parenthesized_observable_label(base_summary)
+        full_label = f"{self._format_observable_scalar(scalar)} * {base_label}"
+        if len(full_label) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return _ObservableSummary(
+                label=full_label,
+                native_type=self._observable_native_type(observable),
+                component_count=1,
+                component_label="terms",
+                truncated=base_summary.truncated,
+                structure="scaled",
+            )
+
+        truncated_label = f"{self._format_observable_scalar(scalar)} * ..."
+        if len(truncated_label) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return _ObservableSummary(
+                label=truncated_label,
+                native_type=self._observable_native_type(observable),
+                component_count=1,
+                component_label="terms",
+                truncated=True,
+                structure="scaled",
+            )
+
+        return _ObservableSummary(
+            label=self._structural_observable_fallback(
+                native_type=self._observable_native_type(observable),
+                component_count=1,
+                component_label="term",
+            ),
+            native_type=self._observable_native_type(observable),
+            component_count=1,
+            component_label="terms",
+            truncated=True,
+            structure="scaled",
+        )
+
+    def _linear_combination_summary(self, observable: object) -> _ObservableSummary | None:
+        if not self._observable_matches(observable, _LINEAR_COMBINATION_OBSERVABLE_NAMES):
+            return None
+
+        terms = self._observable_terms(observable)
+        if terms is None:
+            return None
+
+        show_unity_coefficients = self._observable_native_type(observable).lower() in {
+            "linearcombination",
+            "hamiltonian",
+        }
+        term_summaries = tuple(
+            self._linear_combination_term_label(
+                coefficient=coefficient,
+                operand=operand,
+                show_unity_coefficient=show_unity_coefficients,
+            )
+            for coefficient, operand in terms
+        )
+        return self._joined_observable_summary(
+            native_type=self._observable_native_type(observable),
+            components=term_summaries,
+            separator=" + ",
+            truncated_suffix=" + ...",
+            component_label="terms",
+            structural_suffix="terms",
+            structure="sum",
+        )
+
+    def _joined_observable_summary(
+        self,
+        *,
+        native_type: str,
+        components: Sequence[_ObservableSummary],
+        separator: str,
+        truncated_suffix: str,
+        component_label: str,
+        structural_suffix: str,
+        structure: str,
+    ) -> _ObservableSummary:
+        labels = tuple(component.label for component in components)
+        any_truncated = any(component.truncated for component in components)
+        joined = separator.join(labels)
+        if joined and len(joined) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return _ObservableSummary(
+                label=joined,
+                native_type=native_type,
+                component_count=len(components),
+                component_label=component_label,
+                truncated=any_truncated,
+                structure=structure,
+            )
+
+        truncated_label = self._truncate_joined_observable_label(
+            labels,
+            separator=separator,
+            truncated_suffix=truncated_suffix,
+        )
+        if truncated_label is not None:
+            return _ObservableSummary(
+                label=truncated_label,
+                native_type=native_type,
+                component_count=len(components),
+                component_label=component_label,
+                truncated=True,
+                structure=structure,
+            )
+
+        return _ObservableSummary(
+            label=self._structural_observable_fallback(
+                native_type=native_type,
+                component_count=len(components),
+                component_label=structural_suffix,
+            ),
+            native_type=native_type,
+            component_count=len(components),
+            component_label=component_label,
+            truncated=True,
+            structure=structure,
+        )
+
+    def _linear_combination_term_label(
+        self,
+        *,
+        coefficient: object,
+        operand: object,
+        show_unity_coefficient: bool,
+    ) -> _ObservableSummary:
+        operand_summary = self._summarize_observable(operand)
+        coefficient_text = self._format_observable_scalar(coefficient)
+        if not show_unity_coefficient and coefficient_text == "1":
+            return operand_summary
+        return _ObservableSummary(
+            label=f"{coefficient_text} * {self._parenthesized_observable_label(operand_summary)}",
+            native_type=operand_summary.native_type,
+            truncated=operand_summary.truncated,
+            structure="scaled",
+        )
+
+    def _truncate_joined_observable_label(
+        self,
+        labels: Sequence[str],
+        *,
+        separator: str,
+        truncated_suffix: str,
+    ) -> str | None:
+        prefix = ""
+        for label in labels:
+            candidate = label if not prefix else f"{prefix}{separator}{label}"
+            if len(f"{candidate}{truncated_suffix}") <= _OBSERVABLE_SUMMARY_LIMIT:
+                prefix = candidate
+                continue
+            break
+        if not prefix:
+            return None
+        return f"{prefix}{truncated_suffix}"
+
+    def _flatten_product_operands(self, observable: object) -> tuple[object, ...]:
+        operands = tuple(getattr(observable, "operands", ()) or ())
+        flattened: list[object] = []
+        for operand in operands:
+            if self._observable_matches(operand, _TENSOR_OBSERVABLE_NAMES):
+                nested_operands = self._flatten_product_operands(operand)
+                if nested_operands:
+                    flattened.extend(nested_operands)
+                    continue
+            flattened.append(operand)
+        return tuple(flattened)
+
+    def _simple_observable_summary(self, observable: object) -> _ObservableSummary:
+        native_type = self._observable_native_type(observable)
+        if len(native_type) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return _ObservableSummary(label=native_type, native_type=native_type)
+
+        class_name = observable.__class__.__name__.strip()
+        if class_name and len(class_name) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return _ObservableSummary(label=class_name, native_type=class_name)
+
+        class_fallback = self._class_name_fallback(class_name)
+        if class_fallback is not None:
+            return _ObservableSummary(label=class_fallback, native_type=class_name or native_type)
+
+        return _ObservableSummary(label="composite observable", native_type=native_type)
+
+    def _observable_terms(self, observable: object) -> tuple[tuple[object, object], ...] | None:
+        terms = getattr(observable, "terms", None)
+        if callable(terms):
+            coefficients, operands = terms()
+            coefficient_values = tuple(coefficients or ())
+            operand_values = tuple(operands or ())
+            if len(coefficient_values) == len(operand_values) and operand_values:
+                return tuple(zip(coefficient_values, operand_values, strict=False))
+
         operands = tuple(getattr(observable, "operands", ()) or ())
         if not operands:
             return None
+        coefficients = tuple(getattr(observable, "coeffs", ()) or ())
+        if coefficients and len(coefficients) == len(operands):
+            return tuple(zip(coefficients, operands, strict=False))
+        if self._observable_matches(observable, {"sum"}):
+            return tuple((1.0, operand) for operand in operands)
+        return None
+
+    def _observable_matches(self, observable: object, names: frozenset[str] | set[str]) -> bool:
+        type_names = {
+            name.lower()
+            for name in (
+                self._normalized_observable_name(getattr(observable, "name", None)),
+                observable.__class__.__name__,
+            )
+            if name
+        }
+        return bool(type_names & set(names))
+
+    def _observable_native_type(self, observable: object) -> str:
         raw_name = self._normalized_observable_name(getattr(observable, "name", None))
-        class_name = observable.__class__.__name__.lower()
-        if raw_name is not None and raw_name.lower() not in _TENSOR_OBSERVABLE_NAMES:
-            if class_name not in _TENSOR_OBSERVABLE_NAMES:
-                return None
-        operand_labels = tuple(self._summarize_observable(operand) for operand in operands)
-        if any(label == "composite observable" for label in operand_labels):
-            return ()
-        return operand_labels
+        if raw_name is not None:
+            return raw_name
+        class_name = observable.__class__.__name__.strip()
+        if class_name:
+            return class_name
+        return "Observable"
+
+    def _parenthesized_observable_label(self, summary: _ObservableSummary) -> str:
+        if summary.structure == "simple":
+            return summary.label
+        return f"({summary.label})"
+
+    def _structural_observable_fallback(
+        self,
+        *,
+        native_type: str,
+        component_count: int,
+        component_label: str,
+    ) -> str:
+        structural_label = f"{native_type}[{component_count} {component_label}]"
+        if len(structural_label) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return structural_label
+        class_fallback = self._class_name_fallback(native_type)
+        if class_fallback is not None:
+            return class_fallback
+        return "composite observable"
+
+    def _class_name_fallback(self, class_name: str) -> str | None:
+        normalized_class_name = class_name.strip()
+        if not normalized_class_name:
+            return None
+        full_fallback = f"{normalized_class_name}[...]"
+        if len(full_fallback) <= _OBSERVABLE_SUMMARY_LIMIT:
+            return full_fallback
+        max_prefix_length = _OBSERVABLE_SUMMARY_LIMIT - len("[...]")
+        if max_prefix_length <= 0:
+            return None
+        return f"{normalized_class_name[:max_prefix_length]}[...]"
 
     def _normalized_observable_name(self, value: object) -> str | None:
         if isinstance(value, str):
@@ -483,7 +764,7 @@ class PennyLaneAdapter(BaseAdapter):
         self,
         terminal_kind: str,
         *,
-        observable_label: str | None,
+        observable_summary: _ObservableSummary | None,
         target_native_wires: Sequence[object],
         tape_wires: Sequence[object],
         wire_labels: Mapping[object, str],
@@ -496,9 +777,36 @@ class PennyLaneAdapter(BaseAdapter):
         )
         return normalized_detail_lines(
             f"terminal output: {terminal_kind}",
-            None if observable_label is None else f"observable: {observable_label}",
+            None if observable_summary is None else f"observable: {observable_summary.label}",
+            None
+            if observable_summary is None
+            else f"observable type: {observable_summary.native_type}",
+            (
+                None
+                if observable_summary is None
+                or observable_summary.component_count is None
+                or observable_summary.component_label is None
+                else f"observable {observable_summary.component_label}: "
+                f"{observable_summary.component_count}"
+            ),
+            None
+            if observable_summary is None or not observable_summary.truncated
+            else "observable summary: truncated",
             scope_detail,
         )
+
+    def _format_observable_scalar(self, value: object) -> str:
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        if isinstance(value, int | float):
+            return f"{value:g}"
+        try:
+            return f"{float(value):g}"
+        except (OverflowError, TypeError, ValueError):
+            normalized_value = self._normalized_observable_name(value)
+            if normalized_value is not None:
+                return normalized_value
+            return str(value)
 
     def _control_values_for_operation(
         self,
