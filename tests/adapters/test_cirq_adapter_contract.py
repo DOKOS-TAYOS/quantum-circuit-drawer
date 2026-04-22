@@ -69,6 +69,9 @@ class FakeClassicalControl:
         self.index = index
         self.value = value
 
+    def __repr__(self) -> str:
+        return f"FakeClassicalControl(key={self.key!r}, index={self.index!r}, value={self.value!r})"
+
 
 class FakeControlledOperation:
     def __init__(
@@ -77,11 +80,13 @@ class FakeControlledOperation:
         controls: tuple[FakeQubit, ...],
         sub_operation: FakeOperation,
         control_values: tuple[tuple[int, ...], ...],
+        tags: tuple[object, ...] = (),
     ) -> None:
         self.controls = controls
         self.sub_operation = sub_operation
         self.control_values = control_values
         self.qubits = (*controls, *sub_operation.qubits)
+        self.tags = tags
 
 
 class FakeClassicallyControlledOperation:
@@ -92,13 +97,28 @@ class FakeClassicallyControlledOperation:
         *,
         index: int | None = None,
         value: int | None = None,
+        controls: tuple[FakeClassicalControl, ...] | None = None,
+        tags: tuple[object, ...] = (),
     ) -> None:
         self._base_operation = base_operation
         self.qubits = base_operation.qubits
-        self.classical_controls = (FakeClassicalControl(key, index=index, value=value),)
+        self.classical_controls = controls or (FakeClassicalControl(key, index=index, value=value),)
+        self.tags = tags
 
     def without_classical_controls(self) -> FakeOperation:
         return self._base_operation
+
+
+class FakeTaggedOperation:
+    def __init__(self, operation: FakeOperation, *tags: object) -> None:
+        self.sub_operation = operation
+        self.gate = getattr(operation, "gate", None)
+        self.qubits = operation.qubits
+        self.tags = tags
+
+    @property
+    def untagged(self) -> FakeOperation:
+        return self.sub_operation
 
 
 class CircuitOperation:
@@ -217,6 +237,126 @@ def test_cirq_adapter_contract_preserves_stubbed_key_condition_index_and_value(
     operations = [operation for layer in ir.layers for operation in layer.operations]
 
     assert operations[-1].classical_conditions[0].expression == "if c[0]=0"
+
+
+def test_cirq_adapter_contract_falls_back_to_native_hover_when_any_classical_control_is_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    measured = FakeOperation(MeasurementGate("m"), (q0,))
+    controlled_x = FakeClassicallyControlledOperation(
+        FakeOperation(XPowGate(), (q1,)),
+        key="m",
+        controls=(
+            FakeClassicalControl("m"),
+            FakeClassicalControl("missing", value=0),
+        ),
+    )
+    circuit = FakeCircuit(FakeMoment(measured), FakeMoment(controlled_x))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[-1].operations[0]
+
+    assert operation.classical_conditions == ()
+    assert operation.hover_details == (
+        "group: moment[1]",
+        "conditional on: FakeClassicalControl(key='m', index=None, value=None)",
+        "conditional on: FakeClassicalControl(key='missing', index=None, value=0)",
+    )
+
+
+def test_cirq_adapter_contract_falls_back_to_native_hover_for_unsupported_classical_condition_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    measured = FakeOperation(MeasurementGate("m"), (q0,))
+    controlled_x = FakeClassicallyControlledOperation(
+        FakeOperation(XPowGate(), (q1,)),
+        key="m",
+        index=2,
+        value=0,
+    )
+    circuit = FakeCircuit(FakeMoment(measured), FakeMoment(controlled_x))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[-1].operations[0]
+
+    assert operation.classical_conditions == ()
+    assert operation.hover_details == (
+        "group: moment[1]",
+        "conditional on: FakeClassicalControl(key='m', index=2, value=0)",
+    )
+
+
+def test_cirq_adapter_contract_keeps_nontrivial_control_values_in_hover(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    q2 = FakeQubit("q(2)")
+    controlled_x = FakeControlledOperation(
+        controls=(q0, q2),
+        sub_operation=FakeOperation(XPowGate(), (q1,)),
+        control_values=((0, 1), (1,)),
+    )
+    circuit = FakeCircuit(FakeMoment(controlled_x))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.control_values == ((0, 1), (1,))
+    assert operation.hover_details == (
+        "group: moment[0]",
+        "control values: (0, 1), (1)",
+    )
+
+
+def test_cirq_adapter_contract_preserves_tags_in_hover_and_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    tagged_operation = FakeTaggedOperation(FakeOperation(XPowGate(), (q0,)), "tag-a", "tag-b")
+    circuit = FakeCircuit(FakeMoment(tagged_operation))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.hover_details == (
+        "group: moment[0]",
+        "tags: tag-a, tag-b",
+    )
+    assert operation.metadata["cirq_tags"] == ("tag-a", "tag-b")
+
+
+def test_cirq_adapter_contract_preserves_tagged_controlled_operation_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    tagged_operation = FakeTaggedOperation(
+        FakeControlledOperation(
+            controls=(q0,),
+            sub_operation=FakeOperation(XPowGate(), (q1,)),
+            control_values=((0,),),
+        ),
+        "tag-a",
+    )
+    circuit = FakeCircuit(FakeMoment(tagged_operation))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.kind is OperationKind.CONTROLLED_GATE
+    assert operation.control_wires == ("q0",)
+    assert operation.target_wires == ("q1",)
+    assert operation.metadata["cirq_tags"] == ("tag-a",)
 
 
 def test_cirq_adapter_contract_keeps_stubbed_circuit_operation_compact_by_default(

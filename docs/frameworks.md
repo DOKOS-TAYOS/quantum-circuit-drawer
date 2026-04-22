@@ -142,9 +142,9 @@ circuit = cirq.Circuit(
 draw_quantum_circuit(circuit, config=DrawConfig(framework="cirq"))
 ```
 
-Current support includes common gates, controlled gates including open controls when Cirq exposes singleton binary `control_values`, classically controlled operations, `CircuitOperation`, swap, and measurements.
+Current support includes common gates, controlled gates including open controls when Cirq exposes singleton binary `control_values`, classically controlled operations with safe hover fallback for non-normalizable conditions, `CircuitOperation`, swap, measurements, and native tags preserved in hover metadata.
 
-The Cirq path now preserves moment grouping and `CircuitOperation` provenance internally. It also preserves indexed `KeyCondition` details such as `m[0]=0` when Cirq exposes them. When a native structure does not have one perfect common visual shape, the drawer keeps that detail in compare signatures, diagnostics, hover text, or lightweight annotations instead of dropping it silently.
+The Cirq path now preserves moment grouping and `CircuitOperation` provenance internally. It also preserves indexed `KeyCondition` details such as `m[0]=0` when Cirq exposes them, keeps non-trivial native `control_values` in hover text when they cannot be shown as plain open/closed markers, and keeps tags or non-normalizable classical conditions as compact hover annotations instead of dropping them silently.
 
 Bundled demos:
 

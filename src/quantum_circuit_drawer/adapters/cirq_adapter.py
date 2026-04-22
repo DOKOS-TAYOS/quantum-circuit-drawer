@@ -236,6 +236,37 @@ class CirqAdapter(BaseAdapter):
         explicit_matrices: bool,
         diagnostics: list[RenderDiagnostic],
     ) -> tuple[SemanticLayerIR, ...]:
+        untagged_operation = getattr(operation, "untagged", None)
+        if untagged_operation is not None and untagged_operation is not operation:
+            converted = self._convert_operation(
+                cirq=cirq,
+                operation=cast(_CirqOperationLike, untagged_operation),
+                qubit_ids=qubit_ids,
+                measurement_slots=measurement_slots,
+                measurement_key_targets=measurement_key_targets,
+                operation_key=operation_key,
+                grouping=grouping,
+                composite_mode=composite_mode,
+                explicit_matrices=explicit_matrices,
+                diagnostics=diagnostics,
+            )
+            operation_details = self._operation_hover_details(operation)
+            operation_metadata = self._operation_metadata(operation)
+            return tuple(
+                SemanticLayerIR(
+                    operations=tuple(
+                        self._decorate_semantic_node(
+                            node,
+                            hover_details=operation_details,
+                            metadata=operation_metadata,
+                        )
+                        for node in layer.operations
+                    ),
+                    metadata=layer.metadata,
+                )
+                for layer in converted
+            )
+
         if self._is_measurement(operation):
             converted: list[SemanticOperationIR] = []
             slot_targets = measurement_slots.get(operation_key)
@@ -243,6 +274,8 @@ class CirqAdapter(BaseAdapter):
                 raise UnsupportedOperationError(
                     "Cirq measurement was not registered before conversion"
                 )
+            operation_details = self._operation_hover_details(operation)
+            operation_metadata = self._operation_metadata(operation)
             for qubit, (classical_target, classical_bit_label) in zip(
                 operation.qubits,
                 slot_targets,
@@ -254,7 +287,10 @@ class CirqAdapter(BaseAdapter):
                         name="M",
                         target_wires=(qubit_ids[qubit],),
                         classical_target=classical_target,
-                        hover_details=normalized_detail_lines(f"group: {grouping}"),
+                        hover_details=normalized_detail_lines(
+                            f"group: {grouping}",
+                            *operation_details,
+                        ),
                         provenance=semantic_provenance(
                             framework=self.framework_name,
                             native_name="MeasurementGate",
@@ -262,7 +298,10 @@ class CirqAdapter(BaseAdapter):
                             grouping=grouping,
                             location=operation_key,
                         ),
-                        metadata={"classical_bit_label": classical_bit_label},
+                        metadata={
+                            "classical_bit_label": classical_bit_label,
+                            **operation_metadata,
+                        },
                     )
                 )
             return (
@@ -277,7 +316,7 @@ class CirqAdapter(BaseAdapter):
                 _CirqOperationLike,
                 operation.without_classical_controls(),
             )
-            conditions = self._classical_conditions_for_controls(
+            conditions, condition_details = self._classical_control_details(
                 operation.classical_controls,
                 measurement_key_targets,
             )
@@ -294,16 +333,18 @@ class CirqAdapter(BaseAdapter):
                 diagnostics=diagnostics,
             )
             conditioned_layers: list[SemanticLayerIR] = []
-            condition_details = tuple(
-                f"conditional on: {condition.expression}" for condition in conditions
-            )
+            operation_details = self._operation_hover_details(operation)
+            operation_metadata = self._operation_metadata(operation)
             for layer in converted:
                 conditioned_layers.append(
                     SemanticLayerIR(
                         operations=tuple(
-                            replace(
-                                append_semantic_classical_conditions(node, conditions),
-                                hover_details=(*node.hover_details, *condition_details),
+                            self._decorate_semantic_node(
+                                append_semantic_classical_conditions(node, conditions)
+                                if conditions
+                                else node,
+                                hover_details=(*operation_details, *condition_details),
+                                metadata=operation_metadata,
                             )
                             for node in layer.operations
                         ),
@@ -382,6 +423,7 @@ class CirqAdapter(BaseAdapter):
                             hover_details=normalized_detail_lines(
                                 f"group: {grouping}",
                                 "native: CircuitOperation",
+                                *self._operation_hover_details(operation),
                             ),
                             provenance=semantic_provenance(
                                 framework=self.framework_name,
@@ -395,7 +437,8 @@ class CirqAdapter(BaseAdapter):
                                 cirq=cirq,
                                 operation=operation,
                                 explicit_matrices=explicit_matrices,
-                            ),
+                            )
+                            | self._operation_metadata(operation),
                         ),
                     ),
                     metadata={"native_group": grouping},
@@ -434,6 +477,7 @@ class CirqAdapter(BaseAdapter):
                     operation=operation,
                     explicit_matrices=explicit_matrices,
                 ),
+                operation=operation,
             )
 
         if class_name in {"cxpowgate", "cnotpowgate", "ccxpowgate"}:
@@ -457,6 +501,7 @@ class CirqAdapter(BaseAdapter):
                     operation=operation,
                     explicit_matrices=explicit_matrices,
                 ),
+                operation=operation,
             )
         if class_name == "czpowgate":
             canonical_gate = canonical_gate_spec("CZ")
@@ -476,6 +521,7 @@ class CirqAdapter(BaseAdapter):
                     operation=operation,
                     explicit_matrices=explicit_matrices,
                 ),
+                operation=operation,
             )
         if class_name == "swappowgate":
             return self._semantic_gate_layer(
@@ -494,6 +540,7 @@ class CirqAdapter(BaseAdapter):
                     operation=operation,
                     explicit_matrices=explicit_matrices,
                 ),
+                operation=operation,
             )
 
         canonical_gate, parameters = self._canonical_gate_for_operation(operation)
@@ -513,6 +560,7 @@ class CirqAdapter(BaseAdapter):
                 operation=operation,
                 explicit_matrices=explicit_matrices,
             ),
+            operation=operation,
         )
 
     def _semantic_gate_layer(
@@ -530,6 +578,7 @@ class CirqAdapter(BaseAdapter):
         native_name: str,
         native_kind: str,
         matrix_metadata: dict[str, object],
+        operation: object,
     ) -> tuple[SemanticLayerIR, ...]:
         return (
             SemanticLayerIR(
@@ -542,7 +591,13 @@ class CirqAdapter(BaseAdapter):
                         control_wires=control_wires,
                         control_values=control_values,
                         parameters=parameters,
-                        hover_details=normalized_detail_lines(f"group: {grouping}"),
+                        hover_details=normalized_detail_lines(
+                            f"group: {grouping}",
+                            *self._operation_hover_details(
+                                operation,
+                                control_values=control_values,
+                            ),
+                        ),
                         provenance=semantic_provenance(
                             framework=self.framework_name,
                             native_name=native_name,
@@ -550,7 +605,7 @@ class CirqAdapter(BaseAdapter):
                             grouping=grouping,
                             location=operation_key,
                         ),
-                        metadata=matrix_metadata,
+                        metadata=matrix_metadata | self._operation_metadata(operation),
                     ),
                 ),
                 metadata={"native_group": grouping},
@@ -586,36 +641,51 @@ class CirqAdapter(BaseAdapter):
         gate = getattr(operation, "gate", None)
         return getattr(gate, "key", None)
 
-    def _classical_conditions_for_controls(
+    def _classical_control_details(
         self,
         controls: Sequence[object],
         measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
-    ) -> tuple[ClassicalConditionIR, ...]:
+    ) -> tuple[tuple[ClassicalConditionIR, ...], tuple[str, ...]]:
+        native_details = normalized_detail_lines(
+            *(f"conditional on: {self._native_text(control)}" for control in controls)
+        )
         conditions: list[ClassicalConditionIR] = []
         for control in controls:
-            key = getattr(control, "key", None)
-            key_targets = measurement_key_targets.get(str(key))
-            if key is None or not key_targets:
-                raise UnsupportedOperationError("unsupported Cirq classical condition")
-            raw_value = getattr(control, "value", None)
-            value = 1 if raw_value is None else int(raw_value)
-            index = getattr(control, "index", None)
-            if index is not None:
-                index_value = int(index)
-                if index_value < 0 or index_value >= len(key_targets):
-                    raise UnsupportedOperationError("unsupported Cirq classical condition index")
-                wire_id, bit_label = key_targets[index_value]
-                wire_ids = (wire_id,)
+            condition = self._try_classical_condition_for_control(control, measurement_key_targets)
+            if condition is None:
+                return (), native_details
+            conditions.append(condition)
+        return tuple(conditions), normalized_detail_lines(
+            *(f"conditional on: {condition.expression}" for condition in conditions)
+        )
+
+    def _try_classical_condition_for_control(
+        self,
+        control: object,
+        measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
+    ) -> ClassicalConditionIR | None:
+        key = getattr(control, "key", None)
+        key_targets = measurement_key_targets.get(str(key))
+        if key is None or not key_targets:
+            return None
+        raw_value = getattr(control, "value", None)
+        value = 1 if raw_value is None else int(raw_value)
+        index = getattr(control, "index", None)
+        if index is not None:
+            index_value = int(index)
+            if index_value < 0 or index_value >= len(key_targets):
+                return None
+            wire_id, bit_label = key_targets[index_value]
+            wire_ids = (wire_id,)
+            expression = f"if {bit_label}={value}"
+        else:
+            wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
+            if len(key_targets) == 1:
+                _, bit_label = key_targets[0]
                 expression = f"if {bit_label}={value}"
             else:
-                wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
-                if len(key_targets) == 1:
-                    _, bit_label = key_targets[0]
-                    expression = f"if {bit_label}={value}"
-                else:
-                    expression = f"if c={value}"
-            conditions.append(ClassicalConditionIR(wire_ids=wire_ids, expression=expression))
-        return tuple(conditions)
+                expression = f"if c={value}"
+        return ClassicalConditionIR(wire_ids=wire_ids, expression=expression)
 
     def _control_values_for_controlled_operation(
         self,
@@ -638,6 +708,65 @@ class CirqAdapter(BaseAdapter):
         if all(entry == (1,) for entry in normalized_entries):
             return ()
         return tuple(normalized_entries)
+
+    def _decorate_semantic_node(
+        self,
+        node: SemanticOperationIR,
+        *,
+        hover_details: Sequence[str] = (),
+        metadata: Mapping[str, object] | None = None,
+    ) -> SemanticOperationIR:
+        merged_metadata = dict(node.metadata)
+        if metadata is not None:
+            merged_metadata.update(metadata)
+        return replace(
+            node,
+            hover_details=normalized_detail_lines(*node.hover_details, *hover_details),
+            metadata=merged_metadata,
+        )
+
+    def _operation_hover_details(
+        self,
+        operation: object,
+        *,
+        control_values: tuple[tuple[int, ...], ...] = (),
+    ) -> tuple[str, ...]:
+        tags = self._operation_tags(operation)
+        details: list[str] = []
+        if tags:
+            details.append("tags: " + ", ".join(tags))
+        control_values_text = self._control_values_text(control_values)
+        if control_values_text is not None:
+            details.append(f"control values: {control_values_text}")
+        return normalized_detail_lines(*details)
+
+    def _operation_metadata(self, operation: object) -> dict[str, object]:
+        tags = self._operation_tags(operation)
+        if not tags:
+            return {}
+        return {"cirq_tags": tags}
+
+    def _operation_tags(self, operation: object) -> tuple[str, ...]:
+        raw_tags = tuple(getattr(operation, "tags", ()) or ())
+        return tuple(str(tag) for tag in raw_tags if str(tag))
+
+    def _control_values_text(
+        self,
+        control_values: tuple[tuple[int, ...], ...],
+    ) -> str | None:
+        if not control_values:
+            return None
+        if all(len(entry) == 1 and entry[0] in {0, 1} for entry in control_values):
+            return None
+        return ", ".join(
+            f"({', '.join(str(value) for value in entry)})" for entry in control_values
+        )
+
+    def _native_text(self, value: object) -> str:
+        representation = repr(value)
+        if representation and not representation.startswith("<"):
+            return representation
+        return str(value)
 
     def _canonical_gate_for_operation(
         self,

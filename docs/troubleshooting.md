@@ -367,5 +367,7 @@ Framework-specific notes:
 
 - Qiskit control-flow with an `else`, `switch_case`, `for_loop`, or `while_loop` is drawn compactly on purpose; the drawer preserves the native condition and branch summary in hover details instead of expanding or simulating it.
 - Open controls from Qiskit `ctrl_state`, Cirq singleton binary `control_values`, and PennyLane boolean/binary `control_values` now draw explicitly as open controls. Non-binary control patterns still degrade to a compact controlled-gate drawing with hover details instead of a fake exact symbol.
+- Cirq classically controlled operations now keep exact `classical_conditions` only when every native condition can be normalized safely; otherwise the drawer still renders the operation and keeps the native condition text in hover instead of failing.
+- Cirq now also keeps non-trivial native `control_values` and operation tags in hover details so that tagged or product-of-sums controls remain drawable and inspectable.
 - MyQLM now supports drawable classical formulas, compact `REMAP` boxes, and compact ancilla-heavy composites with hover annotations, but `BREAK` and `CLASSIC` still raise.
 - CUDA-Q now supports `reset` and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported closed-kernel subset, but still rejects control flow, unresolved dynamic qvector sizes, and controlled swaps.

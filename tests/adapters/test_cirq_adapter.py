@@ -185,6 +185,56 @@ def test_cirq_adapter_converts_classically_controlled_operations() -> None:
     assert operations[-1].classical_conditions[0].expression == "if c[0]=1"
 
 
+def test_cirq_adapter_falls_back_to_native_hover_for_non_normalizable_classical_controls() -> None:
+    q0, q1 = cirq.LineQubit.range(2)
+    circuit = cirq.Circuit(
+        cirq.measure(q0, q1, key="m"),
+        cirq.X(q1).with_classical_controls(
+            cirq.BitMaskKeyCondition(cirq.MeasurementKey("m"), 0b10)
+        ),
+    )
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[-1].operations[0]
+
+    assert operation.classical_conditions == ()
+    assert operation.hover_details == (
+        "group: moment[1]",
+        "conditional on: cirq.BitMaskKeyCondition(key=cirq.MeasurementKey(name='m'), index=2, target_value=0, equal_target=False, bitmask=None)",
+    )
+
+
+def test_cirq_adapter_preserves_nontrivial_control_values_in_hover() -> None:
+    q0, q1, q2 = cirq.LineQubit.range(3)
+    circuit = cirq.Circuit(cirq.X(q1).controlled_by(q0, q2, control_values=[{0, 1}, [1]]))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.kind is OperationKind.CONTROLLED_GATE
+    assert operation.control_values == ((0, 1), (1, 1))
+    assert operation.hover_details == (
+        "group: moment[0]",
+        "control values: (0, 1), (1, 1)",
+    )
+
+
+def test_cirq_adapter_preserves_native_tags_in_hover_and_metadata() -> None:
+    q0 = cirq.LineQubit(0)
+    circuit = cirq.Circuit(cirq.X(q0).with_tags("tag-a", "tag-b"))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.kind is OperationKind.GATE
+    assert operation.name == "X"
+    assert operation.hover_details == (
+        "group: moment[0]",
+        "tags: tag-a, tag-b",
+    )
+    assert operation.metadata["cirq_tags"] == ("tag-a", "tag-b")
+
+
 def test_cirq_adapter_keeps_circuit_operation_compact_by_default() -> None:
     q0, q1 = cirq.LineQubit.range(2)
     subcircuit = cirq.Circuit(cirq.H(q0), cirq.CNOT(q0, q1))
