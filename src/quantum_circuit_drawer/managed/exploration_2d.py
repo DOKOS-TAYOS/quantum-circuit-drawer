@@ -734,25 +734,56 @@ def _initial_collapsed_block_ids(
 def _operations_by_top_level_location(
     circuit: SemanticCircuitIR,
 ) -> tuple[tuple[tuple[int, ...], tuple[SemanticOperationIR, ...]], ...]:
-    grouped: list[tuple[tuple[int, ...], list[SemanticOperationIR]]] = []
-    current_top_level: tuple[int, ...] | None = None
-    current_group: list[SemanticOperationIR] = []
-    for operation in _flatten_operations(circuit):
-        top_level_location = _top_level_location(operation)
-        if current_top_level != top_level_location and current_group:
-            grouped.append((current_top_level or (), list(current_group)))
-            current_group.clear()
-        current_top_level = top_level_location
-        current_group.append(operation)
-    if current_group:
-        grouped.append((current_top_level or (), list(current_group)))
-    return tuple((location, tuple(operations)) for location, operations in grouped)
+    grouped_operations: dict[tuple[int, ...], list[tuple[int, SemanticOperationIR]]] = {}
+    for encounter_index, operation in enumerate(_flatten_operations(circuit)):
+        grouped_operations.setdefault(_top_level_location(operation), []).append(
+            (encounter_index, operation)
+        )
+
+    ordered_locations = sorted(
+        grouped_operations,
+        key=lambda location: _top_level_location_sort_key(
+            location,
+            grouped_operations[location],
+        ),
+    )
+    return tuple(
+        (
+            location,
+            tuple(
+                operation
+                for _, operation in sorted(
+                    grouped_operations[location],
+                    key=_grouped_operation_sort_key,
+                )
+            ),
+        )
+        for location in ordered_locations
+    )
 
 
 def _top_level_location(operation: SemanticOperationIR) -> tuple[int, ...]:
     if not operation.provenance.location:
         return ()
     return (operation.provenance.location[0],)
+
+
+def _top_level_location_sort_key(
+    location: tuple[int, ...],
+    operations: Sequence[tuple[int, SemanticOperationIR]],
+) -> tuple[int, tuple[int, ...]]:
+    if location:
+        return (0, location)
+    return (1, (operations[0][0],))
+
+
+def _grouped_operation_sort_key(
+    entry: tuple[int, SemanticOperationIR],
+) -> tuple[int, tuple[int, ...]]:
+    encounter_index, operation = entry
+    if operation.provenance.location:
+        return (0, operation.provenance.location)
+    return (1, (encounter_index,))
 
 
 def _collapse_label(operations: Sequence[SemanticOperationIR]) -> str | None:

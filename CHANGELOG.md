@@ -58,6 +58,7 @@
 
 ### Fixed
 
+- Managed 2D exploration no longer duplicates collapsed composite blocks after expand/collapse or wire-visibility toggles, and the `pages_controls` row now gives `Page` / `Visible` inputs less dead space while keeping longer block-action buttons readable
 - Hardened custom topology validation and draw-style replacement typing so invalid graph-like inputs and optional style overrides fail more predictably under static and runtime checks
 - Explicit `framework="cudaq"` requests now fail with a platform-aware message that points native Windows users to Linux or WSL2 instead of a generic framework-mismatch error
 - PennyLane wrapper detection now prefers already-materialized `._tape` inputs and avoids touching lazy `.qtape` / `.tape` properties or calling `construct()` implicitly

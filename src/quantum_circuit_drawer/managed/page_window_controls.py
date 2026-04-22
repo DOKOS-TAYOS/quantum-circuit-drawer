@@ -15,19 +15,19 @@ if TYPE_CHECKING:
     from .page_window import Managed2DPageWindowState
 
 _MAIN_AXES_BOUNDS = (0.02, 0.18, 0.96, 0.8)
-_PREVIOUS_PAGE_BUTTON_BOUNDS = (0.132, 0.05, 0.048, 0.06)
-_PAGE_BOX_BOUNDS = (0.188, 0.05, 0.078, 0.06)
-_NEXT_PAGE_BUTTON_BOUNDS = (0.274, 0.05, 0.048, 0.06)
-_VISIBLE_PAGES_BOX_BOUNDS = (0.505, 0.05, 0.078, 0.06)
-_VISIBLE_PAGES_DECREMENT_BOUNDS = (0.591, 0.05, 0.03, 0.028)
-_VISIBLE_PAGES_INCREMENT_BOUNDS = (0.591, 0.082, 0.03, 0.028)
-_WIRE_FILTER_BUTTON_BOUNDS = (0.68, 0.05, 0.11, 0.06)
-_ANCILLA_BUTTON_BOUNDS = (0.80, 0.05, 0.11, 0.06)
-_BLOCK_TOGGLE_BUTTON_BOUNDS = (0.92, 0.05, 0.06, 0.06)
+_PREVIOUS_PAGE_BUTTON_BOUNDS = (0.132, 0.05, 0.046, 0.06)
+_PAGE_BOX_BOUNDS = (0.182, 0.05, 0.062, 0.06)
+_NEXT_PAGE_BUTTON_BOUNDS = (0.248, 0.05, 0.046, 0.06)
+_VISIBLE_PAGES_BOX_BOUNDS = (0.46, 0.05, 0.062, 0.06)
+_VISIBLE_PAGES_DECREMENT_BOUNDS = (0.53, 0.05, 0.03, 0.028)
+_VISIBLE_PAGES_INCREMENT_BOUNDS = (0.53, 0.082, 0.03, 0.028)
+_WIRE_FILTER_BUTTON_BOUNDS = (0.584, 0.05, 0.104, 0.06)
+_ANCILLA_BUTTON_BOUNDS = (0.696, 0.05, 0.104, 0.06)
+_BLOCK_TOGGLE_BUTTON_BOUNDS = (0.808, 0.05, 0.172, 0.06)
 _PAGE_LABEL_POSITION = (0.075, 0.079)
-_PAGE_SUFFIX_POSITION = (0.33, 0.079)
-_VISIBLE_LABEL_POSITION = (0.392, 0.079)
-_VISIBLE_SUFFIX_POSITION = (0.628, 0.079)
+_PAGE_SUFFIX_POSITION = (0.302, 0.079)
+_VISIBLE_LABEL_POSITION = (0.406, 0.079)
+_VISIBLE_SUFFIX_POSITION = (0.564, 0.079)
 
 
 def _attach_controls(state: Managed2DPageWindowState) -> None:
@@ -413,7 +413,7 @@ def _sync_exploration_buttons(state: Managed2DPageWindowState) -> None:
         state.block_toggle_button.label.set_text(
             "No block" if block_action is None else block_action.label
         )
-        state.block_toggle_button.label.set_fontsize(8.0)
+        state.block_toggle_button.label.set_fontsize(8.2)
         _set_button_enabled(
             state.block_toggle_button,
             enabled=block_action is not None,
