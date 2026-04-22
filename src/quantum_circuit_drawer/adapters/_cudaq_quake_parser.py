@@ -48,6 +48,10 @@ _COMPACT_COMPOSITE_LABELS: dict[str, str] = {
     "adjoint": "ADJOINT",
     "compute_action": "COMPUTE/ACTION",
 }
+_STRUCTURED_CONTROL_FLOW_PREFIXES = ("cc.if", "cc.loop", "scf.if", "scf.for")
+_CC_IF_HEADER_RE = re.compile(r"^cc\.if\s*\((?P<condition>.+)\)\s*\{$")
+_SCF_IF_HEADER_RE = re.compile(r"^scf\.if\s+(?P<condition>.+?)(?:\s+->.+)?\s*\{$")
+_SCF_FOR_HEADER_RE = re.compile(r"^scf\.for\s+(?P<iteration>.+)\s*\{$")
 
 
 @dataclass(slots=True)
@@ -69,29 +73,299 @@ class CudaqQuakeParser:
 
     def parse_semantic(self) -> tuple[list[WireIR], list[SemanticOperationIR]]:
         operations: list[SemanticOperationIR] = []
-        for line_index, raw_line in enumerate(self.mlir.splitlines()):
-            line = raw_line.strip()
+        lines = self._normalized_mlir_lines()
+        line_index = 0
+        while line_index < len(lines):
+            line = lines[line_index].strip()
             if not line or line in {"module {", "}", "return"}:
+                line_index += 1
                 continue
             if line.startswith(("func.func", "cc.scope", "attributes", "module attributes")):
+                line_index += 1
+                continue
+            if line.startswith(_STRUCTURED_CONTROL_FLOW_PREFIXES):
+                control_flow_operation, next_index = self._parse_control_flow(
+                    lines,
+                    start_index=line_index,
+                    location=(line_index,),
+                )
+                operations.append(control_flow_operation)
+                line_index = next_index
                 continue
             if line in {"{", "}"} or line.endswith("{"):
                 self._reject_control_flow(line)
+                line_index += 1
                 continue
             if self._parse_numeric_alias(line):
+                line_index += 1
                 continue
             if self._parse_vector_alloca(line):
+                line_index += 1
                 continue
             if self._parse_scalar_alloca(line):
+                line_index += 1
                 continue
             if self._parse_extract(line):
+                line_index += 1
                 continue
             if self._parse_unwrap(line):
+                line_index += 1
                 continue
             if self._parse_wrap(line):
+                line_index += 1
                 continue
             operations.extend(self._parse_operation(line, location=(line_index,)))
+            line_index += 1
         return self.quantum_wires, operations
+
+    def _normalized_mlir_lines(self) -> list[str]:
+        normalized_lines: list[str] = []
+        split_headers = {"} else {", "} do {", "} step {"}
+        for raw_line in self.mlir.splitlines():
+            stripped = raw_line.strip()
+            if stripped in split_headers:
+                normalized_lines.extend(("}", stripped[1:].strip()))
+                continue
+            normalized_lines.append(raw_line)
+        return normalized_lines
+
+    def _parse_control_flow(
+        self,
+        lines: Sequence[str],
+        *,
+        start_index: int,
+        location: tuple[int, ...],
+    ) -> tuple[SemanticOperationIR, int]:
+        header = lines[start_index].strip()
+        if header.startswith(("cc.if", "scf.if")):
+            return self._parse_if_control_flow(
+                lines,
+                start_index=start_index,
+                location=location,
+            )
+        if header.startswith("scf.for"):
+            return self._parse_for_control_flow(
+                lines,
+                start_index=start_index,
+                location=location,
+            )
+        if header.startswith("cc.loop"):
+            return self._parse_loop_control_flow(
+                lines,
+                start_index=start_index,
+                location=location,
+            )
+        raise UnsupportedOperationError(f"unsupported CUDA-Q control-flow construct: {header}")
+
+    def _parse_if_control_flow(
+        self,
+        lines: Sequence[str],
+        *,
+        start_index: int,
+        location: tuple[int, ...],
+    ) -> tuple[SemanticOperationIR, int]:
+        header = lines[start_index].strip()
+        true_region_lines, next_index = self._consume_braced_region(lines, start_index)
+        false_region_lines: tuple[str, ...] = ()
+        if next_index < len(lines) and lines[next_index].strip().startswith("else"):
+            false_region_lines, next_index = self._consume_braced_region(lines, next_index)
+
+        target_wires = self._resolve_control_flow_target_wires(
+            (true_region_lines, false_region_lines)
+        )
+        hover_details = [f"control flow: {header.split()[0]}"]
+        condition = self._if_condition_text(header)
+        if condition is None:
+            hover_details.append(f"header: {self._trim_control_flow_header(header)}")
+        else:
+            hover_details.append(f"condition: {condition}")
+        true_count = self._count_region_operations(true_region_lines)
+        if false_region_lines:
+            hover_details.append("branches: true, false")
+            hover_details.append(
+                f"block ops: true={true_count}, false={self._count_region_operations(false_region_lines)}"
+            )
+        else:
+            hover_details.append("branches: true only")
+            hover_details.append(f"block ops: true={true_count}")
+        hover_details.append(f"wires: {', '.join(target_wires)}")
+
+        has_else_branch = bool(false_region_lines)
+        label = "IF/ELSE" if has_else_branch else "IF"
+        native_name = "scf.if" if header.startswith("scf.if") else "cc.if"
+        return (
+            SemanticOperationIR(
+                kind=OperationKind.GATE,
+                name=label,
+                label=label,
+                target_wires=target_wires,
+                hover_details=normalized_detail_lines(*hover_details),
+                provenance=semantic_provenance(
+                    framework="cudaq",
+                    native_name=native_name,
+                    native_kind="control_flow",
+                    location=location,
+                ),
+                metadata={"cudaq_control_flow": native_name},
+            ),
+            next_index,
+        )
+
+    def _parse_for_control_flow(
+        self,
+        lines: Sequence[str],
+        *,
+        start_index: int,
+        location: tuple[int, ...],
+    ) -> tuple[SemanticOperationIR, int]:
+        header = lines[start_index].strip()
+        body_lines, next_index = self._consume_braced_region(lines, start_index)
+        target_wires = self._resolve_control_flow_target_wires((body_lines,))
+
+        iteration = self._for_iteration_text(header)
+        hover_details = ["control flow: scf.for"]
+        if iteration is None:
+            hover_details.append(f"header: {self._trim_control_flow_header(header)}")
+        else:
+            hover_details.append(f"iteration: {iteration}")
+        hover_details.append(f"body ops: {self._count_region_operations(body_lines)}")
+        hover_details.append(f"wires: {', '.join(target_wires)}")
+
+        return (
+            SemanticOperationIR(
+                kind=OperationKind.GATE,
+                name="FOR",
+                label="FOR",
+                target_wires=target_wires,
+                hover_details=normalized_detail_lines(*hover_details),
+                provenance=semantic_provenance(
+                    framework="cudaq",
+                    native_name="scf.for",
+                    native_kind="control_flow",
+                    location=location,
+                ),
+                metadata={"cudaq_control_flow": "scf.for"},
+            ),
+            next_index,
+        )
+
+    def _parse_loop_control_flow(
+        self,
+        lines: Sequence[str],
+        *,
+        start_index: int,
+        location: tuple[int, ...],
+    ) -> tuple[SemanticOperationIR, int]:
+        while_lines, next_index = self._consume_braced_region(lines, start_index)
+        region_counts: list[tuple[str, int]] = [
+            ("while", self._count_region_operations(while_lines))
+        ]
+        regions: list[tuple[str, ...]] = [while_lines]
+
+        if next_index < len(lines) and lines[next_index].strip().startswith("do"):
+            do_lines, next_index = self._consume_braced_region(lines, next_index)
+            regions.append(do_lines)
+            region_counts.append(("do", self._count_region_operations(do_lines)))
+        if next_index < len(lines) and lines[next_index].strip().startswith("step"):
+            step_lines, next_index = self._consume_braced_region(lines, next_index)
+            regions.append(step_lines)
+            region_counts.append(("step", self._count_region_operations(step_lines)))
+
+        target_wires = self._resolve_control_flow_target_wires(tuple(regions))
+        hover_details = [
+            "control flow: cc.loop",
+            f"region count: {len(region_counts)}",
+            "region ops: " + ", ".join(f"{name}={count}" for name, count in region_counts),
+            f"wires: {', '.join(target_wires)}",
+        ]
+        return (
+            SemanticOperationIR(
+                kind=OperationKind.GATE,
+                name="LOOP",
+                label="LOOP",
+                target_wires=target_wires,
+                hover_details=normalized_detail_lines(*hover_details),
+                provenance=semantic_provenance(
+                    framework="cudaq",
+                    native_name="cc.loop",
+                    native_kind="control_flow",
+                    location=location,
+                ),
+                metadata={"cudaq_control_flow": "cc.loop"},
+            ),
+            next_index,
+        )
+
+    def _consume_braced_region(
+        self,
+        lines: Sequence[str],
+        start_index: int,
+    ) -> tuple[tuple[str, ...], int]:
+        header = lines[start_index].strip()
+        depth = header.count("{") - header.count("}")
+        if depth <= 0:
+            raise UnsupportedOperationError(f"malformed CUDA-Q control-flow header: {header}")
+
+        region_lines: list[str] = []
+        line_index = start_index + 1
+        while line_index < len(lines):
+            stripped = lines[line_index].strip()
+            if stripped and stripped != "}":
+                region_lines.append(stripped)
+            depth += stripped.count("{") - stripped.count("}")
+            line_index += 1
+            if depth == 0:
+                return tuple(region_lines), line_index
+        raise UnsupportedOperationError(f"unterminated CUDA-Q control-flow region: {header}")
+
+    def _resolve_control_flow_target_wires(
+        self,
+        region_groups: Sequence[Sequence[str]],
+    ) -> tuple[str, ...]:
+        resolved_wires: list[str] = []
+        for region_lines in region_groups:
+            for line in region_lines:
+                for token in dict.fromkeys(_SSA_TOKEN_RE.findall(line)):
+                    if token in self._vector_aliases:
+                        resolved_wires.extend(self._vector_aliases[token])
+                    elif token in self._wire_aliases:
+                        resolved_wires.append(self._wire_aliases[token])
+                    elif token in self._ref_aliases:
+                        resolved_wires.append(self._ref_aliases[token])
+
+        deduplicated_wires = tuple(dict.fromkeys(resolved_wires))
+        if deduplicated_wires:
+            return deduplicated_wires
+
+        allocated_wires = tuple(wire.id for wire in self.quantum_wires)
+        if allocated_wires:
+            return allocated_wires
+        raise UnsupportedOperationError(
+            "CUDA-Q control-flow construct does not reference any drawable target"
+        )
+
+    def _count_region_operations(self, region_lines: Sequence[str]) -> int:
+        return sum(
+            1
+            for line in region_lines
+            if line and line not in {"return", "scf.yield"} and not line.endswith("{")
+        )
+
+    def _if_condition_text(self, header: str) -> str | None:
+        for pattern in (_CC_IF_HEADER_RE, _SCF_IF_HEADER_RE):
+            match = pattern.match(header)
+            if match is not None:
+                return match.group("condition").strip()
+        return None
+
+    def _for_iteration_text(self, header: str) -> str | None:
+        match = _SCF_FOR_HEADER_RE.match(header)
+        if match is None:
+            return None
+        return match.group("iteration").strip()
+
+    def _trim_control_flow_header(self, header: str) -> str:
+        return header[:-1].strip() if header.endswith("{") else header
 
     def _parse_numeric_alias(self, line: str) -> bool:
         constant_match = _CONSTANT_RE.match(line)
@@ -551,13 +825,7 @@ class CudaqQuakeParser:
             return None
 
     def _reject_control_flow(self, line: str) -> None:
-        unsupported_prefixes = (
-            "cc.if",
-            "cc.loop",
-            "scf.if",
-            "scf.for",
-            "cf.cond_br",
-        )
+        unsupported_prefixes = ("cf.cond_br",)
         if line.startswith(unsupported_prefixes):
             raise UnsupportedOperationError(
                 "CUDA-Q control-flow constructs are outside the supported v0.1 subset"

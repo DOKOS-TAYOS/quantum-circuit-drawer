@@ -181,13 +181,97 @@ module {
 """.strip()
 
 
-def build_control_flow_quake_mlir() -> str:
+def build_cc_if_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__cc_if() attributes {"cudaq-entrypoint"} {
+    %q = quake.alloca() : !quake.qvec<2>
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %cond = arith.constant 1 : i1
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<2>, index) -> !quake.qref
+    %q1 = quake.extract_ref %q[%c1] : (!quake.qvec<2>, index) -> !quake.qref
+    cc.if (%cond) {
+      quake.h %q0 : (!quake.qref) -> ()
+      quake.x [%q0] %q1 : (!quake.qref, !quake.qref) -> ()
+    }
+    return
+  }
+}
+""".strip()
+
+
+def build_scf_if_else_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__scf_if() attributes {"cudaq-entrypoint"} {
+    %q = quake.alloca() : !quake.qvec<2>
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %cond = arith.constant 1 : i1
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<2>, index) -> !quake.qref
+    %q1 = quake.extract_ref %q[%c1] : (!quake.qvec<2>, index) -> !quake.qref
+    scf.if %cond {
+      quake.h %q0 : (!quake.qref) -> ()
+    } else {
+      quake.x %q1 : (!quake.qref) -> ()
+    }
+    return
+  }
+}
+""".strip()
+
+
+def build_scf_for_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__scf_for() attributes {"cudaq-entrypoint"} {
+    %q = quake.alloca() : !quake.qvec<2>
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c4 = arith.constant 4 : index
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<2>, index) -> !quake.qref
+    %q1 = quake.extract_ref %q[%c1] : (!quake.qvec<2>, index) -> !quake.qref
+    scf.for %i = %c0 to %c4 step %c1 {
+      quake.x [%q0] %q1 : (!quake.qref, !quake.qref) -> ()
+    }
+    return
+  }
+}
+""".strip()
+
+
+def build_cc_loop_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__cc_loop() attributes {"cudaq-entrypoint"} {
+    %q = quake.alloca() : !quake.qvec<2>
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %cond = arith.constant 1 : i1
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<2>, index) -> !quake.qref
+    %q1 = quake.extract_ref %q[%c1] : (!quake.qvec<2>, index) -> !quake.qref
+    cc.loop while {
+      cc.condition %cond
+    } do {
+      quake.x [%q0] %q1 : (!quake.qref, !quake.qref) -> ()
+      cc.continue
+    } step {
+    }
+    return
+  }
+}
+""".strip()
+
+
+def build_cfg_control_flow_quake_mlir() -> str:
     return """
 module {
   func.func @__nvqpp__mlirgen__control_flow() attributes {"cudaq-entrypoint"} {
-    cc.if %cond {
+    cf.cond_br %cond, ^bb1, ^bb2
+  ^bb1:
       return
-    }
+  ^bb2:
     return
   }
 }
@@ -581,12 +665,127 @@ def test_cudaq_adapter_keeps_named_operations_as_compact_semantic_boxes(
     assert lowered_operation.metadata["hover_details"] == operations[0].hover_details
 
 
-def test_cudaq_adapter_rejects_control_flow_constructs(
+def test_cudaq_adapter_supports_cc_if_as_compact_semantic_box(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_cc_if_quake_mlir())
+
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.GATE
+    assert operations[0].name == "IF"
+    assert operations[0].label == "IF"
+    assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].hover_details == (
+        "control flow: cc.if",
+        "condition: %cond",
+        "branches: true only",
+        "block ops: true=2",
+        "wires: q0, q1",
+    )
+    assert operations[0].provenance.framework == "cudaq"
+    assert operations[0].provenance.native_name == "cc.if"
+    assert operations[0].provenance.native_kind == "control_flow"
+
+    lowered = lower_semantic_circuit(semantic)
+    lowered_operation = lowered.layers[0].operations[0]
+    assert lowered_operation.name == "IF"
+    assert lowered_operation.target_wires == ("q0", "q1")
+    assert lowered_operation.metadata["semantic_provenance"]["native_name"] == "cc.if"
+    assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == "control_flow"
+    assert lowered_operation.metadata["hover_details"] == operations[0].hover_details
+
+
+def test_cudaq_adapter_supports_scf_if_else_as_compact_semantic_box(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_scf_if_else_quake_mlir())
+
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.GATE
+    assert operations[0].name == "IF/ELSE"
+    assert operations[0].label == "IF/ELSE"
+    assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].hover_details == (
+        "control flow: scf.if",
+        "condition: %cond",
+        "branches: true, false",
+        "block ops: true=1, false=1",
+        "wires: q0, q1",
+    )
+    assert operations[0].provenance.native_name == "scf.if"
+    assert operations[0].provenance.native_kind == "control_flow"
+
+
+def test_cudaq_adapter_supports_scf_for_as_compact_semantic_box(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_scf_for_quake_mlir())
+
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.GATE
+    assert operations[0].name == "FOR"
+    assert operations[0].label == "FOR"
+    assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].hover_details == (
+        "control flow: scf.for",
+        "iteration: %i = %c0 to %c4 step %c1",
+        "body ops: 1",
+        "wires: q0, q1",
+    )
+    assert operations[0].provenance.native_name == "scf.for"
+    assert operations[0].provenance.native_kind == "control_flow"
+
+
+def test_cudaq_adapter_supports_cc_loop_as_compact_semantic_box(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_cc_loop_quake_mlir())
+
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.GATE
+    assert operations[0].name == "LOOP"
+    assert operations[0].label == "LOOP"
+    assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].hover_details == (
+        "control flow: cc.loop",
+        "region count: 3",
+        "region ops: while=1, do=2, step=0",
+        "wires: q0, q1",
+    )
+    assert operations[0].provenance.native_name == "cc.loop"
+    assert operations[0].provenance.native_kind == "control_flow"
+
+
+def test_cudaq_adapter_rejects_cfg_control_flow_constructs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_cudaq(monkeypatch)
     adapter_type = load_cudaq_adapter_type()
-    kernel = FakePyKernel(mlir=build_control_flow_quake_mlir())
+    kernel = FakePyKernel(mlir=build_cfg_control_flow_quake_mlir())
 
     with pytest.raises(UnsupportedOperationError, match="control-flow"):
         adapter_type().to_ir(kernel)
@@ -679,4 +878,31 @@ def test_draw_quantum_circuit_renders_cudaq_controlled_swap_box(
     assert axes.figure is figure
     assert "SWAP" in texts
     assert_axes_contains_circuit_artists(axes, expected_texts={"SWAP", "q0", "q1", "q2"})
+    assert_figure_has_visible_content(figure)
+
+
+@pytest.mark.parametrize(
+    ("builder", "expected_label", "expected_wires"),
+    [
+        (build_cc_if_quake_mlir, "IF", {"q0", "q1"}),
+        (build_scf_if_else_quake_mlir, "IF/ELSE", {"q0", "q1"}),
+        (build_scf_for_quake_mlir, "FOR", {"q0", "q1"}),
+        (build_cc_loop_quake_mlir, "LOOP", {"q0", "q1"}),
+    ],
+)
+def test_draw_quantum_circuit_renders_cudaq_control_flow_boxes(
+    builder: object,
+    expected_label: str,
+    expected_wires: set[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    kernel = FakePyKernel(mlir=builder())
+
+    figure, axes = draw_quantum_circuit(kernel, framework="cudaq", show=False)
+    texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}
+
+    assert axes.figure is figure
+    assert expected_label in texts
+    assert_axes_contains_circuit_artists(axes, expected_texts={expected_label, *expected_wires})
     assert_figure_has_visible_content(figure)

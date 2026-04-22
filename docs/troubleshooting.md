@@ -318,7 +318,7 @@ def bell_pair() -> None:
 draw_quantum_circuit(bell_pair)
 ```
 
-For supported closed kernels, the adapter now also preserves Quake provenance, measurement basis, `reset`, controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint` internally. Control flow and unresolved dynamic qvector sizes are still outside the supported subset.
+For supported closed kernels, the adapter now also preserves Quake provenance, measurement basis, `reset`, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`) as compact descriptive boxes, controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint` internally. Low-level CFG control flow and unresolved dynamic qvector sizes are still outside the supported subset.
 
 ## Style validation fails
 
@@ -371,4 +371,4 @@ Framework-specific notes:
 - Cirq classically controlled operations now keep exact `classical_conditions` only when every native condition can be normalized safely; otherwise the drawer still renders the operation and keeps the native condition text in hover instead of failing.
 - Cirq now also keeps non-trivial native `control_values` and operation tags in hover details so that tagged or product-of-sums controls remain drawable and inspectable.
 - MyQLM now supports drawable classical formulas, compact `REMAP` boxes, compact ancilla-heavy composites with hover annotations, and compact classical `BREAK` / `CLASSIC` boxes on the bundled classical register. If a MyQLM classical formula cannot be normalized safely, the drawer keeps the raw formula in hover instead of raising.
-- CUDA-Q now supports `reset`, controlled `swap`, and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported closed-kernel subset, but still rejects control flow and unresolved dynamic qvector sizes.
+- CUDA-Q now supports `reset`, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap`, and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported closed-kernel subset. Those control-flow boxes are descriptive only, so the drawer does not execute branches or unroll loops for display. Low-level CFG control flow and unresolved dynamic qvector sizes are still rejected.

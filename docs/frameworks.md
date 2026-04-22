@@ -296,7 +296,7 @@ Here, "closed" means the kernel can be inspected without additional runtime argu
 
 Support note:
 
-- Supported closed-kernel parsing now preserves Quake provenance, measurement basis, reset operations, value-form wire flow, and compact callable blocks for `apply`, `adjoint`, and `compute_action` through the shared semantic adapter pipeline.
+- Supported closed-kernel parsing now preserves Quake provenance, measurement basis, reset operations, structured control-flow boxes, value-form wire flow, and compact callable blocks for `apply`, `adjoint`, and `compute_action` through the shared semantic adapter pipeline.
 
 Bundled demos:
 
@@ -307,7 +307,8 @@ Current limits:
 
 - CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
 - Kernels that still require runtime arguments are not supported.
-- Advanced CUDA-Q control flow and broader advanced constructs are outside the supported subset.
+- Structured `cc.if`, `scf.if`, `scf.for`, and `cc.loop` now render as compact descriptive boxes with hover details instead of being expanded.
+- Low-level CFG control flow such as `cf.cond_br` and broader advanced constructs are still outside the supported subset.
 - `apply`, `compute_action`, and `adjoint` are currently rendered as compact callable boxes with hover details rather than expanded internal structure.
 - Controlled `swap` now renders as a compact controlled `SWAP` box, while unresolved dynamic qvector sizes are still rejected because they do not map cleanly into the current shared IR.
 
