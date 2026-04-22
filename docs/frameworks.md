@@ -92,9 +92,9 @@ circuit.measure(1, 0)
 draw_quantum_circuit(circuit)
 ```
 
-Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements.
+Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions including modern Qiskit expression trees when they can be normalized safely, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements.
 
-For Qiskit control-flow, the drawer keeps the existing expanded behavior for simple `if_test(...)` blocks without an `else`, because that path still maps cleanly onto classically conditioned gates. Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled.
+For Qiskit control-flow, the drawer keeps the existing expanded behavior for simple `if_test(...)` blocks without an `else` when the condition can still be normalized into exact classical conditions. If a simple `if_test(...)` uses a modern condition shape that cannot be normalized safely, it now falls back to a compact `IF` box with native hover details instead of failing. Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled. Those hover details now preserve normalized modern expressions, branch/body operation counts, and case summaries when Qiskit exposes them.
 
 Bundled demos:
 

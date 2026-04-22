@@ -68,7 +68,8 @@ At the moment, all built-in framework adapters use the richer semantic-adapter p
 
 For Qiskit specifically, modern control-flow is preserved as compact native boxes instead of being flattened aggressively:
 
-- simple `if_test(...)` blocks without an `else` still expand into classically conditioned gates;
+- simple `if_test(...)` blocks without an `else` still expand into classically conditioned gates when the condition can be normalized safely;
+- non-normalizable simple `if_test(...)` blocks now fall back to a compact `IF` box with native hover details instead of failing;
 - `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` now render as compact boxes with hover details;
 - those compact boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
 
@@ -365,7 +366,7 @@ Useful first checks:
 
 Framework-specific notes:
 
-- Qiskit control-flow with an `else`, `switch_case`, `for_loop`, or `while_loop` is drawn compactly on purpose; the drawer preserves the native condition and branch summary in hover details instead of expanding or simulating it.
+- Qiskit now normalizes many modern classical expressions into readable ASCII conditions, and control-flow hover details preserve branch/body counts and case summaries when available. If a simple `if_test(...)` condition still cannot be normalized safely, the drawer falls back to a compact `IF` box with native hover text instead of failing.
 - Open controls from Qiskit `ctrl_state`, Cirq singleton binary `control_values`, and PennyLane boolean/binary `control_values` now draw explicitly as open controls. Non-binary control patterns still degrade to a compact controlled-gate drawing with hover details instead of a fake exact symbol.
 - Cirq classically controlled operations now keep exact `classical_conditions` only when every native condition can be normalized safely; otherwise the drawer still renders the operation and keeps the native condition text in hover instead of failing.
 - Cirq now also keeps non-trivial native `control_values` and operation tags in hover details so that tagged or product-of-sums controls remain drawable and inspectable.

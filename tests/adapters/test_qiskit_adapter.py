@@ -9,6 +9,8 @@ pytestmark = [pytest.mark.optional, pytest.mark.integration]
 
 qiskit = pytest.importorskip("qiskit")
 
+from qiskit.circuit.classical import expr
+
 from quantum_circuit_drawer.adapters.qiskit_adapter import QiskitAdapter
 from quantum_circuit_drawer.drawing.pipeline import prepare_draw_pipeline
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
@@ -344,6 +346,49 @@ def test_qiskit_adapter_converts_register_if_test_into_classically_conditioned_o
     assert conditioned_operation.classical_conditions[0].expression == "if c=3"
 
 
+def test_qiskit_adapter_converts_modern_bit_if_test_into_classically_conditioned_operation() -> (
+    None
+):
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test(expr.equal(classical[0], True)):
+        circuit.x(0)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    conditioned_operation = next(operation for layer in ir.layers for operation in layer.operations)
+
+    assert conditioned_operation.name == "X"
+    assert conditioned_operation.classical_conditions[0].wire_ids == ("c0",)
+    assert conditioned_operation.classical_conditions[0].expression == "if c[0]=1"
+
+
+def test_qiskit_adapter_converts_modern_compound_if_test_into_classically_conditioned_operation() -> (
+    None
+):
+    quantum = qiskit.QuantumRegister(1, "q")
+    first = qiskit.ClassicalRegister(1, "alpha")
+    second = qiskit.ClassicalRegister(1, "beta")
+    circuit = qiskit.QuantumCircuit(quantum, first, second)
+
+    with circuit.if_test(
+        expr.logic_and(
+            expr.equal(first[0], True),
+            expr.equal(second[0], False),
+        )
+    ):
+        circuit.x(0)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    conditioned_operation = next(operation for layer in ir.layers for operation in layer.operations)
+
+    assert conditioned_operation.classical_conditions[0].wire_ids == ("c0", "c1")
+    assert conditioned_operation.classical_conditions[0].expression == (
+        "if (alpha[0]=1) && (beta[0]=0)"
+    )
+
+
 def test_qiskit_adapter_expands_multi_operation_if_block() -> None:
     quantum = qiskit.QuantumRegister(2, "q")
     classical = qiskit.ClassicalRegister(1, "c")
@@ -380,6 +425,48 @@ def test_qiskit_adapter_keeps_if_else_as_compact_composite() -> None:
     assert operations[0].name == "IF/ELSE"
 
 
+def test_qiskit_adapter_falls_back_to_compact_if_when_simple_if_condition_is_not_normalizable() -> (
+    None
+):
+    class UnsupportedCondition:
+        def __str__(self) -> str:
+            return "UnsupportedCondition()"
+
+    operation = SimpleNamespace(
+        blocks=(
+            SimpleNamespace(
+                qubits=("inner-q0",),
+                clbits=(),
+                data=((SimpleNamespace(name="x", params=()), ("inner-q0",), ()),),
+            ),
+        ),
+        condition=UnsupportedCondition(),
+    )
+
+    converted = QiskitAdapter()._convert_if_else(
+        operation=operation,
+        qubits=("outer-q0",),
+        clbits=(),
+        qubit_ids={"outer-q0": "q0"},
+        classical_targets={},
+        register_targets={},
+        composite_mode="expand",
+        explicit_matrices=False,
+    )
+
+    assert len(converted) == 1
+    assert converted[0].name == "IF"
+    assert converted[0].classical_conditions == ()
+    assert converted[0].hover_details == (
+        "control flow: if_else",
+        "condition: UnsupportedCondition()",
+        "branches: true only",
+        "block ops: true=1",
+    )
+    assert converted[0].provenance.native_name == "if_else"
+    assert converted[0].metadata["qiskit_control_flow"] == "if_else"
+
+
 def test_qiskit_adapter_keeps_if_else_as_compact_semantic_control_flow() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(1, "c")
@@ -401,10 +488,41 @@ def test_qiskit_adapter_keeps_if_else_as_compact_semantic_control_flow() -> None
         "control flow: if_else",
         "condition: if c[0]=1",
         "branches: true, false",
+        "block ops: true=1, false=1",
     )
     assert operation.provenance.native_name == "if_else"
     assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == "control_flow"
     assert lowered_operation.metadata["hover_details"] == operation.hover_details
+
+
+def test_qiskit_adapter_keeps_if_else_with_modern_condition_as_compact_semantic_control_flow() -> (
+    None
+):
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(2, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test(
+        expr.logic_or(
+            expr.equal(classical[0], True),
+            expr.equal(classical[1], False),
+        )
+    ) as else_:
+        circuit.x(0)
+    with else_:
+        circuit.z(0)
+
+    semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
+    operation = flatten_semantic_operations(semantic_ir)[0]
+
+    assert operation.name == "IF/ELSE"
+    assert operation.classical_conditions[0].expression == "if (c[0]=1) || (c[1]=0)"
+    assert operation.hover_details == (
+        "control flow: if_else",
+        "condition: if (c[0]=1) || (c[1]=0)",
+        "branches: true, false",
+        "block ops: true=1, false=1",
+    )
 
 
 def test_qiskit_adapter_keeps_switch_case_as_compact_semantic_control_flow() -> None:
@@ -430,6 +548,7 @@ def test_qiskit_adapter_keeps_switch_case_as_compact_semantic_control_flow() -> 
         "control flow: switch_case",
         "target: c[0]",
         "cases: 0, 1, default",
+        "case count: 3",
     )
 
 
@@ -448,6 +567,7 @@ def test_qiskit_adapter_keeps_for_loop_as_compact_semantic_control_flow() -> Non
     assert operation.hover_details == (
         "control flow: for_loop",
         "iteration: range(0, 3)",
+        "body ops: 1",
     )
 
 
@@ -467,28 +587,96 @@ def test_qiskit_adapter_keeps_while_loop_as_compact_semantic_control_flow() -> N
     assert operation.hover_details == (
         "control flow: while_loop",
         "condition: if c[0]=1",
+        "body ops: 1",
     )
 
 
-def test_qiskit_adapter_preserves_modern_control_flow_conditions_in_hover_when_not_normalizable() -> (
+def test_qiskit_adapter_normalizes_modern_while_loop_conditions() -> (
     None
 ):
-    from qiskit.circuit.classical import expr
-
     quantum = qiskit.QuantumRegister(1, "q")
-    classical = qiskit.ClassicalRegister(1, "c")
+    classical = qiskit.ClassicalRegister(2, "c")
     circuit = qiskit.QuantumCircuit(quantum, classical)
-    body = qiskit.QuantumCircuit(1, 1)
+    body = qiskit.QuantumCircuit(1, 2)
     body.x(0)
-    circuit.while_loop(expr.equal(classical[0], True), body, quantum, classical)
+    circuit.while_loop(
+        expr.logic_not(
+            expr.logic_and(
+                expr.equal(classical[0], True),
+                expr.equal(classical[1], False),
+            )
+        ),
+        body,
+        quantum,
+        classical,
+    )
 
     semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
     operation = flatten_semantic_operations(semantic_ir)[0]
 
     assert operation.name == "WHILE"
-    assert operation.classical_conditions == ()
-    assert operation.hover_details[0] == "control flow: while_loop"
-    assert operation.hover_details[1].startswith("condition: Binary(")
+    assert operation.classical_conditions[0].wire_ids == ("c0",)
+    assert operation.classical_conditions[0].expression == "if !((c[0]=1) && (c[1]=0))"
+    assert operation.hover_details == (
+        "control flow: while_loop",
+        "condition: if !((c[0]=1) && (c[1]=0))",
+        "body ops: 1",
+    )
+
+
+def test_qiskit_adapter_keeps_native_while_loop_hover_when_condition_is_not_normalizable() -> None:
+    class UnsupportedCondition:
+        def __str__(self) -> str:
+            return "UnsupportedCondition()"
+
+    operation = SimpleNamespace(
+        condition=UnsupportedCondition(),
+        params=(),
+    )
+
+    classical_conditions, condition_details = QiskitAdapter()._compact_control_flow_conditions(
+        name="while_loop",
+        operation=operation,
+        classical_targets={},
+        register_targets={},
+    )
+    hover_details = QiskitAdapter()._control_flow_hover_details(
+        name="while_loop",
+        operation=operation,
+        condition_details=condition_details,
+    )
+
+    assert classical_conditions == ()
+    assert hover_details == (
+        "control flow: while_loop",
+        "condition: UnsupportedCondition()",
+        "body ops: 0",
+    )
+
+
+def test_qiskit_adapter_formats_logic_not_conditions_directly() -> None:
+    classical = qiskit.ClassicalRegister(1, "c")
+    condition = QiskitAdapter()._condition_from_qiskit(
+        expr.logic_not(expr.equal(classical[0], True)),
+        classical_targets={classical[0]: ("c0", "c[0]")},
+        register_targets={classical: ("c0", "c")},
+    )
+
+    assert condition.wire_ids == ("c0",)
+    assert condition.expression == "if !(c[0]=1)"
+
+
+def test_qiskit_adapter_formats_expressive_switch_targets_directly() -> None:
+    classical = qiskit.ClassicalRegister(1, "c")
+    condition, target_text = QiskitAdapter()._switch_target_from_qiskit(
+        expr.bit_not(classical[0]),
+        classical_targets={classical[0]: ("c0", "c[0]")},
+        register_targets={classical: ("c0", "c")},
+    )
+
+    assert condition.wire_ids == ("c0",)
+    assert condition.expression == "switch on ~c[0]"
+    assert target_text == "~c[0]"
 
 
 def test_prepare_draw_pipeline_keeps_qiskit_control_flow_hover_details() -> None:
@@ -518,6 +706,7 @@ def test_prepare_draw_pipeline_keeps_qiskit_control_flow_hover_details() -> None
         "control flow: if_else",
         "condition: if c[0]=1",
         "branches: true, false",
+        "block ops: true=1, false=1",
     )
 
 
