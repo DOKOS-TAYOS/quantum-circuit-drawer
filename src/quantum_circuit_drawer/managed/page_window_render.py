@@ -23,6 +23,7 @@ from .page_window_windowing import (
     _window_page,
     _window_scene,
 )
+from .zoom import configure_zoom_text_scaling
 
 if TYPE_CHECKING:
     from .page_window import Managed2DPageWindowState
@@ -61,8 +62,6 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
         )
 
     finalize_axes(state.axes)
-
-    from .drawing import configure_zoom_text_scaling
 
     configure_zoom_text_scaling(state.axes, scene=window_scene)
     set_viewport_width(state.figure, viewport_width=window_scene.width)

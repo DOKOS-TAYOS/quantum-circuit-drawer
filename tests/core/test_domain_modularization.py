@@ -71,6 +71,10 @@ _ROOT_COMPATIBILITY_FACADE_TARGETS: tuple[tuple[str, str], ...] = (
 _ROOT_COMPATIBILITY_IMPORT_NAMES: tuple[str, ...] = tuple(
     module_name.rsplit(".", maxsplit=1)[-1] for module_name, _ in _ROOT_COMPATIBILITY_FACADE_TARGETS
 )
+_MANAGED_DRAWING_ALLOWED_IMPORTERS: tuple[str, ...] = (
+    "src/quantum_circuit_drawer/managed/__init__.py",
+    "src/quantum_circuit_drawer/managed/drawing.py",
+)
 
 
 def test_domain_packages_expose_draw_and_histogram_entrypoints() -> None:
@@ -139,6 +143,39 @@ def test_internal_modules_import_real_owners_not_root_compatibility_shims() -> N
                 elif isinstance(node, ast.ImportFrom) and node.module is not None:
                     if node.module in shim_module_names or node.module in shim_qualified_names:
                         violations.append(str(source_file.relative_to(repo_root)))
+
+    assert sorted(set(violations)) == []
+
+
+def test_managed_modules_import_owner_modules_not_managed_drawing_facade() -> None:
+    repo_root = next(
+        parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()
+    )
+    managed_root = repo_root / "src" / "quantum_circuit_drawer" / "managed"
+    allowed_importers = set(_MANAGED_DRAWING_ALLOWED_IMPORTERS)
+    managed_drawing_module_names = {
+        "drawing",
+        "quantum_circuit_drawer.managed.drawing",
+    }
+
+    violations: list[str] = []
+    for source_file in managed_root.rglob("*.py"):
+        relative_path = str(source_file.relative_to(repo_root)).replace("\\", "/")
+        if relative_path in allowed_importers:
+            continue
+        module = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
+        for node in ast.walk(module):
+            if isinstance(node, ast.Import):
+                imported_names = {alias.name for alias in node.names}
+                if imported_names & {"quantum_circuit_drawer.managed.drawing"}:
+                    violations.append(relative_path)
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                if (
+                    node.level == 1
+                    and node.module == "drawing"
+                    or node.module in managed_drawing_module_names
+                ):
+                    violations.append(relative_path)
 
     assert sorted(set(violations)) == []
 

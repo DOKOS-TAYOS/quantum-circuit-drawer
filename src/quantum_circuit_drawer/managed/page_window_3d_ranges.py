@@ -9,6 +9,7 @@ from ..ir.circuit import CircuitIR
 from ..layout._layering import normalized_draw_circuit
 from ..typing import LayoutEngine3DLike
 from .slider_3d import circuit_window
+from .viewport import page_window_adaptive_paged_scene
 
 if TYPE_CHECKING:
     from ..layout.scene_3d import LayoutScene3D
@@ -54,7 +55,6 @@ def windowed_3d_page_ranges(
 
     from ..layout.engine import LayoutEngine
     from ..renderers._matplotlib_figure import create_managed_figure
-    from .drawing import page_window_adaptive_paged_scene
 
     layout_engine_2d = LayoutEngine()
     initial_scene = layout_engine_2d.compute(pipeline.ir, pipeline.normalized_style)
