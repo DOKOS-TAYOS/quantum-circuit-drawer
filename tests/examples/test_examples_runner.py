@@ -501,6 +501,7 @@ def test_demo_catalog_exposes_only_the_refreshed_demo_ids() -> None:
     assert demo_ids == {
         "qiskit-random",
         "qiskit-qaoa",
+        "qiskit-2d-exploration-showcase",
         "qiskit-control-flow-showcase",
         "qiskit-composite-modes-showcase",
         "cirq-random",
@@ -582,9 +583,12 @@ def test_qiskit_composite_modes_showcase_build_circuit_avoids_qft_deprecation_wa
 def test_showcase_docs_reference_the_new_framework_demos() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     examples_readme = Path("examples/README.md").read_text(encoding="utf-8")
+    docs_index = Path("docs/index.md").read_text(encoding="utf-8")
     frameworks_guide = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    user_guide = Path("docs/user-guide.md").read_text(encoding="utf-8")
 
     for demo_id in (
+        "qiskit-2d-exploration-showcase",
         "qiskit-control-flow-showcase",
         "qiskit-composite-modes-showcase",
         "ir-basic-workflow",
@@ -596,9 +600,11 @@ def test_showcase_docs_reference_the_new_framework_demos() -> None:
         assert demo_id in examples_readme
 
     assert "Recommended demos" in readme
+    assert "qiskit-2d-exploration-showcase" in readme
     assert "qiskit-control-flow-showcase" in readme
     assert "qiskit-composite-modes-showcase" in readme
     assert "pennylane-terminal-outputs-showcase" in readme
+    assert "qiskit-2d-exploration-showcase" in docs_index
     assert "qiskit-control-flow-showcase" in frameworks_guide
     assert "qiskit-composite-modes-showcase" in frameworks_guide
     assert "ir-basic-workflow" in frameworks_guide
@@ -606,12 +612,16 @@ def test_showcase_docs_reference_the_new_framework_demos() -> None:
     assert "pennylane-terminal-outputs-showcase" in frameworks_guide
     assert "myqlm-structural-showcase" in frameworks_guide
     assert "cudaq-kernel-showcase" in frameworks_guide
+    assert "qiskit-2d-exploration-showcase" in user_guide
 
 
 def test_showcase_catalog_and_examples_readme_use_current_compatibility_language() -> None:
     examples_readme = Path("examples/README.md").read_text(encoding="utf-8")
     showcase_specs = catalog_by_id()
 
+    assert showcase_specs["qiskit-2d-exploration-showcase"].description == (
+        "Qiskit showcase for managed 2D exploration, active-wire filtering, and contextual block controls"
+    )
     assert showcase_specs["qiskit-control-flow-showcase"].description == (
         "Qiskit showcase for compact control-flow boxes and open controls"
     )
@@ -640,6 +650,8 @@ def test_showcase_catalog_and_examples_readme_use_current_compatibility_language
     assert "CircuitOperation provenance" in examples_readme
     assert "compact versus expanded composite instructions" in examples_readme
     assert "CircuitIR" in examples_readme
+    assert "Wires: All/Active" in examples_readme
+    assert "Ancillas: Show/Hide" in examples_readme
 
 
 def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
@@ -1046,3 +1058,32 @@ def test_qiskit_showcase_script_can_render_directly(sandbox_tmp_path: Path) -> N
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
     assert f"Saved qiskit-control-flow-showcase to {output_path}" in result.stdout
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_qiskit_2d_exploration_showcase_script_can_render_directly(
+    sandbox_tmp_path: Path,
+) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the direct showcase smoke test")
+
+    script_path = repo_root_for(Path(__file__)) / "examples" / "qiskit_2d_exploration_showcase.py"
+    output_path = sandbox_tmp_path / "qiskit-2d-exploration-showcase-direct.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved qiskit-2d-exploration-showcase to {output_path}" in result.stdout

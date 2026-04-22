@@ -10,6 +10,7 @@ The examples are organized around normal user workflows:
 
 | Demo | Why run it first | Platform |
 | --- | --- | --- |
+| `qiskit-2d-exploration-showcase` | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual block controls | Windows and Linux |
 | `qiskit-control-flow-showcase` | Native Qiskit control-flow boxes and open controls | Windows and Linux |
 | `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions | Windows and Linux |
 | `ir-basic-workflow` | Framework-free example built directly from `CircuitIR` | Windows and Linux |
@@ -48,6 +49,7 @@ If you want the same commands without opening any GUI window, append `--no-show`
 This block avoids CUDA-Q and the Cirq/PennyLane demos that are documented as less reliable on native Windows.
 
 ```powershell
+.\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
@@ -79,6 +81,7 @@ If you also have MyQLM installed, you can append:
 This block includes the full curated catalog.
 
 ```bash
+.venv/bin/python examples/qiskit_2d_exploration_showcase.py
 .venv/bin/python examples/ir_basic_workflow.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py
@@ -118,6 +121,7 @@ This block includes the full curated catalog.
 
 | Demo | Focus | Notes |
 | --- | --- | --- |
+| `qiskit-2d-exploration-showcase` | Managed 2D exploration, active-wire filtering, ancilla toggles, folded-wire markers, contextual collapse/expand | Best first demo for `pages_controls` and `slider` on a circuit with intentional idle wires and reusable composite structure |
 | `qiskit-control-flow-showcase` | Native `if_else`, `switch_case`, loops, open controls | Best first Qiskit demo |
 | `qiskit-composite-modes-showcase` | Composite instructions that are useful with `--composite-mode compact|expand` | Shows the difference between readable boxes and expanded structure, with compact versus expanded composite instructions on the same workflow |
 | `qiskit-random` | Broad stress test | Good for modes, hover, presets, and large layouts |
@@ -139,6 +143,7 @@ This block includes the full curated catalog.
 Windows PowerShell:
 
 ```powershell
+.\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_random.py
@@ -157,6 +162,7 @@ Windows PowerShell:
 Linux or WSL:
 
 ```bash
+.venv/bin/python examples/qiskit_2d_exploration_showcase.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py
 .venv/bin/python examples/qiskit_random.py
@@ -178,9 +184,13 @@ Linux or WSL:
 
 Use the broad Qiskit demos for option sweeps because they are the most reliable multiplatform path.
 
+When you specifically want the managed 2D controls, use `qiskit-2d-exploration-showcase` first and then widen out to `qiskit-random`.
+
 Windows PowerShell:
 
 ```powershell
+.\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py --mode pages_controls
+.\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py --mode slider --columns 9
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode auto
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls --hover-matrix always
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode slider --columns 28
@@ -193,6 +203,8 @@ Windows PowerShell:
 Linux or WSL:
 
 ```bash
+.venv/bin/python examples/qiskit_2d_exploration_showcase.py --mode pages_controls
+.venv/bin/python examples/qiskit_2d_exploration_showcase.py --mode slider --columns 9
 .venv/bin/python examples/qiskit_random.py --mode auto
 .venv/bin/python examples/qiskit_random.py --mode pages_controls --hover-matrix always
 .venv/bin/python examples/qiskit_random.py --mode slider --columns 28
@@ -325,6 +337,7 @@ The direct scripts are the clearest examples to copy from. The runners are still
 Windows PowerShell:
 
 ```powershell
+.\.venv\Scripts\python.exe examples\run_demo.py --demo qiskit-2d-exploration-showcase --mode slider --columns 9
 .\.venv\Scripts\python.exe examples\run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand
 .\.venv\Scripts\python.exe examples\run_histogram_demo.py --demo histogram-top-k --top-k 3
 .\.venv\Scripts\python.exe examples\run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc
@@ -333,6 +346,7 @@ Windows PowerShell:
 Linux or WSL:
 
 ```bash
+.venv/bin/python examples/run_demo.py --demo qiskit-2d-exploration-showcase --mode slider --columns 9
 .venv/bin/python examples/run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand
 .venv/bin/python examples/run_histogram_demo.py --demo histogram-top-k --top-k 3
 .venv/bin/python examples/run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc

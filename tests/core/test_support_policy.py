@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ _SUPPORT_MATRIX_PATHS: tuple[Path, ...] = (
     Path("docs/frameworks.md"),
     Path("docs/troubleshooting.md"),
 )
+_PUBLIC_DOC_PATHS: tuple[Path, ...] = (Path("README.md"), *tuple(sorted(Path("docs").glob("*.md"))))
 
 
 @pytest.mark.parametrize("path", _SUPPORT_MATRIX_PATHS)
@@ -43,6 +45,24 @@ def test_internal_packages_docstrings_mark_compatibility_only_facades() -> None:
         assert module_doc is not None
         assert "compatibility facade" in module_doc
         assert "not part of the stable public extension contract" in module_doc
+
+
+@pytest.mark.parametrize("path", _PUBLIC_DOC_PATHS)
+def test_public_docs_do_not_use_flat_drawconfig_shortcuts(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+
+    forbidden_patterns = (
+        r"DrawConfig\s*\(\s*mode\s*=",
+        r"DrawConfig\s*\(\s*view\s*=",
+        r"DrawConfig\s*\(\s*show\s*=",
+        r"DrawConfig\s*\(\s*hover\s*=",
+        r"DrawConfig\s*\(\s*topology_menu\s*=",
+    )
+
+    for pattern in forbidden_patterns:
+        assert re.search(pattern, text, flags=re.MULTILINE) is None, (
+            f"{path} still documents the old flat DrawConfig API via pattern: {pattern}"
+        )
 
 
 def test_api_and_extension_docs_freeze_internal_facades_outside_public_contract() -> None:

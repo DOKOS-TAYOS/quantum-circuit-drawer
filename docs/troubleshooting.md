@@ -185,6 +185,8 @@ Do not combine it with `ax=...`.
 
 If you want a 3D slider, keep the figure managed and use a narrower page width when needed.
 
+If you want a quick sanity check for the managed 2D path before debugging your own circuit, run `qiskit-2d-exploration-showcase` from the bundled examples.
+
 ## `view="3d"` Raises An Axes Error
 
 If you pass `ax=...` with `view="3d"`, the axes must already be a 3D Matplotlib axes.

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added `qiskit-2d-exploration-showcase`, a dedicated Qiskit demo for managed 2D exploration with active-wire filtering, ancilla toggles, folded-wire markers, and contextual block controls
 - Added contextual managed-2D circuit exploration for `slider` and `pages_controls`, including click selection, related-operation highlighting, semantic block collapse/expand, `Wires: All/Active`, `Ancillas: Show/Hide`, and folded-wire markers for hidden wire ranges
 - Added project-managed `pyright` support in the `dev` extra and CI so static type checking no longer depends on a globally installed tool
 - Added Windows-safe Cirq adapter contract tests based on stubbed circuits so optional adapter coverage still runs even when the real dependency is unavailable
@@ -22,6 +23,7 @@
 
 ### Changed
 
+- Refreshed the README, examples catalog, and core user docs so the nested public config API, showcase recommendations, and managed-2D exploration workflow are described consistently
 - Reworked the public configuration surface into nested typed blocks ordered by responsibility: `DrawConfig(side, output)`, `CircuitCompareConfig(shared, compare, output, per-side overrides)`, `HistogramConfig(data, view, appearance, output)`, and `HistogramCompareConfig(data, compare, output)`
 - Removed the old flat public config constructor style from docs, examples, and tests, and made `compare_circuits(...)` use one shared `config=` object without `left_config` / `right_config`
 - Unified public output handling around shared `OutputOptions(show, output_path, figsize)` across circuit drawing, circuit comparison, histogram plotting, and histogram comparison

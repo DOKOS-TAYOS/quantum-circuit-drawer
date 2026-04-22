@@ -2,6 +2,8 @@
 
 This page documents the current public API surface.
 
+For task-oriented guidance, prefer [Getting started](getting-started.md), [User guide](user-guide.md), [Recipes](recipes.md), and [Examples](../examples/README.md). This page stays reference-oriented on purpose.
+
 The public entry points stay intentionally small:
 
 - `draw_quantum_circuit(...)`
@@ -98,6 +100,8 @@ Important fields:
 - `output.figsize`: managed figure size in inches
 
 ### `DrawMode`
+
+For a guided managed-2D walkthrough, see `qiskit-2d-exploration-showcase` in [Examples](../examples/README.md).
 
 - `AUTO`
   - notebook: `pages`

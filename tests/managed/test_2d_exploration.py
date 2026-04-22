@@ -3,11 +3,14 @@ from __future__ import annotations
 from typing import cast
 
 import matplotlib.pyplot as plt
+import pytest
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 
 import quantum_circuit_drawer.managed.rendering as managed_module
+from quantum_circuit_drawer import DrawMode
+from quantum_circuit_drawer import draw_quantum_circuit as public_draw_quantum_circuit
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.operations import OperationKind
 from quantum_circuit_drawer.ir.semantic import (
@@ -29,6 +32,7 @@ from quantum_circuit_drawer.managed.page_window import Managed2DPageWindowState
 from quantum_circuit_drawer.managed.slider import Managed2DPageSliderState
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
+    get_hover_state,
     get_page_slider,
     get_page_window,
     set_page_slider,
@@ -41,6 +45,7 @@ from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRende
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import (
     build_dense_rotation_ir,
+    build_public_draw_config,
     build_wrapped_ir,
 )
 from tests.support import draw_quantum_circuit_legacy as draw_quantum_circuit
@@ -259,6 +264,38 @@ def test_page_window_click_selection_uses_visible_page_coordinates() -> None:
             and gate.visual_state is SceneVisualState.HIGHLIGHTED
             for gate in page_window.scene.gates
         )
+    finally:
+        plt.close(figure)
+
+
+def test_page_window_wire_filter_refresh_keeps_hover_connected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    result = public_draw_quantum_circuit(
+        build_wrapped_ir(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            style={"max_page_width": 4.0},
+            hover=True,
+            figsize=(4.0, 3.0),
+        ),
+    )
+
+    try:
+        figure = result.primary_figure
+        axes = result.primary_axes
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert get_hover_state(axes) is not None
+
+        page_window.toggle_wire_filter()
+
+        assert page_window.exploration is not None
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+        assert get_hover_state(axes) is not None
     finally:
         plt.close(figure)
 

@@ -104,6 +104,7 @@ Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`,
 
 Bundled demos:
 
+- `qiskit-2d-exploration-showcase` is the best first demo for managed 2D exploration, active-wire filtering, ancilla toggles, folded-wire markers, and contextual block controls on the strongest semantic adapter path.
 - `qiskit-control-flow-showcase` is the best first demo for compact native control-flow boxes and open controls.
 - `qiskit-composite-modes-showcase` is the best focused demo for compact versus expanded composite instructions.
 - `qiskit-random` and `qiskit-qaoa` are the broad stress-test demos when you want denser scenes or topology-aware 3D renders.

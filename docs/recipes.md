@@ -164,6 +164,8 @@ draw_quantum_circuit(
 )
 ```
 
+If you want the same mode wrapped around a circuit that already makes `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual `Collapse` / `Expand` easy to inspect, run `qiskit-2d-exploration-showcase` from [Examples](../examples/README.md).
+
 ### 3D slider
 
 ```python

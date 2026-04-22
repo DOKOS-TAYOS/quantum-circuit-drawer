@@ -57,6 +57,8 @@ Use this when you want a managed page browser:
 
 This is the best default for normal script execution.
 
+If you want a concrete showcase for those 2D controls, start with `qiskit-2d-exploration-showcase` from [Examples](../examples/README.md).
+
 #### `slider`
 
 Use this when the circuit is wide and you want a viewport instead of separate pages:
@@ -67,6 +69,8 @@ Use this when the circuit is wide and you want a viewport instead of separate pa
 Those exploration controls currently apply only to managed 2D figures. Static renders and 3D managed views keep their existing behavior.
 
 Selection and wire filtering work for plain `CircuitIR` too. Block collapse/expand depends on semantic provenance from the current adapter path, so it may stay disabled for narrower legacy inputs that do not expose enough block structure.
+
+`qiskit-2d-exploration-showcase` is the clearest bundled demo for this path because it combines idle wires, ancillas, and reusable composite blocks in one workflow.
 
 #### `full`
 

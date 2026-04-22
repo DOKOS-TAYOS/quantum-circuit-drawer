@@ -322,14 +322,26 @@ The most common choices are:
 Example:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
 
 result = draw_quantum_circuit(
     circuit,
     config=DrawConfig(
-        mode=DrawMode.PAGES_CONTROLS,
-        hover={"enabled": True, "show_size": True},
-        show=False,
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(mode=DrawMode.PAGES_CONTROLS),
+            appearance=CircuitAppearanceOptions(
+                hover={"enabled": True, "show_size": True},
+            ),
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -337,19 +349,32 @@ result = draw_quantum_circuit(
 For 3D:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
 
 result = draw_quantum_circuit(
     circuit,
     config=DrawConfig(
-        view="3d",
-        mode=DrawMode.PAGES_CONTROLS,
-        topology="grid",
-        topology_menu=True,
-        show=False,
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                view="3d",
+                mode=DrawMode.PAGES_CONTROLS,
+                topology="grid",
+                topology_menu=True,
+            ),
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
+
+If you want to see the managed 2D controls intentionally exercised instead of configuring them from scratch, start with `qiskit-2d-exploration-showcase`.
 
 ## Recommended Demos
 
@@ -357,6 +382,7 @@ The fastest way to see the current strengths of the library is to run one of the
 
 | Demo id | What it highlights |
 | --- | --- |
+| `qiskit-2d-exploration-showcase` | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual `Collapse` / `Expand` |
 | `qiskit-control-flow-showcase` | Compact Qiskit control-flow boxes plus open controls |
 | `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions on the same workflow |
 | `ir-basic-workflow` | Framework-free rendering from the public `CircuitIR` types |
@@ -369,6 +395,7 @@ The fastest way to see the current strengths of the library is to run one of the
 Windows PowerShell:
 
 ```powershell
+.\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
@@ -378,6 +405,7 @@ Windows PowerShell:
 Linux or WSL:
 
 ```bash
+.venv/bin/python examples/qiskit_2d_exploration_showcase.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand
 .venv/bin/python examples/ir_basic_workflow.py

@@ -170,6 +170,7 @@ def configure_page_window(
         replace_draw_style(scene.style, max_page_width=effective_page_width),
         hover_enabled=scene.hover.enabled,
     )
+    current_scene.hover = scene.hover
     total_pages = max(1, len(current_scene.pages))
     exploration = managed_exploration_state(
         current_semantic,
@@ -255,12 +256,14 @@ def _refresh_page_window_exploration_context(state: Managed2DPageWindowState) ->
 
     normalized_circuit = normalized_draw_circuit(transformed.circuit_ir)
     state.circuit = normalized_circuit
+    base_hover = state.base_scene.hover
     state.base_scene = compute_paged_scene(
         normalized_circuit,
         state.layout_engine,
         replace_draw_style(state.style, max_page_width=state.effective_page_width),
-        hover_enabled=state.base_scene.hover.enabled,
+        hover_enabled=base_hover.enabled,
     )
+    state.base_scene.hover = base_hover
     _restyle_page_window_scene(state)
     state.total_pages = max(1, len(state.scene.pages))
     state.start_page = _clamp_page_index(state.start_page + 1, state.total_pages)

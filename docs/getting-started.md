@@ -39,6 +39,8 @@ What happens by default:
 - `DrawMode.AUTO` resolves to `pages` in notebooks and `pages_controls` in normal scripts
 - the call returns `DrawResult` with the main figure, main axes, and any extra page figures
 
+If you want to see the managed 2D controls already set up around a circuit that makes them useful, run `qiskit-2d-exploration-showcase` from the bundled examples.
+
 ## Save Without Opening A Window
 
 This is the most common script workflow:
@@ -208,4 +210,4 @@ This is often the easiest way to generate small circuits in tests, docs, or prep
 - [Frameworks](frameworks.md): what changes across Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR.
 - [API reference](api.md): exact fields, enums, return types, and extension-facing modules.
 - [Recipes](recipes.md): copy-paste tasks for common usage patterns.
-- [Examples](../examples/README.md): runnable scripts that reflect normal user workflows.
+- [Examples](../examples/README.md): runnable scripts that reflect normal user workflows, including `qiskit-2d-exploration-showcase` for managed 2D exploration.
