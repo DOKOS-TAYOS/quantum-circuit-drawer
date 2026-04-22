@@ -198,6 +198,38 @@ def build_composite_myqlm_circuit() -> FakeMyQLMCircuit:
     )
 
 
+def build_ancilla_composite_myqlm_circuit() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "_oracle": FakeMyQLMGateDefinition(
+            name="_oracle",
+            arity=2,
+            syntax=FakeMyQLMSyntax(name="ORACLE"),
+            circuit_implementation=FakeMyQLMCircuitImplementation(
+                ops=(FakeMyQLMOp(gate=None, qbits=(0,)),),
+                ancillas=1,
+                nbqbits=2,
+            ),
+        ),
+    }
+    return FakeMyQLMCircuit(
+        ops=(FakeMyQLMOp(gate="_oracle", qbits=(0, 1)),),
+        gate_dic=gate_dic,
+        nbqbits=2,
+        nbcbits=0,
+        name="myqlm_ancilla_composite_demo",
+    )
+
+
+def build_remap_myqlm_circuit() -> FakeMyQLMCircuit:
+    return FakeMyQLMCircuit(
+        ops=(FakeMyQLMOp(type="REMAP", qbits=(0, 1), remap=(1, 0)),),
+        gate_dic={},
+        nbqbits=2,
+        nbcbits=0,
+        name="myqlm_remap_demo",
+    )
+
+
 @dataclass(slots=True)
 class FakeMyQLMParam:
     is_abstract: bool | None = None
@@ -412,6 +444,67 @@ def test_myqlm_adapter_emits_semantic_ir_for_composites_and_lowering(
     assert lowered_operation.metadata["semantic_provenance"]["composite_label"] == "QFT2"
 
 
+def test_myqlm_adapter_keeps_remap_as_compact_semantic_box(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic = adapter.to_semantic_ir(build_remap_myqlm_circuit())
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].name == "REMAP"
+    assert operations[0].target_wires == ("q0", "q1")
+    assert "remap: q0->q1, q1->q0" in operations[0].hover_details
+    assert operations[0].provenance.framework == "myqlm"
+    assert operations[0].provenance.native_name == "REMAP"
+    assert operations[0].provenance.native_kind == "remap"
+
+    lowered = lower_semantic_circuit(semantic)
+    lowered_operation = lowered.layers[0].operations[0]
+    assert lowered_operation.name == "REMAP"
+    assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == "remap"
+
+
+def test_myqlm_adapter_keeps_ancilla_composites_compact_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic = adapter.to_semantic_ir(build_ancilla_composite_myqlm_circuit())
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].name == "ORACLE"
+    assert operations[0].target_wires == ("q0", "q1")
+    assert "composite: ORACLE" in operations[0].hover_details
+    assert "ancillas: 1" in operations[0].hover_details
+    assert "arity: 2" in operations[0].hover_details
+    assert operations[0].provenance.native_kind == "composite"
+
+
+def test_myqlm_adapter_falls_back_to_compact_for_expand_requested_ancilla_composites(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter_type = load_myqlm_adapter_type()
+
+    ir = adapter_type().to_ir(
+        build_ancilla_composite_myqlm_circuit(),
+        options={"composite_mode": "expand"},
+    )
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(operations) == 1
+    assert operations[0].name == "ORACLE"
+    assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].metadata["semantic_provenance"]["native_kind"] == "composite"
+
+
 def test_myqlm_adapter_preserves_formula_classic_controls_in_semantic_ir(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -433,7 +526,7 @@ def test_myqlm_adapter_preserves_formula_classic_controls_in_semantic_ir(
     assert lowered_operation.classical_conditions[0].expression == "if c[0] && !c[1]"
 
 
-@pytest.mark.parametrize("operation_type", ["BREAK", "CLASSIC", "REMAP"])
+@pytest.mark.parametrize("operation_type", ["BREAK", "CLASSIC"])
 def test_myqlm_adapter_rejects_unsupported_operation_types(
     operation_type: str,
     monkeypatch: pytest.MonkeyPatch,

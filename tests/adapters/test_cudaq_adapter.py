@@ -188,6 +188,27 @@ module {{
 """.strip()
 
 
+def build_compact_named_operation_mlir(
+    op_name: str,
+    *,
+    symbol_names: tuple[str, ...],
+) -> str:
+    symbol_list = ", ".join(f"@{name}" for name in symbol_names)
+    return f"""
+module {{
+  func.func @__nvqpp__mlirgen__compact_{op_name}() attributes {{"cudaq-entrypoint"}} {{
+    %q = quake.alloca() : !quake.qvec<2>
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<2>, index) -> !quake.qref
+    %q1 = quake.extract_ref %q[%c1] : (!quake.qvec<2>, index) -> !quake.qref
+    quake.{op_name} {symbol_list} %q0, %q1 : (!quake.qref, !quake.qref) -> ()
+    return
+  }}
+}}
+""".strip()
+
+
 def build_parameterized_quake_mlir() -> str:
     return """
 module {
@@ -446,17 +467,53 @@ def test_cudaq_adapter_rejects_unsupported_quake_operations(
         adapter_type().to_ir(kernel)
 
 
-@pytest.mark.parametrize("op_name", ["apply", "adjoint", "compute_action"])
-def test_cudaq_adapter_rejects_named_operations_outside_supported_subset(
+@pytest.mark.parametrize(
+    ("op_name", "symbol_names", "expected_label", "expected_hover_detail"),
+    [
+        ("apply", ("oracle",), "APPLY", "callable: @oracle"),
+        ("adjoint", ("reflect",), "ADJOINT", "callable: @reflect"),
+        (
+            "compute_action",
+            ("compute_region", "action_region"),
+            "COMPUTE/ACTION",
+            "callables: @compute_region, @action_region",
+        ),
+    ],
+)
+def test_cudaq_adapter_keeps_named_operations_as_compact_semantic_boxes(
     op_name: str,
+    symbol_names: tuple[str, ...],
+    expected_label: str,
+    expected_hover_detail: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_cudaq(monkeypatch)
-    adapter_type = load_cudaq_adapter_type()
-    kernel = FakePyKernel(mlir=build_unsupported_named_operation_mlir(op_name))
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(
+        mlir=build_compact_named_operation_mlir(op_name, symbol_names=symbol_names)
+    )
 
-    with pytest.raises(UnsupportedOperationError, match=op_name):
-        adapter_type().to_ir(kernel)
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.GATE
+    assert operations[0].name == expected_label
+    assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].hover_details[0] == f"quake: {op_name}"
+    assert expected_hover_detail in operations[0].hover_details
+    assert "wires: q0, q1" in operations[0].hover_details
+    assert operations[0].provenance.framework == "cudaq"
+    assert operations[0].provenance.native_name == op_name
+    assert operations[0].provenance.native_kind == "composite"
+
+    lowered = lower_semantic_circuit(semantic)
+    lowered_operation = lowered.layers[0].operations[0]
+    assert lowered_operation.name == expected_label
+    assert lowered_operation.metadata["semantic_provenance"]["native_name"] == op_name
+    assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == "composite"
+    assert lowered_operation.metadata["hover_details"] == operations[0].hover_details
 
 
 def test_cudaq_adapter_rejects_control_flow_constructs(
@@ -525,4 +582,21 @@ def test_draw_quantum_circuit_accepts_cudaq_framework_override(
     assert axes.figure is figure
     assert_axes_contains_circuit_artists(axes, expected_texts={"H", "MZ", "q0", "q1", "q2"})
     assert any(text.startswith("RZ\n") for text in texts)
+    assert_figure_has_visible_content(figure)
+
+
+def test_draw_quantum_circuit_renders_cudaq_compact_named_operation_boxes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    kernel = FakePyKernel(
+        mlir=build_compact_named_operation_mlir("apply", symbol_names=("oracle",))
+    )
+
+    figure, axes = draw_quantum_circuit(kernel, framework="cudaq", show=False)
+    texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}
+
+    assert axes.figure is figure
+    assert_axes_contains_circuit_artists(axes, expected_texts={"APPLY", "q0", "q1"})
+    assert "H" not in texts
     assert_figure_has_visible_content(figure)

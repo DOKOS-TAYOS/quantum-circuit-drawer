@@ -41,7 +41,13 @@ _EXTRACT_RE = re.compile(
 _UNWRAP_RE = re.compile(r"^(?P<result>%[\w$.]+)\s*=\s*quake\.unwrap\s+(?P<source>%[\w$.]+).*$")
 _WRAP_RE = re.compile(r"^quake\.wrap\s+(?P<wire>%[\w$.]+)\s+to\s+(?P<target>%[\w$.]+).*$")
 _SSA_TOKEN_RE = re.compile(r"%[\w$.]+")
+_SYMBOL_TOKEN_RE = re.compile(r"@[\w$.]+")
 _NUMBER_TOKEN_RE = re.compile(r"[-+]?(?:\d+\.\d*|\d*\.\d+|\d+)(?:e[-+]?\d+)?")
+_COMPACT_COMPOSITE_LABELS: dict[str, str] = {
+    "apply": "APPLY",
+    "adjoint": "ADJOINT",
+    "compute_action": "COMPUTE/ACTION",
+}
 
 
 @dataclass(slots=True)
@@ -179,6 +185,16 @@ class CudaqQuakeParser:
             return list(self._build_measurements(op_name, operand_tokens, location=location))
         if op_name == "reset":
             return self._build_resets(operand_tokens, location=location)
+        if op_name in _COMPACT_COMPOSITE_LABELS:
+            return [
+                self._build_compact_callable_operation(
+                    op_name,
+                    controls=controls,
+                    operand_tokens=operand_tokens,
+                    raw_remainder=remainder,
+                    location=location,
+                )
+            ]
 
         target_wires = self._resolve_operand_wires(operand_tokens)
         if op_name == "swap":
@@ -253,12 +269,41 @@ class CudaqQuakeParser:
         match = re.match(r"^quake\.(?P<name>\w+)\s*(?P<rest>.*)$", body)
         if match is None:
             raise UnsupportedOperationError(f"unsupported CUDA-Q Quake statement: {body}")
-        op_name = match.group("name")
-        if op_name in {"apply", "compute_action", "adjoint"}:
-            raise UnsupportedOperationError(
-                f"CUDA-Q operation '{op_name}' is outside the supported v0.1 subset"
-            )
-        return op_name, match.group("rest").strip()
+        return match.group("name"), match.group("rest").strip()
+
+    def _build_compact_callable_operation(
+        self,
+        op_name: str,
+        *,
+        controls: Sequence[str],
+        operand_tokens: Sequence[str],
+        raw_remainder: str,
+        location: tuple[int, ...],
+    ) -> SemanticOperationIR:
+        target_wires = self._resolve_operand_wires((*controls, *operand_tokens))
+        callable_symbols = tuple(dict.fromkeys(_SYMBOL_TOKEN_RE.findall(raw_remainder)))
+        hover_details: list[str] = [f"quake: {op_name}"]
+        if callable_symbols:
+            if len(callable_symbols) == 1:
+                hover_details.append(f"callable: {callable_symbols[0]}")
+            else:
+                hover_details.append(f"callables: {', '.join(callable_symbols)}")
+        else:
+            hover_details.append(f"raw: {raw_remainder.strip()}")
+        hover_details.append(f"wires: {', '.join(target_wires)}")
+        return SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name=_COMPACT_COMPOSITE_LABELS[op_name],
+            label=_COMPACT_COMPOSITE_LABELS[op_name],
+            target_wires=target_wires,
+            hover_details=normalized_detail_lines(*hover_details),
+            provenance=semantic_provenance(
+                framework="cudaq",
+                native_name=op_name,
+                native_kind="composite",
+                location=location,
+            ),
+        )
 
     def _parse_controls(self, remainder: str) -> tuple[tuple[str, ...], str]:
         stripped = remainder.strip()
