@@ -6,10 +6,12 @@ from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 
 try:
     from examples._families import OperationSpec, build_random_columns
-    from examples._shared import ExampleRequest, run_example
+    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
 except ImportError:
     from _families import OperationSpec, build_random_columns
-    from _shared import ExampleRequest, run_example
+    from _shared import ExampleRequest, build_draw_config, parse_example_args
+
+from quantum_circuit_drawer import draw_quantum_circuit
 
 
 def build_circuit(request: ExampleRequest) -> QuantumCircuit:
@@ -57,15 +59,18 @@ def _angle(operation: OperationSpec) -> float:
 
 
 def main() -> None:
-    run_example(
-        build_circuit,
+    request = parse_example_args(
         description="Render a configurable random Qiskit circuit.",
-        framework="qiskit",
-        saved_label="Qiskit random demo",
         default_qubits=10,
         default_columns=18,
         columns_help="Random circuit columns to generate",
     )
+    draw_quantum_circuit(
+        build_circuit(request),
+        config=build_draw_config(request, framework="qiskit"),
+    )
+    if request.output is not None:
+        print(f"Saved qiskit-random to {request.output}")
 
 
 if __name__ == "__main__":

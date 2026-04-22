@@ -23,9 +23,12 @@ from quantum_circuit_drawer.config import DrawConfig, DrawMode  # noqa: E402
 from quantum_circuit_drawer.hover import HoverOptions  # noqa: E402
 
 ViewMode = Literal["2d", "3d"]
-RenderMode = Literal["pages", "pages_controls", "slider", "full"]
+RenderMode = Literal["auto", "pages", "pages_controls", "slider", "full"]
 TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
 HoverMatrixMode = Literal["never", "auto", "always"]
+StylePresetMode = Literal["paper", "notebook", "compact", "presentation"]
+CompositeMode = Literal["compact", "expand"]
+UnsupportedPolicyMode = Literal["raise", "placeholder"]
 
 SUPPORTED_TOPOLOGIES: tuple[TopologyMode, ...] = (
     "line",
@@ -54,6 +57,9 @@ class ExampleRequest:
     hover_matrix: HoverMatrixMode
     hover_matrix_max_qubits: int
     hover_show_size: bool
+    preset: StylePresetMode | None = None
+    composite_mode: CompositeMode = "compact"
+    unsupported_policy: UnsupportedPolicyMode = "raise"
 
 
 ExampleBuilder = Callable[[ExampleRequest], object]
@@ -89,11 +95,11 @@ def add_render_arguments(
     )
     parser.add_argument(
         "--mode",
-        choices=("pages", "pages_controls", "slider", "full"),
-        default="pages",
+        choices=("auto", "pages", "pages_controls", "slider", "full"),
+        default="auto",
         help=(
-            "Render page figures, a managed page viewer, a slider, or the full unpaged scene. "
-            "In 3D, pages_controls stacks the visible pages vertically."
+            "Render with the library default, page figures, a managed page viewer, a slider, "
+            "or the full unpaged scene. In 3D, pages_controls stacks the visible pages vertically."
         ),
     )
     parser.add_argument(
@@ -113,6 +119,23 @@ def add_render_arguments(
         type=int,
         default=default_seed,
         help="Seed used by the random demos.",
+    )
+    parser.add_argument(
+        "--preset",
+        choices=("paper", "notebook", "compact", "presentation"),
+        help="Optional style preset applied before the example-specific width tuning.",
+    )
+    parser.add_argument(
+        "--composite-mode",
+        choices=("compact", "expand"),
+        default="compact",
+        help="How supported composite instructions should be shown by the adapter.",
+    )
+    parser.add_argument(
+        "--unsupported-policy",
+        choices=("raise", "placeholder"),
+        default="raise",
+        help="How recoverable unsupported operations should be handled when a backend allows it.",
     )
     parser.add_argument(
         "--output",
@@ -238,6 +261,9 @@ def request_from_namespace(
         view=view,
         topology=topology,
         seed=_coerce_int(getattr(args, "seed", 7), "--seed"),
+        preset=_parse_preset_mode(getattr(args, "preset", None)),
+        composite_mode=_parse_composite_mode(getattr(args, "composite_mode", "compact")),
+        unsupported_policy=_parse_unsupported_policy(getattr(args, "unsupported_policy", "raise")),
         output=_normalize_output_path(getattr(args, "output", None)),
         show=bool(args.show),
         figsize=(figure_width, figure_height),
@@ -307,8 +333,8 @@ def _normalize_figsize(value: object) -> tuple[float, float]:
 
 def _parse_render_mode(value: object) -> RenderMode:
     mode = str(value)
-    if mode not in {"pages", "pages_controls", "slider", "full"}:
-        raise SystemExit("--mode must be one of: pages, pages_controls, slider, full.")
+    if mode not in {"auto", "pages", "pages_controls", "slider", "full"}:
+        raise SystemExit("--mode must be one of: auto, pages, pages_controls, slider, full.")
     return cast(RenderMode, mode)
 
 
@@ -332,6 +358,29 @@ def _parse_hover_matrix_mode(value: object) -> HoverMatrixMode:
     if hover_matrix not in {"never", "auto", "always"}:
         return "auto"
     return cast(HoverMatrixMode, hover_matrix)
+
+
+def _parse_preset_mode(value: object) -> StylePresetMode | None:
+    if value is None:
+        return None
+    preset = str(value)
+    if preset not in {"paper", "notebook", "compact", "presentation"}:
+        raise SystemExit("--preset must be one of: paper, notebook, compact, presentation.")
+    return cast(StylePresetMode, preset)
+
+
+def _parse_composite_mode(value: object) -> CompositeMode:
+    composite_mode = str(value)
+    if composite_mode not in {"compact", "expand"}:
+        raise SystemExit("--composite-mode must be one of: compact, expand.")
+    return cast(CompositeMode, composite_mode)
+
+
+def _parse_unsupported_policy(value: object) -> UnsupportedPolicyMode:
+    unsupported_policy = str(value)
+    if unsupported_policy not in {"raise", "placeholder"}:
+        raise SystemExit("--unsupported-policy must be one of: raise, placeholder.")
+    return cast(UnsupportedPolicyMode, unsupported_policy)
 
 
 def _coerce_int(value: object, option_name: str) -> int:
@@ -429,14 +478,17 @@ def build_draw_config(
         framework=framework,
         view=request.view,
         mode=DrawMode(request.mode),
+        composite_mode=request.composite_mode,
         topology=request.topology,
         topology_menu=request.view == "3d" and request.mode in {"pages_controls", "slider"},
         direct=False if request.view == "3d" else True,
         show=request.show,
         output_path=request.output,
         figsize=request.figsize,
+        preset=request.preset,
         style=demo_style(columns=request.columns),
         hover=demo_hover_options(request),
+        unsupported_policy=request.unsupported_policy,
     )
 
 

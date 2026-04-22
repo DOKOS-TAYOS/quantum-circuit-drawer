@@ -224,6 +224,8 @@ def test_histogram_demo_catalog_exposes_expected_demo_ids() -> None:
         "histogram-pennylane-probs",
         "histogram-quasi",
         "histogram-marginal",
+        "histogram-top-k",
+        "histogram-result-index",
     }
 
 
@@ -397,3 +399,28 @@ def test_histogram_examples_runner_can_render_optional_framework_demo(
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
     assert f"Saved {demo_id} to {output_path}" in result.stdout
+
+
+@pytest.mark.integration
+def test_histogram_top_k_script_can_render_directly(
+    sandbox_tmp_path: Path,
+) -> None:
+    script_path = repo_root_for(Path(__file__)) / "examples" / "histogram_top_k.py"
+    output_path = sandbox_tmp_path / "histogram-top-k-direct.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved histogram-top-k to {output_path}" in result.stdout

@@ -1,4 +1,4 @@
-"""Shared command-line entrypoint for histogram demos."""
+"""Shared command-line entrypoint for compare demos."""
 
 from __future__ import annotations
 
@@ -20,41 +20,37 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from examples._histogram_shared import (  # noqa: E402
-    DEFAULT_HISTOGRAM_FIGSIZE,
-    HistogramExampleRequest,
-    add_histogram_arguments,
-    render_histogram_example,
+from examples._compare_shared import (  # noqa: E402
+    DEFAULT_COMPARE_FIGSIZE,
+    CompareExampleRequest,
+    add_compare_arguments,
+    render_compare_example,
     request_from_namespace,
 )
-from examples.histogram_demo_catalog import (  # noqa: E402
-    HistogramDemoSpec,
+from examples.compare_demo_catalog import (  # noqa: E402
+    CompareDemoSpec,
     catalog_by_id,
     get_demo_catalog,
 )
 
 
 def parse_args() -> Namespace:
-    """Parse command-line arguments for the shared histogram demo runner."""
+    """Parse command-line arguments for the shared compare runner."""
 
     demo_ids = sorted(demo.demo_id for demo in get_demo_catalog())
-    parser = ArgumentParser(description="Run any bundled histogram demo.")
-    parser.add_argument(
-        "--demo",
-        choices=demo_ids,
-        help="Histogram demo id to execute.",
-    )
+    parser = ArgumentParser(description="Run any bundled compare demo.")
+    parser.add_argument("--demo", choices=demo_ids, help="Compare demo id to execute.")
     parser.add_argument(
         "--list",
         action="store_true",
-        help="Print the available histogram demo ids and exit.",
+        help="Print the available compare demo ids and exit.",
     )
-    add_histogram_arguments(parser)
+    add_compare_arguments(parser)
     return parser.parse_args()
 
 
-def load_demo_builder(spec: HistogramDemoSpec) -> Any:
-    """Load the configured builder callable for one histogram demo spec."""
+def load_demo_builder(spec: CompareDemoSpec) -> Any:
+    """Load the configured builder callable for one compare demo spec."""
 
     if spec.dependency_module is not None and find_spec(spec.dependency_module) is None:
         raise SystemExit(_missing_dependency_message(spec))
@@ -63,11 +59,11 @@ def load_demo_builder(spec: HistogramDemoSpec) -> Any:
     return getattr(module, spec.builder_name)
 
 
-def _missing_dependency_message(spec: HistogramDemoSpec) -> str:
+def _missing_dependency_message(spec: CompareDemoSpec) -> str:
     dependency = spec.dependency_module or "the optional framework dependency"
     extra_name = spec.extra_name or dependency
     return (
-        f"Histogram demo '{spec.demo_id}' needs optional dependency '{dependency}'.\n"
+        f"Compare demo '{spec.demo_id}' needs optional dependency '{dependency}'.\n"
         "Install it inside your .venv and run the demo again:\n"
         f'  .\\.venv\\Scripts\\python.exe -m pip install -e ".[{extra_name}]"\n'
         "Linux or WSL:\n"
@@ -76,46 +72,34 @@ def _missing_dependency_message(spec: HistogramDemoSpec) -> str:
 
 
 def list_demos() -> None:
-    """Print the available histogram demo ids."""
+    """Print the available compare demo ids."""
 
     for demo in get_demo_catalog():
         print(f"{demo.demo_id}: {demo.description}")
 
 
-def run_demo(spec: HistogramDemoSpec, *, output: Path | None, show: bool) -> None:
-    """Build and render one selected histogram demo."""
+def run_demo(spec: CompareDemoSpec, *, output: Path | None, show: bool) -> None:
+    """Build and render one selected compare demo."""
 
     builder = load_demo_builder(spec)
-    request = HistogramExampleRequest(
+    request = CompareExampleRequest(
         output=output,
         show=show,
-        figsize=DEFAULT_HISTOGRAM_FIGSIZE,
-        mode=None,
-        sort=None,
-        top_k=None,
-        qubits=None,
-        result_index=None,
-        data_key=None,
-        preset=None,
-        theme=None,
-        draw_style=None,
-        state_label_mode=None,
-        hover=None,
-        show_uniform_reference=None,
+        figsize=DEFAULT_COMPARE_FIGSIZE,
     )
-    render_histogram_example(
+    render_compare_example(
         builder(request),
         request=request,
         saved_label=spec.demo_id,
     )
 
 
-def run_demo_with_args(spec: HistogramDemoSpec, args: Namespace) -> None:
-    """Build and render one selected histogram demo using parsed CLI options."""
+def run_demo_with_args(spec: CompareDemoSpec, args: Namespace) -> None:
+    """Build and render one selected compare demo using parsed CLI options."""
 
     request = request_from_namespace(args)
     builder = load_demo_builder(spec)
-    render_histogram_example(
+    render_compare_example(
         builder(request),
         request=request,
         saved_label=spec.demo_id,
@@ -123,7 +107,7 @@ def run_demo_with_args(spec: HistogramDemoSpec, args: Namespace) -> None:
 
 
 def main() -> None:
-    """Run the shared histogram example entrypoint."""
+    """Run the shared compare demo entrypoint."""
 
     args = parse_args()
     if args.list:
@@ -131,7 +115,7 @@ def main() -> None:
         return
     if args.demo is None:
         raise SystemExit(
-            "Choose one histogram demo with --demo or use --list to inspect the catalog."
+            "Choose one compare demo with --demo or use --list to inspect the catalog."
         )
 
     spec = catalog_by_id()[args.demo]

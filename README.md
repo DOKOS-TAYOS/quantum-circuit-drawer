@@ -81,6 +81,8 @@ The fastest way to see the current strengths of the library is to run one of the
 | Demo id | What it highlights |
 | --- | --- |
 | `qiskit-control-flow-showcase` | Compact Qiskit control-flow boxes plus open controls |
+| `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions on the same workflow |
+| `ir-basic-workflow` | Framework-free rendering from the public `CircuitIR` types |
 | `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and CircuitOperation provenance |
 | `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
 | `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
@@ -89,16 +91,20 @@ The fastest way to see the current strengths of the library is to run one of the
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-control-flow-showcase --mode pages_controls
+.\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py --no-show
+.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand --no-show
+.\.venv\Scripts\python.exe examples\ir_basic_workflow.py --no-show
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/run_demo.py --demo qiskit-control-flow-showcase --mode pages_controls
+.venv/bin/python examples/qiskit_control_flow_showcase.py --no-show
+.venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand --no-show
+.venv/bin/python examples/ir_basic_workflow.py --no-show
 ```
 
-The full curated catalog, including histogram demos and per-framework recommendations, lives in [examples/README.md](examples/README.md).
+The full curated catalog, including direct script commands, histogram demos, compare demos, and per-framework recommendations, lives in [examples/README.md](examples/README.md).
 
 ## Histogram from counts
 

@@ -65,6 +65,18 @@ def get_demo_catalog() -> tuple[HistogramDemoSpec, ...]:
             builder_name="build_demo",
         ),
         HistogramDemoSpec(
+            demo_id="histogram-top-k",
+            description="Counts histogram focused on top-k ordering and filtering",
+            module_name="examples.histogram_top_k",
+            builder_name="build_demo",
+        ),
+        HistogramDemoSpec(
+            demo_id="histogram-result-index",
+            description="Select one histogram from a tuple of several result payloads",
+            module_name="examples.histogram_result_index",
+            builder_name="build_demo",
+        ),
+        HistogramDemoSpec(
             demo_id="histogram-marginal",
             description="Qiskit result histogram reduced to a joint marginal",
             module_name="examples.histogram_marginal",

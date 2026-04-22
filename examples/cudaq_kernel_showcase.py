@@ -5,9 +5,11 @@ from __future__ import annotations
 import cudaq
 
 try:
-    from examples._shared import ExampleRequest, run_example
+    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
 except ImportError:
-    from _shared import ExampleRequest, run_example
+    from _shared import ExampleRequest, build_draw_config, parse_example_args
+
+from quantum_circuit_drawer import draw_quantum_circuit
 
 
 def build_kernel(request: ExampleRequest) -> object:
@@ -37,15 +39,18 @@ def _motif_count(request: ExampleRequest) -> int:
 
 
 def main() -> None:
-    run_example(
-        build_kernel,
+    request = parse_example_args(
         description="Render a CUDA-Q showcase for the supported closed-kernel subset with reset and basis measurements.",
-        framework="cudaq",
-        saved_label="CUDA-Q kernel showcase",
         default_qubits=3,
         default_columns=4,
         columns_help="Extra phased steps to append inside the closed CUDA-Q kernel",
     )
+    draw_quantum_circuit(
+        build_kernel(request),
+        config=build_draw_config(request, framework="cudaq"),
+    )
+    if request.output is not None:
+        print(f"Saved cudaq-kernel-showcase to {request.output}")
 
 
 if __name__ == "__main__":

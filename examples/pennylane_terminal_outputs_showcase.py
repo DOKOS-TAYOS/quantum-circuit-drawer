@@ -8,9 +8,11 @@ from pennylane.ops import CNOT, RX, RY, Hadamard, PauliZ
 from pennylane.tape import QuantumTape
 
 try:
-    from examples._shared import ExampleRequest, run_example
+    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
 except ImportError:
-    from _shared import ExampleRequest, run_example
+    from _shared import ExampleRequest, build_draw_config, parse_example_args
+
+from quantum_circuit_drawer import draw_quantum_circuit
 
 
 def build_tape(request: ExampleRequest) -> QuantumTape:
@@ -42,15 +44,18 @@ def _motif_count(request: ExampleRequest) -> int:
 
 
 def main() -> None:
-    run_example(
-        build_tape,
+    request = parse_example_args(
         description="Render a PennyLane showcase with mid-measurement, qml.cond(...), and terminal-output boxes.",
-        framework="pennylane",
-        saved_label="PennyLane terminal outputs showcase",
         default_qubits=4,
         default_columns=3,
         columns_help="Extra rotation motifs to append before the terminal outputs",
     )
+    draw_quantum_circuit(
+        build_tape(request),
+        config=build_draw_config(request, framework="pennylane"),
+    )
+    if request.output is not None:
+        print(f"Saved pennylane-terminal-outputs-showcase to {request.output}")
 
 
 if __name__ == "__main__":

@@ -6,9 +6,11 @@ from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import XGate
 
 try:
-    from examples._shared import ExampleRequest, run_example
+    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
 except ImportError:
-    from _shared import ExampleRequest, run_example
+    from _shared import ExampleRequest, build_draw_config, parse_example_args
+
+from quantum_circuit_drawer import draw_quantum_circuit
 
 
 def build_circuit(request: ExampleRequest) -> QuantumCircuit:
@@ -62,15 +64,18 @@ def _loop_span(request: ExampleRequest) -> int:
 
 
 def main() -> None:
-    run_example(
-        build_circuit,
+    request = parse_example_args(
         description="Render a Qiskit control-flow showcase with compact native boxes and open controls.",
-        framework="qiskit",
-        saved_label="Qiskit control-flow showcase",
         default_qubits=5,
         default_columns=4,
         columns_help="Loop span to show in the compact Qiskit control-flow box",
     )
+    draw_quantum_circuit(
+        build_circuit(request),
+        config=build_draw_config(request, framework="qiskit"),
+    )
+    if request.output is not None:
+        print(f"Saved qiskit-control-flow-showcase to {request.output}")
 
 
 if __name__ == "__main__":

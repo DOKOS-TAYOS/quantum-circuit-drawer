@@ -24,13 +24,19 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
             "--columns",
             "24",
             "--mode",
-            "slider",
+            "auto",
             "--view",
             "2d",
             "--topology",
             "grid",
             "--seed",
             "13",
+            "--preset",
+            "presentation",
+            "--composite-mode",
+            "expand",
+            "--unsupported-policy",
+            "placeholder",
             "--output",
             "demo.png",
             "--figsize",
@@ -55,10 +61,13 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
     assert request == ExampleRequest(
         qubits=12,
         columns=24,
-        mode="slider",
+        mode="auto",
         view="2d",
         topology="grid",
         seed=13,
+        preset="presentation",
+        composite_mode="expand",
+        unsupported_policy="placeholder",
         output=Path("demo.png"),
         show=False,
         figsize=(9.0, 4.0),
@@ -67,6 +76,38 @@ def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) 
         hover_matrix_max_qubits=3,
         hover_show_size=True,
     )
+
+
+def test_build_draw_config_forwards_public_option_overrides() -> None:
+    from examples._shared import ExampleRequest, build_draw_config
+
+    from quantum_circuit_drawer import DrawMode, StylePreset, UnsupportedPolicy
+
+    request = ExampleRequest(
+        qubits=8,
+        columns=12,
+        mode="auto",
+        view="2d",
+        topology="line",
+        seed=7,
+        preset="compact",
+        composite_mode="expand",
+        unsupported_policy="placeholder",
+        output=None,
+        show=False,
+        figsize=(10.0, 5.5),
+        hover=True,
+        hover_matrix="auto",
+        hover_matrix_max_qubits=2,
+        hover_show_size=False,
+    )
+
+    config = build_draw_config(request, framework="qiskit")
+
+    assert config.mode is DrawMode.AUTO
+    assert config.preset is StylePreset.COMPACT
+    assert config.composite_mode == "expand"
+    assert config.unsupported_policy is UnsupportedPolicy.PLACEHOLDER
 
 
 def test_request_from_namespace_accepts_3d_slider() -> None:

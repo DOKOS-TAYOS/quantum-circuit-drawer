@@ -5,9 +5,11 @@ from __future__ import annotations
 from qat.lang.AQASM import CNOT, RX, H, Program, QRoutine
 
 try:
-    from examples._shared import ExampleRequest, run_example
+    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
 except ImportError:
-    from _shared import ExampleRequest, run_example
+    from _shared import ExampleRequest, build_draw_config, parse_example_args
+
+from quantum_circuit_drawer import draw_quantum_circuit
 
 
 def build_circuit(request: ExampleRequest) -> object:
@@ -43,15 +45,18 @@ def _motif_count(request: ExampleRequest) -> int:
 
 
 def main() -> None:
-    run_example(
-        build_circuit,
+    request = parse_example_args(
         description="Render a myQLM showcase centered on compact composite routines on the native adapter path.",
-        framework="myqlm",
-        saved_label="myQLM structural showcase",
         default_qubits=5,
         default_columns=3,
         columns_help="Composite routine applications to place across the myQLM circuit",
     )
+    draw_quantum_circuit(
+        build_circuit(request),
+        config=build_draw_config(request, framework="myqlm"),
+    )
+    if request.output is not None:
+        print(f"Saved myqlm-structural-showcase to {request.output}")
 
 
 if __name__ == "__main__":

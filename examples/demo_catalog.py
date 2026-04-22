@@ -65,6 +65,17 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             dependency_module="qiskit",
         ),
         DemoSpec(
+            demo_id="qiskit-composite-modes-showcase",
+            description="Qiskit showcase for compact versus expanded composite instructions",
+            module_name="examples.qiskit_composite_modes_showcase",
+            builder_name="build_circuit",
+            framework="qiskit",
+            default_qubits=5,
+            default_columns=4,
+            columns_help="Extra rotation motifs to append after the composite block",
+            dependency_module="qiskit",
+        ),
+        DemoSpec(
             demo_id="cirq-random",
             description="Configurable random Cirq circuit",
             module_name="examples.cirq_random",
@@ -173,6 +184,16 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             default_columns=4,
             columns_help="Extra phased steps to append inside the closed CUDA-Q kernel",
             dependency_module="cudaq",
+        ),
+        DemoSpec(
+            demo_id="ir-basic-workflow",
+            description="Framework-free workflow built directly from the public CircuitIR types",
+            module_name="examples.ir_basic_workflow",
+            builder_name="build_circuit",
+            framework="ir",
+            default_qubits=4,
+            default_columns=3,
+            columns_help="Extra phase motifs to add to the public IR circuit",
         ),
     )
 

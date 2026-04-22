@@ -99,6 +99,7 @@ For Qiskit control-flow, the drawer keeps the existing expanded behavior for sim
 Bundled demos:
 
 - `qiskit-control-flow-showcase` is the best first demo for compact native control-flow boxes and open controls.
+- `qiskit-composite-modes-showcase` is the best focused demo for compact versus expanded composite instructions.
 - `qiskit-random` and `qiskit-qaoa` are the broad stress-test demos when you want denser scenes or topology-aware 3D renders.
 
 Histogram support also accepts direct Qiskit result payloads such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`.
@@ -404,6 +405,10 @@ Useful IR rules:
 - Controlled operations can optionally set `control_values`; when omitted, controls default to the standard closed-on-`1` behavior.
 
 If you already built a `CircuitIR`, autodetection is enough. You can also pass `DrawConfig(framework="ir")` when you want the intent to be explicit.
+
+Bundled demo:
+
+- `ir-basic-workflow` is the best first demo for a framework-free workflow built directly from the public `CircuitIR` types.
 
 ## Choosing the IR path
 
