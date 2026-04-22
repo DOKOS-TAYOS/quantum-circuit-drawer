@@ -203,6 +203,7 @@ def render_managed_draw_pipeline(
             initial_scene=scene_2d,
             visible_page_count=1,
         )
+        initial_scene.hover = scene_2d.hover
         frozen_style = _freeze_default_line_width_for_scene(
             style=initial_scene.style,
             scene=initial_scene,

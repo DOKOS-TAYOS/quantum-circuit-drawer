@@ -61,7 +61,7 @@ def build_circuit(request: ExampleRequest) -> CircuitIR:
                         kind=OperationKind.GATE,
                         name="RZ",
                         target_wires=[f"q{target_wire}"],
-                        params=(0.2 * float(step + 1),),
+                        parameters=(0.2 * float(step + 1),),
                     )
                 ]
             )

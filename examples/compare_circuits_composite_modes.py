@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import QFT
+from qiskit.synthesis.qft import synth_qft_full
 
 try:
     from examples._compare_shared import (
@@ -46,7 +46,7 @@ def build_workflow_circuit() -> QuantumCircuit:
     circuit = QuantumCircuit(4, 4, name="composite_modes_source")
     circuit.h(0)
     circuit.cx(0, 1)
-    circuit.append(QFT(3).decompose(reps=1).to_instruction(label="QFT3"), [0, 1, 2])
+    circuit.append(synth_qft_full(3).to_instruction(label="QFT3"), [0, 1, 2])
     circuit.cz(2, 3)
     circuit.measure(range(4), range(4))
     return circuit

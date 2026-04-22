@@ -333,19 +333,19 @@ The fastest way to see the current strengths of the library is to run one of the
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand --no-show
-.\.venv\Scripts\python.exe examples\ir_basic_workflow.py --no-show
-.\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py --no-show
+.\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand
+.\.venv\Scripts\python.exe examples\ir_basic_workflow.py
+.\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/qiskit_control_flow_showcase.py --no-show
-.venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand --no-show
-.venv/bin/python examples/ir_basic_workflow.py --no-show
-.venv/bin/python examples/compare_histograms_ideal_vs_sampled.py --no-show
+.venv/bin/python examples/qiskit_control_flow_showcase.py
+.venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand
+.venv/bin/python examples/ir_basic_workflow.py
+.venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
 ```
 
 The full curated catalog, including direct script commands, histogram demos, compare demos, and per-framework recommendations, lives in [examples/README.md](examples/README.md).

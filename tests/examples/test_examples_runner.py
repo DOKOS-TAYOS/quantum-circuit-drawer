@@ -4,12 +4,14 @@ import importlib
 import os
 import subprocess
 import sys
+import warnings
 from argparse import Namespace
 from importlib.util import find_spec
 from pathlib import Path
 from types import SimpleNamespace
 
 import examples._shared as shared_module
+import examples.ir_basic_workflow as ir_basic_workflow_module
 import examples.run_demo as run_demo_module
 import matplotlib.pyplot as plt
 import pytest
@@ -18,7 +20,7 @@ from examples.demo_catalog import DemoSpec, catalog_by_id, examples_directory, g
 from matplotlib.figure import Figure
 
 from tests.paths import external_workspace_root_for, repo_root_for
-from tests.support import assert_saved_image_has_visible_content
+from tests.support import assert_saved_image_has_visible_content, flatten_operations
 
 
 def test_demo_catalog_entries_are_unique_and_reference_existing_example_files() -> None:
@@ -513,6 +515,68 @@ def test_demo_catalog_exposes_only_the_refreshed_demo_ids() -> None:
         "cudaq-kernel-showcase",
         "ir-basic-workflow",
     }
+
+
+def test_ir_basic_workflow_builder_populates_rotation_parameters() -> None:
+    circuit = ir_basic_workflow_module.build_circuit(
+        ExampleRequest(
+            qubits=4,
+            columns=3,
+            mode="auto",
+            view="2d",
+            topology="line",
+            seed=7,
+            output=None,
+            show=False,
+            figsize=(10.0, 5.5),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        )
+    )
+
+    rotation_parameters = [
+        tuple(operation.parameters)
+        for operation in flatten_operations(circuit)
+        if operation.name == "RZ"
+    ]
+
+    assert rotation_parameters == [(0.2,), (0.4,), (0.6000000000000001,)]
+
+
+def test_qiskit_composite_modes_showcase_build_circuit_avoids_qft_deprecation_warning() -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the QFT deprecation regression test")
+
+    module = importlib.import_module("examples.qiskit_composite_modes_showcase")
+
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always", DeprecationWarning)
+        circuit = module.build_circuit(
+            ExampleRequest(
+                qubits=5,
+                columns=4,
+                mode="auto",
+                view="2d",
+                topology="line",
+                seed=7,
+                output=None,
+                show=False,
+                figsize=(10.0, 5.5),
+                hover=True,
+                hover_matrix="auto",
+                hover_matrix_max_qubits=2,
+                hover_show_size=False,
+            )
+        )
+
+    assert circuit.num_qubits == 5
+    assert not [
+        warning
+        for warning in caught_warnings
+        if issubclass(warning.category, DeprecationWarning) and "QFT" in str(warning.message)
+    ]
 
 
 def test_showcase_docs_reference_the_new_framework_demos() -> None:

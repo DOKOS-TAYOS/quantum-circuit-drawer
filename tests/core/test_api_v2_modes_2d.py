@@ -7,6 +7,7 @@ from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
 from quantum_circuit_drawer.drawing.pages import single_page_scenes
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
+    get_hover_state,
     get_page_slider,
     get_page_window,
 )
@@ -129,6 +130,29 @@ def test_draw_quantum_circuit_pages_mode_on_existing_axes_keeps_single_axes_resu
     assert result.page_count > 1
 
     plt.close(figure)
+
+
+def test_draw_quantum_circuit_pages_controls_keeps_hover_connected_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    result = draw_quantum_circuit(
+        build_wrapped_ir(),
+        config=DrawConfig(
+            mode=DrawMode.PAGES_CONTROLS,
+            style={"max_page_width": 4.0},
+            hover=True,
+        ),
+    )
+
+    assert result.mode is DrawMode.PAGES_CONTROLS
+    assert result.hover_enabled is True
+    assert get_page_window(result.primary_figure) is not None
+    assert get_hover_state(result.primary_axes) is not None
+
+    plt.close(result.primary_figure)
 
 
 def test_draw_quantum_circuit_full_mode_avoids_wrapping_in_2d() -> None:

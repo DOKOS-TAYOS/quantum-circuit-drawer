@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib
 import subprocess
 import sys
+import warnings
 from argparse import Namespace
 from pathlib import Path
 
@@ -131,6 +133,36 @@ def test_compare_demo_catalog_exposes_expected_demo_ids() -> None:
         "compare-circuits-composite-modes",
         "compare-histograms-ideal-vs-sampled",
     }
+
+
+def test_compare_composite_modes_builder_avoids_qft_deprecation_warning() -> None:
+    if run_compare_demo_module.find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the QFT deprecation regression test")
+
+    module = importlib.import_module("examples.compare_circuits_composite_modes")
+
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always", DeprecationWarning)
+        payload = module.build_demo(
+            CompareExampleRequest(
+                left_label=None,
+                right_label=None,
+                highlight_differences=None,
+                show_summary=None,
+                sort=None,
+                top_k=None,
+                output=None,
+                show=False,
+                figsize=(11.0, 5.6),
+            )
+        )
+
+    assert payload.compare_kind == "circuits"
+    assert not [
+        warning
+        for warning in caught_warnings
+        if issubclass(warning.category, DeprecationWarning) and "QFT" in str(warning.message)
+    ]
 
 
 def test_compare_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:

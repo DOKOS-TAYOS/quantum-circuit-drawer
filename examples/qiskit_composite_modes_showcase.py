@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import QFT
+from qiskit.synthesis.qft import synth_qft_full
 
 try:
     from examples._shared import (
@@ -21,10 +21,11 @@ def build_circuit(request: ExampleRequest) -> QuantumCircuit:
     """Build a Qiskit circuit with a reusable composite block."""
 
     qubit_count = max(4, request.qubits)
+    qft_width = min(3, qubit_count)
     circuit = QuantumCircuit(qubit_count, qubit_count, name="qiskit_composite_modes_showcase")
     circuit.h(0)
     circuit.cx(0, 1)
-    circuit.append(QFT(min(3, qubit_count)).to_instruction(label="QFT"), range(min(3, qubit_count)))
+    circuit.append(synth_qft_full(qft_width).to_instruction(label="QFT"), range(qft_width))
     for step in range(_motif_count(request, qubit_count)):
         target = 1 + (step % max(1, qubit_count - 1))
         circuit.ry(0.14 * float(step + 1), target)

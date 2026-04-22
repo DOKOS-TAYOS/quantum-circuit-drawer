@@ -41,35 +41,37 @@ Linux or WSL:
 
 These blocks are meant to be safe copy-paste starting points.
 
+If you want the same commands without opening any GUI window, append `--no-show`.
+
 ### Windows Native
 
 This block avoids CUDA-Q and the Cirq/PennyLane demos that are documented as less reliable on native Windows.
 
 ```powershell
-.\.venv\Scripts\python.exe examples\ir_basic_workflow.py --no-show
-.\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls --no-show
-.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology grid --mode pages_controls --no-show
-.\.venv\Scripts\python.exe examples\compare_circuits_qiskit_transpile.py --no-show
-.\.venv\Scripts\python.exe examples\compare_circuits_composite_modes.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_binary_order.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_count_order.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_interactive_large.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_multi_register.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_uniform_reference.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_quasi.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_top_k.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_result_index.py --no-show
-.\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py --no-show
+.\.venv\Scripts\python.exe examples\ir_basic_workflow.py
+.\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls
+.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
+.\.venv\Scripts\python.exe examples\compare_circuits_qiskit_transpile.py
+.\.venv\Scripts\python.exe examples\compare_circuits_composite_modes.py
+.\.venv\Scripts\python.exe examples\histogram_binary_order.py
+.\.venv\Scripts\python.exe examples\histogram_count_order.py
+.\.venv\Scripts\python.exe examples\histogram_interactive_large.py
+.\.venv\Scripts\python.exe examples\histogram_multi_register.py
+.\.venv\Scripts\python.exe examples\histogram_uniform_reference.py
+.\.venv\Scripts\python.exe examples\histogram_quasi.py
+.\.venv\Scripts\python.exe examples\histogram_top_k.py
+.\.venv\Scripts\python.exe examples\histogram_result_index.py
+.\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
 ```
 
 If you also have MyQLM installed, you can append:
 
 ```powershell
-.\.venv\Scripts\python.exe examples\myqlm_structural_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\myqlm_random.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_myqlm_result.py --no-show
+.\.venv\Scripts\python.exe examples\myqlm_structural_showcase.py
+.\.venv\Scripts\python.exe examples\myqlm_random.py
+.\.venv\Scripts\python.exe examples\histogram_myqlm_result.py
 ```
 
 ### Linux Or WSL
@@ -77,37 +79,37 @@ If you also have MyQLM installed, you can append:
 This block includes the full curated catalog.
 
 ```bash
-.venv/bin/python examples/ir_basic_workflow.py --no-show
-.venv/bin/python examples/qiskit_control_flow_showcase.py --no-show
-.venv/bin/python examples/qiskit_composite_modes_showcase.py --no-show
-.venv/bin/python examples/qiskit_random.py --mode pages_controls --no-show
-.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology grid --mode pages_controls --no-show
-.venv/bin/python examples/cirq_native_controls_showcase.py --no-show
-.venv/bin/python examples/cirq_random.py --no-show
-.venv/bin/python examples/cirq_qaoa.py --no-show
-.venv/bin/python examples/pennylane_terminal_outputs_showcase.py --no-show
-.venv/bin/python examples/pennylane_random.py --no-show
-.venv/bin/python examples/pennylane_qaoa.py --no-show
-.venv/bin/python examples/myqlm_structural_showcase.py --no-show
-.venv/bin/python examples/myqlm_random.py --no-show
-.venv/bin/python examples/cudaq_kernel_showcase.py --no-show
-.venv/bin/python examples/cudaq_random.py --no-show
-.venv/bin/python examples/compare_circuits_qiskit_transpile.py --no-show
-.venv/bin/python examples/compare_circuits_composite_modes.py --no-show
-.venv/bin/python examples/histogram_binary_order.py --no-show
-.venv/bin/python examples/histogram_count_order.py --no-show
-.venv/bin/python examples/histogram_interactive_large.py --no-show
-.venv/bin/python examples/histogram_multi_register.py --no-show
-.venv/bin/python examples/histogram_uniform_reference.py --no-show
-.venv/bin/python examples/histogram_quasi.py --no-show
-.venv/bin/python examples/histogram_top_k.py --no-show
-.venv/bin/python examples/histogram_result_index.py --no-show
-.venv/bin/python examples/histogram_marginal.py --no-show
-.venv/bin/python examples/histogram_cirq_result.py --no-show
-.venv/bin/python examples/histogram_pennylane_probs.py --no-show
-.venv/bin/python examples/histogram_myqlm_result.py --no-show
-.venv/bin/python examples/histogram_cudaq_sample.py --no-show
-.venv/bin/python examples/compare_histograms_ideal_vs_sampled.py --no-show
+.venv/bin/python examples/ir_basic_workflow.py
+.venv/bin/python examples/qiskit_control_flow_showcase.py
+.venv/bin/python examples/qiskit_composite_modes_showcase.py
+.venv/bin/python examples/qiskit_random.py --mode pages_controls
+.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
+.venv/bin/python examples/cirq_native_controls_showcase.py
+.venv/bin/python examples/cirq_random.py
+.venv/bin/python examples/cirq_qaoa.py
+.venv/bin/python examples/pennylane_terminal_outputs_showcase.py
+.venv/bin/python examples/pennylane_random.py
+.venv/bin/python examples/pennylane_qaoa.py
+.venv/bin/python examples/myqlm_structural_showcase.py
+.venv/bin/python examples/myqlm_random.py
+.venv/bin/python examples/cudaq_kernel_showcase.py
+.venv/bin/python examples/cudaq_random.py
+.venv/bin/python examples/compare_circuits_qiskit_transpile.py
+.venv/bin/python examples/compare_circuits_composite_modes.py
+.venv/bin/python examples/histogram_binary_order.py
+.venv/bin/python examples/histogram_count_order.py
+.venv/bin/python examples/histogram_interactive_large.py
+.venv/bin/python examples/histogram_multi_register.py
+.venv/bin/python examples/histogram_uniform_reference.py
+.venv/bin/python examples/histogram_quasi.py
+.venv/bin/python examples/histogram_top_k.py
+.venv/bin/python examples/histogram_result_index.py
+.venv/bin/python examples/histogram_marginal.py
+.venv/bin/python examples/histogram_cirq_result.py
+.venv/bin/python examples/histogram_pennylane_probs.py
+.venv/bin/python examples/histogram_myqlm_result.py
+.venv/bin/python examples/histogram_cudaq_sample.py
+.venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
 ```
 
 ## Circuit Workflows
@@ -137,39 +139,39 @@ This block includes the full curated catalog.
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\qiskit_random.py --no-show
-.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --no-show
-.\.venv\Scripts\python.exe examples\ir_basic_workflow.py --no-show
-.\.venv\Scripts\python.exe examples\cirq_native_controls_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\cirq_random.py --no-show
-.\.venv\Scripts\python.exe examples\cirq_qaoa.py --no-show
-.\.venv\Scripts\python.exe examples\pennylane_terminal_outputs_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\pennylane_random.py --no-show
-.\.venv\Scripts\python.exe examples\pennylane_qaoa.py --no-show
-.\.venv\Scripts\python.exe examples\myqlm_structural_showcase.py --no-show
-.\.venv\Scripts\python.exe examples\myqlm_random.py --no-show
+.\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_random.py
+.\.venv\Scripts\python.exe examples\qiskit_qaoa.py
+.\.venv\Scripts\python.exe examples\ir_basic_workflow.py
+.\.venv\Scripts\python.exe examples\cirq_native_controls_showcase.py
+.\.venv\Scripts\python.exe examples\cirq_random.py
+.\.venv\Scripts\python.exe examples\cirq_qaoa.py
+.\.venv\Scripts\python.exe examples\pennylane_terminal_outputs_showcase.py
+.\.venv\Scripts\python.exe examples\pennylane_random.py
+.\.venv\Scripts\python.exe examples\pennylane_qaoa.py
+.\.venv\Scripts\python.exe examples\myqlm_structural_showcase.py
+.\.venv\Scripts\python.exe examples\myqlm_random.py
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/qiskit_control_flow_showcase.py --no-show
-.venv/bin/python examples/qiskit_composite_modes_showcase.py --no-show
-.venv/bin/python examples/qiskit_random.py --no-show
-.venv/bin/python examples/qiskit_qaoa.py --no-show
-.venv/bin/python examples/ir_basic_workflow.py --no-show
-.venv/bin/python examples/cirq_native_controls_showcase.py --no-show
-.venv/bin/python examples/cirq_random.py --no-show
-.venv/bin/python examples/cirq_qaoa.py --no-show
-.venv/bin/python examples/pennylane_terminal_outputs_showcase.py --no-show
-.venv/bin/python examples/pennylane_random.py --no-show
-.venv/bin/python examples/pennylane_qaoa.py --no-show
-.venv/bin/python examples/myqlm_structural_showcase.py --no-show
-.venv/bin/python examples/myqlm_random.py --no-show
-.venv/bin/python examples/cudaq_kernel_showcase.py --no-show
-.venv/bin/python examples/cudaq_random.py --no-show
+.venv/bin/python examples/qiskit_control_flow_showcase.py
+.venv/bin/python examples/qiskit_composite_modes_showcase.py
+.venv/bin/python examples/qiskit_random.py
+.venv/bin/python examples/qiskit_qaoa.py
+.venv/bin/python examples/ir_basic_workflow.py
+.venv/bin/python examples/cirq_native_controls_showcase.py
+.venv/bin/python examples/cirq_random.py
+.venv/bin/python examples/cirq_qaoa.py
+.venv/bin/python examples/pennylane_terminal_outputs_showcase.py
+.venv/bin/python examples/pennylane_random.py
+.venv/bin/python examples/pennylane_qaoa.py
+.venv/bin/python examples/myqlm_structural_showcase.py
+.venv/bin/python examples/myqlm_random.py
+.venv/bin/python examples/cudaq_kernel_showcase.py
+.venv/bin/python examples/cudaq_random.py
 ```
 
 ## I Want To See Modes And Options
@@ -179,25 +181,25 @@ Use the broad Qiskit demos for option sweeps because they are the most reliable 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples\qiskit_random.py --mode auto --no-show
-.\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls --hover-matrix always --no-show
-.\.venv\Scripts\python.exe examples\qiskit_random.py --mode slider --columns 28 --no-show
-.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology grid --mode pages_controls --no-show
-.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 53 --no-show
-.\.venv\Scripts\python.exe examples\qiskit_random.py --preset presentation --no-show
-.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand --no-show
+.\.venv\Scripts\python.exe examples\qiskit_random.py --mode auto
+.\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls --hover-matrix always
+.\.venv\Scripts\python.exe examples\qiskit_random.py --mode slider --columns 28
+.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
+.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 53
+.\.venv\Scripts\python.exe examples\qiskit_random.py --preset presentation
+.\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/qiskit_random.py --mode auto --no-show
-.venv/bin/python examples/qiskit_random.py --mode pages_controls --hover-matrix always --no-show
-.venv/bin/python examples/qiskit_random.py --mode slider --columns 28 --no-show
-.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology grid --mode pages_controls --no-show
-.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 53 --no-show
-.venv/bin/python examples/qiskit_random.py --preset presentation --no-show
-.venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand --no-show
+.venv/bin/python examples/qiskit_random.py --mode auto
+.venv/bin/python examples/qiskit_random.py --mode pages_controls --hover-matrix always
+.venv/bin/python examples/qiskit_random.py --mode slider --columns 28
+.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
+.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 53
+.venv/bin/python examples/qiskit_random.py --preset presentation
+.venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand
 ```
 
 Useful circuit flags:
@@ -235,33 +237,33 @@ Useful circuit flags:
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples\histogram_binary_order.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_count_order.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_interactive_large.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_multi_register.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_uniform_reference.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_quasi.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_top_k.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_result_index.py --no-show
-.\.venv\Scripts\python.exe examples\histogram_marginal.py --no-show
+.\.venv\Scripts\python.exe examples\histogram_binary_order.py
+.\.venv\Scripts\python.exe examples\histogram_count_order.py
+.\.venv\Scripts\python.exe examples\histogram_interactive_large.py
+.\.venv\Scripts\python.exe examples\histogram_multi_register.py
+.\.venv\Scripts\python.exe examples\histogram_uniform_reference.py
+.\.venv\Scripts\python.exe examples\histogram_quasi.py
+.\.venv\Scripts\python.exe examples\histogram_top_k.py
+.\.venv\Scripts\python.exe examples\histogram_result_index.py
+.\.venv\Scripts\python.exe examples\histogram_marginal.py
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/histogram_binary_order.py --no-show
-.venv/bin/python examples/histogram_count_order.py --no-show
-.venv/bin/python examples/histogram_interactive_large.py --no-show
-.venv/bin/python examples/histogram_multi_register.py --no-show
-.venv/bin/python examples/histogram_uniform_reference.py --no-show
-.venv/bin/python examples/histogram_quasi.py --no-show
-.venv/bin/python examples/histogram_top_k.py --no-show
-.venv/bin/python examples/histogram_result_index.py --no-show
-.venv/bin/python examples/histogram_marginal.py --no-show
-.venv/bin/python examples/histogram_cirq_result.py --no-show
-.venv/bin/python examples/histogram_pennylane_probs.py --no-show
-.venv/bin/python examples/histogram_myqlm_result.py --no-show
-.venv/bin/python examples/histogram_cudaq_sample.py --no-show
+.venv/bin/python examples/histogram_binary_order.py
+.venv/bin/python examples/histogram_count_order.py
+.venv/bin/python examples/histogram_interactive_large.py
+.venv/bin/python examples/histogram_multi_register.py
+.venv/bin/python examples/histogram_uniform_reference.py
+.venv/bin/python examples/histogram_quasi.py
+.venv/bin/python examples/histogram_top_k.py
+.venv/bin/python examples/histogram_result_index.py
+.venv/bin/python examples/histogram_marginal.py
+.venv/bin/python examples/histogram_cirq_result.py
+.venv/bin/python examples/histogram_pennylane_probs.py
+.venv/bin/python examples/histogram_myqlm_result.py
+.venv/bin/python examples/histogram_cudaq_sample.py
 ```
 
 Useful histogram flags:
@@ -294,17 +296,17 @@ Useful histogram flags:
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples\compare_circuits_qiskit_transpile.py --no-show
-.\.venv\Scripts\python.exe examples\compare_circuits_composite_modes.py --no-show
-.\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py --no-show
+.\.venv\Scripts\python.exe examples\compare_circuits_qiskit_transpile.py
+.\.venv\Scripts\python.exe examples\compare_circuits_composite_modes.py
+.\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/compare_circuits_qiskit_transpile.py --no-show
-.venv/bin/python examples/compare_circuits_composite_modes.py --no-show
-.venv/bin/python examples/compare_histograms_ideal_vs_sampled.py --no-show
+.venv/bin/python examples/compare_circuits_qiskit_transpile.py
+.venv/bin/python examples/compare_circuits_composite_modes.py
+.venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
 ```
 
 Useful compare flags:
@@ -323,15 +325,15 @@ The direct scripts are the clearest examples to copy from. The runners are still
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe examples\run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand --no-show
-.\.venv\Scripts\python.exe examples\run_histogram_demo.py --demo histogram-top-k --top-k 3 --no-show
-.\.venv\Scripts\python.exe examples\run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc --no-show
+.\.venv\Scripts\python.exe examples\run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand
+.\.venv\Scripts\python.exe examples\run_histogram_demo.py --demo histogram-top-k --top-k 3
+.\.venv\Scripts\python.exe examples\run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python examples/run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand --no-show
-.venv/bin/python examples/run_histogram_demo.py --demo histogram-top-k --top-k 3 --no-show
-.venv/bin/python examples/run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc --no-show
+.venv/bin/python examples/run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-top-k --top-k 3
+.venv/bin/python examples/run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc
 ```
