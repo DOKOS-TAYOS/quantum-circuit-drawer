@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Protocol, cast
@@ -54,6 +55,7 @@ def _build_operation_type_map() -> dict[int, str]:
 
 
 _OPERATION_TYPE_BY_INT = _build_operation_type_map()
+_CLASSICAL_BIT_REFERENCE_PATTERN = re.compile(r"c\[(\d+)\]")
 
 
 def _unsupported_policy_from_options(options: Mapping[str, object] | None) -> UnsupportedPolicy:
@@ -292,8 +294,13 @@ class MyQLMAdapter(BaseAdapter):
                     composite_label=composite_label,
                 )
             if operation_type in {"BREAK", "CLASSIC"}:
-                raise UnsupportedOperationError(
-                    f"unsupported myQLM operation type '{operation_type.lower()}'"
+                return self._convert_classical_box(
+                    operation,
+                    operation_type=operation_type,
+                    classical_targets=classical_targets,
+                    location=location,
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
                 )
             raise UnsupportedOperationError(
                 f"unsupported myQLM operation type '{operation_type.lower()}'"
@@ -669,6 +676,86 @@ class MyQLMAdapter(BaseAdapter):
             )
         ]
 
+    def _convert_classical_box(
+        self,
+        operation: _MyQLMOpLike,
+        *,
+        operation_type: str,
+        classical_targets: Mapping[int, tuple[str, str]],
+        location: tuple[int, ...],
+        decomposition_origin: str | None,
+        composite_label: str | None,
+    ) -> list[SemanticOperationIR]:
+        classical_bits = tuple(int(index) for index in (operation.cbits or ()))
+        if not classical_bits:
+            raise UnsupportedOperationError(
+                f"myQLM {operation_type.lower()} operation requires at least one classical bit"
+            )
+
+        resolved_targets = tuple(
+            self._classical_target(classical_index, classical_targets)
+            for classical_index in classical_bits
+        )
+        bit_labels = tuple(bit_label for _, bit_label in resolved_targets)
+        target_wires = self._classical_box_target_wires(
+            operation_type=operation_type,
+            resolved_targets=resolved_targets,
+        )
+        condition = self._safe_classical_condition_for_operation(operation, classical_targets)
+        formula_text = (operation.formula or "").strip()
+
+        hover_details = normalized_detail_lines(
+            f"native: {operation_type}",
+            f"classical op: {operation_type.lower()}",
+            (
+                f"classical target: {bit_labels[0]}"
+                if operation_type == "CLASSIC"
+                else "effect: break when classical condition holds"
+            ),
+            f"cbits: {', '.join(bit_labels)}",
+            (f"formula: {formula_text}" if formula_text and condition is not None else None),
+            (f"formula raw: {formula_text}" if formula_text and condition is None else None),
+            (f"condition: {condition.expression}" if condition is not None else None),
+            (
+                f"decomposed from: {decomposition_origin}"
+                if decomposition_origin is not None
+                else None
+            ),
+        )
+
+        semantic_operation = SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name=operation_type,
+            label=operation_type,
+            target_wires=target_wires,
+            hover_details=hover_details,
+            provenance=semantic_provenance(
+                framework=self.framework_name,
+                native_name=operation_type,
+                native_kind=operation_type.lower(),
+                decomposition_origin=decomposition_origin,
+                composite_label=composite_label,
+                location=location,
+            ),
+            metadata={
+                "classical_bits": bit_labels,
+                "classical_target_bit": bit_labels[0] if operation_type == "CLASSIC" else None,
+            },
+        )
+        if condition is None:
+            return [semantic_operation]
+        return [append_semantic_classical_conditions(semantic_operation, (condition,))]
+
+    def _classical_box_target_wires(
+        self,
+        *,
+        operation_type: str,
+        resolved_targets: Sequence[tuple[str, str]],
+    ) -> tuple[str, ...]:
+        if operation_type == "CLASSIC":
+            return (resolved_targets[0][0],)
+        return tuple(dict.fromkeys(wire_id for wire_id, _ in resolved_targets))
+
     def _remap_summary(
         self,
         operation: _MyQLMOpLike,
@@ -721,6 +808,30 @@ class MyQLMAdapter(BaseAdapter):
             expression=expression_text,
             metadata={"classical_bits": bit_labels},
         )
+
+    def _safe_classical_condition_for_operation(
+        self,
+        operation: _MyQLMOpLike,
+        classical_targets: Mapping[int, tuple[str, str]],
+    ) -> ClassicalConditionIR | None:
+        formula_text = (operation.formula or "").strip()
+        if formula_text and not self._formula_references_known_bits(formula_text, operation.cbits):
+            return None
+        try:
+            return self._classical_condition_for_operation(operation, classical_targets)
+        except UnsupportedOperationError:
+            return None
+
+    def _formula_references_known_bits(
+        self,
+        formula_text: str,
+        classical_bits: Sequence[int] | None,
+    ) -> bool:
+        known_bits = {int(index) for index in (classical_bits or ())}
+        referenced_bits = {
+            int(match.group(1)) for match in _CLASSICAL_BIT_REFERENCE_PATTERN.finditer(formula_text)
+        }
+        return referenced_bits.issubset(known_bits)
 
     def _recover_as_placeholder(
         self,

@@ -161,6 +161,57 @@ def build_formula_classic_control_myqlm_circuit() -> FakeMyQLMCircuit:
     )
 
 
+def build_break_myqlm_circuit(*, formula: str | None = "c[0] && !c[1]") -> FakeMyQLMCircuit:
+    gate_dic = {
+        "H": FakeMyQLMGateDefinition(name="H", arity=1, syntax=FakeMyQLMSyntax(name="H")),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(gate="H", qbits=(0,)),
+            FakeMyQLMOp(type="MEASURE", qbits=(0,), cbits=(0,)),
+            FakeMyQLMOp(type="BREAK", cbits=(0, 1), formula=formula),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=2,
+        name="myqlm_break_demo",
+    )
+
+
+def build_break_myqlm_circuit_with_raw_formula() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "H": FakeMyQLMGateDefinition(name="H", arity=1, syntax=FakeMyQLMSyntax(name="H")),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(gate="H", qbits=(0,)),
+            FakeMyQLMOp(type="MEASURE", qbits=(0,), cbits=(0,)),
+            FakeMyQLMOp(type="BREAK", cbits=(0,), formula="c[1] && ready"),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=2,
+        name="myqlm_break_raw_formula_demo",
+    )
+
+
+def build_classic_myqlm_circuit(*, formula: str | None = "c[0] && !c[1]") -> FakeMyQLMCircuit:
+    gate_dic = {
+        "H": FakeMyQLMGateDefinition(name="H", arity=1, syntax=FakeMyQLMSyntax(name="H")),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(gate="H", qbits=(0,)),
+            FakeMyQLMOp(type="MEASURE", qbits=(0,), cbits=(0,)),
+            FakeMyQLMOp(type="CLASSIC", cbits=(0, 1), formula=formula),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=2,
+        name="myqlm_classic_demo",
+    )
+
+
 def build_composite_myqlm_circuit() -> FakeMyQLMCircuit:
     gate_dic = {
         "H": FakeMyQLMGateDefinition(name="H", arity=1, syntax=FakeMyQLMSyntax(name="H")),
@@ -526,33 +577,87 @@ def test_myqlm_adapter_preserves_formula_classic_controls_in_semantic_ir(
     assert lowered_operation.classical_conditions[0].expression == "if c[0] && !c[1]"
 
 
-@pytest.mark.parametrize("operation_type", ["BREAK", "CLASSIC"])
-def test_myqlm_adapter_rejects_unsupported_operation_types(
-    operation_type: str,
+def test_myqlm_adapter_supports_break_as_classical_box(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_myqlm(monkeypatch)
-    adapter_type = load_myqlm_adapter_type()
-    gate_dic = {
-        "X": FakeMyQLMGateDefinition(name="X", arity=1, syntax=FakeMyQLMSyntax(name="X")),
-    }
-    circuit = FakeMyQLMCircuit(
-        ops=(
-            FakeMyQLMOp(
-                gate="X" if operation_type == "CLASSICCTRL" else None,
-                qbits=(0,),
-                cbits=(0,),
-                type=operation_type,
-                remap=(0,) if operation_type == "REMAP" else None,
-            ),
-        ),
-        gate_dic=gate_dic,
-        nbqbits=1,
-        nbcbits=1,
-    )
+    adapter = load_myqlm_adapter_type()()
 
-    with pytest.raises(UnsupportedOperationError, match=operation_type.lower()):
-        adapter_type().to_ir(circuit)
+    semantic = adapter.to_semantic_ir(build_break_myqlm_circuit())
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 3
+    assert operations[2].name == "BREAK"
+    assert operations[2].label == "BREAK"
+    assert operations[2].kind is OperationKind.GATE
+    assert operations[2].target_wires == ("c0",)
+    assert operations[2].classical_conditions[0].wire_ids == ("c0", "c0")
+    assert operations[2].classical_conditions[0].expression == "if c[0] && !c[1]"
+    assert "native: BREAK" in operations[2].hover_details
+    assert "classical op: break" in operations[2].hover_details
+    assert "cbits: c[0], c[1]" in operations[2].hover_details
+    assert "formula: c[0] && !c[1]" in operations[2].hover_details
+    assert operations[2].provenance.framework == "myqlm"
+    assert operations[2].provenance.native_name == "BREAK"
+    assert operations[2].provenance.native_kind == "break"
+
+    lowered = adapter.to_ir(build_break_myqlm_circuit())
+    lowered_operation = lowered.layers[2].operations[0]
+    assert lowered_operation.target_wires == ("c0",)
+    assert lowered_operation.classical_conditions[0].expression == "if c[0] && !c[1]"
+    assert lowered_operation.metadata["hover_details"] == operations[2].hover_details
+
+
+def test_myqlm_adapter_keeps_break_raw_formula_when_not_safely_normalizable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic = adapter.to_semantic_ir(build_break_myqlm_circuit_with_raw_formula())
+
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 3
+    assert operations[2].name == "BREAK"
+    assert operations[2].target_wires == ("c0",)
+    assert operations[2].classical_conditions == ()
+    assert "native: BREAK" in operations[2].hover_details
+    assert "formula raw: c[1] && ready" in operations[2].hover_details
+    assert "cbits: c[0]" in operations[2].hover_details
+
+
+def test_myqlm_adapter_supports_classic_as_classical_box(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic = adapter.to_semantic_ir(build_classic_myqlm_circuit())
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 3
+    assert operations[2].name == "CLASSIC"
+    assert operations[2].label == "CLASSIC"
+    assert operations[2].kind is OperationKind.GATE
+    assert operations[2].target_wires == ("c0",)
+    assert operations[2].classical_conditions[0].wire_ids == ("c0", "c0")
+    assert operations[2].classical_conditions[0].expression == "if c[0] && !c[1]"
+    assert "native: CLASSIC" in operations[2].hover_details
+    assert "classical op: classic" in operations[2].hover_details
+    assert "classical target: c[0]" in operations[2].hover_details
+    assert "cbits: c[0], c[1]" in operations[2].hover_details
+    assert "formula: c[0] && !c[1]" in operations[2].hover_details
+    assert operations[2].provenance.framework == "myqlm"
+    assert operations[2].provenance.native_name == "CLASSIC"
+    assert operations[2].provenance.native_kind == "classic"
+
+    lowered = adapter.to_ir(build_classic_myqlm_circuit())
+    lowered_operation = lowered.layers[2].operations[0]
+    assert lowered_operation.target_wires == ("c0",)
+    assert lowered_operation.classical_conditions[0].expression == "if c[0] && !c[1]"
+    assert lowered_operation.metadata["hover_details"] == operations[2].hover_details
 
 
 def test_myqlm_adapter_supports_formula_classicctrl_shapes(
@@ -599,6 +704,23 @@ def test_draw_quantum_circuit_renders_readable_myqlm_param_labels(
     assert any("theta" in text for text in texts)
     assert any("0.5" in text for text in texts)
     assert not any("Param(" in text for text in texts)
+    assert_figure_has_visible_content(figure)
+
+
+def test_draw_quantum_circuit_renders_myqlm_break_on_classical_wire(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+
+    figure, axes = draw_quantum_circuit(
+        build_break_myqlm_circuit(),
+        framework="myqlm",
+        show=False,
+    )
+    texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}
+
+    assert "BREAK" in texts
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "M", "BREAK", "q0", "c"})
     assert_figure_has_visible_content(figure)
 
 

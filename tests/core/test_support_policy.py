@@ -102,6 +102,16 @@ def test_qiskit_docs_describe_compact_control_flow_support() -> None:
     assert "does not execute branches or unroll loops for display" in troubleshooting_reference
 
 
+def test_myqlm_docs_describe_break_and_classic_classical_box_support() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+
+    assert "drawable `BREAK` / `CLASSIC` classical boxes" in frameworks_reference
+    assert "raw native formula is preserved instead of raising" in frameworks_reference
+    assert "compact classical `BREAK` / `CLASSIC` boxes" in troubleshooting_reference
+    assert "raw formula in hover instead of raising" in troubleshooting_reference
+
+
 def test_draw_quantum_circuit_reports_cudaq_windows_platform_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
