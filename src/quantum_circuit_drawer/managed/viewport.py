@@ -157,3 +157,27 @@ def _viewport_scene_score_for_size(
     if viewport_ratio <= 0.0:
         return math.inf
     return abs(math.log(scene_ratio / viewport_ratio))
+
+
+__all__ = [
+    "Axes",
+    "CircuitIR",
+    "DrawStyle",
+    "Figure",
+    "LayoutEngineLike",
+    "LayoutScene",
+    "SubFigure",
+    "_figure_size_inches",
+    "_scene_aspect_ratio_for_size",
+    "_viewport_scene_score_for_size",
+    "annotations",
+    "axes_viewport_pixels",
+    "axes_viewport_ratio",
+    "build_continuous_slider_scene",
+    "compute_paged_scene",
+    "math",
+    "page_window_adaptive_paged_scene",
+    "scene_aspect_ratio",
+    "viewport_adaptive_paged_scene",
+    "viewport_scene_score",
+]

@@ -199,6 +199,44 @@ def test_draw_result_exposes_runtime_metadata_and_saved_path(
     plt.close(result.primary_figure)
 
 
+def test_draw_quantum_circuit_logs_managed_cleanup_failures_without_breaking_pages_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    output_path = sandbox_tmp_path / "managed-pages.png"
+    original_close = plt.close
+
+    def fail_close(figure: object | None = None) -> None:
+        if figure is not None:
+            raise RuntimeError("close failed")
+        original_close(figure)
+
+    monkeypatch.setattr(plt, "close", fail_close)
+    caplog.set_level("WARNING", logger="quantum_circuit_drawer")
+
+    result = draw_quantum_circuit(
+        build_sample_ir(),
+        config=DrawConfig(
+            mode=DrawMode.PAGES,
+            show=False,
+            output_path=output_path,
+        ),
+    )
+
+    assert result.mode is DrawMode.PAGES
+    assert result.page_count >= 1
+    assert result.saved_path == str(output_path.resolve())
+    assert any(
+        "best-effort cleanup" in record.getMessage() and "managed 2D" in record.getMessage()
+        for record in caplog.records
+    )
+
+    monkeypatch.setattr(plt, "close", original_close)
+    for figure in result.figures:
+        plt.close(figure)
+
+
 def test_draw_result_marks_interactive_hover_when_caller_axes_support_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

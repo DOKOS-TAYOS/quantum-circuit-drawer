@@ -98,3 +98,28 @@ def apply_page_window_axes_bounds(axes: Axes) -> None:
     """Pin page-window drawing axes above the control row."""
 
     axes.set_position(_MAIN_AXES_BOUNDS)
+
+
+__all__ = [
+    "Axes",
+    "Callable",
+    "Figure",
+    "LayoutEngineLike",
+    "LayoutScene",
+    "Managed2DPageWindowState",
+    "ManagedUiPalette",
+    "MatplotlibRenderer",
+    "TYPE_CHECKING",
+    "_GateTextCache",
+    "_MAIN_AXES_BOUNDS",
+    "_ProjectedPage",
+    "_attach_controls",
+    "_render_current_window",
+    "_sync_inputs",
+    "annotations",
+    "apply_page_window_axes_bounds",
+    "configure_page_window",
+    "dataclass",
+    "field",
+    "managed_ui_palette",
+]

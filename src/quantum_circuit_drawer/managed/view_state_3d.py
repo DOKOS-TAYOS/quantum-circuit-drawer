@@ -54,3 +54,15 @@ def _axis_triplet(values: object) -> tuple[float, float, float] | None:
     if len(triplet) != 3:
         return None
     return triplet
+
+
+__all__ = [
+    "Managed3DFixedViewState",
+    "TYPE_CHECKING",
+    "_MANAGED_3D_FIXED_VIEW_STATE_ATTR",
+    "_axis_pair",
+    "_axis_triplet",
+    "annotations",
+    "capture_managed_3d_view_state",
+    "dataclass",
+]
