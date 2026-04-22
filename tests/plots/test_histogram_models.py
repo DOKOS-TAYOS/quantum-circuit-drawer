@@ -36,3 +36,8 @@ def test_histogram_config_rejects_invalid_public_values(
 def test_histogram_compare_config_rejects_unknown_sort() -> None:
     with pytest.raises(ValueError, match="sort must be one of: state, state_desc, delta_desc"):
         HistogramCompareConfig(sort="weight")
+
+
+def test_histogram_compare_config_rejects_non_boolean_hover() -> None:
+    with pytest.raises(ValueError, match="hover must be a boolean"):
+        HistogramCompareConfig(hover=1)

@@ -692,9 +692,6 @@ class CirqAdapter(BaseAdapter):
         controlled_operation: object,
     ) -> tuple[tuple[int, ...], ...]:
         raw_values = getattr(controlled_operation, "control_values", ())
-        expand = getattr(raw_values, "expand", None)
-        if callable(expand):
-            raw_values = expand()
         if raw_values is None:
             return ()
 

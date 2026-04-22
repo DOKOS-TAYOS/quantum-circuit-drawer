@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+from matplotlib.backend_bases import Event, MouseEvent
+from matplotlib.patches import Rectangle
+
+from ..renderers._matplotlib_figure import HoverState, clear_hover_state, set_hover_state
 from ..style.theme import DrawTheme
 from .histogram_models import HistogramCompareMetrics, HistogramCompareSort, HistogramKind
 from .histogram_normalize import _state_sort_key
@@ -19,6 +23,9 @@ from .histogram_render import (
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
+    from matplotlib.legend import Legend
+
+_HOVER_ZORDER = 10_000
 
 
 def resolve_comparison_kind(
@@ -87,7 +94,7 @@ def draw_histogram_compare_axes(
     theme: DrawTheme,
     left_label: str,
     right_label: str,
-) -> None:
+) -> tuple[tuple[Rectangle, ...], ...]:
     """Draw two aligned histograms as one overlay plot."""
 
     from matplotlib.patches import Patch
@@ -106,6 +113,7 @@ def draw_histogram_compare_axes(
             label=right_label,
         ),
     ]
+    bar_groups: list[tuple[Rectangle, ...]] = []
 
     for position, left_value, right_value in zip(positions, left_values, right_values, strict=True):
         bars = [
@@ -147,6 +155,7 @@ def draw_histogram_compare_axes(
         )
         back_bar.set_label("_nolegend_")
         front_bar.set_label("_nolegend_")
+        bar_groups.append((back_bar, front_bar))
 
     axes.set_xlabel("State")
     axes.set_ylabel("Counts" if kind is HistogramKind.COUNTS else "Quasi-probability")
@@ -163,8 +172,10 @@ def draw_histogram_compare_axes(
             uniform_reference_value=None,
         )
     )
-    axes.legend(handles=legend_handles, frameon=False)
+    legend = axes.legend(handles=legend_handles, frameon=False)
+    _style_compare_legend(legend=legend, theme=theme)
     axes.margins(x=0.02)
+    return tuple(bar_groups)
 
 
 def _draw_back_bar_top_edge(
@@ -184,6 +195,127 @@ def _draw_back_bar_top_edge(
         solid_capstyle="round",
         zorder=4,
     )
+
+
+def attach_histogram_compare_hover(
+    axes: Axes,
+    *,
+    bar_groups: tuple[tuple[Rectangle, ...], ...],
+    state_labels: tuple[str, ...],
+    left_values: tuple[float, ...],
+    right_values: tuple[float, ...],
+    kind: HistogramKind,
+    theme: DrawTheme,
+    left_label: str,
+    right_label: str,
+) -> None:
+    """Attach one hover annotation that compares both series for the hovered bin."""
+
+    clear_hover_state(axes)
+    annotation = axes.annotate(
+        "",
+        xy=(0.0, 0.0),
+        xycoords="figure pixels",
+        xytext=(10.0, 10.0),
+        textcoords="offset points",
+        ha="left",
+        va="bottom",
+        fontsize=max(8.0, axes.figure.dpi / 12.0),
+        color=theme.hover_text_color,
+        zorder=_HOVER_ZORDER,
+        annotation_clip=False,
+        bbox={
+            "boxstyle": "round,pad=0.18",
+            "fc": theme.hover_facecolor,
+            "ec": theme.hover_edgecolor,
+            "alpha": 0.9,
+        },
+    )
+    annotation.set_visible(False)
+    canvas = axes.figure.canvas
+    if canvas is None:
+        return
+    active_index: int | None = None
+
+    def hide_annotation() -> None:
+        nonlocal active_index
+        if annotation.get_visible():
+            annotation.set_visible(False)
+            active_index = None
+            canvas.draw_idle()
+
+    def on_motion(event: Event) -> None:
+        nonlocal active_index
+        if not isinstance(event, MouseEvent) or event.inaxes is not axes:
+            hide_annotation()
+            return
+        hovered_index = _hovered_compare_bar_index(bar_groups, event)
+        if hovered_index is None:
+            hide_annotation()
+            return
+        if active_index == hovered_index:
+            return
+        annotation.xy = (event.x, event.y)
+        annotation.set_text(
+            _compare_histogram_hover_text(
+                state_label=state_labels[hovered_index],
+                left_value=left_values[hovered_index],
+                right_value=right_values[hovered_index],
+                kind=kind,
+                left_label=left_label,
+                right_label=right_label,
+            )
+        )
+        annotation.set_visible(True)
+        active_index = hovered_index
+        canvas.draw_idle()
+
+    callback_id = canvas.mpl_connect("motion_notify_event", on_motion)
+    set_hover_state(axes, HoverState(annotation=annotation, callback_id=callback_id))
+
+
+def _hovered_compare_bar_index(
+    bar_groups: tuple[tuple[Rectangle, ...], ...],
+    event: MouseEvent,
+) -> int | None:
+    for index, bars in enumerate(bar_groups):
+        for bar in bars:
+            contains, _ = bar.contains(event)
+            if contains:
+                return index
+    return None
+
+
+def _compare_histogram_hover_text(
+    *,
+    state_label: str,
+    left_value: float,
+    right_value: float,
+    kind: HistogramKind,
+    left_label: str,
+    right_label: str,
+) -> str:
+    value_label = "counts" if kind is HistogramKind.COUNTS else "quasi-probability"
+    delta_value = left_value - right_value
+    return (
+        f"State: {state_label}\n"
+        f"{left_label} {value_label}: {_formatted_histogram_value(left_value, kind)}\n"
+        f"{right_label} {value_label}: {_formatted_histogram_value(right_value, kind)}\n"
+        f"Delta: {_formatted_histogram_value(delta_value, kind)}"
+    )
+
+
+def _formatted_histogram_value(value: float, kind: HistogramKind) -> str:
+    if kind is HistogramKind.COUNTS and float(value).is_integer():
+        return str(int(value))
+    return f"{float(value):.6g}"
+
+
+def _style_compare_legend(*, legend: Legend | None, theme: DrawTheme) -> None:
+    if legend is None:
+        return
+    for text in legend.get_texts():
+        text.set_color(theme.text_color)
 
 
 __all__ = [

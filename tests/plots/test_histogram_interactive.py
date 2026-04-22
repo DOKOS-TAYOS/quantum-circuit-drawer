@@ -142,6 +142,37 @@ def test_histogram_interactive_cycle_sort_uses_short_probability_labels_for_quas
     plt.close(result.figure)
 
 
+def test_histogram_interactive_order_button_keeps_probability_label_inside_bounds() -> None:
+    result = plot_histogram(
+        {"00": 0.55, "01": 0.15, "10": 0.35, "11": 0.25},
+        config=HistogramConfig(
+            kind=HistogramKind.QUASI,
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            sort=HistogramSort.STATE,
+            figsize=(10.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.order_axes is not None
+
+    state.cycle_sort()
+    state.cycle_sort()
+    result.figure.canvas.draw()
+
+    renderer = result.figure.canvas.get_renderer()
+    label_bbox = state.order_button.label.get_window_extent(renderer=renderer)
+    button_bbox = state.order_axes.get_window_extent(renderer=renderer)
+
+    assert label_bbox.x0 >= button_bbox.x0
+    assert label_bbox.x1 <= button_bbox.x1
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_counts_show_kind_toggle_button() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},

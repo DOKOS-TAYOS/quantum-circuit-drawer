@@ -212,11 +212,23 @@ def test_cirq_adapter_preserves_nontrivial_control_values_in_hover() -> None:
     operation = semantic_ir.layers[0].operations[0]
 
     assert operation.kind is OperationKind.CONTROLLED_GATE
-    assert operation.control_values == ((0, 1), (1, 1))
+    assert operation.control_values == ((0, 1), (1,))
     assert operation.hover_details == (
         "group: moment[0]",
-        "control values: (0, 1), (1, 1)",
+        "control values: (0, 1), (1)",
     )
+
+
+def test_cirq_adapter_keeps_open_control_values_aligned_with_each_control_wire() -> None:
+    q0, q1, q2 = cirq.LineQubit.range(3)
+    circuit = cirq.Circuit(cirq.X(q2).controlled_by(q0, q1, control_values=[0, 1]))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.kind is OperationKind.CONTROLLED_GATE
+    assert operation.control_wires == ("q0", "q1")
+    assert operation.control_values == ((0,), (1,))
 
 
 def test_cirq_adapter_preserves_native_tags_in_hover_and_metadata() -> None:

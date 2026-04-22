@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Iterator
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -313,6 +313,59 @@ def test_cirq_adapter_contract_keeps_nontrivial_control_values_in_hover(
     assert operation.hover_details == (
         "group: moment[0]",
         "control values: (0, 1), (1)",
+    )
+
+
+def test_cirq_adapter_contract_keeps_open_control_values_aligned_with_control_wires(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    q2 = FakeQubit("q(2)")
+    controlled_x = FakeControlledOperation(
+        controls=(q0, q1),
+        sub_operation=FakeOperation(XPowGate(), (q2,)),
+        control_values=((0,), (1,)),
+    )
+    circuit = FakeCircuit(FakeMoment(controlled_x))
+
+    semantic_ir = CirqAdapter().to_semantic_ir(circuit, options={"explicit_matrices": False})
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.control_wires == ("q0", "q1")
+    assert operation.control_values == ((0,), (1,))
+
+
+def test_cirq_adapter_contract_prefers_iterable_control_values_over_expanded_combinations() -> None:
+    class _FakeProductOfSums:
+        def __iter__(self) -> object:
+            return iter(((0,), (1,)))
+
+        def expand(self) -> tuple[tuple[int, ...], ...]:
+            return ((0, 1),)
+
+    controlled_operation = SimpleNamespace(control_values=_FakeProductOfSums())
+
+    assert CirqAdapter()._control_values_for_controlled_operation(controlled_operation) == (
+        (0,),
+        (1,),
+    )
+
+
+def test_cirq_adapter_contract_keeps_nontrivial_iterable_control_values_per_wire() -> None:
+    class _FakeProductOfSums:
+        def __iter__(self) -> object:
+            return iter(((0, 1), (1,)))
+
+        def expand(self) -> tuple[tuple[int, ...], ...]:
+            return ((0, 1), (1, 1))
+
+    controlled_operation = SimpleNamespace(control_values=_FakeProductOfSums())
+
+    assert CirqAdapter()._control_values_for_controlled_operation(controlled_operation) == (
+        (0, 1),
+        (1,),
     )
 
 

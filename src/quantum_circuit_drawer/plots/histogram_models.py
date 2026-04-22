@@ -253,6 +253,7 @@ class HistogramCompareConfig:
     theme: DrawTheme | str | None = None
     left_label: str = "Left"
     right_label: str = "Right"
+    hover: bool = True
     show: bool = True
     output_path: OutputPath | None = None
     figsize: tuple[float, float] | None = None
@@ -274,6 +275,7 @@ class HistogramCompareConfig:
         HistogramConfig._validate_qubits(self.qubits)
         HistogramConfig._validate_top_k(self.top_k)
         HistogramConfig._validate_result_index(self.result_index)
+        HistogramConfig._validate_hover(self.hover)
         HistogramConfig._validate_show(self.show)
         HistogramConfig._validate_figsize(self.figsize)
 

@@ -4,7 +4,10 @@ from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
+from matplotlib.text import Annotation
 
 import quantum_circuit_drawer
 from quantum_circuit_drawer import (
@@ -25,6 +28,7 @@ from quantum_circuit_drawer import (
 )
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.exceptions import UnsupportedOperationError
+from quantum_circuit_drawer.renderers._matplotlib_figure import get_hover_state
 from tests.support import (
     FakeMyQLMCircuit,
     FakeMyQLMGateDefinition,
@@ -35,6 +39,18 @@ from tests.support import (
     install_fake_myqlm,
     normalize_rendered_text,
 )
+
+
+def _dispatch_motion_event(figure: Figure, patch: object) -> None:
+    renderer = figure.canvas.get_renderer()
+    x, y, width, height = patch.get_window_extent(renderer=renderer).bounds
+    event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        x + (width / 2.0),
+        y + (height / 2.0),
+    )
+    figure.canvas.callbacks.process("motion_notify_event", event)
 
 
 def build_placeholder_ready_myqlm_circuit() -> FakeMyQLMCircuit:
@@ -319,5 +335,71 @@ def test_compare_histograms_overlay_uses_same_bin_position_colors_and_front_bar_
         assert front_patch.get_alpha() is not None
         assert float(front_patch.get_alpha()) < 1.0
         assert front_patch.get_facecolor() != back_patch.get_facecolor()
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_uses_theme_text_color_for_legend_in_dark_mode() -> None:
+    config = HistogramCompareConfig(
+        show=False,
+        theme="dark",
+        left_label="Ideal",
+        right_label="Sampled",
+    )
+    result = compare_histograms(
+        {"00": 8, "01": 2},
+        {"00": 4, "01": 5},
+        config=config,
+    )
+
+    legend = result.axes.get_legend()
+
+    assert legend is not None
+    assert tuple(text.get_color() for text in legend.get_texts()) == (
+        config.theme.text_color,
+        config.theme.text_color,
+    )
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_hover_reports_both_series_values_for_one_bin() -> None:
+    result = compare_histograms(
+        {"00": 8, "01": 2},
+        {"00": 4, "01": 5},
+        config=HistogramCompareConfig(
+            show=False,
+            sort=HistogramCompareSort.STATE,
+            left_label="Ideal",
+            right_label="Sampled",
+        ),
+    )
+
+    assert get_hover_state(result.axes) is not None
+
+    result.figure.canvas.draw()
+    _dispatch_motion_event(result.figure, result.axes.patches[0])
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is True
+    assert "State: 00" in annotation.get_text()
+    assert "Ideal counts: 8" in annotation.get_text()
+    assert "Sampled counts: 4" in annotation.get_text()
+    assert "Delta: 4" in annotation.get_text()
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_hover_can_be_disabled() -> None:
+    result = compare_histograms(
+        {"00": 8, "01": 2},
+        {"00": 4, "01": 5},
+        config=HistogramCompareConfig(
+            show=False,
+            hover=False,
+        ),
+    )
+
+    assert get_hover_state(result.axes) is None
 
     plt.close(result.figure)
