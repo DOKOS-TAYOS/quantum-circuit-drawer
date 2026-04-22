@@ -9,7 +9,7 @@ from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 try:
     from ._bootstrap import ensure_local_project_on_path
@@ -21,6 +21,9 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.config import DrawConfig, DrawMode  # noqa: E402
 from quantum_circuit_drawer.hover import HoverOptions  # noqa: E402
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 ViewMode = Literal["2d", "3d"]
 RenderMode = Literal["auto", "pages", "pages_controls", "slider", "full"]
@@ -412,16 +415,18 @@ def _normalize_output_path(value: object) -> Path | None:
     return Path(str(value))
 
 
-def _result_figures(result: object) -> tuple[object, ...]:
+def _result_figures(result: object) -> tuple[Figure, ...]:
     figures = getattr(result, "figures", ())
     if figures is None:
         return ()
+    from matplotlib.figure import Figure
+
     if isinstance(figures, tuple):
-        return figures
+        return tuple(figure for figure in figures if isinstance(figure, Figure))
     if isinstance(figures, list):
-        return tuple(figures)
+        return tuple(figure for figure in figures if isinstance(figure, Figure))
     try:
-        return tuple(figures)
+        return tuple(figure for figure in figures if isinstance(figure, Figure))
     except TypeError:
         return ()
 

@@ -7,7 +7,7 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 from time import perf_counter
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -42,8 +42,24 @@ from quantum_circuit_drawer.renderers import (  # noqa: E402
 )
 from quantum_circuit_drawer.style import DrawStyle, normalize_style  # noqa: E402
 
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+
 ViewMode = Literal["2d", "3d"]
 DemoBenchmarkScenario = tuple[str, int, int, str]
+
+
+def _managed_rendered_figure(render_result: object) -> Figure:
+    """Return the managed figure from a renderer call without caller-owned axes."""
+
+    if not isinstance(render_result, tuple):
+        raise TypeError("managed benchmark renders must return a (figure, axes) tuple")
+    from matplotlib.figure import Figure
+
+    figure = render_result[0]
+    if not isinstance(figure, Figure):
+        raise TypeError("managed benchmark renders must return a Matplotlib figure")
+    return figure
 
 
 def build_synthetic_circuit(wires: int, layers: int) -> CircuitIR:
@@ -124,9 +140,9 @@ def benchmark_render(
 
         render_start = perf_counter()
         if view == "3d":
-            figure, _ = renderer_3d.render(scene)
+            figure = _managed_rendered_figure(renderer_3d.render(scene))
         else:
-            figure, _ = renderer_2d.render(scene)
+            figure = _managed_rendered_figure(renderer_2d.render(scene))
         render_seconds += perf_counter() - render_start
         figure.clear()
 
