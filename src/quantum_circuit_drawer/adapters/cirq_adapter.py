@@ -112,6 +112,7 @@ class CirqAdapter(BaseAdapter):
                     measurement_slots=measurement_slots,
                     measurement_key_targets=measurement_key_targets,
                     moment_index=moment_index,
+                    key_prefix=(),
                     grouping=f"moment[{moment_index}]",
                     composite_mode=composite_mode,
                     explicit_matrices=explicit_matrices,
@@ -136,6 +137,7 @@ class CirqAdapter(BaseAdapter):
         measurement_slots: dict[tuple[int, ...], tuple[tuple[str, str], ...]],
         measurement_key_targets: dict[str, tuple[tuple[str, str], ...]],
         moment_index: int,
+        key_prefix: tuple[int, ...],
         grouping: str,
         composite_mode: str,
         explicit_matrices: bool,
@@ -144,13 +146,14 @@ class CirqAdapter(BaseAdapter):
         grouped_operations: list[list[SemanticOperationIR]] = []
         layer_metadata: list[dict[str, object]] = []
         for operation_index, operation in enumerate(moment.operations):
+            operation_key = (*key_prefix, moment_index, operation_index)
             converted_layers = self._convert_operation(
                 cirq=cirq,
                 operation=operation,
                 qubit_ids=qubit_ids,
                 measurement_slots=measurement_slots,
                 measurement_key_targets=measurement_key_targets,
-                operation_key=(moment_index, operation_index),
+                operation_key=operation_key,
                 grouping=grouping,
                 composite_mode=composite_mode,
                 explicit_matrices=explicit_matrices,
@@ -365,7 +368,8 @@ class CirqAdapter(BaseAdapter):
                             qubit_ids=qubit_ids,
                             measurement_slots=measurement_slots,
                             measurement_key_targets=measurement_key_targets,
-                            moment_index=operation_key[0],
+                            moment_index=nested_moment_index,
+                            key_prefix=operation_key,
                             grouping=f"{nested_grouping}/moment[{nested_moment_index}]",
                             composite_mode=composite_mode,
                             explicit_matrices=explicit_matrices,
@@ -673,18 +677,19 @@ class CirqAdapter(BaseAdapter):
         index = getattr(control, "index", None)
         if index is not None:
             index_value = int(index)
-            if index_value < 0 or index_value >= len(key_targets):
-                return None
-            wire_id, bit_label = key_targets[index_value]
-            wire_ids: tuple[str, ...] = (wire_id,)
+            if index_value >= 0:
+                if index_value >= len(key_targets):
+                    return None
+                wire_id, bit_label = key_targets[index_value]
+                wire_ids: tuple[str, ...] = (wire_id,)
+                expression = f"if {bit_label}={value}"
+                return ClassicalConditionIR(wire_ids=wire_ids, expression=expression)
+        wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
+        if len(key_targets) == 1:
+            _, bit_label = key_targets[0]
             expression = f"if {bit_label}={value}"
         else:
-            wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
-            if len(key_targets) == 1:
-                _, bit_label = key_targets[0]
-                expression = f"if {bit_label}={value}"
-            else:
-                expression = f"if c={value}"
+            expression = f"if c={value}"
         return ClassicalConditionIR(wire_ids=wire_ids, expression=expression)
 
     def _control_values_for_controlled_operation(

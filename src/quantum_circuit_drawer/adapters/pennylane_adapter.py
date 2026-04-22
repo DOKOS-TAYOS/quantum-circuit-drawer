@@ -369,7 +369,8 @@ class PennyLaneAdapter(BaseAdapter):
             name=_TERMINAL_LABEL_BY_KIND[terminal_kind],
             target_wires=target_wires,
             hover_details=self._terminal_measurement_hover_details(
-                terminal_kind,
+                measurement=measurement,
+                terminal_kind=terminal_kind,
                 observable_summary=observable_summary,
                 target_native_wires=target_native_wires,
                 tape_wires=tape_wires,
@@ -771,6 +772,7 @@ class PennyLaneAdapter(BaseAdapter):
 
     def _terminal_measurement_hover_details(
         self,
+        measurement: _PennyLaneMeasurementLike,
         terminal_kind: str,
         *,
         observable_summary: _ObservableSummary | None,
@@ -778,11 +780,12 @@ class PennyLaneAdapter(BaseAdapter):
         tape_wires: Sequence[object],
         wire_labels: Mapping[object, str],
     ) -> tuple[str, ...]:
-        scope_detail = (
-            "all wires"
-            if tuple(target_native_wires) == tuple(tape_wires)
-            else "selected wires: "
-            + ", ".join(wire_labels.get(wire, str(wire)) for wire in target_native_wires)
+        scope_detail = self._terminal_measurement_scope_detail(
+            measurement,
+            terminal_kind=terminal_kind,
+            target_native_wires=target_native_wires,
+            tape_wires=tape_wires,
+            wire_labels=wire_labels,
         )
         return normalized_detail_lines(
             f"terminal output: {terminal_kind}",
@@ -803,6 +806,35 @@ class PennyLaneAdapter(BaseAdapter):
             else "observable summary: truncated",
             scope_detail,
         )
+
+    def _terminal_measurement_scope_detail(
+        self,
+        measurement: _PennyLaneMeasurementLike,
+        *,
+        terminal_kind: str,
+        target_native_wires: Sequence[object],
+        tape_wires: Sequence[object],
+        wire_labels: Mapping[object, str],
+    ) -> str:
+        if terminal_kind == "state":
+            return "all wires"
+
+        measurement_wires = tuple(getattr(measurement, "wires", ()) or ())
+        if terminal_kind in {"expval", "var"}:
+            if (
+                tuple(target_native_wires) == tuple(tape_wires)
+                and len(tuple(target_native_wires)) > 1
+            ):
+                return "all wires"
+            return "selected wires: " + ", ".join(
+                wire_labels.get(wire, str(wire)) for wire in target_native_wires
+            )
+
+        if measurement_wires:
+            return "selected wires: " + ", ".join(
+                wire_labels.get(wire, str(wire)) for wire in measurement_wires
+            )
+        return "all wires"
 
     def _format_observable_scalar(self, value: object) -> str:
         if isinstance(value, bool):

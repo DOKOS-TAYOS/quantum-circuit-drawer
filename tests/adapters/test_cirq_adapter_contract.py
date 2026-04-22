@@ -239,6 +239,27 @@ def test_cirq_adapter_contract_preserves_stubbed_key_condition_index_and_value(
     assert operations[-1].classical_conditions[0].expression == "if c[0]=0"
 
 
+def test_cirq_adapter_contract_treats_negative_key_condition_index_as_whole_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    measured = FakeOperation(MeasurementGate("m"), (q0,))
+    controlled_x = FakeClassicallyControlledOperation(
+        FakeOperation(XPowGate(), (q1,)),
+        key="m",
+        index=-1,
+    )
+    circuit = FakeCircuit(FakeMoment(measured), FakeMoment(controlled_x))
+
+    ir = CirqAdapter().to_ir(circuit, options={"explicit_matrices": False})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert operations[-1].classical_conditions[0].wire_ids == ("c0",)
+    assert operations[-1].classical_conditions[0].expression == "if c[0]=1"
+
+
 def test_cirq_adapter_contract_falls_back_to_native_hover_when_any_classical_control_is_unsupported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -453,6 +474,29 @@ def test_cirq_adapter_contract_expands_stubbed_circuit_operation_when_requested(
     operations = [operation for layer in ir.layers for operation in layer.operations]
 
     assert [operation.name for operation in operations] == ["H", "X"]
+
+
+def test_cirq_adapter_contract_expands_stubbed_circuit_operation_measurements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    nested = FakeCircuit(
+        FakeMoment(FakeOperation(MeasurementGate("nested"), (q0,))),
+    )
+    circuit = FakeCircuit(
+        FakeMoment(CircuitOperation(nested, (q0,))),
+    )
+
+    ir = CirqAdapter().to_ir(
+        circuit,
+        options={"composite_mode": "expand", "explicit_matrices": False},
+    )
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert len(ir.classical_wires) == 1
+    assert operations[0].kind is OperationKind.MEASUREMENT
+    assert operations[0].metadata["classical_bit_label"] == "c[0]"
 
 
 def test_cirq_adapter_contract_skips_matrix_lookup_when_disabled(

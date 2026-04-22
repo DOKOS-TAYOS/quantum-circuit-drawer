@@ -415,20 +415,24 @@ def _normalize_output_path(value: object) -> Path | None:
     return Path(str(value))
 
 
-def _result_figures(result: object) -> tuple[Figure, ...]:
+def _result_figures(result: object) -> tuple[object, ...]:
     figures = getattr(result, "figures", ())
     if figures is None:
         return ()
-    from matplotlib.figure import Figure
-
     if isinstance(figures, tuple):
-        return tuple(figure for figure in figures if isinstance(figure, Figure))
+        return figures
     if isinstance(figures, list):
-        return tuple(figure for figure in figures if isinstance(figure, Figure))
+        return tuple(figures)
     try:
-        return tuple(figure for figure in figures if isinstance(figure, Figure))
+        return tuple(figures)
     except TypeError:
         return ()
+
+
+def _matplotlib_result_figures(result: object) -> tuple[Figure, ...]:
+    from matplotlib.figure import Figure
+
+    return tuple(figure for figure in _result_figures(result) if isinstance(figure, Figure))
 
 
 def demo_style(*, columns: int) -> dict[str, object]:
@@ -604,7 +608,7 @@ def _is_destroyed_window_error(error: Exception) -> bool:
 
 
 def _release_rendered_result(result: object) -> None:
-    figures = _result_figures(result)
+    figures = _matplotlib_result_figures(result)
     if not figures:
         return
 

@@ -18,19 +18,6 @@ from .exceptions import (
     UnsupportedFrameworkError,
     UnsupportedOperationError,
 )
-from .histogram import (
-    HistogramCompareConfig,
-    HistogramCompareMetrics,
-    HistogramCompareResult,
-    HistogramCompareSort,
-    HistogramConfig,
-    HistogramDrawStyle,
-    HistogramKind,
-    HistogramMode,
-    HistogramResult,
-    HistogramSort,
-    HistogramStateLabelMode,
-)
 from .hover import HoverOptions
 from .presets import StylePreset
 from .result import DrawResult
@@ -39,6 +26,20 @@ from .topology import HardwareTopology
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+
+    from .histogram import (
+        HistogramCompareConfig,
+        HistogramCompareMetrics,
+        HistogramCompareResult,
+        HistogramCompareSort,
+        HistogramConfig,
+        HistogramDrawStyle,
+        HistogramKind,
+        HistogramMode,
+        HistogramResult,
+        HistogramSort,
+        HistogramStateLabelMode,
+    )
 
 
 def draw_quantum_circuit(
@@ -161,3 +162,28 @@ __all__ = [
     "draw_quantum_circuit",
     "plot_histogram",
 ]
+
+
+def __getattr__(name: str) -> object:
+    histogram_exports = {
+        "HistogramCompareConfig",
+        "HistogramCompareMetrics",
+        "HistogramCompareResult",
+        "HistogramCompareSort",
+        "HistogramConfig",
+        "HistogramDrawStyle",
+        "HistogramKind",
+        "HistogramMode",
+        "HistogramResult",
+        "HistogramSort",
+        "HistogramStateLabelMode",
+        "compare_histograms",
+        "plot_histogram",
+    }
+    if name in histogram_exports:
+        from . import histogram as histogram_module
+
+        value = getattr(histogram_module, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

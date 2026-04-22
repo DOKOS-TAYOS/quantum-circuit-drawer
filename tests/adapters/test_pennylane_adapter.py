@@ -396,7 +396,7 @@ def test_pennylane_adapter_avoids_generic_fallback_for_anonymous_long_named_obse
         "terminal output: expval",
         f"observable: {observable_label}",
         "observable type: AnonymousObservableNativeTypeThatNeedsDeterministicFallback",
-        "all wires",
+        "selected wires: 0",
     )
 
 
@@ -575,7 +575,7 @@ def test_pennylane_adapter_uses_class_name_for_opaque_observable_fallback(
         "terminal output: expval",
         "observable: OpaqueObservable",
         "observable type: OpaqueObservable",
-        "all wires",
+        "selected wires: 0",
     )
 
 
@@ -629,7 +629,7 @@ def test_pennylane_terminal_outputs_render_as_gate_boxes(
     assert gate.hover_data is not None
     assert gate.hover_data.details == (
         "terminal output: probs",
-        "all wires",
+        "selected wires: 0, 1",
     )
 
     figure, axes = draw_quantum_circuit(
