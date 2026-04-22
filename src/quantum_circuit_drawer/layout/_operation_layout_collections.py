@@ -46,6 +46,7 @@ def wire_labels(builder: _OperationSceneBuilder) -> tuple[SceneText, ...]:
             text=wire.label or wire.id,
             ha="right",
             font_size=style.font_size,
+            wire_id=wire.id,
         )
         for wire in builder.circuit.all_wires
     )

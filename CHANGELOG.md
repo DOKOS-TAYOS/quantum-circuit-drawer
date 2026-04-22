@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added contextual managed-2D circuit exploration for `slider` and `pages_controls`, including click selection, related-operation highlighting, semantic block collapse/expand, `Wires: All/Active`, `Ancillas: Show/Hide`, and folded-wire markers for hidden wire ranges
 - Added project-managed `pyright` support in the `dev` extra and CI so static type checking no longer depends on a globally installed tool
 - Added Windows-safe Cirq adapter contract tests based on stubbed circuits so optional adapter coverage still runs even when the real dependency is unavailable
 - Added Windows-safe PennyLane adapter contract tests for tape wrappers, safe prebuilt `._tape` inputs, conditional operations, and composite expansion coverage
@@ -30,6 +31,7 @@
 - Extended public-parity coverage for Cirq and PennyLane with Windows-safe mixed-framework compare tests and broader contract coverage for compact/expanded composite behavior
 - Reworked the Cirq and PennyLane adapter internals around a native-first semantic path, so comparison, hover, annotations, and diagnostics can preserve framework-specific meaning instead of flattening everything directly into the legacy render IR
 - Consolidated the shared adapter pipeline so richer semantic adapters and legacy `to_ir(...)` adapters coexist cleanly, then migrated MyQLM and CUDA-Q onto that same native semantic route without changing the public draw API
+- Managed 2D draw preparation now keeps a separate expanded semantic source and stable per-operation scene identifiers internally, so exploration controls can restyle or rebuild the visible viewport without changing the public drawing API
 - MyQLM now preserves gate provenance, composite provenance, decomposition origin, resets, and supported classical-control expressions before lowering back to the shared render IR
 - CUDA-Q now preserves Quake provenance, measurement basis, value-form wire flow, and supported `reset` operations before lowering back to the shared render IR, while still rejecting constructs without a clean shared equivalent
 - PennyLane terminal results now render as compact output boxes with preserved result kind, observable summaries, and wire-scope hover details instead of being flattened into fake per-wire projective measurements

@@ -363,6 +363,44 @@ def test_pennylane_adapter_contract_exposes_semantic_conditional_and_decompositi
     assert semantic_ir.layers[2].operations[0].provenance.decomposition_origin == "QFT"
 
 
+def test_pennylane_adapter_contract_assigns_stable_locations_to_expanded_operations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    composite = FakeOperation(
+        name="QFT",
+        wires=(0, 1),
+        has_decomposition=True,
+        decomposition=(
+            FakeOperation(name="Hadamard", wires=(0,)),
+            FakeOperation(
+                name="CNOT",
+                wires=(0, 1),
+                control_wires=(0,),
+                target_wires=(1,),
+            ),
+        ),
+    )
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(FakeOperation(name="Hadamard", wires=(0,)), composite),
+        measurements=(),
+    )
+
+    semantic_ir = PennyLaneAdapter().to_semantic_ir(
+        FakeTapeWrapper(tape),
+        options={"composite_mode": "expand", "explicit_matrices": False},
+    )
+    operations = [operation for layer in semantic_ir.layers for operation in layer.operations]
+
+    assert [operation.name for operation in operations] == ["H", "H", "X"]
+    assert [operation.provenance.location for operation in operations] == [
+        (0,),
+        (1, 0),
+        (1, 1),
+    ]
+
+
 def test_pennylane_adapter_contract_keeps_terminal_outputs_as_gate_like_semantic_nodes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -101,6 +101,44 @@ def test_semantic_circuit_from_plain_circuit_ir_keeps_legacy_contract_intact() -
     assert semantic_operation.provenance.native_name is None
 
 
+def test_semantic_circuit_from_circuit_ir_preserves_lowered_semantic_provenance() -> None:
+    semantic_circuit = SemanticCircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            SemanticLayerIR(
+                operations=[
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="QFT",
+                        target_wires=("q0",),
+                        hover_details=("decomposed from: QFT",),
+                        provenance=SemanticProvenanceIR(
+                            framework="pennylane",
+                            native_name="QFT",
+                            native_kind="composite",
+                            decomposition_origin="QFT",
+                            composite_label="QFT",
+                            location=(3, 1),
+                        ),
+                    )
+                ]
+            )
+        ],
+        metadata={"framework": "pennylane"},
+    )
+
+    lowered = lower_semantic_circuit(semantic_circuit)
+    round_tripped = semantic_circuit_from_circuit_ir(lowered)
+    semantic_operation = round_tripped.layers[0].operations[0]
+
+    assert semantic_operation.provenance.framework == "pennylane"
+    assert semantic_operation.provenance.native_name == "QFT"
+    assert semantic_operation.provenance.native_kind == "composite"
+    assert semantic_operation.provenance.decomposition_origin == "QFT"
+    assert semantic_operation.provenance.composite_label == "QFT"
+    assert semantic_operation.provenance.location == (3, 1)
+
+
 def test_lower_semantic_circuit_preserves_control_values_for_rendering() -> None:
     semantic_circuit = SemanticCircuitIR(
         quantum_wires=[

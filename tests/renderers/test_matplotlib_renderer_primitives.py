@@ -79,6 +79,7 @@ def test_matplotlib_renderer_projects_pages_without_relying_on_dense_page_indexe
         barriers=(),
         measurements=(),
         texts=(),
+        wire_fold_markers=(),
         pages=(
             ScenePage(
                 index=7,

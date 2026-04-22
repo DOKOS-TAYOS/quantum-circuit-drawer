@@ -16,6 +16,7 @@ from ..layout.scene import (
     SceneSwap,
     SceneText,
     SceneWire,
+    SceneWireFoldMarker,
 )
 from ..style import DrawStyle
 from .slider_3d import circuit_window
@@ -252,6 +253,16 @@ def _row_window_scene(
             if getattr(text, "text", "")
             and _text_matches_visible_wire(text, scene, visible_wire_ids)
         ),
+        wire_fold_markers=tuple(
+            _shift_wire_fold_marker(marker, y_shift=y_shift)
+            for marker in scene.wire_fold_markers
+            if _intersects_range(
+                marker.y,
+                marker.y,
+                window_top=window_top,
+                window_bottom=window_bottom,
+            )
+        ),
         pages=((replace(scene.pages[0], y_offset=0.0),) if scene.pages else ()),
         hover=scene.hover,
         wire_y_positions={
@@ -363,3 +374,11 @@ def _shift_measurement(
 
 def _shift_text(text: SceneText, *, y_shift: float) -> SceneText:
     return replace(text, y=text.y + y_shift)
+
+
+def _shift_wire_fold_marker(
+    marker: SceneWireFoldMarker,
+    *,
+    y_shift: float,
+) -> SceneWireFoldMarker:
+    return replace(marker, y=marker.y + y_shift)

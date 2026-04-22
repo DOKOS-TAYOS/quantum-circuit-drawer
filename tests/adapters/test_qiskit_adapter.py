@@ -808,6 +808,32 @@ def test_qiskit_adapter_expands_composite_instruction_when_requested() -> None:
     assert [operation.name for operation in operations] == ["H", "X"]
 
 
+def test_qiskit_adapter_propagates_composite_provenance_when_expanding_instruction() -> None:
+    subcircuit = qiskit.QuantumCircuit(2, name="my_sub")
+    subcircuit.h(0)
+    subcircuit.cx(0, 1)
+
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.append(subcircuit.to_instruction(), [0, 1])
+
+    semantic_ir = QiskitAdapter().to_semantic_ir(
+        circuit,
+        options={"composite_mode": "expand", "explicit_matrices": False},
+    )
+    operations = flatten_semantic_operations(semantic_ir)
+
+    assert [operation.name for operation in operations] == ["H", "X"]
+    assert [operation.provenance.decomposition_origin for operation in operations] == [
+        "my_sub",
+        "my_sub",
+    ]
+    assert [operation.provenance.composite_label for operation in operations] == [
+        "my_sub",
+        "my_sub",
+    ]
+    assert [operation.provenance.location for operation in operations] == [(0, 0), (0, 1)]
+
+
 def test_qiskit_adapter_supports_additional_common_operations() -> None:
     circuit = qiskit.QuantumCircuit(4)
     circuit.id(0)

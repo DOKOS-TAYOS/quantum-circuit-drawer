@@ -44,6 +44,7 @@ def single_page_scene(scene: LayoutScene, page_index: int) -> LayoutScene:
         barriers=_items_for_page(scene.barriers, page=page),
         measurements=_items_for_page(scene.measurements, page=page),
         texts=scene.texts,
+        wire_fold_markers=scene.wire_fold_markers,
         pages=(
             replace(
                 page,

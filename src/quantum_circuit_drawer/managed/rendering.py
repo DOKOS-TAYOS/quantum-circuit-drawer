@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
     from ..ir.circuit import CircuitIR
+    from ..ir.semantic import SemanticCircuitIR
     from ..layout.scene import LayoutScene
     from ..layout.scene_3d import LayoutScene3D
     from ..renderers.matplotlib_renderer import MatplotlibRenderer
@@ -247,6 +248,8 @@ def configure_page_slider(
     layout_engine: LayoutEngineLike | None = None,
     renderer: MatplotlibRenderer | None = None,
     normalized_style: DrawStyle | None = None,
+    semantic_ir: object | None = None,
+    expanded_semantic_ir: object | None = None,
 ) -> None:
     """Attach and wire a slider that redraws discrete 2D circuit windows."""
 
@@ -264,6 +267,8 @@ def configure_page_slider(
         layout_engine=layout_engine,
         renderer=renderer,
         normalized_style=normalized_style,
+        semantic_ir=cast("SemanticCircuitIR | None", semantic_ir),
+        expanded_semantic_ir=cast("SemanticCircuitIR | None", expanded_semantic_ir),
     )
 
 
@@ -277,6 +282,8 @@ def configure_page_window(
     scene: LayoutScene,
     effective_page_width: float,
     set_page_window: Callable[[Figure, object], None],
+    semantic_ir: object | None = None,
+    expanded_semantic_ir: object | None = None,
 ) -> object:
     """Attach fixed page-window controls for one managed 2D figure."""
 
@@ -289,6 +296,8 @@ def configure_page_window(
         scene=scene,
         effective_page_width=effective_page_width,
         set_page_window=set_page_window,
+        semantic_ir=cast("SemanticCircuitIR | None", semantic_ir),
+        expanded_semantic_ir=cast("SemanticCircuitIR | None", expanded_semantic_ir),
     )
 
 

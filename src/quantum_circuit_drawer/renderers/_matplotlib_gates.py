@@ -47,6 +47,13 @@ from ._matplotlib_text import (
     _GateTextFittingContext,
     _multiline_text_line_spacing,
 )
+from ._matplotlib_visual_state import (
+    alpha_for_visual_state,
+    color_for_visual_state,
+    gate_facecolor_for_visual_state,
+    line_width_scale_for_visual_state,
+    measurement_facecolor_for_visual_state,
+)
 
 
 def draw_gate_box(
@@ -65,10 +72,19 @@ def draw_gate_box(
         gate.width,
         gate.height,
         boxstyle="round,pad=0.02,rounding_size=0.05",
-        facecolor=scene.style.theme.gate_facecolor,
-        edgecolor=scene.style.theme.gate_edgecolor,
-        linewidth=resolved_gate_edge_line_width(scene.style),
+        facecolor=gate_facecolor_for_visual_state(
+            theme=scene.style.theme,
+            visual_state=gate.visual_state,
+        ),
+        edgecolor=color_for_visual_state(
+            scene.style.theme.gate_edgecolor,
+            theme=scene.style.theme,
+            visual_state=gate.visual_state,
+        ),
+        linewidth=resolved_gate_edge_line_width(scene.style)
+        * line_width_scale_for_visual_state(gate.visual_state),
         zorder=OCCLUSION_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(gate.visual_state),
     )
     return _add_patch_artist(ax, patch)
 
@@ -80,25 +96,42 @@ def draw_x_target_circles(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> EllipseCollection | None:
-    offsets: list[tuple[float, float]] = []
-    diameters: list[float] = []
+) -> tuple[EllipseCollection, ...] | None:
+    collections: list[EllipseCollection] = []
+    offsets_by_state: dict[object, list[tuple[float, float]]] = {}
+    diameters_by_state: dict[object, list[float]] = {}
     for gate in gates:
         if gate.render_style is not GateRenderStyle.X_TARGET:
             continue
-        offsets.append((gate.x + x_offset, gate.y + y_offset))
-        diameters.append(min(gate.width, gate.height) * 0.72)
+        offsets_by_state.setdefault(gate.visual_state, []).append(
+            (gate.x + x_offset, gate.y + y_offset)
+        )
+        diameters_by_state.setdefault(gate.visual_state, []).append(
+            min(gate.width, gate.height) * 0.72
+        )
 
-    return _add_ellipse_collection(
-        ax,
-        widths=diameters,
-        heights=diameters,
-        offsets=offsets,
-        facecolor=scene.style.theme.axes_facecolor,
-        edgecolor=scene.style.theme.wire_color,
-        linewidth=resolved_gate_edge_line_width(scene.style),
-        zorder=OCCLUSION_LAYER_ZORDER,
-    )
+    for visual_state, offsets in offsets_by_state.items():
+        collection = _add_ellipse_collection(
+            ax,
+            widths=diameters_by_state[visual_state],
+            heights=diameters_by_state[visual_state],
+            offsets=offsets,
+            facecolor=scene.style.theme.axes_facecolor,
+            edgecolor=color_for_visual_state(
+                scene.style.theme.wire_color,
+                theme=scene.style.theme,
+                visual_state=visual_state,
+            ),
+            linewidth=resolved_gate_edge_line_width(scene.style)
+            * line_width_scale_for_visual_state(visual_state),
+            zorder=OCCLUSION_LAYER_ZORDER,
+        )
+        if collection is not None:
+            collection.set_alpha(alpha_for_visual_state(visual_state))
+            collections.append(collection)
+    if not collections:
+        return None
+    return tuple(collections)
 
 
 def draw_x_target_segments(
@@ -108,13 +141,17 @@ def draw_x_target_segments(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> LineCollection | None:
-    segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
+) -> tuple[LineCollection, ...] | None:
+    if not gates:
+        return None
+
+    collections: list[LineCollection] = []
+    segments_by_state: dict[object, list[tuple[tuple[float, float], tuple[float, float]]]] = {}
     for gate in gates:
         if gate.render_style is not GateRenderStyle.X_TARGET:
             continue
         radius = min(gate.width, gate.height) * 0.36
-        segments.extend(
+        segments_by_state.setdefault(gate.visual_state, []).extend(
             (
                 (
                     (gate.x + x_offset - radius, gate.y + y_offset),
@@ -127,13 +164,25 @@ def draw_x_target_segments(
             )
         )
 
-    return _add_line_collection(
-        ax,
-        segments,
-        color=scene.style.theme.wire_color,
-        linewidth=resolved_gate_edge_line_width(scene.style),
-        zorder=SYMBOL_LAYER_ZORDER,
-    )
+    for visual_state, segments in segments_by_state.items():
+        collection = _add_line_collection(
+            ax,
+            segments,
+            color=color_for_visual_state(
+                scene.style.theme.wire_color,
+                theme=scene.style.theme,
+                visual_state=visual_state,
+            ),
+            linewidth=resolved_gate_edge_line_width(scene.style)
+            * line_width_scale_for_visual_state(visual_state),
+            zorder=SYMBOL_LAYER_ZORDER,
+        )
+        if collection is not None:
+            collection.set_alpha(alpha_for_visual_state(visual_state))
+            collections.append(collection)
+    if not collections:
+        return None
+    return tuple(collections)
 
 
 def draw_gate_label(
@@ -177,8 +226,13 @@ def draw_gate_label(
             multialignment="center",
             fontsize=resolved_label_font_size,
             linespacing=_multiline_text_line_spacing(resolved_label_font_size),
-            color=scene.style.theme.text_color,
+            color=color_for_visual_state(
+                scene.style.theme.text_color,
+                theme=scene.style.theme,
+                visual_state=gate.visual_state,
+            ),
             zorder=TEXT_LAYER_ZORDER,
+            alpha=alpha_for_visual_state(gate.visual_state),
         )
         set_gate_text_metadata(
             label_artist,
@@ -209,8 +263,13 @@ def draw_gate_label(
         ha="center",
         va="center",
         fontsize=resolved_label_font_size,
-        color=scene.style.theme.text_color,
+        color=color_for_visual_state(
+            scene.style.theme.text_color,
+            theme=scene.style.theme,
+            visual_state=gate.visual_state,
+        ),
         zorder=TEXT_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(gate.visual_state),
     )
     set_gate_text_metadata(
         label_artist,
@@ -230,39 +289,61 @@ def draw_controls(
     x_offset: float = 0.0,
     y_offset: float = 0.0,
 ) -> tuple[EllipseCollection, ...] | None:
+    if not controls:
+        return None
+
     diameter = scene.style.control_radius * 2
     control_color = scene.style.theme.control_color or scene.style.theme.wire_color
-    closed_offsets = [
-        (control.x + x_offset, control.y + y_offset) for control in controls if control.state != 0
-    ]
-    open_offsets = [
-        (control.x + x_offset, control.y + y_offset) for control in controls if control.state == 0
-    ]
+    closed_offsets_by_state: dict[object, list[tuple[float, float]]] = {}
+    open_offsets_by_state: dict[object, list[tuple[float, float]]] = {}
+    for control in controls:
+        target = open_offsets_by_state if control.state == 0 else closed_offsets_by_state
+        target.setdefault(control.visual_state, []).append(
+            (control.x + x_offset, control.y + y_offset)
+        )
     collections: list[EllipseCollection] = []
-    closed_collection = _add_ellipse_collection(
-        ax,
-        widths=[diameter] * len(closed_offsets),
-        heights=[diameter] * len(closed_offsets),
-        offsets=closed_offsets,
-        facecolor=control_color,
-        edgecolor=control_color,
-        linewidth=resolved_connection_line_width(scene.style),
-        zorder=SYMBOL_LAYER_ZORDER,
-    )
-    if closed_collection is not None:
-        collections.append(closed_collection)
-    open_collection = _add_ellipse_collection(
-        ax,
-        widths=[diameter] * len(open_offsets),
-        heights=[diameter] * len(open_offsets),
-        offsets=open_offsets,
-        facecolor=scene.style.theme.axes_facecolor,
-        edgecolor=control_color,
-        linewidth=resolved_connection_line_width(scene.style),
-        zorder=SYMBOL_LAYER_ZORDER,
-    )
-    if open_collection is not None:
-        collections.append(open_collection)
+    for visual_state, closed_offsets in closed_offsets_by_state.items():
+        closed_collection = _add_ellipse_collection(
+            ax,
+            widths=[diameter] * len(closed_offsets),
+            heights=[diameter] * len(closed_offsets),
+            offsets=closed_offsets,
+            facecolor=color_for_visual_state(
+                control_color,
+                theme=scene.style.theme,
+                visual_state=visual_state,
+            ),
+            edgecolor=color_for_visual_state(
+                control_color,
+                theme=scene.style.theme,
+                visual_state=visual_state,
+            ),
+            linewidth=resolved_connection_line_width(scene.style)
+            * line_width_scale_for_visual_state(visual_state),
+            zorder=SYMBOL_LAYER_ZORDER,
+        )
+        if closed_collection is not None:
+            closed_collection.set_alpha(alpha_for_visual_state(visual_state))
+            collections.append(closed_collection)
+    for visual_state, open_offsets in open_offsets_by_state.items():
+        open_collection = _add_ellipse_collection(
+            ax,
+            widths=[diameter] * len(open_offsets),
+            heights=[diameter] * len(open_offsets),
+            offsets=open_offsets,
+            facecolor=scene.style.theme.axes_facecolor,
+            edgecolor=color_for_visual_state(
+                control_color,
+                theme=scene.style.theme,
+                visual_state=visual_state,
+            ),
+            linewidth=resolved_connection_line_width(scene.style)
+            * line_width_scale_for_visual_state(visual_state),
+            zorder=SYMBOL_LAYER_ZORDER,
+        )
+        if open_collection is not None:
+            open_collection.set_alpha(alpha_for_visual_state(visual_state))
+            collections.append(open_collection)
     if not collections:
         return None
     return tuple(collections)
@@ -275,25 +356,41 @@ def draw_swaps(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> LineCollection | None:
-    segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
+) -> tuple[LineCollection, ...] | None:
+    if not swaps:
+        return None
+
+    collections: list[LineCollection] = []
+    segments_by_state: dict[object, list[tuple[tuple[float, float], tuple[float, float]]]] = {}
     for swap in swaps:
         half = swap.marker_size
         for y in (swap.y_top + y_offset, swap.y_bottom + y_offset):
-            segments.extend(
+            segments_by_state.setdefault(swap.visual_state, []).extend(
                 (
                     ((swap.x + x_offset - half, y - half), (swap.x + x_offset + half, y + half)),
                     ((swap.x + x_offset - half, y + half), (swap.x + x_offset + half, y - half)),
                 )
             )
 
-    return _add_line_collection(
-        ax,
-        segments,
-        color=scene.style.theme.wire_color,
-        linewidth=resolved_connection_line_width(scene.style),
-        zorder=SYMBOL_LAYER_ZORDER,
-    )
+    for visual_state, segments in segments_by_state.items():
+        collection = _add_line_collection(
+            ax,
+            segments,
+            color=color_for_visual_state(
+                scene.style.theme.wire_color,
+                theme=scene.style.theme,
+                visual_state=visual_state,
+            ),
+            linewidth=resolved_connection_line_width(scene.style)
+            * line_width_scale_for_visual_state(visual_state),
+            zorder=SYMBOL_LAYER_ZORDER,
+        )
+        if collection is not None:
+            collection.set_alpha(alpha_for_visual_state(visual_state))
+            collections.append(collection)
+    if not collections:
+        return None
+    return tuple(collections)
 
 
 def draw_measurement_box(
@@ -312,10 +409,19 @@ def draw_measurement_box(
         measurement.width,
         measurement.height,
         boxstyle="round,pad=0.01,rounding_size=0.05",
-        facecolor=scene.style.theme.measurement_facecolor,
-        edgecolor=scene.style.theme.measurement_color,
-        linewidth=resolved_measurement_line_width(scene.style),
+        facecolor=measurement_facecolor_for_visual_state(
+            theme=scene.style.theme,
+            visual_state=measurement.visual_state,
+        ),
+        edgecolor=color_for_visual_state(
+            scene.style.theme.measurement_color,
+            theme=scene.style.theme,
+            visual_state=measurement.visual_state,
+        ),
+        linewidth=resolved_measurement_line_width(scene.style)
+        * line_width_scale_for_visual_state(measurement.visual_state),
         zorder=OCCLUSION_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(measurement.visual_state),
     )
     return _add_patch_artist(ax, patch)
 
@@ -343,9 +449,15 @@ def draw_measurement_symbol(
         height=measurement.height * 0.62,
         theta1=180,
         theta2=360,
-        color=scene.style.theme.measurement_color,
-        linewidth=resolved_measurement_line_width(scene.style),
+        color=color_for_visual_state(
+            scene.style.theme.measurement_color,
+            theme=scene.style.theme,
+            visual_state=measurement.visual_state,
+        ),
+        linewidth=resolved_measurement_line_width(scene.style)
+        * line_width_scale_for_visual_state(measurement.visual_state),
         zorder=SYMBOL_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(measurement.visual_state),
     )
     _add_patch_artist(ax, arc)
     ax.plot(
@@ -354,11 +466,17 @@ def draw_measurement_symbol(
             measurement_y - measurement.height * 0.16,
             measurement_y + measurement.height * 0.14,
         ],
-        color=scene.style.theme.measurement_color,
-        linewidth=resolved_measurement_line_width(scene.style),
+        color=color_for_visual_state(
+            scene.style.theme.measurement_color,
+            theme=scene.style.theme,
+            visual_state=measurement.visual_state,
+        ),
+        linewidth=resolved_measurement_line_width(scene.style)
+        * line_width_scale_for_visual_state(measurement.visual_state),
         solid_capstyle="round",
         zorder=SYMBOL_LAYER_ZORDER,
         clip_on=_axes_should_clip_artists(ax),
+        alpha=alpha_for_visual_state(measurement.visual_state),
     )
     for line in ax.lines[-1:]:
         _apply_axes_artist_clip(ax, line)
@@ -379,8 +497,13 @@ def draw_measurement_symbol(
             context=text_fit_context,
             cache=text_fit_cache,
         ),
-        color=scene.style.theme.text_color,
+        color=color_for_visual_state(
+            scene.style.theme.text_color,
+            theme=scene.style.theme,
+            visual_state=measurement.visual_state,
+        ),
         zorder=TEXT_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(measurement.visual_state),
     )
     set_gate_text_metadata(
         measurement_label_artist,
@@ -420,8 +543,13 @@ def draw_text(
             context=text_fit_context,
             cache=text_fit_cache,
         ),
-        color=scene.style.theme.text_color,
+        color=color_for_visual_state(
+            scene.style.theme.text_color,
+            theme=scene.style.theme,
+            visual_state=text.visual_state,
+        ),
         zorder=TEXT_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(text.visual_state),
     )
     set_gate_text_metadata(
         text_artist,
@@ -464,8 +592,13 @@ def draw_gate_annotation(
             context=text_fit_context,
             cache=text_fit_cache,
         ),
-        color=scene.style.theme.text_color,
+        color=color_for_visual_state(
+            scene.style.theme.text_color,
+            theme=scene.style.theme,
+            visual_state=annotation.visual_state,
+        ),
         zorder=TEXT_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(annotation.visual_state),
     )
     set_gate_text_metadata(
         annotation_artist,

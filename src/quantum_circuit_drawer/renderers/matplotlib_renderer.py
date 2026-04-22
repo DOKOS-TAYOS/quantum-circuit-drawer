@@ -53,6 +53,7 @@ from .matplotlib_primitives import (
     draw_measurement_symbol,
     draw_swaps,
     draw_text,
+    draw_wire_fold_markers,
     draw_wires,
     draw_x_target_circles,
     draw_x_target_segments,
@@ -370,6 +371,15 @@ class MatplotlibRenderer(BaseRenderer):
                 text_fit_context=gate_text_context,
                 text_fit_cache=gate_text_cache,
             )
+        draw_wire_fold_markers(
+            axes,
+            scene.wire_fold_markers,
+            scene,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            text_fit_context=gate_text_context,
+            text_fit_cache=gate_text_cache,
+        )
 
     def _project_pages(self, scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
         cache_key = projection_cache_key(scene)

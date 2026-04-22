@@ -7,9 +7,12 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from matplotlib.axes import Axes
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 
 from ..ir.circuit import CircuitIR
+from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_ir
+from ..ir.semantic import semantic_operation_id
 from ..layout._layering import normalized_draw_circuit
 from ..layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from ..layout.scene import LayoutScene
@@ -24,17 +27,33 @@ from .controls import (
     _style_stepper_button,
     _style_text_box,
 )
+from .exploration_2d import (
+    Managed2DExplorationState,
+    WireFilterMode,
+    append_wire_fold_markers,
+    apply_scene_visual_state,
+    clicked_operation_id,
+    managed_exploration_state,
+    next_selected_operation_id_for_block_action,
+    selected_block_action,
+    toggle_wire_filter_mode,
+    transform_semantic_circuit,
+)
 from .slider_2d_windowing import _scene_for_current_window
-from .ui_palette import managed_ui_palette
-from .viewport import _figure_size_inches, axes_viewport_pixels
+from .ui_palette import ManagedUiPalette, managed_ui_palette
+from .viewport import _figure_size_inches, axes_viewport_pixels, build_continuous_slider_scene
 
 if TYPE_CHECKING:
     from matplotlib.widgets import Button, Slider, TextBox
 
+    from ..ir.semantic import SemanticCircuitIR
     from ..renderers.matplotlib_renderer import MatplotlibRenderer
 
 _VIEWPORT_EPSILON = 1e-6
 _DEFAULT_VISIBLE_QUBITS = 15
+_WIRE_FILTER_BUTTON_BOUNDS = (0.62, 0.05, 0.12, 0.06)
+_ANCILLA_BUTTON_BOUNDS = (0.75, 0.05, 0.12, 0.06)
+_BLOCK_TOGGLE_BUTTON_BOUNDS = (0.88, 0.05, 0.09, 0.06)
 
 __all__ = [
     "_DEFAULT_VISIBLE_QUBITS",
@@ -97,11 +116,17 @@ class Managed2DPageSliderState:
     visible_qubits_box: TextBox | None
     visible_qubits_decrement_button: Button | None
     visible_qubits_increment_button: Button | None
+    wire_filter_button: Button | None
+    ancilla_toggle_button: Button | None
+    block_toggle_button: Button | None
     horizontal_axes: Axes | None
     vertical_axes: Axes | None
     visible_qubits_axes: Axes | None
     visible_qubits_decrement_axes: Axes | None
     visible_qubits_increment_axes: Axes | None
+    wire_filter_axes: Axes | None
+    ancilla_toggle_axes: Axes | None
+    block_toggle_axes: Axes | None
     start_column: int
     max_start_column: int
     start_row: int
@@ -118,6 +143,8 @@ class Managed2DPageSliderState:
     window_scene_cache: dict[tuple[int, int], LayoutScene] = field(default_factory=dict)
     text_fit_cache: _GateTextCache = field(default_factory=dict)
     is_syncing_visible_qubits: bool = False
+    exploration: Managed2DExplorationState | None = None
+    click_callback_id: int | None = None
 
     def show_start_column(self, start_column: int) -> None:
         """Render the requested horizontal start column."""
@@ -129,6 +156,57 @@ class Managed2DPageSliderState:
         """Render the requested vertical start row."""
 
         self.start_row = int(start_row)
+        _apply_2d_slider_state(self)
+
+    def select_operation(self, operation_id: str | None) -> None:
+        """Update the contextual selection and redraw the current window."""
+
+        if self.exploration is None:
+            return
+        self.exploration.selected_operation_id = operation_id
+        _apply_2d_slider_state(self)
+
+    def toggle_wire_filter(self) -> None:
+        """Toggle between showing all wires and only active wires."""
+
+        if self.exploration is None:
+            return
+        self.exploration.wire_filter_mode = toggle_wire_filter_mode(
+            self.exploration.wire_filter_mode
+        )
+        _refresh_2d_slider_exploration_context(self)
+        _apply_2d_slider_state(self)
+
+    def toggle_ancillas(self) -> None:
+        """Toggle whether ancilla-like quantum wires remain visible."""
+
+        if self.exploration is None:
+            return
+        self.exploration.show_ancillas = not self.exploration.show_ancillas
+        _refresh_2d_slider_exploration_context(self)
+        _apply_2d_slider_state(self)
+
+    def toggle_selected_block(self) -> None:
+        """Expand or collapse the block that owns the current selection."""
+
+        if self.exploration is None:
+            return
+        block_action = selected_block_action(
+            self.exploration.catalog,
+            selected_operation_id=self.exploration.selected_operation_id,
+            collapsed_block_ids=self.exploration.collapsed_block_ids,
+        )
+        if block_action is None:
+            return
+        if block_action.action == "expand":
+            self.exploration.collapsed_block_ids.discard(block_action.block_id)
+        else:
+            self.exploration.collapsed_block_ids.add(block_action.block_id)
+        self.exploration.selected_operation_id = next_selected_operation_id_for_block_action(
+            self.exploration.catalog,
+            block_action,
+        )
+        _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
 
 
@@ -194,6 +272,8 @@ def configure_page_slider(
     layout_engine: LayoutEngineLike | None = None,
     renderer: MatplotlibRenderer | None = None,
     normalized_style: DrawStyle | None = None,
+    semantic_ir: SemanticCircuitIR | None = None,
+    expanded_semantic_ir: SemanticCircuitIR | None = None,
 ) -> None:
     """Attach and wire sliders that redraw one discrete 2D window at a time."""
 
@@ -219,8 +299,18 @@ def configure_page_slider(
         else (scene.height if viewport_height is None else viewport_height)
     )
 
+    resolved_style = scene.style if normalized_style is None else normalized_style
+    base_normalized_circuit = normalized_draw_circuit(circuit)
+    current_semantic = semantic_ir or semantic_circuit_from_circuit_ir(base_normalized_circuit)
+    normalized_circuit = normalized_draw_circuit(lower_semantic_circuit(current_semantic))
+    current_full_scene = build_continuous_slider_scene(
+        normalized_circuit,
+        layout_engine,
+        resolved_style,
+        hover_enabled=scene.hover.enabled,
+    )
     resolved_visible_row_count = max(
-        _scene_visible_row_count(scene),
+        _scene_visible_row_count(current_full_scene),
         1 if quantum_wire_count is None else quantum_wire_count,
     )
     resolved_visible_qubits = _clamp_visible_qubits(
@@ -228,15 +318,13 @@ def configure_page_slider(
         resolved_visible_row_count,
     )
 
-    resolved_style = scene.style if normalized_style is None else normalized_style
-    normalized_circuit = normalized_draw_circuit(circuit)
     paging_inputs = build_layout_paging_inputs(normalized_circuit, resolved_style)
     total_scene_width = paged_scene_metrics_for_width(
         paging_inputs,
         max_page_width=float("inf"),
     ).scene_width
     initial_viewport_height = _visible_qubits_viewport_height(
-        scene,
+        current_full_scene,
         visible_qubits=resolved_visible_qubits,
     )
     initial_viewport_width = min(
@@ -259,6 +347,12 @@ def configure_page_slider(
         renderer.render(scene, ax=axes)
         return
 
+    exploration = managed_exploration_state(
+        current_semantic,
+        expanded_semantic_ir or current_semantic,
+    )
+    exploration.transformed_semantic_ir = current_semantic
+
     state = Managed2DPageSliderState(
         figure=figure,
         axes=axes,
@@ -266,8 +360,8 @@ def configure_page_slider(
         layout_engine=layout_engine,
         renderer=renderer,
         style=resolved_style,
-        full_scene=scene,
-        scene=scene,
+        full_scene=current_full_scene,
+        scene=current_full_scene,
         column_widths=tuple(paging_inputs.column_widths),
         total_scene_width=total_scene_width,
         total_column_count=len(normalized_circuit.layers),
@@ -276,11 +370,17 @@ def configure_page_slider(
         visible_qubits_box=None,
         visible_qubits_decrement_button=None,
         visible_qubits_increment_button=None,
+        wire_filter_button=None,
+        ancilla_toggle_button=None,
+        block_toggle_button=None,
         horizontal_axes=None,
         vertical_axes=None,
         visible_qubits_axes=None,
         visible_qubits_decrement_axes=None,
         visible_qubits_increment_axes=None,
+        wire_filter_axes=None,
+        ancilla_toggle_axes=None,
+        block_toggle_axes=None,
         start_column=0,
         max_start_column=0,
         start_row=0,
@@ -297,8 +397,10 @@ def configure_page_slider(
         allow_figure_resize=allow_figure_resize,
         show_visible_qubits_box=resolved_visible_row_count > _DEFAULT_VISIBLE_QUBITS,
         layout=None,
+        exploration=exploration,
     )
     set_page_slider(figure, state)
+    _attach_slider_selection_clicks(state)
     _apply_2d_slider_state(state)
     _sync_visible_qubits_box(state, state.visible_qubits)
 
@@ -384,7 +486,8 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     rebuild_controls = _needs_2d_control_rebuild(state, layout)
     if rebuild_controls:
         _remove_2d_controls(state)
-    state.scene = _scene_for_current_window(state)
+    window_scene = _scene_for_current_window(state)
+    state.scene = _styled_slider_scene(state, window_scene)
     clear_hover_state(state.axes)
     state.axes.clear()
     state.axes.set_position(layout.main_axes_bounds)
@@ -410,6 +513,7 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     _sync_horizontal_slider(state)
     _sync_vertical_slider(state)
     _sync_visible_qubits_box(state, state.visible_qubits)
+    _sync_exploration_buttons(state)
     canvas = getattr(state.figure, "canvas", None)
     if canvas is not None:
         canvas.draw_idle()
@@ -539,6 +643,54 @@ def _attach_2d_controls(
             state.visible_qubits_decrement_button = visible_qubits_decrement_button
             state.visible_qubits_decrement_axes = visible_qubits_decrement_axes
 
+    wire_filter_axes = state.figure.add_axes(
+        _WIRE_FILTER_BUTTON_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(wire_filter_axes, palette=palette)
+    wire_filter_button = Button(
+        wire_filter_axes,
+        "",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(wire_filter_button, palette=palette)
+    wire_filter_button.on_clicked(lambda _: state.toggle_wire_filter())
+    state.wire_filter_button = wire_filter_button
+    state.wire_filter_axes = wire_filter_axes
+
+    ancilla_toggle_axes = state.figure.add_axes(
+        _ANCILLA_BUTTON_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(ancilla_toggle_axes, palette=palette)
+    ancilla_toggle_button = Button(
+        ancilla_toggle_axes,
+        "",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(ancilla_toggle_button, palette=palette)
+    ancilla_toggle_button.on_clicked(lambda _: state.toggle_ancillas())
+    state.ancilla_toggle_button = ancilla_toggle_button
+    state.ancilla_toggle_axes = ancilla_toggle_axes
+
+    block_toggle_axes = state.figure.add_axes(
+        _BLOCK_TOGGLE_BUTTON_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(block_toggle_axes, palette=palette)
+    block_toggle_button = Button(
+        block_toggle_axes,
+        "",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(block_toggle_button, palette=palette)
+    block_toggle_button.on_clicked(lambda _: state.toggle_selected_block())
+    state.block_toggle_button = block_toggle_button
+    state.block_toggle_axes = block_toggle_axes
+
 
 def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
     for widget in (
@@ -547,6 +699,9 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
         state.visible_qubits_box,
         state.visible_qubits_decrement_button,
         state.visible_qubits_increment_button,
+        state.wire_filter_button,
+        state.ancilla_toggle_button,
+        state.block_toggle_button,
     ):
         if widget is not None and hasattr(widget, "disconnect_events"):
             widget.disconnect_events()
@@ -557,6 +712,9 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
         state.visible_qubits_axes,
         state.visible_qubits_decrement_axes,
         state.visible_qubits_increment_axes,
+        state.wire_filter_axes,
+        state.ancilla_toggle_axes,
+        state.block_toggle_axes,
     ):
         if axes is not None:
             axes.remove()
@@ -571,6 +729,12 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
     state.visible_qubits_axes = None
     state.visible_qubits_decrement_axes = None
     state.visible_qubits_increment_axes = None
+    state.wire_filter_button = None
+    state.ancilla_toggle_button = None
+    state.block_toggle_button = None
+    state.wire_filter_axes = None
+    state.ancilla_toggle_axes = None
+    state.block_toggle_axes = None
     state.layout = None
 
 
@@ -746,6 +910,15 @@ def _needs_2d_control_rebuild(
         layout.visible_qubits_increment_axes_bounds is None
     ):
         return True
+    if state.exploration is not None and (
+        state.wire_filter_button is None
+        or state.ancilla_toggle_button is None
+        or state.block_toggle_button is None
+        or state.wire_filter_axes is None
+        or state.ancilla_toggle_axes is None
+        or state.block_toggle_axes is None
+    ):
+        return True
 
     if state.horizontal_slider is not None and state.horizontal_slider.valmax != float(
         state.max_start_column
@@ -759,3 +932,155 @@ def _needs_2d_control_rebuild(
 
 def _has_horizontal_overflow(state: Managed2DPageSliderState) -> bool:
     return state.total_scene_width - state.viewport_width > _VIEWPORT_EPSILON
+
+
+def _refresh_2d_slider_exploration_context(state: Managed2DPageSliderState) -> None:
+    if state.exploration is None:
+        return
+
+    transformed = transform_semantic_circuit(
+        state.exploration.catalog,
+        collapsed_block_ids=state.exploration.collapsed_block_ids,
+        wire_filter_mode=state.exploration.wire_filter_mode,
+        show_ancillas=state.exploration.show_ancillas,
+    )
+    transformed_operation_ids = {
+        semantic_operation_id(operation)
+        for layer in transformed.semantic_ir.layers
+        for operation in layer.operations
+    }
+    if state.exploration.selected_operation_id not in transformed_operation_ids:
+        state.exploration.selected_operation_id = None
+    state.exploration.transformed_semantic_ir = transformed.semantic_ir
+    state.exploration.hidden_wire_ranges = transformed.hidden_wire_ranges
+
+    normalized_circuit = normalized_draw_circuit(transformed.circuit_ir)
+    paging_inputs = build_layout_paging_inputs(normalized_circuit, state.style)
+    state.circuit = normalized_circuit
+    state.column_widths = tuple(paging_inputs.column_widths)
+    state.total_scene_width = paged_scene_metrics_for_width(
+        paging_inputs,
+        max_page_width=float("inf"),
+    ).scene_width
+    state.total_column_count = len(normalized_circuit.layers)
+    state.full_scene = build_continuous_slider_scene(
+        normalized_circuit,
+        state.layout_engine,
+        state.style,
+        hover_enabled=state.full_scene.hover.enabled,
+    )
+    state.total_visible_rows = _scene_visible_row_count(state.full_scene)
+    state.visible_qubits = _clamp_visible_qubits(state.visible_qubits, state.total_visible_rows)
+    state.viewport_height = _visible_qubits_viewport_height(
+        state.full_scene,
+        visible_qubits=state.visible_qubits,
+    )
+    state.viewport_width = min(
+        state.total_scene_width,
+        state.viewport_height * max(state.viewport_aspect_ratio, _VIEWPORT_EPSILON),
+    )
+    state.horizontal_scene_cache.clear()
+    state.window_scene_cache.clear()
+    state.layout = None
+
+
+def _styled_slider_scene(
+    state: Managed2DPageSliderState,
+    scene: LayoutScene,
+) -> LayoutScene:
+    if state.exploration is None or state.exploration.transformed_semantic_ir is None:
+        return scene
+
+    styled_scene = apply_scene_visual_state(
+        scene,
+        state.exploration.transformed_semantic_ir,
+        selected_operation_id=state.exploration.selected_operation_id,
+    )
+    return append_wire_fold_markers(
+        styled_scene,
+        state.exploration.hidden_wire_ranges,
+    )
+
+
+def _attach_slider_selection_clicks(state: Managed2DPageSliderState) -> None:
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is None:
+        return
+    if state.click_callback_id is not None:
+        canvas.mpl_disconnect(state.click_callback_id)
+
+    def _handle_click(event: MouseEvent) -> None:
+        if state.exploration is None:
+            return
+        if event.inaxes is not state.axes:
+            return
+        state.select_operation(clicked_operation_id(state.axes, state.scene, event))
+
+    state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
+
+
+def _sync_exploration_buttons(state: Managed2DPageSliderState) -> None:
+    if state.exploration is None:
+        return
+
+    palette = managed_ui_palette(state.style.theme)
+    if state.wire_filter_button is not None:
+        state.wire_filter_button.label.set_text(
+            "Wires: Active"
+            if state.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+            else "Wires: All"
+        )
+        state.wire_filter_button.label.set_fontsize(9.0)
+        _set_button_enabled(
+            state.wire_filter_button,
+            enabled=True,
+            palette=palette,
+        )
+
+    if state.ancilla_toggle_button is not None:
+        state.ancilla_toggle_button.label.set_text(
+            "Ancillas: Show" if state.exploration.show_ancillas else "Ancillas: Hide"
+        )
+        state.ancilla_toggle_button.label.set_fontsize(8.5)
+        _set_button_enabled(
+            state.ancilla_toggle_button,
+            enabled=True,
+            palette=palette,
+        )
+
+    block_action = selected_block_action(
+        state.exploration.catalog,
+        selected_operation_id=state.exploration.selected_operation_id,
+        collapsed_block_ids=state.exploration.collapsed_block_ids,
+    )
+    if state.block_toggle_button is not None:
+        state.block_toggle_button.label.set_text(
+            "No block" if block_action is None else block_action.label
+        )
+        state.block_toggle_button.label.set_fontsize(8.3)
+        _set_button_enabled(
+            state.block_toggle_button,
+            enabled=block_action is not None,
+            palette=palette,
+        )
+
+
+def _set_button_enabled(
+    button: Button,
+    *,
+    enabled: bool,
+    palette: ManagedUiPalette,
+) -> None:
+    button.ax.set_facecolor(
+        palette.surface_facecolor if enabled else palette.surface_facecolor_disabled
+    )
+    button.color = palette.surface_facecolor if enabled else palette.surface_facecolor_disabled
+    button.hovercolor = (
+        palette.surface_hover_facecolor if enabled else palette.surface_facecolor_disabled
+    )
+    button.label.set_color(palette.text_color if enabled else palette.disabled_text_color)
+    for spine in button.ax.spines.values():
+        spine.set_color(
+            palette.surface_edgecolor_active if enabled else palette.surface_edgecolor_disabled
+        )
+        spine.set_linewidth(1.0)

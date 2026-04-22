@@ -167,6 +167,8 @@ def render_managed_draw_pipeline(
             layout_engine=layout_engine,
             renderer=cast("MatplotlibRenderer", pipeline.renderer),
             normalized_style=frozen_style,
+            semantic_ir=pipeline.semantic_ir,
+            expanded_semantic_ir=pipeline.expanded_semantic_ir,
         )
         logger.debug(
             "Rendered managed figure with discrete page slider viewport_width=%.2f viewport_height=%.2f pages=%d",
@@ -222,6 +224,8 @@ def render_managed_draw_pipeline(
             scene=initial_scene,
             effective_page_width=effective_page_width,
             set_page_window=set_page_window,
+            semantic_ir=pipeline.semantic_ir,
+            expanded_semantic_ir=pipeline.expanded_semantic_ir,
         )
         logger.debug(
             "Rendered managed figure with fixed page window effective_page_width=%.2f pages=%d",

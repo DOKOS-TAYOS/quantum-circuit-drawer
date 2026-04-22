@@ -18,6 +18,15 @@ class GateRenderStyle(StrEnum):
     X_TARGET = "x_target"
 
 
+class SceneVisualState(StrEnum):
+    """Visual emphasis state applied to interactive 2D scene elements."""
+
+    DEFAULT = "default"
+    HIGHLIGHTED = "highlighted"
+    RELATED = "related"
+    DIMMED = "dimmed"
+
+
 @dataclass(frozen=True, slots=True)
 class SceneHoverData:
     """Interactive hover payload shared across the artists of one operation."""
@@ -44,6 +53,7 @@ class SceneWire:
     x_start: float
     x_end: float
     bundle_size: int = 1
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -58,6 +68,8 @@ class SceneGate:
     kind: OperationKind
     render_style: GateRenderStyle = GateRenderStyle.BOX
     hover_data: SceneHoverData | None = None
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -67,6 +79,8 @@ class SceneGateAnnotation:
     y: float
     text: str
     font_size: float
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -76,6 +90,8 @@ class SceneControl:
     y: float
     state: int = 1
     hover_data: SceneHoverData | None = None
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -90,6 +106,8 @@ class SceneConnection:
     arrow_at_end: bool = False
     label: str | None = None
     hover_data: SceneHoverData | None = None
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -100,6 +118,8 @@ class SceneSwap:
     y_bottom: float
     marker_size: float
     hover_data: SceneHoverData | None = None
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -108,6 +128,8 @@ class SceneBarrier:
     x: float
     y_top: float
     y_bottom: float
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -122,6 +144,8 @@ class SceneMeasurement:
     connector_x: float
     connector_y: float
     hover_data: SceneHoverData | None = None
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -132,6 +156,17 @@ class SceneText:
     ha: str = "center"
     va: str = "center"
     font_size: float | None = None
+    wire_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
+
+
+@dataclass(slots=True)
+class SceneWireFoldMarker:
+    x: float
+    y: float
+    hidden_wire_count: int
+    text: str
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -160,6 +195,7 @@ class LayoutScene:
     barriers: tuple[SceneBarrier, ...]
     measurements: tuple[SceneMeasurement, ...]
     texts: tuple[SceneText, ...]
+    wire_fold_markers: tuple[SceneWireFoldMarker, ...]
     pages: tuple[ScenePage, ...]
     hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
     wire_y_positions: dict[str, float] = field(default_factory=dict)

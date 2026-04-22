@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .exploration_2d import WireFilterMode, selected_block_action
 from .page_window_render import _render_current_window
 from .page_window_windowing import _clamp_page_index, _clamp_visible_page_count
 from .ui_palette import ManagedUiPalette, managed_ui_palette
@@ -20,6 +21,9 @@ _NEXT_PAGE_BUTTON_BOUNDS = (0.274, 0.05, 0.048, 0.06)
 _VISIBLE_PAGES_BOX_BOUNDS = (0.505, 0.05, 0.078, 0.06)
 _VISIBLE_PAGES_DECREMENT_BOUNDS = (0.591, 0.05, 0.03, 0.028)
 _VISIBLE_PAGES_INCREMENT_BOUNDS = (0.591, 0.082, 0.03, 0.028)
+_WIRE_FILTER_BUTTON_BOUNDS = (0.68, 0.05, 0.11, 0.06)
+_ANCILLA_BUTTON_BOUNDS = (0.80, 0.05, 0.11, 0.06)
+_BLOCK_TOGGLE_BUTTON_BOUNDS = (0.92, 0.05, 0.06, 0.06)
 _PAGE_LABEL_POSITION = (0.075, 0.079)
 _PAGE_SUFFIX_POSITION = (0.33, 0.079)
 _VISIBLE_LABEL_POSITION = (0.392, 0.079)
@@ -142,6 +146,55 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     state.visible_pages_increment_axes = visible_pages_increment_axes
     state.previous_page_button_axes = previous_page_button_axes
     state.next_page_button_axes = next_page_button_axes
+
+    wire_filter_axes = state.figure.add_axes(
+        _WIRE_FILTER_BUTTON_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(wire_filter_axes, palette=palette)
+    wire_filter_button = Button(
+        wire_filter_axes,
+        "",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(wire_filter_button, palette=palette)
+    wire_filter_button.on_clicked(lambda _: state.toggle_wire_filter())
+    state.wire_filter_button = wire_filter_button
+    state.wire_filter_axes = wire_filter_axes
+
+    ancilla_toggle_axes = state.figure.add_axes(
+        _ANCILLA_BUTTON_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(ancilla_toggle_axes, palette=palette)
+    ancilla_toggle_button = Button(
+        ancilla_toggle_axes,
+        "",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(ancilla_toggle_button, palette=palette)
+    ancilla_toggle_button.on_clicked(lambda _: state.toggle_ancillas())
+    state.ancilla_toggle_button = ancilla_toggle_button
+    state.ancilla_toggle_axes = ancilla_toggle_axes
+
+    block_toggle_axes = state.figure.add_axes(
+        _BLOCK_TOGGLE_BUTTON_BOUNDS,
+        facecolor=palette.surface_facecolor,
+    )
+    _style_control_axes(block_toggle_axes, palette=palette)
+    block_toggle_button = Button(
+        block_toggle_axes,
+        "",
+        color=palette.surface_facecolor,
+        hovercolor=palette.surface_hover_facecolor,
+    )
+    _style_stepper_button(block_toggle_button, palette=palette)
+    block_toggle_button.on_clicked(lambda _: state.toggle_selected_block())
+    state.block_toggle_button = block_toggle_button
+    state.block_toggle_axes = block_toggle_axes
+
     state.page_suffix_text = state.figure.text(
         _PAGE_SUFFIX_POSITION[0],
         _PAGE_SUFFIX_POSITION[1],
@@ -303,7 +356,14 @@ def _show_page_window(
 
 
 def _sync_inputs(state: Managed2DPageWindowState) -> None:
+    if state.page_suffix_text is not None:
+        state.page_suffix_text.set_text(f"/ {state.total_pages}")
+    if state.visible_suffix_text is not None:
+        state.visible_suffix_text.set_text(f"/ {state.total_pages}")
+
     if state.page_box is None or state.visible_pages_box is None:
+        _sync_navigation_button_states(state)
+        _sync_exploration_buttons(state)
         return
 
     state.is_syncing_inputs = True
@@ -313,3 +373,49 @@ def _sync_inputs(state: Managed2DPageWindowState) -> None:
     finally:
         state.is_syncing_inputs = False
     _sync_navigation_button_states(state)
+    _sync_exploration_buttons(state)
+
+
+def _sync_exploration_buttons(state: Managed2DPageWindowState) -> None:
+    if state.ui_palette is None or state.exploration is None:
+        return
+
+    if state.wire_filter_button is not None:
+        state.wire_filter_button.label.set_text(
+            "Wires: Active"
+            if state.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+            else "Wires: All"
+        )
+        state.wire_filter_button.label.set_fontsize(8.8)
+        _set_button_enabled(
+            state.wire_filter_button,
+            enabled=True,
+            palette=state.ui_palette,
+        )
+
+    if state.ancilla_toggle_button is not None:
+        state.ancilla_toggle_button.label.set_text(
+            "Ancillas: Show" if state.exploration.show_ancillas else "Ancillas: Hide"
+        )
+        state.ancilla_toggle_button.label.set_fontsize(8.2)
+        _set_button_enabled(
+            state.ancilla_toggle_button,
+            enabled=True,
+            palette=state.ui_palette,
+        )
+
+    block_action = selected_block_action(
+        state.exploration.catalog,
+        selected_operation_id=state.exploration.selected_operation_id,
+        collapsed_block_ids=state.exploration.collapsed_block_ids,
+    )
+    if state.block_toggle_button is not None:
+        state.block_toggle_button.label.set_text(
+            "No block" if block_action is None else block_action.label
+        )
+        state.block_toggle_button.label.set_fontsize(8.0)
+        _set_button_enabled(
+            state.block_toggle_button,
+            enabled=block_action is not None,
+            palette=state.ui_palette,
+        )
