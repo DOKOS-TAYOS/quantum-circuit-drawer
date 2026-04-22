@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-22
+
 ### Added
 
 - Added `qiskit-2d-exploration-showcase`, a dedicated Qiskit demo for managed 2D exploration with active-wire filtering, ancilla toggles, folded-wire markers, and contextual block controls
@@ -185,7 +187,8 @@
 - Unused autodetection helper from `utils`
 - Generated artifacts and cache directories from the intended versioned repo surface
 
-[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.1.1...v0.2.0
