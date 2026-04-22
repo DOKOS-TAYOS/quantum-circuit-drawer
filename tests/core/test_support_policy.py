@@ -120,7 +120,22 @@ def test_cudaq_docs_describe_controlled_swap_support() -> None:
         frameworks_reference
     )
     assert "controlled `swap` as a compact controlled `SWAP` box" in troubleshooting_reference
-    assert "CUDA-Q now supports `reset`, controlled `swap`" in troubleshooting_reference
+    assert "CUDA-Q now supports `reset`" in troubleshooting_reference
+    assert "controlled `swap`" in troubleshooting_reference
+
+
+def test_cudaq_docs_describe_structured_control_flow_support() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+
+    assert (
+        "Structured `cc.if`, `scf.if`, `scf.for`, and `cc.loop` now render as compact descriptive boxes"
+        in (frameworks_reference)
+    )
+    assert "structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`)" in (
+        troubleshooting_reference
+    )
+    assert "does not execute branches or unroll loops for display" in troubleshooting_reference
 
 
 def test_draw_quantum_circuit_reports_cudaq_windows_platform_hint(
