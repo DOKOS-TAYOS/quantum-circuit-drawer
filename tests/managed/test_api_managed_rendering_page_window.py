@@ -285,6 +285,37 @@ def test_draw_quantum_circuit_page_window_renders_all_requested_pages_inside_vie
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_window_keeps_variable_width_gate_labels_inside_viewport() -> (
+    None
+):
+    figure, axes = draw_quantum_circuit(
+        _variable_width_slider_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.2, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.visible_pages_box is not None
+    assert page_window.total_pages >= 2
+
+    page_window.visible_pages_box.set_val("2")
+
+    x_min, x_max = axes.get_xlim()
+    rendered_long_labels = [
+        text_artist.get_position()[0]
+        for text_artist in axes.texts
+        if normalize_rendered_text(text_artist.get_text()).startswith("LONGSUPERGATE")
+    ]
+
+    assert rendered_long_labels
+    assert all(x_min <= x_position <= x_max for x_position in rendered_long_labels)
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_window_preserves_columns_from_expanded_raw_layers() -> None:
     raw_layer_count = 10
     figure, axes = draw_quantum_circuit(

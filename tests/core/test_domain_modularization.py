@@ -232,6 +232,20 @@ def test_third_pass_2d_private_helper_modules_are_importable() -> None:
     assert matplotlib_gates.__name__.endswith("_gates")
 
 
+def test_fourth_pass_adapter_and_viewport_private_helpers_are_importable() -> None:
+    myqlm_conversion = import_module("quantum_circuit_drawer.adapters._myqlm_conversion")
+    myqlm_resolver = import_module("quantum_circuit_drawer.adapters._myqlm_resolver")
+    qiskit_classical = import_module("quantum_circuit_drawer.adapters._qiskit_classical")
+    qiskit_control_flow = import_module("quantum_circuit_drawer.adapters._qiskit_control_flow")
+    adaptive_paging = import_module("quantum_circuit_drawer.managed._adaptive_paging")
+
+    assert myqlm_conversion.__name__.endswith("_conversion")
+    assert myqlm_resolver.__name__.endswith("_resolver")
+    assert qiskit_classical.__name__.endswith("_classical")
+    assert qiskit_control_flow.__name__.endswith("_control_flow")
+    assert adaptive_paging.__name__.endswith("_adaptive_paging")
+
+
 def test_third_pass_matplotlib_primitives_facade_reexports_split_helpers() -> None:
     from quantum_circuit_drawer.renderers._matplotlib_axes import (
         _add_patch_artist,

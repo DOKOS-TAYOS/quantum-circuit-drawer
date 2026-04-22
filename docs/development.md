@@ -86,10 +86,21 @@ The histogram stack now follows the same split-by-owner approach:
 - `quantum_circuit_drawer.plots.histogram_interactive` stays as the stable interactive entrypoint
 - `quantum_circuit_drawer.plots.histogram_interactive_state`, `_controls`, and `_hover` now own interactive histogram state, widget orchestration, and hover behavior
 
+The largest framework adapters are also being split by responsibility while keeping the public adapter classes stable:
+
+- `quantum_circuit_drawer.adapters.myqlm_adapter` stays as the stable `MyQLMAdapter` facade
+- `quantum_circuit_drawer.adapters._myqlm_resolver` owns MyQLM gate/spec resolution, parameter normalization, operation typing, and wire/classical target mapping
+- `quantum_circuit_drawer.adapters._myqlm_conversion` owns MyQLM semantic conversion, composite expansion/compaction, classical boxes, remap handling, and placeholder recovery
+- `quantum_circuit_drawer.adapters.qiskit_adapter` stays as the stable `QiskitAdapter` facade
+- `quantum_circuit_drawer.adapters._qiskit_classical` owns Qiskit classical literal/expression rendering and condition normalization
+- `quantum_circuit_drawer.adapters._qiskit_control_flow` owns Qiskit compact control-flow conversion, summaries, and hover-detail assembly
+
 The managed and 3D internals are now split more finely so the older orchestration modules can stay small and readable:
 
 - `quantum_circuit_drawer.managed.rendering` stays as the stable managed-render facade used by the rest of the package
 - `quantum_circuit_drawer.managed._render_pipeline` now owns the heavier managed 2D/3D composition flow and caller-managed axes rendering internals
+- `quantum_circuit_drawer.managed.viewport` now stays focused on viewport geometry helpers and adaptive-paging entrypoints
+- `quantum_circuit_drawer.managed._adaptive_paging` owns the adaptive page-width search used by slider/page-window setup
 - `quantum_circuit_drawer.managed.slider` stays as the stable internal facade for slider-related imports
 - `quantum_circuit_drawer.managed.slider_2d` now owns the real 2D slider state, viewport sizing, and control orchestration
 - `quantum_circuit_drawer.managed.controls` owns shared widget bounds, layout, and styling helpers

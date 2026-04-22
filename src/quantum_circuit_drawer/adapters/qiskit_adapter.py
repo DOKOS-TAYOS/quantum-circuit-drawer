@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from typing import NamedTuple, Protocol, SupportsIndex, SupportsInt, cast
+from typing import Protocol, cast
 
 from ..exceptions import UnsupportedOperationError
 from ..ir import ClassicalConditionIR
@@ -13,12 +13,12 @@ from ..ir.operations import OperationKind
 from ..ir.semantic import SemanticCircuitIR, SemanticOperationIR, pack_semantic_operations
 from ..ir.wires import WireIR, WireKind
 from ..utils.matrix_support import square_matrix
+from . import _qiskit_classical as qiskit_classical_helpers
+from . import _qiskit_control_flow as qiskit_control_flow_helpers
 from ._helpers import (
-    append_semantic_classical_conditions,
     canonical_gate_spec,
     extract_dependency_types,
     is_expected_matrix_unavailable_error,
-    normalized_detail_lines,
     resolve_composite_mode,
     resolve_explicit_matrices,
     semantic_provenance,
@@ -40,32 +40,25 @@ class _QiskitCircuitLike(Protocol):
     name: str | None
 
 
-class _RenderedQiskitClassicalExpression(NamedTuple):
-    text: str
-    wire_ids: tuple[str, ...]
-    precedence: int
-    is_atomic: bool
+_RenderedQiskitClassicalExpression = qiskit_classical_helpers.RenderedQiskitClassicalExpression
 
 
 class QiskitAdapter(BaseAdapter):
     """Convert qiskit.QuantumCircuit objects into CircuitIR."""
 
     framework_name = "qiskit"
-    _QISKIT_EXPR_SENTINEL = object()
-    _QISKIT_EXPR_PRECEDENCE_ATOM = 100
-    _QISKIT_EXPR_PRECEDENCE_UNARY = 90
-    _QISKIT_EXPR_PRECEDENCE_MULTIPLICATIVE = 80
-    _QISKIT_EXPR_PRECEDENCE_ADDITIVE = 70
-    _QISKIT_EXPR_PRECEDENCE_SHIFT = 60
-    _QISKIT_EXPR_PRECEDENCE_BITWISE = 50
-    _QISKIT_EXPR_PRECEDENCE_COMPARISON = 40
-    _QISKIT_EXPR_PRECEDENCE_LOGICAL = 30
-    _CONTROL_FLOW_LABELS: dict[str, str] = {
-        "if_else": "IF/ELSE",
-        "switch_case": "SWITCH",
-        "for_loop": "FOR",
-        "while_loop": "WHILE",
-    }
+    _QISKIT_EXPR_SENTINEL = qiskit_classical_helpers.QISKIT_EXPR_SENTINEL
+    _QISKIT_EXPR_PRECEDENCE_ATOM = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_ATOM
+    _QISKIT_EXPR_PRECEDENCE_UNARY = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_UNARY
+    _QISKIT_EXPR_PRECEDENCE_MULTIPLICATIVE = (
+        qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_MULTIPLICATIVE
+    )
+    _QISKIT_EXPR_PRECEDENCE_ADDITIVE = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_ADDITIVE
+    _QISKIT_EXPR_PRECEDENCE_SHIFT = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_SHIFT
+    _QISKIT_EXPR_PRECEDENCE_BITWISE = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_BITWISE
+    _QISKIT_EXPR_PRECEDENCE_COMPARISON = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_COMPARISON
+    _QISKIT_EXPR_PRECEDENCE_LOGICAL = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_LOGICAL
+    _CONTROL_FLOW_LABELS: dict[str, str] = qiskit_control_flow_helpers.CONTROL_FLOW_LABELS
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
@@ -361,76 +354,21 @@ class QiskitAdapter(BaseAdapter):
         location: tuple[int, ...] = (),
         explicit_matrices: bool = True,
     ) -> list[SemanticOperationIR]:
-        blocks = tuple(getattr(operation, "blocks", ()) or ())
-        if not blocks:
-            return []
-
-        if len(blocks) > 1 and blocks[1] is not None:
-            return self._convert_compact_control_flow(
-                operation=operation,
-                name="if_else",
-                qubits=qubits,
-                qubit_ids=qubit_ids,
-                classical_targets=classical_targets,
-                register_targets=register_targets,
-                location=location,
-            )
-
-        true_block = blocks[0]
-        try:
-            condition = self._condition_from_qiskit(
-                getattr(operation, "condition", None),
-                classical_targets,
-                register_targets,
-            )
-        except UnsupportedOperationError:
-            return self._convert_compact_control_flow(
-                operation=operation,
-                name="if_else",
-                qubits=qubits,
-                qubit_ids=qubit_ids,
-                classical_targets=classical_targets,
-                register_targets=register_targets,
-                location=location,
-                label="IF",
-            )
-        if len(true_block.qubits) != len(qubits):
-            raise UnsupportedOperationError(
-                "Qiskit if_else true_block qubit mapping mismatch: "
-                f"expected {len(true_block.qubits)} inner qubits, received {len(qubits)} outer qubits"
-            )
-        if len(true_block.clbits) != len(clbits):
-            raise UnsupportedOperationError(
-                "Qiskit if_else true_block clbit mapping mismatch: "
-                f"expected {len(true_block.clbits)} inner clbits, received {len(clbits)} outer clbits"
-            )
-        nested_qubit_ids = {
-            inner_qubit: qubit_ids[outer_qubit]
-            for inner_qubit, outer_qubit in zip(true_block.qubits, qubits, strict=True)
-        }
-        nested_classical_targets = {
-            inner_clbit: classical_targets[outer_clbit]
-            for inner_clbit, outer_clbit in zip(true_block.clbits, clbits, strict=True)
-            if outer_clbit in classical_targets
-        }
-
-        converted_operations: list[SemanticOperationIR] = []
-        for nested_index, inner_entry in enumerate(true_block.data):
-            converted_operations.extend(
-                self._convert_instruction(
-                    inner_entry,
-                    nested_qubit_ids,
-                    nested_classical_targets,
-                    register_targets={},
-                    composite_mode=composite_mode,
-                    location=(*location, nested_index),
-                    explicit_matrices=explicit_matrices,
-                )
-            )
-        return [
-            append_semantic_classical_conditions(node, (condition,))
-            for node in converted_operations
-        ]
+        return qiskit_control_flow_helpers.convert_if_else(
+            framework_name=self.framework_name,
+            operation=operation,
+            qubits=qubits,
+            clbits=clbits,
+            qubit_ids=qubit_ids,
+            classical_targets=classical_targets,
+            register_targets=register_targets,
+            composite_mode=composite_mode,
+            location=location,
+            explicit_matrices=explicit_matrices,
+            condition_from_qiskit=self._condition_from_qiskit,
+            convert_compact_control_flow=self._convert_compact_control_flow,
+            instruction_converter=self._convert_instruction,
+        )
 
     def _convert_compact_control_flow(
         self,
@@ -444,39 +382,19 @@ class QiskitAdapter(BaseAdapter):
         location: tuple[int, ...],
         label: str | None = None,
     ) -> list[SemanticOperationIR]:
-        target_wires = tuple(qubit_ids[qubit] for qubit in qubits)
-        if not target_wires:
-            raise UnsupportedOperationError(f"Qiskit control-flow '{name}' has no drawable targets")
-
-        classical_conditions, condition_details = self._compact_control_flow_conditions(
-            name=name,
+        return qiskit_control_flow_helpers.convert_compact_control_flow(
+            framework_name=self.framework_name,
             operation=operation,
+            name=name,
+            qubits=qubits,
+            qubit_ids=qubit_ids,
             classical_targets=classical_targets,
             register_targets=register_targets,
+            location=location,
+            label=label,
+            compact_control_flow_conditions=self._compact_control_flow_conditions,
+            control_flow_hover_details=self._control_flow_hover_details,
         )
-        hover_details = self._control_flow_hover_details(
-            name=name,
-            operation=operation,
-            condition_details=condition_details,
-        )
-        resolved_label = label or self._CONTROL_FLOW_LABELS[name]
-        return [
-            SemanticOperationIR(
-                kind=OperationKind.GATE,
-                name=resolved_label,
-                label=resolved_label,
-                target_wires=target_wires,
-                classical_conditions=classical_conditions,
-                hover_details=hover_details,
-                provenance=semantic_provenance(
-                    framework=self.framework_name,
-                    native_name=name,
-                    native_kind="control_flow",
-                    location=location,
-                ),
-                metadata={"qiskit_control_flow": name},
-            )
-        ]
 
     def _compact_control_flow_conditions(
         self,
@@ -486,37 +404,15 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: dict[object, tuple[str, str]],
         register_targets: dict[object, tuple[str, str]],
     ) -> tuple[tuple[ClassicalConditionIR, ...], tuple[str, ...]]:
-        if name in {"if_else", "while_loop"}:
-            condition_source = getattr(operation, "condition", None)
-            if condition_source is None:
-                return (), ()
-            try:
-                condition = self._condition_from_qiskit(
-                    condition_source,
-                    classical_targets,
-                    register_targets,
-                )
-            except UnsupportedOperationError:
-                return (), normalized_detail_lines(
-                    f"condition: {self._native_text(condition_source)}"
-                )
-            return (condition,), normalized_detail_lines(f"condition: {condition.expression}")
-
-        if name == "switch_case":
-            target_source = getattr(operation, "target", None)
-            if target_source is None:
-                return (), ()
-            try:
-                condition, target_text = self._switch_target_from_qiskit(
-                    target_source,
-                    classical_targets,
-                    register_targets,
-                )
-            except UnsupportedOperationError:
-                return (), normalized_detail_lines(f"target: {self._native_text(target_source)}")
-            return (condition,), normalized_detail_lines(f"target: {target_text}")
-
-        return (), ()
+        return qiskit_control_flow_helpers.compact_control_flow_conditions(
+            name=name,
+            operation=operation,
+            classical_targets=classical_targets,
+            register_targets=register_targets,
+            condition_from_qiskit=self._condition_from_qiskit,
+            switch_target_from_qiskit=self._switch_target_from_qiskit,
+            native_text=self._native_text,
+        )
 
     def _control_flow_hover_details(
         self,
@@ -525,85 +421,42 @@ class QiskitAdapter(BaseAdapter):
         operation: object,
         condition_details: Sequence[str],
     ) -> tuple[str, ...]:
-        details: list[str] = [f"control flow: {name}", *condition_details]
-        if name == "if_else":
-            true_ops, false_ops = self._if_else_block_sizes(operation)
-            if false_ops is None:
-                details.append("branches: true only")
-                details.append(f"block ops: true={true_ops}")
-            else:
-                details.append("branches: true, false")
-                details.append(f"block ops: true={true_ops}, false={false_ops}")
-        elif name == "switch_case":
-            case_summary = self._switch_case_summary(operation)
-            if case_summary is not None:
-                details.append(f"cases: {case_summary}")
-            details.append(f"case count: {len(self._switch_case_values(operation))}")
-        elif name == "for_loop":
-            iteration_summary = self._for_loop_iteration_summary(operation)
-            if iteration_summary is not None:
-                details.append(f"iteration: {iteration_summary}")
-            details.append(f"body ops: {self._control_flow_body_size(operation)}")
-        elif name == "while_loop":
-            details.append(f"body ops: {self._control_flow_body_size(operation)}")
-        return normalized_detail_lines(*details)
+        return qiskit_control_flow_helpers.control_flow_hover_details(
+            name=name,
+            operation=operation,
+            condition_details=condition_details,
+            native_text=self._native_text,
+        )
 
     def _switch_case_summary(self, operation: object) -> str | None:
-        values = self._switch_case_values(operation)
-        if not values:
-            return None
-
-        formatted_values = [self._switch_case_value_text(value) for value in values[:4]]
-        if len(values) > 4:
-            formatted_values.append("...")
-        return ", ".join(formatted_values)
+        return qiskit_control_flow_helpers.switch_case_summary(
+            operation,
+            native_text=self._native_text,
+        )
 
     def _switch_case_values(self, operation: object) -> tuple[object, ...]:
-        cases_getter = getattr(operation, "cases", None)
-        if callable(cases_getter):
-            return tuple(cases_getter())
-        cases_specifier = getattr(operation, "cases_specifier", None)
-        if callable(cases_specifier):
-            return tuple(case_value for case_value, _ in cases_specifier())
-        return ()
+        return qiskit_control_flow_helpers.switch_case_values(operation)
 
     def _if_else_block_sizes(self, operation: object) -> tuple[int, int | None]:
-        blocks = tuple(getattr(operation, "blocks", ()) or ())
-        true_ops = self._operation_block_size(blocks[0]) if blocks else 0
-        false_block = blocks[1] if len(blocks) > 1 else None
-        false_ops = self._operation_block_size(false_block) if false_block is not None else None
-        return true_ops, false_ops
+        return qiskit_control_flow_helpers.if_else_block_sizes(operation)
 
     def _control_flow_body_size(self, operation: object) -> int:
-        blocks = tuple(getattr(operation, "blocks", ()) or ())
-        if not blocks:
-            return 0
-        return self._operation_block_size(blocks[0])
+        return qiskit_control_flow_helpers.control_flow_body_size(operation)
 
     def _operation_block_size(self, block: object | None) -> int:
-        if block is None:
-            return 0
-        data = tuple(getattr(block, "data", ()) or ())
-        return len(data)
+        return qiskit_control_flow_helpers.operation_block_size(block)
 
     def _switch_case_value_text(self, value: object) -> str:
-        text = self._native_text(value)
-        return "default" if text == "<default case>" else text
+        return qiskit_control_flow_helpers.switch_case_value_text(
+            value,
+            native_text=self._native_text,
+        )
 
     def _for_loop_iteration_summary(self, operation: object) -> str | None:
-        params = tuple(getattr(operation, "params", ()) or ())
-        indexset = getattr(operation, "indexset", None)
-        if indexset is None and params:
-            indexset = params[0]
-        loop_parameter = getattr(operation, "loop_parameter", None)
-        if loop_parameter is None and len(params) > 1:
-            loop_parameter = params[1]
-        if indexset is None and loop_parameter is None:
-            return None
-        indexset_text = self._native_text(indexset) if indexset is not None else "unknown"
-        if loop_parameter is None:
-            return indexset_text
-        return f"{self._native_text(loop_parameter)} in {indexset_text}"
+        return qiskit_control_flow_helpers.for_loop_iteration_summary(
+            operation,
+            native_text=self._native_text,
+        )
 
     def _switch_target_from_qiskit(
         self,
@@ -611,29 +464,10 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: dict[object, tuple[str, str]],
         register_targets: dict[object, tuple[str, str]],
     ) -> tuple[ClassicalConditionIR, str]:
-        if self._is_known_classical_target(target, classical_targets):
-            wire_id, bit_label = classical_targets[target]
-            return ClassicalConditionIR(
-                wire_ids=(wire_id,),
-                expression=f"switch on {bit_label}",
-            ), bit_label
-        if self._is_known_classical_target(target, register_targets):
-            wire_id, register_label = register_targets[target]
-            return ClassicalConditionIR(
-                wire_ids=(wire_id,),
-                expression=f"switch on {register_label}",
-            ), register_label
-        rendered = self._render_qiskit_classical_expression(
+        return qiskit_classical_helpers.switch_target_from_qiskit(
             target,
             classical_targets,
             register_targets,
-        )
-        return (
-            ClassicalConditionIR(
-                wire_ids=rendered.wire_ids,
-                expression=f"switch on {rendered.text}",
-            ),
-            rendered.text,
         )
 
     def _condition_from_qiskit(
@@ -642,31 +476,10 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: dict[object, tuple[str, str]],
         register_targets: dict[object, tuple[str, str]],
     ) -> ClassicalConditionIR:
-        if isinstance(condition, tuple) and len(condition) == 2:
-            lhs, value = condition
-            rendered_value = self._render_qiskit_classical_literal(value)
-            if self._is_known_classical_target(lhs, classical_targets):
-                wire_id, bit_label = classical_targets[lhs]
-                return ClassicalConditionIR(
-                    wire_ids=(wire_id,),
-                    expression=f"if {bit_label}={rendered_value}",
-                )
-            if self._is_known_classical_target(lhs, register_targets):
-                wire_id, register_label = register_targets[lhs]
-                return ClassicalConditionIR(
-                    wire_ids=(wire_id,),
-                    expression=f"if {register_label}={rendered_value}",
-                )
-            raise UnsupportedOperationError("unsupported Qiskit classical condition target")
-
-        rendered = self._render_qiskit_classical_expression(
+        return qiskit_classical_helpers.condition_from_qiskit(
             condition,
             classical_targets,
             register_targets,
-        )
-        return ClassicalConditionIR(
-            wire_ids=rendered.wire_ids,
-            expression=f"if {rendered.text}",
         )
 
     def _render_qiskit_classical_expression(
@@ -675,61 +488,11 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: Mapping[object, tuple[str, str]],
         register_targets: Mapping[object, tuple[str, str]],
     ) -> _RenderedQiskitClassicalExpression:
-        if self._is_known_classical_target(value, classical_targets):
-            wire_id, bit_label = classical_targets[value]
-            return _RenderedQiskitClassicalExpression(
-                text=bit_label,
-                wire_ids=(wire_id,),
-                precedence=self._QISKIT_EXPR_PRECEDENCE_ATOM,
-                is_atomic=True,
-            )
-        if self._is_known_classical_target(value, register_targets):
-            wire_id, register_label = register_targets[value]
-            return _RenderedQiskitClassicalExpression(
-                text=register_label,
-                wire_ids=(wire_id,),
-                precedence=self._QISKIT_EXPR_PRECEDENCE_ATOM,
-                is_atomic=True,
-            )
-
-        variable = getattr(value, "var", self._QISKIT_EXPR_SENTINEL)
-        if variable is not self._QISKIT_EXPR_SENTINEL:
-            return self._render_qiskit_classical_expression(
-                variable,
-                classical_targets,
-                register_targets,
-            )
-
-        literal_value = getattr(value, "value", self._QISKIT_EXPR_SENTINEL)
-        if literal_value is not self._QISKIT_EXPR_SENTINEL:
-            return _RenderedQiskitClassicalExpression(
-                text=self._render_qiskit_classical_literal(literal_value),
-                wire_ids=(),
-                precedence=self._QISKIT_EXPR_PRECEDENCE_ATOM,
-                is_atomic=True,
-            )
-
-        operand = getattr(value, "operand", self._QISKIT_EXPR_SENTINEL)
-        if operand is not self._QISKIT_EXPR_SENTINEL:
-            return self._render_qiskit_unary_expression(
-                op=getattr(value, "op", None),
-                operand=operand,
-                classical_targets=classical_targets,
-                register_targets=register_targets,
-            )
-
-        left = getattr(value, "left", self._QISKIT_EXPR_SENTINEL)
-        right = getattr(value, "right", self._QISKIT_EXPR_SENTINEL)
-        if left is not self._QISKIT_EXPR_SENTINEL and right is not self._QISKIT_EXPR_SENTINEL:
-            return self._render_qiskit_binary_expression(
-                op=getattr(value, "op", None),
-                left=left,
-                right=right,
-                classical_targets=classical_targets,
-                register_targets=register_targets,
-            )
-
-        raise UnsupportedOperationError("unsupported Qiskit classical condition shape")
+        return qiskit_classical_helpers.render_qiskit_classical_expression(
+            value,
+            classical_targets,
+            register_targets,
+        )
 
     def _render_qiskit_unary_expression(
         self,
@@ -739,31 +502,11 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: Mapping[object, tuple[str, str]],
         register_targets: Mapping[object, tuple[str, str]],
     ) -> _RenderedQiskitClassicalExpression:
-        op_name = self._qiskit_operator_name(op)
-        if op_name is None:
-            raise UnsupportedOperationError("unsupported Qiskit classical condition shape")
-        operator_text = {
-            "LOGIC_NOT": "!",
-            "BIT_NOT": "~",
-        }.get(op_name)
-        if operator_text is None:
-            raise UnsupportedOperationError("unsupported Qiskit classical condition shape")
-
-        rendered_operand = self._render_qiskit_classical_expression(
-            operand,
-            classical_targets,
-            register_targets,
-        )
-        operand_text = self._wrap_qiskit_expression(
-            rendered_operand,
-            parent_precedence=self._QISKIT_EXPR_PRECEDENCE_UNARY,
-            wrap_non_atomic=True,
-        )
-        return _RenderedQiskitClassicalExpression(
-            text=f"{operator_text}{operand_text}",
-            wire_ids=rendered_operand.wire_ids,
-            precedence=self._QISKIT_EXPR_PRECEDENCE_UNARY,
-            is_atomic=False,
+        return qiskit_classical_helpers.render_qiskit_unary_expression(
+            op=op,
+            operand=operand,
+            classical_targets=classical_targets,
+            register_targets=register_targets,
         )
 
     def _render_qiskit_binary_expression(
@@ -775,88 +518,12 @@ class QiskitAdapter(BaseAdapter):
         classical_targets: Mapping[object, tuple[str, str]],
         register_targets: Mapping[object, tuple[str, str]],
     ) -> _RenderedQiskitClassicalExpression:
-        rendered_left = self._render_qiskit_classical_expression(
-            left,
-            classical_targets,
-            register_targets,
-        )
-        rendered_right = self._render_qiskit_classical_expression(
-            right,
-            classical_targets,
-            register_targets,
-        )
-        wire_ids = self._merge_qiskit_expression_wire_ids(
-            rendered_left.wire_ids,
-            rendered_right.wire_ids,
-        )
-        op_name = self._qiskit_operator_name(op)
-        if op_name is None:
-            raise UnsupportedOperationError("unsupported Qiskit classical condition shape")
-
-        if op_name in {"LOGIC_AND", "LOGIC_OR"}:
-            operator_text = "&&" if op_name == "LOGIC_AND" else "||"
-            return _RenderedQiskitClassicalExpression(
-                text=(
-                    f"{self._wrap_qiskit_expression(rendered_left, parent_precedence=self._QISKIT_EXPR_PRECEDENCE_LOGICAL, wrap_non_atomic=True)} "
-                    f"{operator_text} "
-                    f"{self._wrap_qiskit_expression(rendered_right, parent_precedence=self._QISKIT_EXPR_PRECEDENCE_LOGICAL, wrap_non_atomic=True)}"
-                ),
-                wire_ids=wire_ids,
-                precedence=self._QISKIT_EXPR_PRECEDENCE_LOGICAL,
-                is_atomic=False,
-            )
-
-        if op_name in {
-            "EQUAL",
-            "NOT_EQUAL",
-            "LESS",
-            "LESS_EQUAL",
-            "GREATER",
-            "GREATER_EQUAL",
-        }:
-            operator_text = {
-                "EQUAL": "=",
-                "NOT_EQUAL": "!=",
-                "LESS": "<",
-                "LESS_EQUAL": "<=",
-                "GREATER": ">",
-                "GREATER_EQUAL": ">=",
-            }[op_name]
-            return _RenderedQiskitClassicalExpression(
-                text=(
-                    f"{self._wrap_qiskit_expression(rendered_left, parent_precedence=self._QISKIT_EXPR_PRECEDENCE_COMPARISON)}"
-                    f"{operator_text}"
-                    f"{self._wrap_qiskit_expression(rendered_right, parent_precedence=self._QISKIT_EXPR_PRECEDENCE_COMPARISON)}"
-                ),
-                wire_ids=wire_ids,
-                precedence=self._QISKIT_EXPR_PRECEDENCE_COMPARISON,
-                is_atomic=False,
-            )
-
-        operator_spec = {
-            "BIT_AND": ("&", self._QISKIT_EXPR_PRECEDENCE_BITWISE),
-            "BIT_OR": ("|", self._QISKIT_EXPR_PRECEDENCE_BITWISE),
-            "BIT_XOR": ("^", self._QISKIT_EXPR_PRECEDENCE_BITWISE),
-            "SHIFT_LEFT": ("<<", self._QISKIT_EXPR_PRECEDENCE_SHIFT),
-            "SHIFT_RIGHT": (">>", self._QISKIT_EXPR_PRECEDENCE_SHIFT),
-            "ADD": ("+", self._QISKIT_EXPR_PRECEDENCE_ADDITIVE),
-            "SUB": ("-", self._QISKIT_EXPR_PRECEDENCE_ADDITIVE),
-            "MUL": ("*", self._QISKIT_EXPR_PRECEDENCE_MULTIPLICATIVE),
-            "DIV": ("/", self._QISKIT_EXPR_PRECEDENCE_MULTIPLICATIVE),
-        }.get(op_name)
-        if operator_spec is None:
-            raise UnsupportedOperationError("unsupported Qiskit classical condition shape")
-        operator_text, precedence = operator_spec
-
-        return _RenderedQiskitClassicalExpression(
-            text=(
-                f"{self._wrap_qiskit_expression(rendered_left, parent_precedence=precedence)} "
-                f"{operator_text} "
-                f"{self._wrap_qiskit_expression(rendered_right, parent_precedence=precedence)}"
-            ),
-            wire_ids=wire_ids,
-            precedence=precedence,
-            is_atomic=False,
+        return qiskit_classical_helpers.render_qiskit_binary_expression(
+            op=op,
+            left=left,
+            right=right,
+            classical_targets=classical_targets,
+            register_targets=register_targets,
         )
 
     def _wrap_qiskit_expression(
@@ -866,68 +533,39 @@ class QiskitAdapter(BaseAdapter):
         parent_precedence: int,
         wrap_non_atomic: bool = False,
     ) -> str:
-        if rendered.precedence < parent_precedence or (wrap_non_atomic and not rendered.is_atomic):
-            return f"({rendered.text})"
-        return rendered.text
+        return qiskit_classical_helpers.wrap_qiskit_expression(
+            rendered,
+            parent_precedence=parent_precedence,
+            wrap_non_atomic=wrap_non_atomic,
+        )
 
     def _qiskit_operator_name(self, op: object) -> str | None:
-        name = getattr(op, "name", None)
-        return name if isinstance(name, str) else None
+        return qiskit_classical_helpers.qiskit_operator_name(op)
 
     def _render_qiskit_classical_literal(self, value: object) -> str:
-        if isinstance(value, bool):
-            return "1" if value else "0"
-        if isinstance(value, int):
-            return str(value)
-        try:
-            coerced = int(self._coercible_qiskit_literal(value))
-        except (TypeError, ValueError):
-            text = self._native_text(value)
-            if text:
-                return text
-            raise UnsupportedOperationError("unsupported Qiskit classical literal") from None
-        return str(coerced)
+        return qiskit_classical_helpers.render_qiskit_classical_literal(value)
 
     def _coercible_qiskit_literal(
         self,
         value: object,
-    ) -> str | bytes | bytearray | SupportsInt | SupportsIndex:
-        if isinstance(value, str | bytes | bytearray):
-            return value
-        if hasattr(value, "__int__") or hasattr(value, "__index__"):
-            return cast("SupportsInt | SupportsIndex", value)
-        raise TypeError("unsupported Qiskit classical literal")
+    ) -> str | bytes | bytearray | object:
+        return qiskit_classical_helpers.coercible_qiskit_literal(value)
 
     def _merge_qiskit_expression_wire_ids(
         self,
         *groups: Sequence[str],
     ) -> tuple[str, ...]:
-        merged: list[str] = []
-        seen: set[str] = set()
-        for group in groups:
-            for wire_id in group:
-                if wire_id not in seen:
-                    seen.add(wire_id)
-                    merged.append(wire_id)
-        return tuple(merged)
+        return qiskit_classical_helpers.merge_qiskit_expression_wire_ids(*groups)
 
     def _is_known_classical_target(
         self,
         value: object,
         targets: Mapping[object, tuple[str, str]],
     ) -> bool:
-        try:
-            return value in targets
-        except TypeError:
-            return False
+        return qiskit_classical_helpers.is_known_classical_target(value, targets)
 
     def _native_text(self, value: object) -> str:
-        if value is None:
-            return "None"
-        text = str(value).strip()
-        if text:
-            return text
-        return value.__class__.__name__
+        return qiskit_classical_helpers.native_text(value)
 
     def _expand_definition(
         self,

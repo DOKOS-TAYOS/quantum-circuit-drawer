@@ -525,6 +525,46 @@ def test_qiskit_adapter_keeps_if_else_with_modern_condition_as_compact_semantic_
     )
 
 
+def test_qiskit_adapter_lowered_semantic_if_else_matches_direct_ir() -> None:
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(2, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test(
+        expr.logic_or(
+            expr.equal(classical[0], True),
+            expr.equal(classical[1], False),
+        )
+    ):
+        circuit.x(0)
+
+    adapter = QiskitAdapter()
+    semantic_ir = adapter.to_semantic_ir(circuit)
+    lowered_from_semantic = lower_semantic_circuit(semantic_ir)
+    direct_ir = adapter.to_ir(circuit)
+
+    lowered_operations = flatten_operations(lowered_from_semantic)
+    direct_operations = flatten_operations(direct_ir)
+
+    assert [
+        (
+            operation.kind,
+            operation.name,
+            operation.target_wires,
+            tuple(condition.expression for condition in operation.classical_conditions),
+        )
+        for operation in lowered_operations
+    ] == [
+        (
+            operation.kind,
+            operation.name,
+            operation.target_wires,
+            tuple(condition.expression for condition in operation.classical_conditions),
+        )
+        for operation in direct_operations
+    ]
+
+
 def test_qiskit_adapter_keeps_switch_case_as_compact_semantic_control_flow() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(2, "c")

@@ -569,6 +569,40 @@ def test_myqlm_adapter_emits_semantic_ir_for_composites_and_lowering(
     assert lowered_operation.metadata["semantic_provenance"]["composite_label"] == "QFT2"
 
 
+def test_myqlm_adapter_lowered_semantic_ir_matches_direct_ir_for_break_boxes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic_ir = adapter.to_semantic_ir(build_break_myqlm_circuit())
+    lowered_from_semantic = lower_semantic_circuit(semantic_ir)
+    direct_ir = adapter.to_ir(build_break_myqlm_circuit())
+
+    lowered_operations = [
+        operation for layer in lowered_from_semantic.layers for operation in layer.operations
+    ]
+    direct_operations = [operation for layer in direct_ir.layers for operation in layer.operations]
+
+    assert [
+        (
+            operation.kind,
+            operation.name,
+            operation.target_wires,
+            tuple(condition.expression for condition in operation.classical_conditions),
+        )
+        for operation in lowered_operations
+    ] == [
+        (
+            operation.kind,
+            operation.name,
+            operation.target_wires,
+            tuple(condition.expression for condition in operation.classical_conditions),
+        )
+        for operation in direct_operations
+    ]
+
+
 def test_myqlm_adapter_keeps_remap_as_compact_semantic_box(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
