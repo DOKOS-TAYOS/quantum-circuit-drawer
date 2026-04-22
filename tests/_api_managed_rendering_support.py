@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import FancyBboxPatch
 from matplotlib.transforms import Bbox
 
-import quantum_circuit_drawer.managed.drawing as managed_module
+import quantum_circuit_drawer.managed.rendering as managed_module
 import quantum_circuit_drawer.renderers.matplotlib_primitives as matplotlib_primitives
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -27,6 +27,9 @@ from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.managed.slider import (
     Managed2DPageSliderState,
     _horizontal_scene_for_start_column,
+)
+from quantum_circuit_drawer.managed.viewport import (
+    viewport_adaptive_paged_scene as viewport_adaptive_paged_scene_impl,
 )
 from quantum_circuit_drawer.managed.zoom import current_text_scale
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
@@ -322,7 +325,7 @@ def _adapted_scene_for_axes(
 ) -> tuple[LayoutScene, float]:
     layout_engine = LayoutEngine()
     initial_scene = layout_engine.compute(circuit, style)
-    return managed_module.viewport_adaptive_paged_scene(
+    return viewport_adaptive_paged_scene_impl(
         circuit,
         layout_engine,
         style,

@@ -187,10 +187,10 @@ def render_managed_draw_pipeline(
             use_agg=use_agg_canvas,
         )
         _apply_page_window_axes_bounds_impl(axes)
-        from . import drawing as drawing_facade
+        from . import viewport as viewport_module
 
         page_window_scene_builder = getattr(
-            drawing_facade,
+            viewport_module,
             "page_window_adaptive_paged_scene",
             _page_window_adaptive_paged_scene_impl,
         )
@@ -273,10 +273,10 @@ def render_draw_pipeline_on_axes(
     if respect_precomputed_scene:
         scene_2d = prepared_scene
     else:
-        from . import drawing as drawing_facade
+        from . import viewport as viewport_module
 
         viewport_scene_builder = getattr(
-            drawing_facade,
+            viewport_module,
             "viewport_adaptive_paged_scene",
             _viewport_adaptive_paged_scene_impl,
         )

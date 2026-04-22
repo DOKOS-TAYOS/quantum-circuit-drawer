@@ -21,7 +21,7 @@ from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationI
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
-from quantum_circuit_drawer.managed.drawing import (
+from quantum_circuit_drawer.managed.rendering import (
     is_3d_axes,
     render_draw_pipeline_on_axes,
     render_managed_draw_pipeline,

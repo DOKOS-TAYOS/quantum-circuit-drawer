@@ -1028,11 +1028,11 @@ def test_draw_quantum_circuit_managed_figure_resize_keeps_hover_cleanup_stable(
 def test_draw_quantum_circuit_managed_figure_computes_adaptive_layout_once_even_after_resize(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import quantum_circuit_drawer.managed.drawing as draw_managed
+    import quantum_circuit_drawer.managed.viewport as viewport_module
 
     circuit = build_dense_rotation_ir(layer_count=24)
     viewport_calls = 0
-    original_viewport_adaptive_paged_scene = draw_managed.viewport_adaptive_paged_scene
+    original_viewport_adaptive_paged_scene = viewport_module.viewport_adaptive_paged_scene
 
     def count_viewport_adaptive_paged_scene(
         _circuit: CircuitIR,
@@ -1055,7 +1055,7 @@ def test_draw_quantum_circuit_managed_figure_computes_adaptive_layout_once_even_
         )
 
     monkeypatch.setattr(
-        draw_managed,
+        viewport_module,
         "viewport_adaptive_paged_scene",
         count_viewport_adaptive_paged_scene,
     )

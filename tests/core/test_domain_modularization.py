@@ -75,6 +75,55 @@ _MANAGED_DRAWING_ALLOWED_IMPORTERS: tuple[str, ...] = (
     "src/quantum_circuit_drawer/managed/__init__.py",
     "src/quantum_circuit_drawer/managed/drawing.py",
 )
+_TEST_MANAGED_DRAWING_ALLOWED_IMPORTERS: tuple[str, ...] = (
+    "tests/core/test_domain_modularization.py",
+    "tests/drawing/test_drawing_refactor_boundaries.py",
+)
+
+
+def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
+    return {alias.name for alias in node.names}
+
+
+def _imports_managed_drawing_facade(
+    node: ast.AST,
+    *,
+    relative_import_base: str | None = None,
+) -> bool:
+    managed_drawing_module_names = {
+        "quantum_circuit_drawer.managed.drawing",
+        "managed.drawing",
+    }
+    managed_parent_module_names = {
+        "quantum_circuit_drawer.managed",
+        "managed",
+    }
+
+    if isinstance(node, ast.Import):
+        return bool(_imported_names(node) & {"quantum_circuit_drawer.managed.drawing"})
+
+    if not isinstance(node, ast.ImportFrom):
+        return False
+
+    if node.module in managed_drawing_module_names:
+        return True
+
+    if node.module in managed_parent_module_names and "drawing" in _imported_names(node):
+        return True
+
+    if relative_import_base == "managed":
+        if node.level == 1 and node.module == "drawing":
+            return True
+        if node.level == 1 and node.module is None and "drawing" in _imported_names(node):
+            return True
+
+    if relative_import_base == "renderers":
+        if node.level == 2 and node.module == "managed.drawing":
+            return True
+        if node.level == 2 and node.module == "managed" and "drawing" in _imported_names(node):
+            return True
+
+    return False
 
 
 def test_domain_packages_expose_draw_and_histogram_entrypoints() -> None:
@@ -153,10 +202,6 @@ def test_managed_modules_import_owner_modules_not_managed_drawing_facade() -> No
     )
     managed_root = repo_root / "src" / "quantum_circuit_drawer" / "managed"
     allowed_importers = set(_MANAGED_DRAWING_ALLOWED_IMPORTERS)
-    managed_drawing_module_names = {
-        "drawing",
-        "quantum_circuit_drawer.managed.drawing",
-    }
 
     violations: list[str] = []
     for source_file in managed_root.rglob("*.py"):
@@ -165,17 +210,8 @@ def test_managed_modules_import_owner_modules_not_managed_drawing_facade() -> No
             continue
         module = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
         for node in ast.walk(module):
-            if isinstance(node, ast.Import):
-                imported_names = {alias.name for alias in node.names}
-                if imported_names & {"quantum_circuit_drawer.managed.drawing"}:
-                    violations.append(relative_path)
-            elif isinstance(node, ast.ImportFrom) and node.module is not None:
-                if (
-                    node.level == 1
-                    and node.module == "drawing"
-                    or node.module in managed_drawing_module_names
-                ):
-                    violations.append(relative_path)
+            if _imports_managed_drawing_facade(node, relative_import_base="managed"):
+                violations.append(relative_path)
 
     assert sorted(set(violations)) == []
 
@@ -185,27 +221,34 @@ def test_renderer_modules_do_not_import_managed_drawing_facade() -> None:
         parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()
     )
     renderers_root = repo_root / "src" / "quantum_circuit_drawer" / "renderers"
-    managed_drawing_module_names = {
-        "quantum_circuit_drawer.managed.drawing",
-        "managed.drawing",
-    }
 
     violations: list[str] = []
     for source_file in renderers_root.rglob("*.py"):
         relative_path = str(source_file.relative_to(repo_root)).replace("\\", "/")
         module = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
         for node in ast.walk(module):
-            if isinstance(node, ast.Import):
-                imported_names = {alias.name for alias in node.names}
-                if imported_names & {"quantum_circuit_drawer.managed.drawing"}:
-                    violations.append(relative_path)
-            elif isinstance(node, ast.ImportFrom) and node.module is not None:
-                if (
-                    node.level == 2
-                    and node.module == "managed.drawing"
-                    or node.module in managed_drawing_module_names
-                ):
-                    violations.append(relative_path)
+            if _imports_managed_drawing_facade(node, relative_import_base="renderers"):
+                violations.append(relative_path)
+
+    assert sorted(set(violations)) == []
+
+
+def test_tests_do_not_import_managed_drawing_facade_outside_compatibility_allowlist() -> None:
+    repo_root = next(
+        parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()
+    )
+    tests_root = repo_root / "tests"
+    allowed_importers = set(_TEST_MANAGED_DRAWING_ALLOWED_IMPORTERS)
+
+    violations: list[str] = []
+    for source_file in tests_root.rglob("*.py"):
+        relative_path = str(source_file.relative_to(repo_root)).replace("\\", "/")
+        if relative_path in allowed_importers:
+            continue
+        module = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
+        for node in ast.walk(module):
+            if _imports_managed_drawing_facade(node):
+                violations.append(relative_path)
 
     assert sorted(set(violations)) == []
 
