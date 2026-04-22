@@ -2,7 +2,7 @@
 
 This guide covers the public extension points that third-party code can rely on today.
 
-The v1 scope is intentionally small:
+The v1 scope is intentionally small and user-focused:
 
 - custom framework adapters
 - custom 2D layouts
@@ -14,7 +14,7 @@ It does not include:
 - renderer plugins
 - private hooks under `quantum_circuit_drawer.drawing`, `managed`, `plots`, or private `_...` modules
 
-## Start with the right extension point
+## Start With The Right Extension Point
 
 Use `CircuitIR` directly when:
 
@@ -34,7 +34,7 @@ Use a custom layout when:
 - you want a different 2D or 3D placement strategy
 - you do not need a new input framework
 
-## Public modules you can build against
+## Public Modules You Can Build Against
 
 These modules are part of the extension contract:
 
@@ -55,7 +55,7 @@ These modules are still internal implementation details:
 
 These internal packages remain importable as compatibility facades for older internal code and compatibility-sensitive tests, but they are not stable extension points.
 
-## Writing an adapter
+## Writing An Adapter
 
 Adapters are explicit classes derived from `BaseAdapter`.
 
@@ -140,6 +140,10 @@ from quantum_circuit_drawer.ir import (
 )
 
 
+class DemoCircuit:
+    pass
+
+
 class DemoSemanticAdapter(BaseAdapter):
     framework_name = "demo_semantic"
 
@@ -191,7 +195,7 @@ Explicit use:
 from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
 draw_quantum_circuit(
-    DemoCircuit(qubit_count=2),
+    DemoCircuit(),
     config=DrawConfig(framework="demo", show=False),
 )
 ```
@@ -204,7 +208,7 @@ from quantum_circuit_drawer.adapters import register_adapter
 register_adapter(DemoAdapter, replace=True)
 ```
 
-## Writing a custom layout
+## Writing A Custom Layout
 
 Custom layouts are not registered. Pass them directly through `DrawConfig(layout=...)`.
 
@@ -219,11 +223,11 @@ Minimal example that delegates to the built-in engine:
 
 ```python
 from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+from quantum_circuit_drawer.ir import CircuitIR
 from quantum_circuit_drawer.layout import LayoutEngine
 from quantum_circuit_drawer.layout.scene import LayoutScene
 from quantum_circuit_drawer.style import DrawStyle
 from quantum_circuit_drawer.typing import LayoutEngineLike
-from quantum_circuit_drawer.ir import CircuitIR
 
 
 class DemoLayout2D(LayoutEngineLike):
@@ -286,7 +290,7 @@ draw_quantum_circuit(
 )
 ```
 
-## Practical defaults
+## Practical Defaults
 
 - If you only need one new input type, start with one adapter and reuse the built-in layout engines.
 - If your circuit source is already converted upstream, prefer `CircuitIR` over a full adapter.

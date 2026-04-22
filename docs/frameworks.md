@@ -1,8 +1,8 @@
 # Frameworks
 
-This guide explains how `quantum-circuit-drawer` works with each supported input path.
+This guide explains how `quantum-circuit-drawer` behaves across the supported input paths.
 
-In most cases, the rendering call stays the same:
+In the common case, your call still looks the same:
 
 ```python
 from quantum_circuit_drawer import draw_quantum_circuit
@@ -10,18 +10,7 @@ from quantum_circuit_drawer import draw_quantum_circuit
 draw_quantum_circuit(circuit)
 ```
 
-Use `DrawConfig(framework=...)` when you want to be explicit or when a wrapper object makes autodetection unclear.
-
-## Contents
-
-- [Overview](#overview)
-- [Qiskit](#qiskit)
-- [Cirq](#cirq)
-- [PennyLane](#pennylane)
-- [MyQLM](#myqlm)
-- [CUDA-Q](#cuda-q)
-- [Internal IR](#internal-ir)
-- [Choosing the IR path](#choosing-the-ir-path)
+Use `DrawConfig(framework=...)` only when you want to be explicit or when a wrapper object makes autodetection ambiguous.
 
 ## Overview
 
@@ -31,7 +20,7 @@ The current user-facing input paths are:
 | --- | --- | --- |
 | Qiskit | `qiskit.QuantumCircuit` | `qiskit` |
 | Cirq | `cirq.Circuit` | `cirq` |
-| PennyLane | `QuantumTape`, `QuantumScript`, or tape-like objects | `pennylane` |
+| PennyLane | `QuantumTape`, `QuantumScript`, or tape-like wrappers | `pennylane` |
 | MyQLM | `qat.core.Circuit` | `myqlm` |
 | CUDA-Q | closed CUDA-Q kernels | `cudaq` |
 | Internal IR | `CircuitIR` | none |
@@ -53,9 +42,7 @@ Use this table as the release support contract when choosing a framework path.
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
-Install extras as shown in [Installation](installation.md#install-optional-framework-extras).
-
-`plot_histogram(...)` also accepts several framework-native result payloads directly, not only raw `dict` data:
+`plot_histogram(...)` also accepts several framework-native result payloads directly:
 
 - Qiskit counts and quasi-distributions, plus sampler result containers
 - Cirq `Result` / `ResultDict` measurement payloads
@@ -64,6 +51,23 @@ Install extras as shown in [Installation](installation.md#install-optional-frame
 - CUDA-Q `SampleResult`-style count containers
 
 When a framework returns several measurement outputs at once, pass the tuple or list directly and select one entry with `HistogramConfig(result_index=...)`.
+
+## Choosing Between Native Frameworks And IR
+
+Use a native adapter when:
+
+- you already have a framework circuit object
+- you want native autodetection
+- you want framework-specific semantics to survive longer through hover, diagnostics, or comparison
+
+Use the public IR path when:
+
+- your source is not one of the built-in frameworks
+- you want complete structural control
+- you are building a custom preprocessor or adapter
+- you want a framework-free workflow in tests or tooling
+
+Use `CircuitBuilder` when you want a lightweight middle ground for small or generated circuits.
 
 ## Qiskit
 
@@ -94,7 +98,9 @@ draw_quantum_circuit(circuit)
 
 Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions including modern Qiskit expression trees when they can be normalized safely, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements.
 
-For Qiskit control-flow, the drawer keeps the existing expanded behavior for simple `if_test(...)` blocks without an `else` when the condition can still be normalized into exact classical conditions. If a simple `if_test(...)` uses a modern condition shape that cannot be normalized safely, it now falls back to a compact `IF` box with native hover details instead of failing. Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled. Those hover details now preserve normalized modern expressions, branch/body operation counts, and case summaries when Qiskit exposes them.
+For Qiskit control-flow, the drawer keeps the expanded behavior for simple `if_test(...)` blocks without an `else` when the condition can still be normalized into exact classical conditions. If a simple `if_test(...)` uses a modern condition shape that cannot be normalized safely, it falls back to a compact `IF` box with native hover details instead of failing.
+
+Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled.
 
 Bundled demos:
 
@@ -103,16 +109,6 @@ Bundled demos:
 - `qiskit-random` and `qiskit-qaoa` are the broad stress-test demos when you want denser scenes or topology-aware 3D renders.
 
 Histogram support also accepts direct Qiskit result payloads such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`.
-
-Use this when you want a clear framework check:
-
-```python
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
-
-draw_quantum_circuit(circuit, config=DrawConfig(framework="qiskit"))
-```
-
-If the object is not a Qiskit circuit, the call raises `UnsupportedFrameworkError`.
 
 ## Cirq
 
@@ -129,15 +125,17 @@ Typical input:
 Example:
 
 ```python
-import cirq
+from cirq.circuits import Circuit, Moment
+from cirq.devices import LineQubit
+from cirq.ops import CNOT, H, measure
 
 from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
-q0, q1 = cirq.LineQubit.range(2)
-circuit = cirq.Circuit(
-    cirq.H(q0),
-    cirq.CNOT(q0, q1),
-    cirq.measure(q1, key="m"),
+q0, q1 = LineQubit.range(2)
+circuit = Circuit(
+    Moment(H(q0)),
+    Moment(CNOT(q0, q1)),
+    Moment(measure(q1, key="m")),
 )
 
 draw_quantum_circuit(circuit, config=DrawConfig(framework="cirq"))
@@ -175,30 +173,32 @@ Typical inputs:
 Example:
 
 ```python
-import pennylane as qml
+from pennylane.measurements import ProbabilityMP
+from pennylane.ops import CNOT, Hadamard
+from pennylane.tape import QuantumTape
 
 from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 
-with qml.tape.QuantumTape() as tape:
-    qml.Hadamard(wires=0)
-    qml.CNOT(wires=[0, 1])
-    qml.probs(wires=[1])
+with QuantumTape() as tape:
+    Hadamard(wires=0)
+    CNOT(wires=[0, 1])
+    ProbabilityMP(wires=[1])
 
 draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
 ```
 
 Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, controlled operations with explicit `control_values` when PennyLane exposes them, optional expansion for decomposable composite operations such as `QFT`, and compact terminal-output boxes for `qml.expval()`, `qml.var()`, `qml.probs()`, `qml.sample()`, `qml.counts()`, `qml.state()`, and `qml.density_matrix()`.
 
-Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata. Composite observables such as `Tensor` / `Prod`, `SProd`, and Hamiltonian-like linear combinations now keep readable compact summaries with deterministic truncation and deterministic class-based or native-type fallback labels instead of a vague generic box name. Controlled PennyLane operations now also keep open-control states visually when the control pattern is a clean binary singleton per control wire.
+Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata.
 
-The PennyLane path now preserves conditional provenance, decomposition origin, safe wrapper semantics, and terminal-result meaning internally. When a PennyLane-native construct cannot be shown as one exact shared visual primitive, the drawer keeps the native meaning in compare signatures, hover, annotations, or diagnostics.
+Composite observables such as `Tensor` / `Prod`, `SProd`, and Hamiltonian-like linear combinations now keep readable compact summaries with deterministic truncation and deterministic class-based or native-type fallback labels instead of a vague generic box name.
+
+For QNode-like wrappers, the adapter only reads an already-materialized tape. It does not call `construct()` or trigger lazy wrapper properties on your behalf.
 
 Bundled demos:
 
-- `pennylane-terminal-outputs-showcase` is the best first demo for `qml.measure(...)`, `qml.cond(...)`, and compact terminal-output boxes.
+- `pennylane-terminal-outputs-showcase` is the best first demo for `qml.measure(...)`, `qml.cond(...)`, and compact output boxes.
 - `pennylane-random` and `pennylane-qaoa` remain useful when you want broader layout stress tests.
-
-For QNode-like wrappers, the adapter only reads an already-materialized tape. It does not call `construct()` or trigger lazy wrapper properties on your behalf.
 
 Histogram support also accepts direct execution outputs from `qml.counts()`, `qml.probs()`, and `qml.sample()`. If a QNode returns several payloads, pass the full tuple or list and use `HistogramConfig(result_index=...)` to choose which one to plot.
 
@@ -241,8 +241,6 @@ draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 
 Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, drawable `BREAK` / `CLASSIC` classical boxes on the bundled classical register, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas. Qubit-targeted quantum resets keep drawing even when MyQLM attaches extra classical metadata, with those raw classical details preserved in hover instead of raising.
 
-Histogram support also accepts `qat.core.Result` objects through their `raw_data` samples, so finite-shot counts and simulator probabilities can be plotted without manually rebuilding a dictionary.
-
 Support note:
 
 - MyQLM is currently a scoped adapter + contract support path rather than a first-class multiplatform CI backend.
@@ -261,8 +259,6 @@ Current limits:
 - classical-only resets without qubit targets still remain outside the supported subset.
 - MyQLM is installed from the upstream package under its own EULA terms.
 
-See [Troubleshooting](troubleshooting.md#myqlm-program-objects-do-not-draw-directly) if a MyQLM object is not detected.
-
 ## CUDA-Q
 
 Install on Linux or WSL2:
@@ -280,7 +276,7 @@ Example:
 ```python
 import cudaq
 
-from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 
 @cudaq.kernel
@@ -316,8 +312,6 @@ Current limits:
 
 Histogram support also accepts CUDA-Q `SampleResult`-style objects that expose count pairs through `items()`, so `cudaq.sample(...)` outputs can be passed straight into `plot_histogram(...)`.
 
-See [Troubleshooting](troubleshooting.md#cuda-q-kernels-with-arguments-do-not-draw) for the most common CUDA-Q issue.
-
 ## Internal IR
 
 The internal IR path is useful when:
@@ -333,7 +327,7 @@ Import the IR types from `quantum_circuit_drawer.ir`.
 Example:
 
 ```python
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import DrawConfig, draw_quantum_circuit
 from quantum_circuit_drawer.ir import (
     ClassicalConditionIR,
     CircuitIR,
@@ -359,7 +353,7 @@ ir = CircuitIR(
                 OperationIR(
                     kind=OperationKind.GATE,
                     name="H",
-                    target_wires=["q0"],
+                    target_wires=("q0",),
                 )
             ]
         ),
@@ -368,14 +362,14 @@ ir = CircuitIR(
                 OperationIR(
                     kind=OperationKind.CONTROLLED_GATE,
                     name="X",
-                    control_wires=["q0"],
-                    target_wires=["q1"],
-                    classical_conditions=[
+                    control_wires=("q0",),
+                    target_wires=("q1",),
+                    classical_conditions=(
                         ClassicalConditionIR(
-                            wire_ids=["c0"],
+                            wire_ids=("c0",),
                             expression="if c[0]=1",
-                        )
-                    ],
+                        ),
+                    ),
                 )
             ]
         ),
@@ -384,7 +378,7 @@ ir = CircuitIR(
                 MeasurementIR(
                     kind=OperationKind.MEASUREMENT,
                     name="M",
-                    target_wires=["q1"],
+                    target_wires=("q1",),
                     classical_target="c0",
                 )
             ]
@@ -398,20 +392,12 @@ draw_quantum_circuit(ir, config=DrawConfig(show=False))
 
 Useful IR rules:
 
-- Wire ids must be unique across quantum and classical wires.
-- Classical conditions reference classical wire ids through `ClassicalConditionIR`.
-- Measurements require a `classical_target`.
-- Non-barrier operations need at least one target wire.
-- Controlled operations can optionally set `control_values`; when omitted, controls default to the standard closed-on-`1` behavior.
-
-If you already built a `CircuitIR`, autodetection is enough. You can also pass `DrawConfig(framework="ir")` when you want the intent to be explicit.
+- wire ids must be unique across quantum and classical wires
+- classical conditions reference classical wire ids through `ClassicalConditionIR`
+- measurements require a `classical_target`
+- non-barrier operations need at least one target wire
+- controlled operations can optionally set `control_values`; when omitted, controls default to standard closed-on-`1`
 
 Bundled demo:
 
 - `ir-basic-workflow` is the best first demo for a framework-free workflow built directly from the public `CircuitIR` types.
-
-## Choosing the IR path
-
-Choose the IR path when adapting your own circuit model is easier than waiting for native framework support.
-
-For common rendering tasks, continue with [Recipes](recipes.md). For exact API behavior, see [API reference](api.md).

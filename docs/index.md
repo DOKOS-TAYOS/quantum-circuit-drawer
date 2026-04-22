@@ -1,51 +1,80 @@
 # quantum-circuit-drawer documentation
 
-`quantum-circuit-drawer` draws supported quantum circuit objects with one consistent Matplotlib-based API.
+This documentation is organized around what a user normally wants to do first: install the package, get one successful render, choose the right workflow, and only then go deeper into framework-specific details or extension points.
 
-Use this page as the map. The README stays short; the focused guides below hold the details.
+## Start Here
 
-## Start here
-
-- New install: [Installation](installation.md)
-- First successful render: [Getting started](getting-started.md)
-- Exact function behavior: [API reference](api.md)
-- Practical workflows: [User guide](user-guide.md)
-- Framework-specific use: [Frameworks](frameworks.md)
-- Extend the library: [Extension API](extensions.md)
-- Copy-paste tasks: [Recipes](recipes.md)
-- Something went wrong: [Troubleshooting](troubleshooting.md)
-- Local development: [Development](development.md)
-
-## Documentation map
-
-| Page | Use it for |
+| If you need to... | Read this |
 | --- | --- |
-| [Installation](installation.md) | Python version, `.venv` setup, package extras, Jupyter setup, CUDA-Q platform notes, editable installs |
-| [Getting started](getting-started.md) | A short Qiskit example, saving an image, drawing on your own axes |
-| [API reference](api.md) | Public signature, parameters, return values, style options, exceptions, advanced layout protocols |
-| [User guide](user-guide.md) | How to work with scripts, notebooks, reports, wide circuits, 3D views, styling, and composite operations |
-| [Frameworks](frameworks.md) | Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR support details |
-| [Extension API](extensions.md) | Public adapter registration, custom layouts, and extension-safe modules |
-| [Recipes](recipes.md) | Small examples for common rendering tasks |
-| [Troubleshooting](troubleshooting.md) | Common install, Matplotlib, API-combination, topology, and adapter issues |
-| [Development](development.md) | Local checks, formatting, tests, build commands, and benchmarks |
+| Install the package in a local `.venv` | [Installation](installation.md) |
+| Get the first circuit render working | [Getting started](getting-started.md) |
+| Understand the normal day-to-day workflows | [User guide](user-guide.md) |
+| See exact public types, fields, and return values | [API reference](api.md) |
+| Check framework support and differences | [Frameworks](frameworks.md) |
+| Copy-paste common tasks | [Recipes](recipes.md) |
+| Diagnose a failure quickly | [Troubleshooting](troubleshooting.md) |
+| Run or copy example scripts | [Examples](../examples/README.md) |
+| Extend the library with adapters or layouts | [Extension API](extensions.md) |
+| Contribute to the repository | [Development](development.md) |
 
-## Suggested reading paths
+## Reading Paths
 
-For a first run:
+### I am new to the library
 
 1. [Installation](installation.md)
 2. [Getting started](getting-started.md)
 3. [Recipes](recipes.md)
+4. [Examples](../examples/README.md)
 
-For regular use:
+### I already installed it and want to use it well
 
-1. [API reference](api.md)
-2. [User guide](user-guide.md)
-3. [Frameworks](frameworks.md)
+1. [User guide](user-guide.md)
+2. [Frameworks](frameworks.md)
+3. [API reference](api.md)
 
-For debugging:
+### I mainly care about histograms and result analysis
+
+1. [Getting started](getting-started.md#plot-your-first-histogram)
+2. [User guide](user-guide.md#histogram-workflows)
+3. [API reference](api.md#histogram-apis)
+4. [Examples](../examples/README.md#i-want-to-see-histogram-workflows)
+
+### I want to compare outputs
+
+1. [Getting started](getting-started.md#compare-two-circuits)
+2. [User guide](user-guide.md#comparison-workflows)
+3. [API reference](api.md#comparison-apis)
+
+### I need to debug a problem
 
 1. [Troubleshooting](troubleshooting.md)
 2. [Frameworks](frameworks.md)
 3. [API reference](api.md)
+
+## Documentation Map
+
+| Page | What it covers |
+| --- | --- |
+| [Installation](installation.md) | Python version, extras, Jupyter setup, editable installs, and platform notes |
+| [Getting started](getting-started.md) | The quickest path to a first render, save, histogram, and comparison |
+| [User guide](user-guide.md) | Practical advice for scripts, notebooks, 3D views, hover, presets, histograms, and compare workflows |
+| [API reference](api.md) | The exact public functions, configs, enums, result objects, and extension-facing modules |
+| [Frameworks](frameworks.md) | What changes across Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and the internal IR |
+| [Recipes](recipes.md) | Small copy-paste snippets for common tasks |
+| [Troubleshooting](troubleshooting.md) | Fast diagnosis for install, backend, framework, and rendering issues |
+| [Extension API](extensions.md) | The stable contract for adapters and custom layouts |
+| [Development](development.md) | Local setup, tests, examples, packaging, and benchmark commands |
+| [Benchmarking results](benchmarking-results.md) | A small dated benchmark report for context, not a public performance guarantee |
+
+## Support Matrix
+
+This is the release support contract repeated here so it stays easy to find.
+
+| Input path | Support level | Platform notes |
+| --- | --- | --- |
+| Internal IR | Strong support | Core built-in path on Windows and Linux |
+| Qiskit | Strong support | Primary external backend on Windows and Linux |
+| Cirq | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
+| PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
+| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |

@@ -2,28 +2,22 @@
 
 This guide covers the recommended install paths for `quantum-circuit-drawer`.
 
-All examples assume you are working inside a local `.venv`, because that keeps this project and your quantum framework dependencies isolated from the rest of your Python setup.
-
-## Contents
-
-- [Requirements](#requirements)
-- [Create a virtual environment](#create-a-virtual-environment)
-- [Install the package](#install-the-package)
-- [Install optional framework extras](#install-optional-framework-extras)
-- [Use the library in Jupyter](#use-the-library-in-jupyter)
-- [Check the installation](#check-the-installation)
-- [Install from a local checkout](#install-from-a-local-checkout)
-- [Next step](#next-step)
+All commands assume you are working inside a local `.venv`, because that is the cleanest way to keep this package and any optional quantum frameworks isolated from the rest of your Python setup.
 
 ## Requirements
 
 - Python `3.11+`
 - A virtual environment such as `.venv`
-- One optional framework extra if you want to draw objects from Qiskit, Cirq, PennyLane, MyQLM, or CUDA-Q
+- Optional extras only for the frameworks you actually want to draw directly
 
-The base package includes the Matplotlib renderer and the internal IR path.
+The base package already includes:
 
-## Create a virtual environment
+- the Matplotlib renderer
+- the internal IR path
+- histogram plotting and histogram comparison
+- circuit comparison
+
+## Create A Virtual Environment
 
 Windows PowerShell:
 
@@ -39,11 +33,16 @@ python3.11 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 ```
 
-If your system uses `python` instead of `python3.11`, use the command that points to your Python `3.11+` interpreter.
+If your machine exposes Python through `python` instead of `python3.11`, use the command that points to a Python `3.11+` interpreter.
 
-## Install the package
+## Install The Base Package
 
-Install the base package from PyPI:
+Use the base package when you want:
+
+- framework-free IR workflows
+- histogram plotting from plain mappings or arrays
+- histogram comparison
+- public configs and result objects
 
 Windows PowerShell:
 
@@ -57,9 +56,7 @@ Linux or WSL:
 .venv/bin/python -m pip install quantum-circuit-drawer
 ```
 
-Use the base package when you want the renderer and internal IR support first. To draw framework objects directly, install the matching extra below.
-
-## Install optional framework extras
+## Install Optional Framework Extras
 
 Install only the extras you need.
 
@@ -67,9 +64,35 @@ Install only the extras you need.
 | --- | --- | --- |
 | `qiskit` | `quantum-circuit-drawer[qiskit]` | Draw `qiskit.QuantumCircuit` objects |
 | `cirq` | `quantum-circuit-drawer[cirq]` | Draw `cirq.Circuit` objects |
-| `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tapes and wrappers with a materialized tape |
-| `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit` objects, usually produced by `Program().to_circ()` |
+| `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tapes, scripts, and wrappers with a materialized tape |
+| `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit` objects |
 | `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported closed CUDA-Q kernels on Linux or WSL2 |
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python -m pip install "quantum-circuit-drawer[qiskit]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[cirq]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
+```
+
+CUDA-Q is currently Linux/WSL2-first:
+
+```bash
+.venv/bin/python -m pip install "quantum-circuit-drawer[cudaq]"
+```
+
+MyQLM is distributed upstream under its own EULA. This project only provides the optional adapter.
 
 ## Support matrix
 
@@ -84,37 +107,9 @@ Use this table as the release support contract when choosing an install path.
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
-Windows PowerShell examples:
+## Jupyter Setup
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
-.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
-.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
-.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
-```
-
-Linux or WSL examples:
-
-```bash
-.venv/bin/python -m pip install "quantum-circuit-drawer[qiskit]"
-.venv/bin/python -m pip install "quantum-circuit-drawer[cirq]"
-.venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
-.venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
-```
-
-CUDA-Q is currently Linux/WSL2-first. On native Windows, the `cudaq` dependency is not expected to install because the extra is declared only for Linux environments.
-
-Linux or WSL:
-
-```bash
-.venv/bin/python -m pip install "quantum-circuit-drawer[cudaq]"
-```
-
-MyQLM is distributed upstream under its own EULA. This project only provides the optional adapter.
-
-## Use the library in Jupyter
-
-There is no separate `quantum-circuit-drawer[jupyter]` extra. Install normal notebook tools in the same virtual environment where you installed the library.
+There is no separate `quantum-circuit-drawer[jupyter]` extra. Install normal notebook tools in the same virtual environment.
 
 Windows PowerShell:
 
@@ -130,33 +125,36 @@ Linux or WSL:
 .venv/bin/python -m ipykernel install --user --name quantum-circuit-drawer --display-name "Python (.venv quantum-circuit-drawer)"
 ```
 
-In notebooks, `show=False` is often convenient when you want to control display yourself or save files without opening an external Matplotlib window.
+For notebook work:
 
-## Check the installation
+- use `show=False` when you want to control display yourself
+- use a widget backend if you want Matplotlib hover or interactive histogram controls
 
-Check that the public function imports correctly.
+## Quick Install Check
+
+Check that the package imports correctly:
 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -c "from quantum_circuit_drawer import draw_quantum_circuit; print(draw_quantum_circuit.__name__)"
+.\.venv\Scripts\python.exe -c "from quantum_circuit_drawer import draw_quantum_circuit, plot_histogram, compare_circuits, compare_histograms; print(draw_quantum_circuit.__name__, plot_histogram.__name__, compare_circuits.__name__, compare_histograms.__name__)"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -c "from quantum_circuit_drawer import draw_quantum_circuit; print(draw_quantum_circuit.__name__)"
+.venv/bin/python -c "from quantum_circuit_drawer import draw_quantum_circuit, plot_histogram, compare_circuits, compare_histograms; print(draw_quantum_circuit.__name__, plot_histogram.__name__, compare_circuits.__name__, compare_histograms.__name__)"
 ```
 
 Expected output:
 
 ```text
-draw_quantum_circuit
+draw_quantum_circuit plot_histogram compare_circuits compare_histograms
 ```
 
-## Install from a local checkout
+## Install From A Local Checkout
 
-If you are working from the repository instead of PyPI, install it in editable mode.
+If you are working from the repository instead of PyPI, use editable mode.
 
 Windows PowerShell:
 
@@ -170,7 +168,7 @@ Linux or WSL:
 .venv/bin/python -m pip install -e .
 ```
 
-Install extras the same way:
+Install development tools and extras the same way:
 
 Windows PowerShell:
 
@@ -190,6 +188,9 @@ For CUDA-Q development, use Linux or WSL2:
 .venv/bin/python -m pip install -e ".[dev,cudaq]"
 ```
 
-## Next step
+## Where To Go Next
 
-Continue with [Getting started](getting-started.md) for the first successful render, or go to [Troubleshooting](troubleshooting.md) if an install command fails.
+- [Getting started](getting-started.md) for your first successful draw or histogram
+- [Frameworks](frameworks.md) if you want to choose a backend path deliberately
+- [Examples](../examples/README.md) if you prefer runnable scripts over snippets
+- [Troubleshooting](troubleshooting.md) if an install or import step fails

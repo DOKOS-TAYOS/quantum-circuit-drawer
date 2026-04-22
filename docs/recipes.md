@@ -1,6 +1,10 @@
 # Recipes
 
-## Notebook: one figure per page
+These are copy-paste workflows for common tasks.
+
+## Circuit Recipes
+
+### Notebook: one figure per page
 
 ```python
 from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
@@ -14,7 +18,7 @@ for figure in result.figures:
     display(figure)
 ```
 
-## Script: managed page viewer
+### Script: managed page viewer
 
 ```python
 from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
@@ -25,9 +29,11 @@ draw_quantum_circuit(
 )
 ```
 
-## Save a clean paged export
+### Save a clean export from a script
 
 ```python
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
 draw_quantum_circuit(
     circuit,
     config=DrawConfig(
@@ -38,21 +44,56 @@ draw_quantum_circuit(
 )
 ```
 
-## Draw inside your own Matplotlib axes
+### Draw inside your own Matplotlib axes
 
 ```python
+import matplotlib.pyplot as plt
+
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
 fig, ax = plt.subplots()
 
 draw_quantum_circuit(
     circuit,
     ax=ax,
-    config=DrawConfig(mode=DrawMode.PAGES),
+    config=DrawConfig(mode=DrawMode.PAGES, show=False),
 )
 ```
 
-## 2D slider
+### Use a preset and keep hover enabled
 
 ```python
+from quantum_circuit_drawer import DrawConfig, StylePreset, draw_quantum_circuit
+
+result = draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(
+        preset=StylePreset.PRESENTATION,
+        hover={"enabled": True, "show_size": True},
+        show=False,
+    ),
+)
+```
+
+### Keep rendering even with recoverable unsupported operations
+
+```python
+from quantum_circuit_drawer import DrawConfig, UnsupportedPolicy, draw_quantum_circuit
+
+result = draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(
+        unsupported_policy=UnsupportedPolicy.PLACEHOLDER,
+        show=False,
+    ),
+)
+```
+
+### 2D slider for wide circuits
+
+```python
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
 draw_quantum_circuit(
     circuit,
     config=DrawConfig(
@@ -62,9 +103,11 @@ draw_quantum_circuit(
 )
 ```
 
-## 3D slider
+### 3D slider
 
 ```python
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
 draw_quantum_circuit(
     circuit,
     config=DrawConfig(
@@ -76,9 +119,11 @@ draw_quantum_circuit(
 )
 ```
 
-## 3D page viewer with topology selector
+### 3D page viewer with topology selector
 
 ```python
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
 draw_quantum_circuit(
     circuit,
     config=DrawConfig(
@@ -92,16 +137,52 @@ draw_quantum_circuit(
 )
 ```
 
-## Full unpaged render
+### Full unpaged render
 
 ```python
+from quantum_circuit_drawer import DrawConfig, DrawMode, draw_quantum_circuit
+
 result = draw_quantum_circuit(
     circuit,
     config=DrawConfig(mode=DrawMode.FULL, show=False),
 )
 ```
 
-## Plot a counts histogram
+### Compare an original circuit with an optimized one
+
+```python
+from quantum_circuit_drawer import CircuitCompareConfig, compare_circuits
+
+result = compare_circuits(
+    left_circuit,
+    right_circuit,
+    config=CircuitCompareConfig(
+        left_title="Before",
+        right_title="After",
+        show=False,
+    ),
+)
+```
+
+### Build a simple framework-free circuit
+
+```python
+from quantum_circuit_drawer import CircuitBuilder, DrawConfig, draw_quantum_circuit
+
+circuit = (
+    CircuitBuilder(2, 1, name="recipe_builder")
+    .h(0)
+    .cx(0, 1)
+    .measure(1, 0)
+    .build()
+)
+
+draw_quantum_circuit(circuit, config=DrawConfig(show=False))
+```
+
+## Histogram Recipes
+
+### Plot a counts histogram
 
 ```python
 from quantum_circuit_drawer import HistogramConfig, plot_histogram
@@ -112,7 +193,7 @@ result = plot_histogram(
 )
 ```
 
-## Plot a quasi-probability distribution
+### Plot a quasi-probability distribution
 
 ```python
 from quantum_circuit_drawer import HistogramConfig, HistogramKind, plot_histogram
@@ -123,7 +204,22 @@ result = plot_histogram(
 )
 ```
 
-## Plot a joint marginal on selected qubits
+### Keep only the largest states
+
+```python
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+result = plot_histogram(
+    {"000": 51, "001": 14, "010": 9, "111": 49},
+    config=HistogramConfig(
+        sort="value_desc",
+        top_k=3,
+        show=False,
+    ),
+)
+```
+
+### Plot a joint marginal on selected qubits
 
 ```python
 from quantum_circuit_drawer import HistogramConfig, plot_histogram
@@ -134,7 +230,7 @@ result = plot_histogram(
 )
 ```
 
-## Show decimal labels for several registers
+### Show decimal labels for several registers
 
 ```python
 from quantum_circuit_drawer import HistogramConfig, HistogramStateLabelMode, plot_histogram
@@ -150,7 +246,21 @@ result = plot_histogram(
 
 If a state label uses spaces to separate registers, decimal mode converts each register independently, so `10 011` becomes `2 3`.
 
-## Explore a large histogram interactively
+### Show a uniform reference line
+
+```python
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+result = plot_histogram(
+    {"00": 51, "01": 14, "10": 9, "11": 49},
+    config=HistogramConfig(
+        show_uniform_reference=True,
+        show=False,
+    ),
+)
+```
+
+### Explore a large histogram interactively
 
 ```python
 from quantum_circuit_drawer import HistogramConfig, plot_histogram
@@ -164,11 +274,9 @@ result = plot_histogram(
 )
 ```
 
-With the default `mode="auto"`, this becomes interactive in normal `.py` runs and in notebooks with a widget backend. It stays static on inline notebook backends. The interactive figure keeps the full ordered distribution in `result.state_labels` and `result.values`, while the visible view adds a slider viewport, per-bin hover, an order button that shows the current mode, a label button for binary or decimal labels, and a marginal-qubits text box. The slider button only appears when there are more bins than the current visible window can show.
+With the default `mode="auto"`, this becomes interactive in normal `.py` runs and in notebooks with a widget backend. It stays static on inline notebook backends.
 
-Set `hover=False` if you want the controls without hover labels, or force `mode="static"` if you always want a plain histogram.
-
-## Plot framework-style probability vectors or samples directly
+### Plot framework-style probability vectors or samples directly
 
 ```python
 from quantum_circuit_drawer import HistogramConfig, plot_histogram
@@ -189,55 +297,35 @@ sample_result = plot_histogram(
 
 This also covers Cirq `Result` / `ResultDict` objects, MyQLM `qat.core.Result`, CUDA-Q `SampleResult`-style containers, and plain tuples or lists of several framework outputs when you select one with `HistogramConfig(result_index=...)`.
 
-## Custom widths and hover
+### Select one result payload from a tuple
 
 ```python
-result = draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(
-        style={
-            "wire_line_width": 1.8,
-            "classical_wire_line_width": 1.5,
-            "gate_edge_line_width": 1.7,
-            "measurement_line_width": 1.3,
-            "connection_line_width": 1.9,
-        },
-        hover={
-            "enabled": True,
-            "show_size": True,
-            "show_matrix": "auto",
-        },
-        show=False,
-    ),
+from quantum_circuit_drawer import HistogramConfig, plot_histogram
+
+payloads = (
+    {"00": 20, "11": 12},
+    {"00": 3, "01": 8, "11": 21},
+)
+
+result = plot_histogram(
+    payloads,
+    config=HistogramConfig(result_index=1, show=False),
 )
 ```
 
-## Custom theme object
+### Compare two histograms
 
 ```python
-from quantum_circuit_drawer import DrawConfig, DrawTheme, draw_quantum_circuit
+from quantum_circuit_drawer import HistogramCompareConfig, compare_histograms
 
-theme = DrawTheme(
-    name="custom",
-    figure_facecolor="#ffffff",
-    axes_facecolor="#ffffff",
-    wire_color="#1f2933",
-    classical_wire_color="#52606d",
-    gate_facecolor="#f8fafc",
-    gate_edgecolor="#0f172a",
-    measurement_facecolor="#e2eef9",
-    text_color="#0f172a",
-    barrier_color="#94a3b8",
-    measurement_color="#0f172a",
-    accent_color="#0f766e",
-    control_color="#0f172a",
-    control_connection_color="#0f766e",
-    topology_edge_color="#b45309",
-    topology_plane_color="#0f766e",
-)
-
-draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(style={"theme": theme}, show=False),
+result = compare_histograms(
+    {"00": 0.5, "11": 0.5},
+    {"00": 473, "01": 19, "10": 24, "11": 484},
+    config=HistogramCompareConfig(
+        left_label="Ideal",
+        right_label="Sampled",
+        sort="delta_desc",
+        show=False,
+    ),
 )
 ```

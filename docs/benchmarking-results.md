@@ -2,7 +2,9 @@
 
 Date: 2026-04-18 (UTC).
 
-## Commands used
+This page is a lightweight benchmark snapshot for repository context. It is useful for contributors comparing internal changes, but it is not a user-facing performance guarantee and should not be treated as a benchmark contract across machines, Python versions, or optional framework stacks.
+
+## Commands Used
 
 ```bash
 python - <<'PY'
@@ -53,12 +55,13 @@ PY
   - `render_seconds`: `0.545838`
   - `full_draw_seconds`: `0.735114`
 - Demo suite:
-  - Framework demo runs were discovered correctly, but all entries failed in this environment due to missing optional dependencies (`qiskit`, `cirq`, `pennylane`, `qat`).
+  - Framework demo runs were discovered correctly, but all entries failed in that environment due to missing optional dependencies (`qiskit`, `cirq`, `pennylane`, `qat`).
 
 ## Notes
 
-- The benchmark CLI now supports:
+- The benchmark CLI supports:
   - `--benchmark synthetic` (default)
   - `--benchmark demo --demo-id ...`
   - `--benchmark demo-suite`
 - `demo-suite` continues running even when one demo fails, and returns per-demo error payloads.
+- For normal package usage and documentation examples, focus on the functional docs instead of this report.
