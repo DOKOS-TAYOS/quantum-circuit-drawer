@@ -537,6 +537,32 @@ def test_showcase_docs_reference_the_new_framework_demos() -> None:
     assert "cudaq-kernel-showcase" in frameworks_guide
 
 
+def test_showcase_catalog_and_examples_readme_use_current_compatibility_language() -> None:
+    examples_readme = Path("examples/README.md").read_text(encoding="utf-8")
+    showcase_specs = catalog_by_id()
+
+    assert showcase_specs["qiskit-control-flow-showcase"].description == (
+        "Qiskit showcase for compact control-flow boxes and open controls"
+    )
+    assert showcase_specs["cirq-native-controls-showcase"].description == (
+        "Cirq showcase for native controls, classical control, and CircuitOperation provenance"
+    )
+    assert showcase_specs["pennylane-terminal-outputs-showcase"].description == (
+        "PennyLane showcase for mid-measurement, qml.cond(...), and terminal-output boxes"
+    )
+    assert showcase_specs["myqlm-structural-showcase"].description == (
+        "myQLM showcase for compact composite routines on the native adapter path"
+    )
+    assert showcase_specs["cudaq-kernel-showcase"].description == (
+        "CUDA-Q showcase for the supported closed-kernel subset with reset and basis measurements"
+    )
+
+    assert "qml.cond(...)" in examples_readme
+    assert "native MyQLM adapter path" in examples_readme
+    assert "supported closed-kernel subset" in examples_readme
+    assert "CircuitOperation provenance" in examples_readme
+
+
 def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

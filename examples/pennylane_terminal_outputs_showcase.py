@@ -44,7 +44,7 @@ def _motif_count(request: ExampleRequest) -> int:
 def main() -> None:
     run_example(
         build_tape,
-        description="Render a PennyLane showcase with mid-measurement and terminal-output boxes.",
+        description="Render a PennyLane showcase with mid-measurement, qml.cond(...), and terminal-output boxes.",
         framework="pennylane",
         saved_label="PennyLane terminal outputs showcase",
         default_qubits=4,

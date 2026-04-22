@@ -45,7 +45,7 @@ def _motif_count(request: ExampleRequest) -> int:
 def main() -> None:
     run_example(
         build_circuit,
-        description="Render a myQLM showcase centered on compact composite routines.",
+        description="Render a myQLM showcase centered on compact composite routines on the native adapter path.",
         framework="myqlm",
         saved_label="myQLM structural showcase",
         default_qubits=5,

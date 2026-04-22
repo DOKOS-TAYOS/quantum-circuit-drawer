@@ -55,7 +55,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
         ),
         DemoSpec(
             demo_id="qiskit-control-flow-showcase",
-            description="Qiskit showcase for compact control-flow and open controls",
+            description="Qiskit showcase for compact control-flow boxes and open controls",
             module_name="examples.qiskit_control_flow_showcase",
             builder_name="build_circuit",
             framework="qiskit",
@@ -88,7 +88,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
         ),
         DemoSpec(
             demo_id="cirq-native-controls-showcase",
-            description="Cirq showcase for native controls, classical control, and CircuitOperation",
+            description="Cirq showcase for native controls, classical control, and CircuitOperation provenance",
             module_name="examples.cirq_native_controls_showcase",
             builder_name="build_circuit",
             framework="cirq",
@@ -121,7 +121,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
         ),
         DemoSpec(
             demo_id="pennylane-terminal-outputs-showcase",
-            description="PennyLane showcase for mid-measurement and terminal-output boxes",
+            description="PennyLane showcase for mid-measurement, qml.cond(...), and terminal-output boxes",
             module_name="examples.pennylane_terminal_outputs_showcase",
             builder_name="build_tape",
             framework="pennylane",
@@ -143,7 +143,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
         ),
         DemoSpec(
             demo_id="myqlm-structural-showcase",
-            description="myQLM showcase for compact composite routines",
+            description="myQLM showcase for compact composite routines on the native adapter path",
             module_name="examples.myqlm_structural_showcase",
             builder_name="build_circuit",
             framework="myqlm",
@@ -165,7 +165,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
         ),
         DemoSpec(
             demo_id="cudaq-kernel-showcase",
-            description="CUDA-Q showcase for a closed kernel with reset and basis measurements",
+            description="CUDA-Q showcase for the supported closed-kernel subset with reset and basis measurements",
             module_name="examples.cudaq_kernel_showcase",
             builder_name="build_kernel",
             framework="cudaq",

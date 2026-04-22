@@ -46,7 +46,7 @@ def _motif_count(request: ExampleRequest) -> int:
 def main() -> None:
     run_example(
         build_circuit,
-        description="Render a Cirq showcase with open controls, classical control, and CircuitOperation.",
+        description="Render a Cirq showcase with open controls, classical control, and CircuitOperation provenance.",
         framework="cirq",
         saved_label="Cirq native controls showcase",
         default_qubits=4,

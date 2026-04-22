@@ -39,7 +39,7 @@ def _motif_count(request: ExampleRequest) -> int:
 def main() -> None:
     run_example(
         build_kernel,
-        description="Render a CUDA-Q showcase with a closed kernel, reset, and basis measurements.",
+        description="Render a CUDA-Q showcase for the supported closed-kernel subset with reset and basis measurements.",
         framework="cudaq",
         saved_label="CUDA-Q kernel showcase",
         default_qubits=3,

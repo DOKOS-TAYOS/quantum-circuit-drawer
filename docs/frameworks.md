@@ -148,7 +148,7 @@ The Cirq path now preserves moment grouping and `CircuitOperation` provenance in
 
 Bundled demos:
 
-- `cirq-native-controls-showcase` is the best first demo for open controls, classical control, and `CircuitOperation`.
+- `cirq-native-controls-showcase` is the best first demo for open controls, classical control, and `CircuitOperation` provenance.
 - `cirq-random` and `cirq-qaoa` remain useful when you want larger or denser Cirq scenes.
 
 Histogram support also accepts `cirq.Result` / `cirq.ResultDict` objects through their `measurements` mapping. If several measurement keys are present, `plot_histogram(...)` keeps them as space-separated registers in the visible state labels.
@@ -188,7 +188,7 @@ draw_quantum_circuit(tape, config=DrawConfig(framework="pennylane"))
 
 Current support includes tape-like objects, mid-circuit measurements, `qml.cond(...)` classical conditions, controlled operations with explicit `control_values` when PennyLane exposes them, optional expansion for decomposable composite operations such as `QFT`, and compact terminal-output boxes for `qml.expval()`, `qml.var()`, `qml.probs()`, `qml.sample()`, `qml.counts()`, `qml.state()`, and `qml.density_matrix()`.
 
-Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata. Composite observables such as `Tensor` / `Prod`, `SProd`, and Hamiltonian-like linear combinations now keep readable compact summaries with deterministic truncation before falling back to a generic label. Controlled PennyLane operations now also keep open-control states visually when the control pattern is a clean binary singleton per control wire.
+Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata. Composite observables such as `Tensor` / `Prod`, `SProd`, and Hamiltonian-like linear combinations now keep readable compact summaries with deterministic truncation and deterministic class-based or native-type fallback labels instead of a vague generic box name. Controlled PennyLane operations now also keep open-control states visually when the control pattern is a clean binary singleton per control wire.
 
 The PennyLane path now preserves conditional provenance, decomposition origin, safe wrapper semantics, and terminal-result meaning internally. When a PennyLane-native construct cannot be shown as one exact shared visual primitive, the drawer keeps the native meaning in compare signatures, hover, annotations, or diagnostics.
 
@@ -238,7 +238,7 @@ circuit = program.to_circ()
 draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 ```
 
-Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, drawable `BREAK` / `CLASSIC` classical boxes on the bundled classical register, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas.
+Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, drawable `BREAK` / `CLASSIC` classical boxes on the bundled classical register, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas. Qubit-targeted quantum resets keep drawing even when MyQLM attaches extra classical metadata, with those raw classical details preserved in hover instead of raising.
 
 Histogram support also accepts `qat.core.Result` objects through their `raw_data` samples, so finite-shot counts and simulator probabilities can be plotted without manually rebuilding a dictionary.
 
@@ -257,6 +257,7 @@ Current limits:
 - `Program` and `QRoutine` objects are not the main adapter input; convert with `to_circ()` first.
 - `BREAK` and `CLASSIC` now render as compact classical boxes on the classical register, keeping formulas and native details in hover; when a formula cannot be normalized safely, the raw native formula is preserved instead of raising.
 - `REMAP` and ancilla-using composites are rendered as compact annotated boxes rather than expanded internal structure.
+- classical-only resets without qubit targets still remain outside the supported subset.
 - MyQLM is installed from the upstream package under its own EULA terms.
 
 See [Troubleshooting](troubleshooting.md#myqlm-program-objects-do-not-draw-directly) if a MyQLM object is not detected.

@@ -281,6 +281,7 @@ class MyQLMAdapter(BaseAdapter):
                 return self._convert_reset(
                     operation,
                     qubit_wire_ids,
+                    classical_targets=classical_targets,
                     location=location,
                     decomposition_origin=decomposition_origin,
                     composite_label=composite_label,
@@ -489,7 +490,7 @@ class MyQLMAdapter(BaseAdapter):
         required_qubits = int(getattr(implementation, "nbqbits", len(qubit_wire_ids)) or 0)
         if ancilla_count > 0:
             raise UnsupportedOperationError(
-                "myQLM composite operations with ancillas are not supported yet"
+                "myQLM composite operations with ancillas must be rendered as compact boxes"
             )
         if required_qubits > len(qubit_wire_ids):
             raise UnsupportedOperationError(
@@ -602,29 +603,46 @@ class MyQLMAdapter(BaseAdapter):
         operation: _MyQLMOpLike,
         qubit_wire_ids: Mapping[int, str],
         *,
+        classical_targets: Mapping[int, tuple[str, str]],
         location: tuple[int, ...],
         decomposition_origin: str | None,
         composite_label: str | None,
     ) -> list[SemanticOperationIR]:
-        if operation.formula is not None or tuple(operation.cbits or ()):
-            raise UnsupportedOperationError("myQLM classical resets are not supported yet")
         qubits = tuple(operation.qbits)
+        formula_text = (operation.formula or "").strip()
+        classical_bits = tuple(int(index) for index in (operation.cbits or ()))
+
         if not qubits:
+            if formula_text or classical_bits:
+                raise UnsupportedOperationError(
+                    "myQLM classical-only reset operations are not supported yet"
+                )
             raise UnsupportedOperationError("myQLM reset operation does not reference any qubits")
 
+        classical_bit_labels = tuple(
+            self._classical_target(classical_index, classical_targets)[1]
+            for classical_index in classical_bits
+        )
+        hover_details = normalized_detail_lines(
+            "native: RESET",
+            (
+                f"classical bits: {', '.join(classical_bit_labels)}"
+                if classical_bit_labels
+                else None
+            ),
+            (f"formula raw: {formula_text}" if formula_text else None),
+            (
+                f"decomposed from: {decomposition_origin}"
+                if decomposition_origin is not None
+                else None
+            ),
+        )
         return [
             SemanticOperationIR(
                 kind=OperationKind.GATE,
                 name="RESET",
                 target_wires=(self._wire_id_for_index(qubit_index, qubit_wire_ids),),
-                hover_details=normalized_detail_lines(
-                    "native: RESET",
-                    (
-                        f"decomposed from: {decomposition_origin}"
-                        if decomposition_origin is not None
-                        else None
-                    ),
-                ),
+                hover_details=hover_details,
                 provenance=semantic_provenance(
                     framework=self.framework_name,
                     native_name="RESET",
@@ -633,6 +651,10 @@ class MyQLMAdapter(BaseAdapter):
                     composite_label=composite_label,
                     location=(*location, reset_index),
                 ),
+                metadata={
+                    "classical_bits": classical_bit_labels,
+                    "formula_raw": formula_text or None,
+                },
             )
             for reset_index, qubit_index in enumerate(qubits)
         ]
