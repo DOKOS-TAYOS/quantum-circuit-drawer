@@ -5,15 +5,17 @@ from tests._api_managed_rendering_support import *
 def test_draw_quantum_circuit_configures_zoom_text_scaling_once_per_render(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import quantum_circuit_drawer.managed.zoom as zoom_module
+
     call_count = 0
-    original_configure_zoom = managed_module.configure_zoom_text_scaling
+    original_configure_zoom = zoom_module.configure_zoom_text_scaling
 
     def capture_configure_zoom(*args: object, **kwargs: object) -> None:
         nonlocal call_count
         call_count += 1
         original_configure_zoom(*args, **kwargs)
 
-    monkeypatch.setattr(managed_module, "configure_zoom_text_scaling", capture_configure_zoom)
+    monkeypatch.setattr(zoom_module, "configure_zoom_text_scaling", capture_configure_zoom)
 
     figure, _ = draw_quantum_circuit(build_sample_ir(), show=False)
 

@@ -180,6 +180,36 @@ def test_managed_modules_import_owner_modules_not_managed_drawing_facade() -> No
     assert sorted(set(violations)) == []
 
 
+def test_renderer_modules_do_not_import_managed_drawing_facade() -> None:
+    repo_root = next(
+        parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()
+    )
+    renderers_root = repo_root / "src" / "quantum_circuit_drawer" / "renderers"
+    managed_drawing_module_names = {
+        "quantum_circuit_drawer.managed.drawing",
+        "managed.drawing",
+    }
+
+    violations: list[str] = []
+    for source_file in renderers_root.rglob("*.py"):
+        relative_path = str(source_file.relative_to(repo_root)).replace("\\", "/")
+        module = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
+        for node in ast.walk(module):
+            if isinstance(node, ast.Import):
+                imported_names = {alias.name for alias in node.names}
+                if imported_names & {"quantum_circuit_drawer.managed.drawing"}:
+                    violations.append(relative_path)
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                if (
+                    node.level == 2
+                    and node.module == "managed.drawing"
+                    or node.module in managed_drawing_module_names
+                ):
+                    violations.append(relative_path)
+
+    assert sorted(set(violations)) == []
+
+
 def test_lazy_managed_and_renderer_packages_reexport_split_modules() -> None:
     import quantum_circuit_drawer.managed as managed_facade
     import quantum_circuit_drawer.renderers as renderer_facade
