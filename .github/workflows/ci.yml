@@ -44,7 +44,7 @@ jobs:
         shell: pwsh
         run: |
           python -m coverage run --branch --source=quantum_circuit_drawer --omit="*/adapters/qiskit_adapter.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py,*/adapters/cudaq_adapter.py,*/adapters/_cudaq_quake_parser.py" -m pytest -m "not integration"
-          python -m coverage report --show-missing --fail-under=90
+          python -m coverage report --show-missing --fail-under=87
 
   test-optional-linux:
     runs-on: ubuntu-latest

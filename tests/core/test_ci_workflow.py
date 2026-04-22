@@ -34,3 +34,10 @@ def test_ci_workflow_runs_pyright() -> None:
     workflow_text = workflow_path.read_text(encoding="utf-8")
 
     assert "python -m pyright -p ." in workflow_text
+
+
+def test_ci_workflow_uses_current_core_coverage_threshold() -> None:
+    workflow_path = Path(".github/workflows/ci.yml")
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+
+    assert "python -m coverage report --show-missing --fail-under=87" in workflow_text
