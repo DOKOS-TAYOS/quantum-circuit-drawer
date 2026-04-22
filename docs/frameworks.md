@@ -238,7 +238,7 @@ circuit = program.to_circ()
 draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 ```
 
-Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas.
+Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas.
 
 Histogram support also accepts `qat.core.Result` objects through their `raw_data` samples, so finite-shot counts and simulator probabilities can be plotted without manually rebuilding a dictionary.
 
@@ -255,8 +255,8 @@ Bundled demos:
 Current limits:
 
 - `Program` and `QRoutine` objects are not the main adapter input; convert with `to_circ()` first.
-- `BREAK`, `CLASSIC`, and `REMAP` operations are not rendered yet.
-- Composite operations that require ancillas still do not have a clean shared rendering.
+- `BREAK` and `CLASSIC` operations are not rendered yet.
+- `REMAP` and ancilla-using composites are rendered as compact annotated boxes rather than expanded internal structure.
 - MyQLM is installed from the upstream package under its own EULA terms.
 
 See [Troubleshooting](troubleshooting.md#myqlm-program-objects-do-not-draw-directly) if a MyQLM object is not detected.
@@ -296,7 +296,7 @@ Here, "closed" means the kernel can be inspected without additional runtime argu
 
 Support note:
 
-- Supported closed-kernel parsing now preserves Quake provenance, measurement basis, reset operations, and value-form wire flow through the shared semantic adapter pipeline.
+- Supported closed-kernel parsing now preserves Quake provenance, measurement basis, reset operations, value-form wire flow, and compact callable blocks for `apply`, `adjoint`, and `compute_action` through the shared semantic adapter pipeline.
 
 Bundled demos:
 
@@ -308,7 +308,8 @@ Current limits:
 - CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
 - Kernels that still require runtime arguments are not supported.
 - Advanced CUDA-Q control flow and broader advanced constructs are outside the supported subset.
-- `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps are still rejected because they do not map cleanly into the current shared IR.
+- `apply`, `compute_action`, and `adjoint` are currently rendered as compact callable boxes with hover details rather than expanded internal structure.
+- Unresolved dynamic qvector sizes and controlled swaps are still rejected because they do not map cleanly into the current shared IR.
 
 Histogram support also accepts CUDA-Q `SampleResult`-style objects that expose count pairs through `items()`, so `cudaq.sample(...)` outputs can be passed straight into `plot_histogram(...)`.
 

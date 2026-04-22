@@ -283,7 +283,15 @@ class MyQLMAdapter(BaseAdapter):
                     decomposition_origin=decomposition_origin,
                     composite_label=composite_label,
                 )
-            if operation_type in {"BREAK", "CLASSIC", "REMAP"}:
+            if operation_type == "REMAP":
+                return self._convert_remap(
+                    operation,
+                    qubit_wire_ids,
+                    location=location,
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                )
+            if operation_type in {"BREAK", "CLASSIC"}:
                 raise UnsupportedOperationError(
                     f"unsupported myQLM operation type '{operation_type.lower()}'"
                 )
@@ -331,9 +339,11 @@ class MyQLMAdapter(BaseAdapter):
         parameters = self._gate_parameters(definition)
 
         if definition is not None and definition.circuit_implementation is not None:
-            if composite_mode == "expand":
+            implementation = definition.circuit_implementation
+            ancilla_count = int(getattr(implementation, "ancillas", 0) or 0)
+            if composite_mode == "expand" and ancilla_count == 0:
                 return self._expand_circuit_implementation(
-                    definition.circuit_implementation,
+                    implementation,
                     gate_definitions=gate_definitions,
                     qubit_wire_ids=target_wires,
                     classical_targets=classical_targets,
@@ -344,25 +354,26 @@ class MyQLMAdapter(BaseAdapter):
                     decomposition_origin=display_name,
                     composite_label=display_name,
                 )
+            if composite_mode == "expand" and ancilla_count > 0:
+                diagnostics.append(
+                    RenderDiagnostic(
+                        code="myqlm_composite_ancilla_compact_render",
+                        message=(
+                            f"Rendered myQLM composite {display_name!r} as a compact box because "
+                            "its implementation uses ancillas."
+                        ),
+                        severity=DiagnosticSeverity.INFO,
+                    )
+                )
             return [
-                SemanticOperationIR(
-                    kind=OperationKind.GATE,
-                    name=display_name,
-                    label=display_name,
+                self._compact_composite_operation(
+                    display_name=display_name,
                     target_wires=tuple(target_wires.values()),
                     parameters=parameters,
-                    annotations=(f"native: {display_name}",),
-                    hover_details=normalized_detail_lines(
-                        f"native: {display_name}",
-                        f"composite: {display_name}",
-                    ),
-                    provenance=semantic_provenance(
-                        framework=self.framework_name,
-                        native_name=display_name,
-                        native_kind="composite",
-                        composite_label=display_name,
-                        location=location,
-                    ),
+                    location=location,
+                    ancilla_count=ancilla_count,
+                    effective_arity=int(getattr(implementation, "nbqbits", len(target_wires)) or 0)
+                    or len(target_wires),
                 )
             ]
 
@@ -497,6 +508,41 @@ class MyQLMAdapter(BaseAdapter):
             )
         return expanded
 
+    def _compact_composite_operation(
+        self,
+        *,
+        display_name: str,
+        target_wires: tuple[str, ...],
+        parameters: tuple[object, ...],
+        location: tuple[int, ...],
+        ancilla_count: int = 0,
+        effective_arity: int | None = None,
+    ) -> SemanticOperationIR:
+        hover_details: list[str] = [
+            f"native: {display_name}",
+            f"composite: {display_name}",
+        ]
+        if ancilla_count > 0:
+            hover_details.append(f"ancillas: {ancilla_count}")
+            if effective_arity is not None:
+                hover_details.append(f"arity: {effective_arity}")
+        return SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name=display_name,
+            label=display_name,
+            target_wires=target_wires,
+            parameters=parameters,
+            annotations=(f"native: {display_name}",),
+            hover_details=normalized_detail_lines(*hover_details),
+            provenance=semantic_provenance(
+                framework=self.framework_name,
+                native_name=display_name,
+                native_kind="composite",
+                composite_label=display_name,
+                location=location,
+            ),
+        )
+
     def _convert_measurement(
         self,
         operation: _MyQLMOpLike,
@@ -583,6 +629,65 @@ class MyQLMAdapter(BaseAdapter):
             )
             for reset_index, qubit_index in enumerate(qubits)
         ]
+
+    def _convert_remap(
+        self,
+        operation: _MyQLMOpLike,
+        qubit_wire_ids: Mapping[int, str],
+        *,
+        location: tuple[int, ...],
+        decomposition_origin: str | None,
+        composite_label: str | None,
+    ) -> list[SemanticOperationIR]:
+        target_wires = tuple(self._target_wire_ids(operation.qbits, qubit_wire_ids).values())
+        if not target_wires:
+            raise UnsupportedOperationError("myQLM REMAP operation does not reference any qubits")
+        hover_details = normalized_detail_lines(
+            "native: REMAP",
+            self._remap_summary(operation, qubit_wire_ids),
+            (
+                f"decomposed from: {decomposition_origin}"
+                if decomposition_origin is not None
+                else None
+            ),
+        )
+        return [
+            SemanticOperationIR(
+                kind=OperationKind.GATE,
+                name="REMAP",
+                label="REMAP",
+                target_wires=target_wires,
+                hover_details=hover_details,
+                provenance=semantic_provenance(
+                    framework=self.framework_name,
+                    native_name="REMAP",
+                    native_kind="remap",
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                    location=location,
+                ),
+            )
+        ]
+
+    def _remap_summary(
+        self,
+        operation: _MyQLMOpLike,
+        qubit_wire_ids: Mapping[int, str],
+    ) -> str:
+        qubits = tuple(int(index) for index in operation.qbits)
+        remap_values = tuple(int(index) for index in (operation.remap or ()))
+        if remap_values and len(remap_values) == len(qubits):
+            try:
+                mappings = ", ".join(
+                    f"{self._wire_id_for_index(source_index, qubit_wire_ids)}->"
+                    f"{self._wire_id_for_index(target_index, qubit_wire_ids)}"
+                    for source_index, target_index in zip(qubits, remap_values, strict=True)
+                )
+            except UnsupportedOperationError:
+                pass
+            else:
+                return f"remap: {mappings}"
+        return f"remap raw: qbits={qubits}, remap={remap_values}"
 
     def _classical_condition_for_operation(
         self,

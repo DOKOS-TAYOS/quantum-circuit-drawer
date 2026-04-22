@@ -316,7 +316,7 @@ def bell_pair() -> None:
 draw_quantum_circuit(bell_pair)
 ```
 
-For supported closed kernels, the adapter now also preserves Quake provenance, measurement basis, and `reset` operations internally. Constructs such as control flow, `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps are still outside the supported subset.
+For supported closed kernels, the adapter now also preserves Quake provenance, measurement basis, `reset`, and compact callable boxes for `apply`, `compute_action`, and `adjoint` internally. Control flow, unresolved dynamic qvector sizes, and controlled swaps are still outside the supported subset.
 
 ## Style validation fails
 
@@ -366,5 +366,5 @@ Framework-specific notes:
 
 - Qiskit control-flow with an `else`, `switch_case`, `for_loop`, or `while_loop` is drawn compactly on purpose; the drawer preserves the native condition and branch summary in hover details instead of expanding or simulating it.
 - Open controls from Qiskit `ctrl_state`, Cirq singleton binary `control_values`, and PennyLane boolean/binary `control_values` now draw explicitly as open controls. Non-binary control patterns still degrade to a compact controlled-gate drawing with hover details instead of a fake exact symbol.
-- MyQLM now supports drawable classical formulas when they can be carried as a clean display expression, but `BREAK`, `CLASSIC`, `REMAP`, and ancilla-heavy composites still raise.
-- CUDA-Q now supports `reset` in the supported closed-kernel subset, but still rejects control flow, `apply`, `compute_action`, `adjoint`, unresolved dynamic qvector sizes, and controlled swaps.
+- MyQLM now supports drawable classical formulas, compact `REMAP` boxes, and compact ancilla-heavy composites with hover annotations, but `BREAK` and `CLASSIC` still raise.
+- CUDA-Q now supports `reset` and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported closed-kernel subset, but still rejects control flow, unresolved dynamic qvector sizes, and controlled swaps.
