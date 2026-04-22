@@ -27,6 +27,7 @@ _MATHTEXT_HEIGHT_PADDING_FACTOR = 1.1
 _MEASUREMENT_LABEL_FONT_SCALE = 0.62
 _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE = 0.56
 _MEASUREMENT_CLASSICAL_LABEL_PATTERN = re.compile(r"^.+\[(\d+)\]$")
+_PLAIN_TEXT_CONNECTION_LABEL_PATTERN = re.compile(r"[&|!<>()]")
 _GATE_TEXT_CONTEXT_CACHE_ATTR = "_quantum_circuit_drawer_gate_text_context_cache"
 _NUMERIC_TEXT_PATTERN = re.compile(
     r"^[+\-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?(?:, [+\-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?)*$"
@@ -118,7 +119,7 @@ def _connection_label_style(
     }
     if not _is_measurement_classical_connection_label(connection):
         return _ConnectionLabelStyle(
-            text=format_visible_label(label, use_mathtext=scene.style.use_mathtext),
+            text=_format_connection_label(label, use_mathtext=scene.style.use_mathtext),
             font_size=scene.style.font_size * 0.7,
             bbox=default_bbox,
         )
@@ -171,6 +172,12 @@ def _connection_label_style(
             "edgecolor": "none",
         },
     )
+
+
+def _format_connection_label(label: str, *, use_mathtext: bool) -> str:
+    if use_mathtext and _PLAIN_TEXT_CONNECTION_LABEL_PATTERN.search(label):
+        return label
+    return format_visible_label(label, use_mathtext=use_mathtext)
 
 
 def _fit_gate_text_font_size(

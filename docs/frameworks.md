@@ -238,7 +238,7 @@ circuit = program.to_circ()
 draw_quantum_circuit(circuit, config=DrawConfig(framework="myqlm"))
 ```
 
-Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas.
+Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, drawable `BREAK` / `CLASSIC` classical boxes on the bundled classical register, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas.
 
 Histogram support also accepts `qat.core.Result` objects through their `raw_data` samples, so finite-shot counts and simulator probabilities can be plotted without manually rebuilding a dictionary.
 
@@ -255,7 +255,7 @@ Bundled demos:
 Current limits:
 
 - `Program` and `QRoutine` objects are not the main adapter input; convert with `to_circ()` first.
-- `BREAK` and `CLASSIC` operations are not rendered yet.
+- `BREAK` and `CLASSIC` now render as compact classical boxes on the classical register, keeping formulas and native details in hover; when a formula cannot be normalized safely, the raw native formula is preserved instead of raising.
 - `REMAP` and ancilla-using composites are rendered as compact annotated boxes rather than expanded internal structure.
 - MyQLM is installed from the upstream package under its own EULA terms.
 
