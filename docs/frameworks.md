@@ -309,7 +309,7 @@ Current limits:
 - Kernels that still require runtime arguments are not supported.
 - Advanced CUDA-Q control flow and broader advanced constructs are outside the supported subset.
 - `apply`, `compute_action`, and `adjoint` are currently rendered as compact callable boxes with hover details rather than expanded internal structure.
-- Unresolved dynamic qvector sizes and controlled swaps are still rejected because they do not map cleanly into the current shared IR.
+- Controlled `swap` now renders as a compact controlled `SWAP` box, while unresolved dynamic qvector sizes are still rejected because they do not map cleanly into the current shared IR.
 
 Histogram support also accepts CUDA-Q `SampleResult`-style objects that expose count pairs through `items()`, so `cudaq.sample(...)` outputs can be passed straight into `plot_histogram(...)`.
 

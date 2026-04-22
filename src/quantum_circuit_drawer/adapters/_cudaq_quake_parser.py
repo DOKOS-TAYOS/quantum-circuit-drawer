@@ -198,14 +198,32 @@ class CudaqQuakeParser:
 
         target_wires = self._resolve_operand_wires(operand_tokens)
         if op_name == "swap":
-            if controls:
-                raise UnsupportedOperationError(
-                    "CUDA-Q swap operations with controls are not supported"
-                )
             if len(target_wires) != 2:
                 raise UnsupportedOperationError(
                     "CUDA-Q swap operations require exactly two targets"
                 )
+            if controls:
+                control_wires = tuple(self._resolve_wire_token(token) for token in controls)
+                return [
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="SWAP",
+                        label="SWAP",
+                        target_wires=target_wires,
+                        control_wires=control_wires,
+                        hover_details=normalized_detail_lines(
+                            "quake: swap",
+                            f"controls: {', '.join(control_wires)}",
+                            f"targets: {', '.join(target_wires)}",
+                        ),
+                        provenance=semantic_provenance(
+                            framework="cudaq",
+                            native_name="swap",
+                            native_kind="controlled_swap",
+                            location=location,
+                        ),
+                    )
+                ]
             return [
                 SemanticOperationIR(
                     kind=OperationKind.SWAP,

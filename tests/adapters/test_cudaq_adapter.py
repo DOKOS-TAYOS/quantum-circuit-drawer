@@ -149,6 +149,26 @@ module {
 """.strip()
 
 
+def build_multi_controlled_swap_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__multi_controlled_swap() attributes {"cudaq-entrypoint"} {
+    %q = quake.alloca() : !quake.qvec<4>
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c2 = arith.constant 2 : index
+    %c3 = arith.constant 3 : index
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<4>, index) -> !quake.qref
+    %q1 = quake.extract_ref %q[%c1] : (!quake.qvec<4>, index) -> !quake.qref
+    %q2 = quake.extract_ref %q[%c2] : (!quake.qvec<4>, index) -> !quake.qref
+    %q3 = quake.extract_ref %q[%c3] : (!quake.qvec<4>, index) -> !quake.qref
+    quake.swap [%q0, %q1] %q2, %q3 : (!quake.qref, !quake.qref, !quake.qref, !quake.qref) -> ()
+    return
+  }
+}
+""".strip()
+
+
 def build_dynamic_size_quake_mlir() -> str:
     return """
 module {
@@ -456,15 +476,60 @@ module {
         adapter_type().to_ir(kernel)
 
 
-def test_cudaq_adapter_rejects_unsupported_quake_operations(
+def test_cudaq_adapter_supports_controlled_swap_as_compact_controlled_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_cudaq(monkeypatch)
-    adapter_type = load_cudaq_adapter_type()
+    adapter = load_cudaq_adapter_type()()
     kernel = FakePyKernel(mlir=build_controlled_swap_quake_mlir())
 
-    with pytest.raises(UnsupportedOperationError, match="swap operations with controls"):
-        adapter_type().to_ir(kernel)
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.CONTROLLED_GATE
+    assert operations[0].name == "SWAP"
+    assert operations[0].label == "SWAP"
+    assert operations[0].control_wires == ("q0",)
+    assert operations[0].target_wires == ("q1", "q2")
+    assert operations[0].hover_details == (
+        "quake: swap",
+        "controls: q0",
+        "targets: q1, q2",
+    )
+    assert operations[0].provenance.framework == "cudaq"
+    assert operations[0].provenance.native_name == "swap"
+    assert operations[0].provenance.native_kind == "controlled_swap"
+
+    lowered = lower_semantic_circuit(semantic)
+    lowered_operation = lowered.layers[0].operations[0]
+    assert lowered_operation.kind is OperationKind.CONTROLLED_GATE
+    assert lowered_operation.name == "SWAP"
+    assert lowered_operation.control_wires == ("q0",)
+    assert lowered_operation.target_wires == ("q1", "q2")
+    assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == "controlled_swap"
+    assert lowered_operation.metadata["hover_details"] == operations[0].hover_details
+
+
+def test_cudaq_adapter_supports_multi_controlled_swap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_multi_controlled_swap_quake_mlir())
+
+    semantic = adapter.to_semantic_ir(kernel)
+
+    assert semantic is not None
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 1
+    assert operations[0].kind is OperationKind.CONTROLLED_GATE
+    assert operations[0].name == "SWAP"
+    assert operations[0].control_wires == ("q0", "q1")
+    assert operations[0].target_wires == ("q2", "q3")
+    assert "controls: q0, q1" in operations[0].hover_details
+    assert "targets: q2, q3" in operations[0].hover_details
 
 
 @pytest.mark.parametrize(
@@ -599,4 +664,19 @@ def test_draw_quantum_circuit_renders_cudaq_compact_named_operation_boxes(
     assert axes.figure is figure
     assert_axes_contains_circuit_artists(axes, expected_texts={"APPLY", "q0", "q1"})
     assert "H" not in texts
+    assert_figure_has_visible_content(figure)
+
+
+def test_draw_quantum_circuit_renders_cudaq_controlled_swap_box(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    kernel = FakePyKernel(mlir=build_controlled_swap_quake_mlir())
+
+    figure, axes = draw_quantum_circuit(kernel, framework="cudaq", show=False)
+    texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}
+
+    assert axes.figure is figure
+    assert "SWAP" in texts
+    assert_axes_contains_circuit_artists(axes, expected_texts={"SWAP", "q0", "q1", "q2"})
     assert_figure_has_visible_content(figure)
