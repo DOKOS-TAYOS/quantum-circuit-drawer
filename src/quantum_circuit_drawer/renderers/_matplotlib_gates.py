@@ -18,6 +18,7 @@ from ..layout.scene import (
     SceneMeasurement,
     SceneSwap,
     SceneText,
+    SceneVisualState,
 )
 from ..style import (
     resolved_connection_line_width,
@@ -98,8 +99,8 @@ def draw_x_target_circles(
     y_offset: float = 0.0,
 ) -> tuple[EllipseCollection, ...] | None:
     collections: list[EllipseCollection] = []
-    offsets_by_state: dict[object, list[tuple[float, float]]] = {}
-    diameters_by_state: dict[object, list[float]] = {}
+    offsets_by_state: dict[SceneVisualState, list[tuple[float, float]]] = {}
+    diameters_by_state: dict[SceneVisualState, list[float]] = {}
     for gate in gates:
         if gate.render_style is not GateRenderStyle.X_TARGET:
             continue
@@ -146,7 +147,10 @@ def draw_x_target_segments(
         return None
 
     collections: list[LineCollection] = []
-    segments_by_state: dict[object, list[tuple[tuple[float, float], tuple[float, float]]]] = {}
+    segments_by_state: dict[
+        SceneVisualState,
+        list[tuple[tuple[float, float], tuple[float, float]]],
+    ] = {}
     for gate in gates:
         if gate.render_style is not GateRenderStyle.X_TARGET:
             continue
@@ -294,8 +298,8 @@ def draw_controls(
 
     diameter = scene.style.control_radius * 2
     control_color = scene.style.theme.control_color or scene.style.theme.wire_color
-    closed_offsets_by_state: dict[object, list[tuple[float, float]]] = {}
-    open_offsets_by_state: dict[object, list[tuple[float, float]]] = {}
+    closed_offsets_by_state: dict[SceneVisualState, list[tuple[float, float]]] = {}
+    open_offsets_by_state: dict[SceneVisualState, list[tuple[float, float]]] = {}
     for control in controls:
         target = open_offsets_by_state if control.state == 0 else closed_offsets_by_state
         target.setdefault(control.visual_state, []).append(
@@ -361,7 +365,10 @@ def draw_swaps(
         return None
 
     collections: list[LineCollection] = []
-    segments_by_state: dict[object, list[tuple[tuple[float, float], tuple[float, float]]]] = {}
+    segments_by_state: dict[
+        SceneVisualState,
+        list[tuple[tuple[float, float], tuple[float, float]]],
+    ] = {}
     for swap in swaps:
         half = swap.marker_size
         for y in (swap.y_top + y_offset, swap.y_bottom + y_offset):

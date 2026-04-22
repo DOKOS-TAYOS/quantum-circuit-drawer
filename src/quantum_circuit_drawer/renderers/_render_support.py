@@ -38,9 +38,14 @@ def close_figure_best_effort(
     """Attempt to close one figure without masking the main render outcome."""
 
     from matplotlib import pyplot as plt
+    from matplotlib.figure import Figure as MatplotlibFigure
+    from matplotlib.figure import SubFigure as MatplotlibSubFigure
 
     try:
-        plt.close(figure)
+        root_figure: MatplotlibFigure = (
+            figure.figure if isinstance(figure, MatplotlibSubFigure) else figure
+        )
+        plt.close(root_figure)
     except Exception:
         logger.warning("Failed best-effort cleanup for %s.", context, exc_info=True)
 

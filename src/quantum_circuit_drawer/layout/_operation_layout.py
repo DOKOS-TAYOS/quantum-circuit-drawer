@@ -237,6 +237,7 @@ class _OperationSceneBuilder:
         x: float,
         width: float,
         target_wires: tuple[str, ...],
+        operation_id: str | None = None,
     ) -> None:
         append_gate_annotations(
             self,
@@ -244,6 +245,7 @@ class _OperationSceneBuilder:
             x=x,
             width=width,
             target_wires=target_wires,
+            operation_id=operation_id,
         )
 
 

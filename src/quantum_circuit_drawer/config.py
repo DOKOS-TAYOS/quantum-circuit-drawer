@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from .diagnostics import RenderDiagnostic
 from .hover import HoverOptions, normalize_hover
@@ -162,11 +162,11 @@ class DrawConfig:
 
     @property
     def unsupported_policy(self) -> UnsupportedPolicy:
-        return self.side.render.unsupported_policy
+        return cast("UnsupportedPolicy", self.side.render.unsupported_policy)
 
     @property
     def preset(self) -> StylePreset | None:
-        return self.side.appearance.preset
+        return cast("StylePreset | None", self.side.appearance.preset)
 
     @property
     def style(self) -> DrawStyle | Mapping[str, object] | None:
@@ -174,7 +174,7 @@ class DrawConfig:
 
     @property
     def hover(self) -> HoverOptions:
-        return self.side.appearance.hover
+        return cast("HoverOptions", self.side.appearance.hover)
 
     @property
     def show(self) -> bool:

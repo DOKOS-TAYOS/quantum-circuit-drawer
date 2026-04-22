@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from typing import TypeVar
 
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseEvent
@@ -38,6 +39,16 @@ from ..renderers._matplotlib_page_projection import page_x_offset, page_y_offset
 
 _CLICK_CONNECTION_HALF_WIDTH = 0.1
 _ANCILLA_NAME_HINTS = ("ancilla", "anc", "work")
+_SceneOperationVisualItem = TypeVar(
+    "_SceneOperationVisualItem",
+    SceneGate,
+    SceneGateAnnotation,
+    SceneControl,
+    SceneConnection,
+    SceneSwap,
+    SceneBarrier,
+    SceneMeasurement,
+)
 
 
 class WireFilterMode(StrEnum):
@@ -823,18 +834,12 @@ def _neighbor_operation(
 
 
 def _with_operation_visual_state(
-    item: SceneGate
-    | SceneGateAnnotation
-    | SceneControl
-    | SceneConnection
-    | SceneSwap
-    | SceneBarrier
-    | SceneMeasurement,
+    item: _SceneOperationVisualItem,
     *,
     selected_operation_id: str | None,
     emphasized_operation_ids: set[str],
     operation_ids: set[str],
-) -> object:
+) -> _SceneOperationVisualItem:
     operation_id = getattr(item, "operation_id", None)
     if operation_id is None or operation_id not in operation_ids:
         return item

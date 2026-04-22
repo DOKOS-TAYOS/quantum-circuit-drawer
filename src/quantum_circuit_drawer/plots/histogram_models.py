@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..config import OutputOptions, validate_output_options
 from ..presets import (
@@ -171,7 +171,9 @@ class HistogramConfig:
         _validate_instance("view", self.view, HistogramViewOptions)
         _validate_instance("appearance", self.appearance, HistogramAppearanceOptions)
         validate_output_options(self.output)
-        preset_figsize = histogram_figsize_for_preset(self.appearance.preset)
+        preset_figsize = histogram_figsize_for_preset(
+            cast("StylePreset | None", self.appearance.preset)
+        )
         if self.output.figsize is None and preset_figsize is not None:
             object.__setattr__(self, "output", replace(self.output, figsize=preset_figsize))
 
@@ -209,11 +211,11 @@ class HistogramConfig:
 
     @property
     def preset(self) -> StylePreset | None:
-        return self.appearance.preset
+        return cast("StylePreset | None", self.appearance.preset)
 
     @property
     def theme(self) -> DrawTheme:
-        return self.appearance.theme
+        return cast("DrawTheme", self.appearance.theme)
 
     @property
     def draw_style(self) -> HistogramDrawStyle:
@@ -265,7 +267,9 @@ class HistogramCompareConfig:
         _validate_instance("data", self.data, HistogramDataOptions)
         _validate_instance("compare", self.compare, HistogramCompareOptions)
         validate_output_options(self.output)
-        preset_figsize = histogram_figsize_for_preset(self.compare.preset)
+        preset_figsize = histogram_figsize_for_preset(
+            cast("StylePreset | None", self.compare.preset)
+        )
         if self.output.figsize is None and preset_figsize is not None:
             object.__setattr__(self, "output", replace(self.output, figsize=preset_figsize))
 
@@ -307,11 +311,11 @@ class HistogramCompareConfig:
 
     @property
     def preset(self) -> StylePreset | None:
-        return self.compare.preset
+        return cast("StylePreset | None", self.compare.preset)
 
     @property
     def theme(self) -> DrawTheme:
-        return self.compare.theme
+        return cast("DrawTheme", self.compare.theme)
 
     @property
     def show(self) -> bool:
