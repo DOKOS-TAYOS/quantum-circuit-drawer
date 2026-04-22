@@ -8,7 +8,6 @@ from types import ModuleType
 
 import pytest
 
-from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 from tests.support import (
