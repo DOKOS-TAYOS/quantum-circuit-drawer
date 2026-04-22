@@ -138,6 +138,8 @@ def _render_managed_2d_pages_result(
     mode: DrawMode,
     diagnostics: tuple[RenderDiagnostic, ...],
 ) -> DrawResult:
+    from ..renderers._render_support import close_figure_best_effort
+
     adapted_scene = _page_window_adapted_2d_scene(pipeline, figsize=figsize)
     adapted_pipeline = replace(pipeline, paged_scene=adapted_scene)
     page_scenes = single_page_scenes(adapted_scene)
@@ -151,12 +153,11 @@ def _render_managed_2d_pages_result(
             page_slider=page_slider,
             page_window=page_window,
         )
-        try:
-            import matplotlib.pyplot as plt
-
-            plt.close(saved_figure)
-        except Exception:  # pragma: no cover - close should be best-effort only
-            pass
+        close_figure_best_effort(
+            saved_figure,
+            logger=logger,
+            context="managed 2D pages saved figure best-effort cleanup",
+        )
 
     figures: list[Figure] = []
     axes_list: list[Axes] = []

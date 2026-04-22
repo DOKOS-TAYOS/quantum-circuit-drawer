@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from ..export.figures import save_matplotlib_figure
@@ -26,6 +27,22 @@ def save_rendered_figure(
         error_message_prefix="failed to save rendered circuit to",
         bbox_inches="tight",
     )
+
+
+def close_figure_best_effort(
+    figure: Figure | SubFigure,
+    *,
+    logger: logging.Logger,
+    context: str,
+) -> None:
+    """Attempt to close one figure without masking the main render outcome."""
+
+    from matplotlib import pyplot as plt
+
+    try:
+        plt.close(figure)
+    except Exception:
+        logger.warning("Failed best-effort cleanup for %s.", context, exc_info=True)
 
 
 def show_figure_if_supported(figure: Figure | SubFigure, *, show: bool) -> None:

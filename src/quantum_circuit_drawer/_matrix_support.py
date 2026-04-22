@@ -2,8 +2,52 @@
 
 from __future__ import annotations
 
-from .utils import matrix_support as _impl
+from .utils.matrix_support import (
+    CanonicalGateFamily,
+    OperationIR,
+    OperationKind,
+    Sequence,
+    _coerce_real_parameter,
+    _coerce_real_parameters,
+    _coerce_real_scalar_parameter,
+    _controlled_operation_matrix,
+    _resolved_operation_matrix,
+    _resolved_operation_matrix_and_dimension,
+    _single_qubit_gate_matrix,
+    _swap_matrix,
+    _two_qubit_gate_matrix,
+    annotations,
+    cmath,
+    inferred_operation_matrix,
+    matrix_qubit_count,
+    np,
+    operation_matrix_dimension,
+    resolved_control_values,
+    resolved_operation_matrix,
+    square_matrix,
+)
 
-__all__ = [name for name in dir(_impl) if not name.startswith("__")]
-
-globals().update({name: getattr(_impl, name) for name in __all__})
+__all__ = [
+    "CanonicalGateFamily",
+    "OperationIR",
+    "OperationKind",
+    "Sequence",
+    "_coerce_real_parameter",
+    "_coerce_real_parameters",
+    "_coerce_real_scalar_parameter",
+    "_controlled_operation_matrix",
+    "_resolved_operation_matrix",
+    "_resolved_operation_matrix_and_dimension",
+    "_single_qubit_gate_matrix",
+    "_swap_matrix",
+    "_two_qubit_gate_matrix",
+    "annotations",
+    "cmath",
+    "inferred_operation_matrix",
+    "matrix_qubit_count",
+    "np",
+    "operation_matrix_dimension",
+    "resolved_control_values",
+    "resolved_operation_matrix",
+    "square_matrix",
+]

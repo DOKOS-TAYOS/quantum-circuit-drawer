@@ -352,3 +352,29 @@ def _coerce_real_parameters(
             return tuple(None for _ in range(expected_count))
         values.append(resolved)
     return tuple(values)
+
+
+__all__ = [
+    "CanonicalGateFamily",
+    "OperationIR",
+    "OperationKind",
+    "Sequence",
+    "_coerce_real_parameter",
+    "_coerce_real_parameters",
+    "_coerce_real_scalar_parameter",
+    "_controlled_operation_matrix",
+    "_resolved_operation_matrix",
+    "_resolved_operation_matrix_and_dimension",
+    "_single_qubit_gate_matrix",
+    "_swap_matrix",
+    "_two_qubit_gate_matrix",
+    "annotations",
+    "cmath",
+    "inferred_operation_matrix",
+    "matrix_qubit_count",
+    "np",
+    "operation_matrix_dimension",
+    "resolved_control_values",
+    "resolved_operation_matrix",
+    "square_matrix",
+]

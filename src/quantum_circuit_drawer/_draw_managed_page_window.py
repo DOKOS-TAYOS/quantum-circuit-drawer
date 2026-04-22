@@ -2,8 +2,50 @@
 
 from __future__ import annotations
 
-from .managed import page_window as _impl
+from .managed.page_window import (
+    _MAIN_AXES_BOUNDS,
+    TYPE_CHECKING,
+    Axes,
+    Callable,
+    Figure,
+    LayoutEngineLike,
+    LayoutScene,
+    Managed2DPageWindowState,
+    ManagedUiPalette,
+    MatplotlibRenderer,
+    _attach_controls,
+    _GateTextCache,
+    _ProjectedPage,
+    _render_current_window,
+    _sync_inputs,
+    annotations,
+    apply_page_window_axes_bounds,
+    configure_page_window,
+    dataclass,
+    field,
+    managed_ui_palette,
+)
 
-__all__ = [name for name in dir(_impl) if not name.startswith("__")]
-
-globals().update({name: getattr(_impl, name) for name in __all__})
+__all__ = [
+    "Axes",
+    "Callable",
+    "Figure",
+    "LayoutEngineLike",
+    "LayoutScene",
+    "Managed2DPageWindowState",
+    "ManagedUiPalette",
+    "MatplotlibRenderer",
+    "TYPE_CHECKING",
+    "_GateTextCache",
+    "_MAIN_AXES_BOUNDS",
+    "_ProjectedPage",
+    "_attach_controls",
+    "_render_current_window",
+    "_sync_inputs",
+    "annotations",
+    "apply_page_window_axes_bounds",
+    "configure_page_window",
+    "dataclass",
+    "field",
+    "managed_ui_palette",
+]

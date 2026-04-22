@@ -44,3 +44,12 @@ def managed_ui_palette(theme: DrawTheme) -> ManagedUiPalette:
         slider_track_color=theme.ui_slider_track_color or theme.classical_wire_color,
         slider_fill_color=theme.ui_slider_fill_color or theme.accent_color,
     )
+
+
+__all__ = [
+    "DrawTheme",
+    "ManagedUiPalette",
+    "annotations",
+    "dataclass",
+    "managed_ui_palette",
+]

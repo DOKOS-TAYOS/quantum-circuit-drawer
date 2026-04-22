@@ -2,8 +2,18 @@
 
 from __future__ import annotations
 
-from .managed import ui_palette as _impl
+from .managed.ui_palette import (
+    DrawTheme,
+    ManagedUiPalette,
+    annotations,
+    dataclass,
+    managed_ui_palette,
+)
 
-__all__ = [name for name in dir(_impl) if not name.startswith("__")]
-
-globals().update({name: getattr(_impl, name) for name in __all__})
+__all__ = [
+    "DrawTheme",
+    "ManagedUiPalette",
+    "annotations",
+    "dataclass",
+    "managed_ui_palette",
+]

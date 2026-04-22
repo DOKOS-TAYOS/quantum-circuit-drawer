@@ -81,6 +81,10 @@ _TEST_MANAGED_DRAWING_ALLOWED_IMPORTERS: tuple[str, ...] = (
 )
 
 
+def _module_source_path(repo_root: Path, module_name: str) -> Path:
+    return repo_root / "src" / Path(*module_name.split(".")).with_suffix(".py")
+
+
 def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
     return {alias.name for alias in node.names}
 
@@ -147,7 +151,8 @@ def test_root_compatibility_facades_reexport_split_modules(
     facade_module = import_module(facade_module_name)
     target_module = import_module(target_module_name)
 
-    expected_public_names = tuple(name for name in dir(target_module) if not name.startswith("__"))
+    assert hasattr(target_module, "__all__")
+    expected_public_names = tuple(target_module.__all__)
 
     assert tuple(facade_module.__all__) == expected_public_names
     assert expected_public_names
@@ -159,6 +164,28 @@ def test_root_compatibility_facades_reexport_split_modules(
         target_module,
         expected_public_names[-1],
     )
+
+
+def test_compatibility_facades_do_not_use_reflective_export_helpers() -> None:
+    repo_root = next(
+        parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()
+    )
+    compatibility_modules = (
+        *(module_name for module_name, _ in _ROOT_COMPATIBILITY_FACADE_TARGETS),
+        "quantum_circuit_drawer.managed.drawing",
+    )
+
+    violations: list[str] = []
+    for module_name in compatibility_modules:
+        source_file = _module_source_path(repo_root, module_name)
+        module = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
+        for node in ast.walk(module):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id in {"dir", "globals"}:
+                    violations.append(str(source_file.relative_to(repo_root)).replace("\\", "/"))
+                    break
+
+    assert sorted(set(violations)) == []
 
 
 def test_internal_modules_import_real_owners_not_root_compatibility_shims() -> None:

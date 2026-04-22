@@ -202,3 +202,20 @@ def _apply_text_artist_scale(
     if "\n" not in text_artist.get_text() or not hasattr(text_artist, "set_linespacing"):
         return
     text_artist.set_linespacing(multiline_line_spacing(font_size))
+
+
+__all__ = [
+    "Annotation",
+    "Axes",
+    "Callable",
+    "Event",
+    "LayoutScene",
+    "Text",
+    "_apply_text_artist_scale",
+    "_coerce_font_size",
+    "annotations",
+    "configure_zoom_text_scaling",
+    "current_text_scale",
+    "current_view_size",
+    "math",
+]

@@ -47,6 +47,7 @@
 - Split the heaviest managed and 3D internals into smaller helpers, including dedicated modules for shared managed controls, 2D slider windowing, 3D slider orchestration, 3D page-range balancing, and focused 3D layout and renderer support code
 - Split the remaining 2D hot spots into focused helpers, including dedicated modules for 2D Matplotlib primitives, 2D slider orchestration, 2D page-window controls/rendering/windowing, and smaller domain-aligned managed-rendering and renderer test files
 - Moved internal matrix helpers under `quantum_circuit_drawer.utils.matrix_support` and updated internal code and tests to target the new structure directly
+- Replaced the remaining reflective compatibility-facade exports with explicit `__all__` surfaces and direct reexports, keeping the observable import contract while making internal ownership clearer for tooling and maintenance
 
 ### Fixed
 
@@ -67,6 +68,7 @@
 - Rebalanced managed 3D page-window ranges for visually dense circuits so example demos like `qiskit-random` stop packing so many routed columns into one page
 - Example scripts now close rendered Matplotlib figures and trigger prompt cleanup after the window closes, which reduces the lingering shutdown lag seen most often with Cirq and PennyLane demos
 - Restored core coverage after the internal package split by exercising the root compatibility facades and lazy package exports in the modularization test suite
+- Managed 2D paged saves now log best-effort figure-cleanup failures instead of silently swallowing them, so odd shutdown issues remain diagnosable without breaking successful renders
 
 ## [0.3.0] - 2026-04-20
 

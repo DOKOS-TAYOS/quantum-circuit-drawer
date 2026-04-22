@@ -289,3 +289,43 @@ def _resolved_adapter_extra_options(
     if not effective_hover.enabled and resolved_options.get("explicit_matrices") is not True:
         resolved_options["explicit_matrices"] = False
     return resolved_options
+
+
+__all__ = [
+    "DiagnosticSeverity",
+    "DrawPipelineOptions",
+    "DrawRequest",
+    "DrawStyle",
+    "HoverOptions",
+    "LayoutEngine3DLike",
+    "LayoutEngineLike",
+    "Literal",
+    "Mapping",
+    "NON_INTERACTIVE_BACKENDS",
+    "OutputPath",
+    "RenderDiagnostic",
+    "TYPE_CHECKING",
+    "TopologyInput",
+    "TopologyMode",
+    "UnsupportedBackendError",
+    "ViewMode",
+    "_VALID_COMPOSITE_MODES",
+    "_VALID_VIEW_MODES",
+    "_is_positive_dimension",
+    "_resolved_adapter_extra_options",
+    "_validate_bool",
+    "_validate_choice",
+    "_validate_figsize",
+    "annotations",
+    "build_draw_request",
+    "dataclass",
+    "disable_hover",
+    "field",
+    "figure_backend_name",
+    "normalize_hover",
+    "normalize_topology_input",
+    "pyplot_backend_supports_interaction",
+    "resolve_effective_hover",
+    "validate_draw_request",
+    "validate_public_options",
+]
