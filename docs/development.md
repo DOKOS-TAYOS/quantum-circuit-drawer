@@ -71,6 +71,7 @@ The drawing orchestration is now split more explicitly:
 
 - `quantum_circuit_drawer.drawing.api` stays as the thin public/internal entry facade for drawing
 - `quantum_circuit_drawer.drawing.preparation` owns draw-call normalization and pipeline preparation
+- `quantum_circuit_drawer.drawing.pipeline` owns adapter resolution, semantic/legacy IR handoff, renderer selection, and deduplicated pipeline diagnostics
 - `quantum_circuit_drawer.drawing.managed_modes` owns dispatch from resolved draw mode to managed rendering paths
 - `quantum_circuit_drawer.drawing.results` owns `DrawResult` construction and saved-path normalization
 - `quantum_circuit_drawer.drawing.compare` owns circuit comparison rendering and metrics
@@ -87,7 +88,8 @@ The histogram stack now follows the same split-by-owner approach:
 
 The managed and 3D internals are now split more finely so the older orchestration modules can stay small and readable:
 
-- `quantum_circuit_drawer.managed.rendering` now owns the managed render lifecycle and caller-managed axes rendering
+- `quantum_circuit_drawer.managed.rendering` stays as the stable managed-render facade used by the rest of the package
+- `quantum_circuit_drawer.managed._render_pipeline` now owns the heavier managed 2D/3D composition flow and caller-managed axes rendering internals
 - `quantum_circuit_drawer.managed.slider` stays as the stable internal facade for slider-related imports
 - `quantum_circuit_drawer.managed.slider_2d` now owns the real 2D slider state, viewport sizing, and control orchestration
 - `quantum_circuit_drawer.managed.controls` owns shared widget bounds, layout, and styling helpers

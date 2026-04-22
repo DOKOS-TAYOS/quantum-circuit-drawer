@@ -106,6 +106,18 @@ class _SemanticCapturingAdapter:
         )
 
 
+class _SemanticMetadataDuplicatingAdapter(_SemanticCapturingAdapter):
+    def to_semantic_ir(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR:
+        semantic_ir = super().to_semantic_ir(circuit, options=options)
+        duplicate_diagnostic = semantic_ir.diagnostics[0]
+        semantic_ir.metadata["diagnostics"] = (duplicate_diagnostic,)
+        return semantic_ir
+
+
 class _CapturingLayout:
     def __init__(self) -> None:
         self.calls: list[tuple[CircuitIR, DrawStyle]] = []
@@ -441,3 +453,22 @@ def test_prepare_draw_pipeline_prefers_semantic_adapter_path_when_available(
         "native: semantic_demo",
     )
     assert pipeline.diagnostics[0].code == "semantic_demo_info"
+
+
+def test_prepare_draw_pipeline_deduplicates_semantic_diagnostics_from_field_and_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import quantum_circuit_drawer.adapters.registry as registry_module
+
+    adapter = _SemanticMetadataDuplicatingAdapter()
+    monkeypatch.setattr(registry_module, "get_adapter", lambda *args, **kwargs: adapter)
+
+    pipeline = prepare_draw_pipeline(
+        circuit={"kind": "semantic"},
+        framework="semantic_demo",
+        style=None,
+        layout=None,
+        options={},
+    )
+
+    assert [diagnostic.code for diagnostic in pipeline.diagnostics] == ["semantic_demo_info"]

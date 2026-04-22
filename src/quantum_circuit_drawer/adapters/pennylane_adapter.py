@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from inspect import getattr_static
-from typing import Protocol, cast
+from typing import Protocol, SupportsFloat, cast
 
 from ..exceptions import UnsupportedFrameworkError, UnsupportedOperationError
 from ..ir import ClassicalConditionIR
@@ -810,12 +810,19 @@ class PennyLaneAdapter(BaseAdapter):
         if isinstance(value, int | float):
             return f"{value:g}"
         try:
-            return f"{float(value):g}"
+            return f"{float(self._coercible_observable_scalar(value)):g}"
         except (OverflowError, TypeError, ValueError):
             normalized_value = self._normalized_observable_name(value)
             if normalized_value is not None:
                 return normalized_value
             return str(value)
+
+    def _coercible_observable_scalar(self, value: object) -> str | SupportsFloat:
+        if isinstance(value, str):
+            return value
+        if hasattr(value, "__float__"):
+            return cast("SupportsFloat", value)
+        raise TypeError("unsupported observable scalar")
 
     def _control_values_for_operation(
         self,

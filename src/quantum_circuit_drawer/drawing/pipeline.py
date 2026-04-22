@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
+from ..adapters.base import BaseAdapter
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import LayoutError, UnsupportedFrameworkError
 from ..hover import HoverOptions, normalize_hover
@@ -32,6 +33,15 @@ if TYPE_CHECKING:
     from ..layout.scene_3d import LayoutScene3D
     from ..renderers import BaseRenderer
 
+
+class _SemanticIrLoader(Protocol):
+    def __call__(
+        self,
+        circuit: object,
+        options: Mapping[str, object] | None = None,
+    ) -> SemanticCircuitIR | None: ...
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,6 +58,15 @@ class PreparedDrawPipeline:
     draw_options: DrawPipelineOptions
     detected_framework: str | None = None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedPipelineIr:
+    ir: CircuitIR
+    semantic_ir: SemanticCircuitIR
+    detected_framework: str
+    adapter_name: str
+    diagnostics: tuple[RenderDiagnostic, ...]
 
 
 def prepare_draw_pipeline(
@@ -80,36 +99,26 @@ def prepare_draw_pipeline(
     )
 
     normalized_style = normalize_style(style)
-    pipeline_diagnostics: list[RenderDiagnostic] = []
     resolved_circuit, resolved_framework = _resolve_qasm_input(circuit, framework)
     if isinstance(resolved_circuit, CircuitIR) and resolved_framework in {None, "ir"}:
         ir = resolved_circuit
         semantic_ir = semantic_circuit_from_circuit_ir(ir)
         adapter_name = "IRAdapter(fast-path)"
         detected_framework = "ir"
+        pipeline_diagnostics = list(metadata_diagnostics(ir.metadata))
     else:
         adapter = get_adapter(resolved_circuit, resolved_framework)
-        to_semantic_ir = getattr(adapter, "to_semantic_ir", None)
-        semantic_ir = (
-            to_semantic_ir(resolved_circuit, options=adapter_options)
-            if callable(to_semantic_ir)
-            else None
+        resolved_ir = _resolve_pipeline_ir(
+            adapter=adapter,
+            circuit=resolved_circuit,
+            adapter_options=adapter_options,
+            resolved_framework=resolved_framework,
         )
-        if semantic_ir is None:
-            ir = adapter.to_ir(resolved_circuit, options=adapter_options)
-            semantic_ir = semantic_circuit_from_circuit_ir(ir)
-        else:
-            ir = lower_semantic_circuit(semantic_ir)
-            pipeline_diagnostics.extend(semantic_ir.diagnostics)
-        adapter_name = type(adapter).__name__
-        detected_framework = resolved_framework or adapter.framework_name
-        raw_diagnostics = ir.metadata.get("diagnostics", ())
-        if isinstance(raw_diagnostics, tuple | list):
-            pipeline_diagnostics.extend(
-                diagnostic
-                for diagnostic in raw_diagnostics
-                if isinstance(diagnostic, RenderDiagnostic)
-            )
+        ir = resolved_ir.ir
+        semantic_ir = resolved_ir.semantic_ir
+        adapter_name = resolved_ir.adapter_name
+        detected_framework = resolved_ir.detected_framework
+        pipeline_diagnostics = list(resolved_ir.diagnostics)
     paged_scene: LayoutScene | LayoutScene3D
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     renderer: BaseRenderer
@@ -324,3 +333,73 @@ def _resolve_topology_menu_options(
             ),
         )
     return draw_options, ()
+
+
+def _resolve_pipeline_ir(
+    *,
+    adapter: BaseAdapter,
+    circuit: object,
+    adapter_options: Mapping[str, object],
+    resolved_framework: str | None,
+) -> _ResolvedPipelineIr:
+    semantic_loader = getattr(adapter, "to_semantic_ir", None)
+    semantic_ir = _load_semantic_ir(
+        semantic_loader,
+        circuit=circuit,
+        adapter_options=adapter_options,
+    )
+    diagnostics: list[RenderDiagnostic] = []
+    if semantic_ir is None:
+        ir = adapter.to_ir(circuit, options=adapter_options)
+        semantic_ir = semantic_circuit_from_circuit_ir(ir)
+        diagnostics.extend(metadata_diagnostics(ir.metadata))
+    else:
+        ir = lower_semantic_circuit(semantic_ir)
+        diagnostics.extend(semantic_ir.diagnostics)
+        diagnostics.extend(metadata_diagnostics(semantic_ir.metadata))
+
+    return _ResolvedPipelineIr(
+        ir=ir,
+        semantic_ir=semantic_ir,
+        detected_framework=resolved_framework or adapter.framework_name,
+        adapter_name=type(adapter).__name__,
+        diagnostics=deduplicated_diagnostics(diagnostics),
+    )
+
+
+def metadata_diagnostics(metadata: Mapping[str, object]) -> tuple[RenderDiagnostic, ...]:
+    """Extract render diagnostics stored in plain metadata mappings."""
+
+    raw_diagnostics = metadata.get("diagnostics", ())
+    if not isinstance(raw_diagnostics, tuple | list):
+        return ()
+    return tuple(
+        diagnostic for diagnostic in raw_diagnostics if isinstance(diagnostic, RenderDiagnostic)
+    )
+
+
+def deduplicated_diagnostics(
+    diagnostics: list[RenderDiagnostic] | tuple[RenderDiagnostic, ...],
+) -> tuple[RenderDiagnostic, ...]:
+    """Keep the first occurrence of each diagnostic payload in stable order."""
+
+    unique: list[RenderDiagnostic] = []
+    seen: set[tuple[str, str, DiagnosticSeverity]] = set()
+    for diagnostic in diagnostics:
+        key = (diagnostic.code, diagnostic.message, diagnostic.severity)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(diagnostic)
+    return tuple(unique)
+
+
+def _load_semantic_ir(
+    semantic_loader: object,
+    *,
+    circuit: object,
+    adapter_options: Mapping[str, object],
+) -> SemanticCircuitIR | None:
+    if not callable(semantic_loader):
+        return None
+    return cast(_SemanticIrLoader, semantic_loader)(circuit, options=adapter_options)

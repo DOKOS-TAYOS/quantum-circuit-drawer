@@ -10,6 +10,7 @@ import quantum_circuit_drawer
 from quantum_circuit_drawer import (
     DiagnosticSeverity,
     DrawConfig,
+    DrawMode,
     HistogramCompareConfig,
     HistogramCompareMetrics,
     HistogramCompareResult,
@@ -54,6 +55,22 @@ def build_placeholder_ready_myqlm_circuit() -> FakeMyQLMCircuit:
         nbqbits=1,
         nbcbits=1,
         name="placeholder_ready",
+    )
+
+
+def build_placeholder_fallback_myqlm_circuit() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "H": FakeMyQLMGateDefinition(name="H", arity=1, syntax=FakeMyQLMSyntax(name="H")),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(gate="H", qbits=(0,)),
+            FakeMyQLMOp(type="CUSTOMBOX", qbits=(0,)),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=0,
+        name="placeholder_fallback",
     )
 
 
@@ -129,7 +146,7 @@ def test_plot_histogram_reports_runtime_diagnostic_when_auto_mode_falls_back_to_
     plt.close(result.figure)
 
 
-def test_draw_quantum_circuit_uses_placeholder_for_supported_recoverable_unsupported_operations(
+def test_draw_quantum_circuit_keeps_supported_myqlm_reset_drawable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_myqlm(monkeypatch)
@@ -144,7 +161,32 @@ def test_draw_quantum_circuit_uses_placeholder_for_supported_recoverable_unsuppo
     )
     texts = [normalize_rendered_text(text.get_text()) for text in result.primary_axes.texts]
 
-    assert any("RESET" in text and "unsupported" in text for text in texts)
+    assert "RESET" in texts
+    assert not any(
+        diagnostic.code == "unsupported_operation_placeholder" for diagnostic in result.diagnostics
+    )
+    assert_figure_has_visible_content(result.primary_figure)
+
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_uses_placeholder_for_recoverable_unsupported_myqlm_operations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+
+    result = draw_quantum_circuit(
+        build_placeholder_fallback_myqlm_circuit(),
+        config=DrawConfig(
+            framework="myqlm",
+            mode=DrawMode.FULL,
+            show=False,
+            unsupported_policy=UnsupportedPolicy.PLACEHOLDER,
+        ),
+    )
+    texts = [normalize_rendered_text(text.get_text()) for text in result.primary_axes.texts]
+
+    assert any("CUSTOMBOX" in text and "unsupported" in text for text in texts)
     assert any(
         diagnostic.code == "unsupported_operation_placeholder"
         and diagnostic.severity is DiagnosticSeverity.WARNING

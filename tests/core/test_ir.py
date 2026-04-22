@@ -4,12 +4,18 @@ import pytest
 
 from quantum_circuit_drawer.ir import ClassicalConditionIR
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
+from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import (
     CanonicalGateFamily,
     OperationIR,
     OperationKind,
     infer_canonical_gate_family,
+)
+from quantum_circuit_drawer.ir.semantic import (
+    SemanticCircuitIR,
+    SemanticLayerIR,
+    SemanticOperationIR,
 )
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from tests.support import (
@@ -198,6 +204,38 @@ def test_measurement_ir_requires_classical_target_and_tracks_classical_slot() ->
     assert measurement.kind is OperationKind.MEASUREMENT
     assert "q0" in measurement.occupied_wire_ids
     assert "c0" in measurement.occupied_wire_ids
+
+
+def test_lower_semantic_circuit_preserves_measurement_targets_and_semantic_metadata() -> None:
+    semantic_circuit = SemanticCircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c0")],
+        layers=[
+            SemanticLayerIR(
+                operations=[
+                    SemanticOperationIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                        annotations=("native: measurement",),
+                        hover_details=("detail: preserved",),
+                        metadata={"display_subtitle": "subtitle"},
+                    )
+                ]
+            )
+        ],
+        metadata={"framework": "semantic_demo"},
+    )
+
+    lowered = lower_semantic_circuit(semantic_circuit)
+    lowered_operation = lowered.layers[0].operations[0]
+
+    assert isinstance(lowered_operation, MeasurementIR)
+    assert lowered_operation.classical_target == "c0"
+    assert lowered_operation.metadata["native_annotations"] == ("native: measurement",)
+    assert lowered_operation.metadata["hover_details"] == ("detail: preserved",)
+    assert lowered_operation.metadata["display_subtitle"] == "subtitle"
 
 
 def test_wire_ir_defaults_label_and_rejects_empty_ids() -> None:

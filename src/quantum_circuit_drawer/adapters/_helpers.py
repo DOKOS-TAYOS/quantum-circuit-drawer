@@ -19,6 +19,7 @@ from ..ir.wires import WireIR, WireKind
 OperationNode = OperationIR | MeasurementIR
 SemanticOperationNode = SemanticOperationIR
 _T = TypeVar("_T")
+_U = TypeVar("_U")
 
 
 @dataclass(frozen=True, slots=True)
@@ -416,11 +417,11 @@ def normalized_detail_lines(*values: object | None) -> tuple[str, ...]:
 
 def expand_operation_sequence(
     items: Iterable[_T],
-    converter: Callable[[_T], Sequence[OperationNode]],
-) -> list[OperationNode]:
+    converter: Callable[[_T], Sequence[_U]],
+) -> list[_U]:
     """Expand nested operation sequences while preserving order."""
 
-    expanded: list[OperationNode] = []
+    expanded: list[_U] = []
     for item in items:
         expanded.extend(converter(item))
     return expanded

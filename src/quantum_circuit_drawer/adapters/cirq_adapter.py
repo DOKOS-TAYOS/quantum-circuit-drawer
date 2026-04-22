@@ -12,7 +12,7 @@ from ..exceptions import UnsupportedOperationError
 from ..ir import ClassicalConditionIR
 from ..ir.circuit import CircuitIR
 from ..ir.lowering import lower_semantic_circuit
-from ..ir.operations import OperationKind
+from ..ir.operations import CanonicalGateFamily, OperationKind
 from ..ir.semantic import SemanticCircuitIR, SemanticLayerIR, SemanticOperationIR
 from ..ir.wires import WireIR, WireKind
 from ..utils.matrix_support import square_matrix
@@ -238,7 +238,7 @@ class CirqAdapter(BaseAdapter):
     ) -> tuple[SemanticLayerIR, ...]:
         untagged_operation = getattr(operation, "untagged", None)
         if untagged_operation is not None and untagged_operation is not operation:
-            converted = self._convert_operation(
+            converted_layers = self._convert_operation(
                 cirq=cirq,
                 operation=cast(_CirqOperationLike, untagged_operation),
                 qubit_ids=qubit_ids,
@@ -264,11 +264,11 @@ class CirqAdapter(BaseAdapter):
                     ),
                     metadata=layer.metadata,
                 )
-                for layer in converted
+                for layer in converted_layers
             )
 
         if self._is_measurement(operation):
-            converted: list[SemanticOperationIR] = []
+            measurement_nodes: list[SemanticOperationIR] = []
             slot_targets = measurement_slots.get(operation_key)
             if slot_targets is None:
                 raise UnsupportedOperationError(
@@ -281,7 +281,7 @@ class CirqAdapter(BaseAdapter):
                 slot_targets,
                 strict=True,
             ):
-                converted.append(
+                measurement_nodes.append(
                     SemanticOperationIR(
                         kind=OperationKind.MEASUREMENT,
                         name="M",
@@ -306,7 +306,7 @@ class CirqAdapter(BaseAdapter):
                 )
             return (
                 SemanticLayerIR(
-                    operations=tuple(converted),
+                    operations=tuple(measurement_nodes),
                     metadata={"native_group": grouping},
                 ),
             )
@@ -568,7 +568,7 @@ class CirqAdapter(BaseAdapter):
         *,
         kind: OperationKind,
         name: str,
-        canonical_family: object,
+        canonical_family: CanonicalGateFamily,
         target_wires: tuple[str, ...],
         control_wires: tuple[str, ...],
         control_values: tuple[tuple[int, ...], ...] = (),
@@ -676,7 +676,7 @@ class CirqAdapter(BaseAdapter):
             if index_value < 0 or index_value >= len(key_targets):
                 return None
             wire_id, bit_label = key_targets[index_value]
-            wire_ids = (wire_id,)
+            wire_ids: tuple[str, ...] = (wire_id,)
             expression = f"if {bit_label}={value}"
         else:
             wire_ids = tuple(dict.fromkeys(wire_id for wire_id, _ in key_targets))
