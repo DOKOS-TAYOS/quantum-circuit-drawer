@@ -8,6 +8,7 @@ from types import ModuleType
 
 import pytest
 
+from quantum_circuit_drawer.exceptions import UnsupportedOperationError
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 from tests.support import (
@@ -136,6 +137,41 @@ def build_classic_control_myqlm_circuit() -> FakeMyQLMCircuit:
         nbqbits=2,
         nbcbits=2,
         name="myqlm_classic_ctrl_demo",
+    )
+
+
+def build_reset_with_classical_metadata_myqlm_circuit() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "H": FakeMyQLMGateDefinition(name="H", arity=1, syntax=FakeMyQLMSyntax(name="H")),
+        "RESET": FakeMyQLMGateDefinition(
+            name="RESET", arity=1, syntax=FakeMyQLMSyntax(name="RESET")
+        ),
+    }
+    return FakeMyQLMCircuit(
+        ops=(
+            FakeMyQLMOp(gate="H", qbits=(0,)),
+            FakeMyQLMOp(type="MEASURE", qbits=(0,), cbits=(0,)),
+            FakeMyQLMOp(type="RESET", qbits=(0,), cbits=(0,), formula="c[0]"),
+        ),
+        gate_dic=gate_dic,
+        nbqbits=1,
+        nbcbits=1,
+        name="myqlm_reset_with_classical_metadata_demo",
+    )
+
+
+def build_classical_only_reset_myqlm_circuit() -> FakeMyQLMCircuit:
+    gate_dic = {
+        "RESET": FakeMyQLMGateDefinition(
+            name="RESET", arity=1, syntax=FakeMyQLMSyntax(name="RESET")
+        ),
+    }
+    return FakeMyQLMCircuit(
+        ops=(FakeMyQLMOp(type="RESET", cbits=(0,), formula="c[0]"),),
+        gate_dic=gate_dic,
+        nbqbits=0,
+        nbcbits=1,
+        name="myqlm_classical_only_reset_demo",
     )
 
 
@@ -401,6 +437,45 @@ def test_myqlm_adapter_converts_reset_and_classicctrl(
     assert operations[3].target_wires == ("q1",)
 
 
+def test_myqlm_adapter_keeps_quantum_reset_drawable_with_classical_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    semantic = adapter.to_semantic_ir(build_reset_with_classical_metadata_myqlm_circuit())
+
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+    assert len(operations) == 3
+    assert operations[2].kind is OperationKind.GATE
+    assert operations[2].canonical_family is CanonicalGateFamily.RESET
+    assert operations[2].target_wires == ("q0",)
+    assert operations[2].classical_conditions == ()
+    assert "native: RESET" in operations[2].hover_details
+    assert "classical bits: c[0]" in operations[2].hover_details
+    assert "formula raw: c[0]" in operations[2].hover_details
+    assert operations[2].provenance.native_kind == "reset"
+
+    lowered = adapter.to_ir(build_reset_with_classical_metadata_myqlm_circuit())
+    lowered_operation = lowered.layers[2].operations[0]
+    assert lowered_operation.target_wires == ("q0",)
+    assert lowered_operation.canonical_family is CanonicalGateFamily.RESET
+    assert lowered_operation.metadata["hover_details"] == operations[2].hover_details
+
+
+def test_myqlm_adapter_rejects_classical_only_reset_with_clear_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    with pytest.raises(
+        UnsupportedOperationError,
+        match="myQLM classical-only reset operations are not supported yet",
+    ):
+        adapter.to_ir(build_classical_only_reset_myqlm_circuit())
+
+
 def test_myqlm_adapter_converts_numeric_classicctrl_operation_type(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -553,6 +628,14 @@ def test_myqlm_adapter_falls_back_to_compact_for_expand_requested_ancilla_compos
     assert operations[0].name == "ORACLE"
     assert operations[0].target_wires == ("q0", "q1")
     assert operations[0].metadata["semantic_provenance"]["native_kind"] == "composite"
+
+    semantic = adapter_type().to_semantic_ir(
+        build_ancilla_composite_myqlm_circuit(),
+        options={"composite_mode": "expand"},
+    )
+    assert semantic.diagnostics
+    assert semantic.diagnostics[0].code == "myqlm_composite_ancilla_compact_render"
+    assert "not supported yet" not in semantic.diagnostics[0].message
 
 
 def test_myqlm_adapter_preserves_formula_classic_controls_in_semantic_ir(

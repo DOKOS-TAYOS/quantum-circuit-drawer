@@ -9,10 +9,10 @@ These are the best first demos when you want to see what the library can do toda
 | Demo id | Why it is a good first run | Platform note |
 | --- | --- | --- |
 | `qiskit-control-flow-showcase` | Compact `if_else`, `switch_case`, `for_loop`, `while_loop`, and open controls | Windows and Linux |
-| `cirq-native-controls-showcase` | Native Cirq open controls, classical control, and `CircuitOperation` provenance | Prefer Linux or WSL for repeated runs |
-| `pennylane-terminal-outputs-showcase` | Mid-measurement plus terminal `EXPVAL`, `PROBS`, `COUNTS`, and `DM` output boxes | Prefer Linux or WSL for repeated runs |
-| `myqlm-structural-showcase` | Compact composite routines in a MyQLM circuit built from `Program().to_circ()` | Windows and Linux when MyQLM is installed |
-| `cudaq-kernel-showcase` | Closed CUDA-Q kernel with reset and basis-specific measurements | Linux or WSL2 only |
+| `cirq-native-controls-showcase` | Native Cirq open controls, classical control, CircuitOperation provenance, and provenance-rich hover details | Prefer Linux or WSL for repeated runs |
+| `pennylane-terminal-outputs-showcase` | Mid-measurement, `qml.cond(...)`, plus terminal `EXPVAL`, `PROBS`, `COUNTS`, and `DM` output boxes | Prefer Linux or WSL for repeated runs |
+| `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path built from `Program().to_circ()` | Windows and Linux when MyQLM is installed |
+| `cudaq-kernel-showcase` | Supported closed-kernel subset with reset and basis-specific measurements | Linux or WSL2 only |
 
 ## Discovery
 
@@ -59,18 +59,18 @@ The showcase demos are meant to look good immediately. The `random` and `qaoa` d
 
 | Demo id | Description | Framework | Best for |
 | --- | --- | --- | --- |
-| `qiskit-control-flow-showcase` | Qiskit showcase for compact control-flow and open controls | qiskit | Native control-flow boxes and open controls |
+| `qiskit-control-flow-showcase` | Qiskit showcase for compact control-flow boxes and open controls | qiskit | Native control-flow boxes and open controls |
 | `qiskit-random` | Configurable random Qiskit circuit | qiskit | Broad rendering stress test |
 | `qiskit-qaoa` | Configurable QAOA / MaxCut circuit in Qiskit | qiskit | Dense structured ansatz |
-| `cirq-native-controls-showcase` | Cirq showcase for native controls, classical control, and `CircuitOperation` | cirq | Native Cirq semantics |
+| `cirq-native-controls-showcase` | Cirq showcase for native controls, classical control, and CircuitOperation provenance | cirq | Native Cirq semantics |
 | `cirq-random` | Configurable random Cirq circuit | cirq | Broad rendering stress test |
 | `cirq-qaoa` | Configurable QAOA / MaxCut circuit in Cirq | cirq | Dense structured ansatz |
-| `pennylane-terminal-outputs-showcase` | PennyLane showcase for mid-measurement and terminal-output boxes | pennylane | `qml.cond(...)` plus terminal outputs |
+| `pennylane-terminal-outputs-showcase` | PennyLane showcase for mid-measurement, `qml.cond(...)`, and terminal-output boxes | pennylane | `qml.cond(...)` plus terminal outputs |
 | `pennylane-random` | Configurable random PennyLane tape | pennylane | Broad rendering stress test |
 | `pennylane-qaoa` | Configurable QAOA / MaxCut tape in PennyLane | pennylane | Dense structured ansatz |
-| `myqlm-structural-showcase` | myQLM showcase for compact composite routines | myqlm | Composite structure backed by `gateDic` |
+| `myqlm-structural-showcase` | myQLM showcase for compact composite routines on the native adapter path | myqlm | Composite structure backed by `gateDic` |
 | `myqlm-random` | Configurable random myQLM circuit | myqlm | Broad rendering stress test |
-| `cudaq-kernel-showcase` | CUDA-Q showcase for a closed kernel with reset and basis measurements | cudaq | Supported closed-kernel subset |
+| `cudaq-kernel-showcase` | CUDA-Q showcase for the supported closed-kernel subset with reset and basis measurements | cudaq | Supported closed-kernel subset |
 | `cudaq-random` | Configurable random CUDA-Q kernel | cudaq | Broad rendering stress test |
 
 ## Useful render flags

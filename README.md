@@ -81,9 +81,9 @@ The fastest way to see the current strengths of the library is to run one of the
 | Demo id | What it highlights |
 | --- | --- |
 | `qiskit-control-flow-showcase` | Compact Qiskit control-flow boxes plus open controls |
-| `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and `CircuitOperation` |
-| `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement plus terminal output boxes |
-| `myqlm-structural-showcase` | Compact composite routines on the MyQLM adapter path |
+| `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and CircuitOperation provenance |
+| `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
+| `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
 | `cudaq-kernel-showcase` | The supported closed-kernel CUDA-Q subset with reset and basis measurements |
 
 Windows PowerShell:

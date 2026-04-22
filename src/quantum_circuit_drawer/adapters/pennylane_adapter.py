@@ -668,11 +668,13 @@ class PennyLaneAdapter(BaseAdapter):
         if class_name and len(class_name) <= _OBSERVABLE_SUMMARY_LIMIT:
             return _ObservableSummary(label=class_name, native_type=class_name)
 
-        class_fallback = self._class_name_fallback(class_name)
-        if class_fallback is not None:
-            return _ObservableSummary(label=class_fallback, native_type=class_name or native_type)
-
-        return _ObservableSummary(label="composite observable", native_type=native_type)
+        return _ObservableSummary(
+            label=self._deterministic_observable_fallback(
+                native_type=native_type,
+                class_name=class_name,
+            ),
+            native_type=native_type,
+        )
 
     def _observable_terms(self, observable: object) -> tuple[tuple[object, object], ...] | None:
         terms = getattr(observable, "terms", None)
@@ -728,9 +730,16 @@ class PennyLaneAdapter(BaseAdapter):
         structural_label = f"{native_type}[{component_count} {component_label}]"
         if len(structural_label) <= _OBSERVABLE_SUMMARY_LIMIT:
             return structural_label
-        class_fallback = self._class_name_fallback(native_type)
-        if class_fallback is not None:
-            return class_fallback
+        return self._deterministic_observable_fallback(
+            native_type=native_type,
+            class_name=native_type,
+        )
+
+    def _deterministic_observable_fallback(self, *, native_type: str, class_name: str) -> str:
+        for candidate in (class_name, native_type):
+            fallback = self._class_name_fallback(candidate)
+            if fallback is not None:
+                return fallback
         return "composite observable"
 
     def _class_name_fallback(self, class_name: str) -> str | None:

@@ -64,7 +64,7 @@ def _loop_span(request: ExampleRequest) -> int:
 def main() -> None:
     run_example(
         build_circuit,
-        description="Render a Qiskit control-flow showcase with compact native boxes.",
+        description="Render a Qiskit control-flow showcase with compact native boxes and open controls.",
         framework="qiskit",
         saved_label="Qiskit control-flow showcase",
         default_qubits=5,

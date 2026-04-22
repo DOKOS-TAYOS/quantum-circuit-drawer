@@ -35,6 +35,7 @@
 - Updated the README, API reference, and recipes with examples for counts histograms, quasi-probability plots, joint marginals, and interactive histogram exploration
 - Extended the framework guide and histogram docs so they spell out which result payloads can be passed directly from each supported framework, plus when to use `result_index`
 - Refreshed the example catalog and public docs around a more user-facing showcase flow, adding new framework demos for Qiskit control flow, Cirq native controls, PennyLane terminal outputs, MyQLM structure, and the supported CUDA-Q kernel subset
+- Applied a transversal compatibility polish pass so MyQLM qubit-targeted resets keep drawing even with extra classical metadata, PennyLane obscure observables prefer deterministic fallback labels over a vague generic box name, and the docs/showcase descriptions track the real supported subset more closely
 - Expanded the histogram demos so they cover larger state spaces and visibly exercise sorting, draw styles, uniform-reference guides, and the new interactive controls
 - Histogram plots now default to `HistogramMode.AUTO`, so large histograms open with managed controls in normal scripts and widget notebooks while inline notebook backends keep the static fallback
 - Histogram bin hover is now enabled by default in interactive mode and can be disabled explicitly with `hover=False`

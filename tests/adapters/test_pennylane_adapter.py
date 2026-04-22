@@ -154,6 +154,22 @@ class FakeTapeWrapper:
         self.qtape = tape
 
 
+def build_anonymous_long_named_observable(
+    *,
+    name: str,
+    wires: tuple[object, ...],
+) -> object:
+    anonymous_type = type("", (), {})
+    observable = anonymous_type()
+    observable.name = name
+    observable.wires = wires
+    observable.operands = ()
+    observable.scalar = None
+    observable.base = None
+    observable.coeffs = ()
+    return observable
+
+
 def install_fake_pennylane(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -351,6 +367,35 @@ def test_pennylane_adapter_uses_deterministic_fallback_for_long_observable_summa
         "observable type: Prod",
         "observable operands: 4",
         "observable summary: truncated",
+        "all wires",
+    )
+
+
+def test_pennylane_adapter_avoids_generic_fallback_for_anonymous_long_named_observable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    observable = build_anonymous_long_named_observable(
+        name="AnonymousObservableNativeTypeThatNeedsDeterministicFallback",
+        wires=(0,),
+    )
+    tape = FakeQuantumTape(
+        wires=(0,),
+        operations=(),
+        measurements=(ExpectationMP((0,), obs=observable),),
+    )
+
+    terminal_output = (
+        PennyLaneAdapter().to_semantic_ir(FakeTapeWrapper(tape)).layers[0].operations[0]
+    )
+
+    observable_label = terminal_output.metadata["pennylane_observable_label"]
+    assert observable_label != "composite observable"
+    assert observable_label.endswith("[...]")
+    assert terminal_output.hover_details == (
+        "terminal output: expval",
+        f"observable: {observable_label}",
+        "observable type: AnonymousObservableNativeTypeThatNeedsDeterministicFallback",
         "all wires",
     )
 

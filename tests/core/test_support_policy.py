@@ -75,6 +75,16 @@ def test_pennylane_docs_describe_materialized_wrapper_contract() -> None:
     assert "wrappers with a materialized tape" in installation_reference
 
 
+def test_pennylane_docs_describe_deterministic_composite_observable_fallbacks() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+
+    assert "deterministic class-based or native-type fallback labels" in frameworks_reference
+    assert "deterministic fallback labels instead of a vague generic box name" in (
+        troubleshooting_reference
+    )
+
+
 def test_framework_docs_describe_semantic_consolidation_scope_for_current_and_future_backends() -> (
     None
 ):
@@ -110,6 +120,25 @@ def test_myqlm_docs_describe_break_and_classic_classical_box_support() -> None:
     assert "raw native formula is preserved instead of raising" in frameworks_reference
     assert "compact classical `BREAK` / `CLASSIC` boxes" in troubleshooting_reference
     assert "raw formula in hover instead of raising" in troubleshooting_reference
+
+
+def test_myqlm_docs_describe_quantum_reset_metadata_and_classical_only_limit() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+    changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "quantum resets keep drawing even when MyQLM attaches extra classical metadata" in (
+        frameworks_reference
+    )
+    assert (
+        "classical-only resets without qubit targets still remain outside the supported subset"
+        in (frameworks_reference)
+    )
+    assert "qubit-targeted `RESET` operations keep rendering as quantum resets" in (
+        troubleshooting_reference
+    )
+    assert "classical-only reset" in troubleshooting_reference
+    assert "transversal compatibility polish" in changelog_reference
 
 
 def test_cudaq_docs_describe_controlled_swap_support() -> None:
