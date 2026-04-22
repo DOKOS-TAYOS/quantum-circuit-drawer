@@ -74,6 +74,32 @@ figure = result.primary_figure
 axes = result.primary_axes
 ```
 
+## Recommended demos
+
+The fastest way to see the current strengths of the library is to run one of the bundled showcase demos:
+
+| Demo id | What it highlights |
+| --- | --- |
+| `qiskit-control-flow-showcase` | Compact Qiskit control-flow boxes plus open controls |
+| `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and `CircuitOperation` |
+| `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement plus terminal output boxes |
+| `myqlm-structural-showcase` | Compact composite routines on the MyQLM adapter path |
+| `cudaq-kernel-showcase` | The supported closed-kernel CUDA-Q subset with reset and basis measurements |
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe examples/run_demo.py --demo qiskit-control-flow-showcase --mode pages_controls
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python examples/run_demo.py --demo qiskit-control-flow-showcase --mode pages_controls
+```
+
+The full curated catalog, including histogram demos and per-framework recommendations, lives in [examples/README.md](examples/README.md).
+
 ## Histogram from counts
 
 ```python

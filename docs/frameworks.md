@@ -96,6 +96,11 @@ Current support includes common gates, controlled gates including open-control s
 
 For Qiskit control-flow, the drawer keeps the existing expanded behavior for simple `if_test(...)` blocks without an `else`, because that path still maps cleanly onto classically conditioned gates. Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled.
 
+Bundled demos:
+
+- `qiskit-control-flow-showcase` is the best first demo for compact native control-flow boxes and open controls.
+- `qiskit-random` and `qiskit-qaoa` are the broad stress-test demos when you want denser scenes or topology-aware 3D renders.
+
 Histogram support also accepts direct Qiskit result payloads such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`.
 
 Use this when you want a clear framework check:
@@ -141,6 +146,11 @@ Current support includes common gates, controlled gates including open controls 
 
 The Cirq path now preserves moment grouping and `CircuitOperation` provenance internally. It also preserves indexed `KeyCondition` details such as `m[0]=0` when Cirq exposes them. When a native structure does not have one perfect common visual shape, the drawer keeps that detail in compare signatures, diagnostics, hover text, or lightweight annotations instead of dropping it silently.
 
+Bundled demos:
+
+- `cirq-native-controls-showcase` is the best first demo for open controls, classical control, and `CircuitOperation`.
+- `cirq-random` and `cirq-qaoa` remain useful when you want larger or denser Cirq scenes.
+
 Histogram support also accepts `cirq.Result` / `cirq.ResultDict` objects through their `measurements` mapping. If several measurement keys are present, `plot_histogram(...)` keeps them as space-separated registers in the visible state labels.
 
 Use `DrawConfig(composite_mode="expand")` when you want supported `CircuitOperation` contents to appear as separate operations.
@@ -181,6 +191,11 @@ Current support includes tape-like objects, mid-circuit measurements, `qml.cond(
 Those terminal results are intentionally not drawn as fake projective `M` measurements. Mid-circuit `qml.measure(...)` still appears as a measurement, while terminal results are rendered as compact output boxes across the affected wires and keep their observable or wire-scope details in hover metadata. Controlled PennyLane operations now also keep open-control states visually when the control pattern is a clean binary singleton per control wire.
 
 The PennyLane path now preserves conditional provenance, decomposition origin, safe wrapper semantics, and terminal-result meaning internally. When a PennyLane-native construct cannot be shown as one exact shared visual primitive, the drawer keeps the native meaning in compare signatures, hover, annotations, or diagnostics.
+
+Bundled demos:
+
+- `pennylane-terminal-outputs-showcase` is the best first demo for `qml.measure(...)`, `qml.cond(...)`, and compact terminal-output boxes.
+- `pennylane-random` and `pennylane-qaoa` remain useful when you want broader layout stress tests.
 
 For QNode-like wrappers, the adapter only reads an already-materialized tape. It does not call `construct()` or trigger lazy wrapper properties on your behalf.
 
@@ -232,6 +247,11 @@ Support note:
 - MyQLM is currently a scoped adapter + contract support path rather than a first-class multiplatform CI backend.
 - MyQLM now preserves gate provenance, composite provenance, decomposition origin, and supported classical-control expressions through the shared semantic adapter pipeline.
 
+Bundled demos:
+
+- `myqlm-structural-showcase` is the best first demo for compact composite routines on the native MyQLM adapter path.
+- `myqlm-random` remains the broader stress-test demo.
+
 Current limits:
 
 - `Program` and `QRoutine` objects are not the main adapter input; convert with `to_circ()` first.
@@ -277,6 +297,11 @@ Here, "closed" means the kernel can be inspected without additional runtime argu
 Support note:
 
 - Supported closed-kernel parsing now preserves Quake provenance, measurement basis, reset operations, and value-form wire flow through the shared semantic adapter pipeline.
+
+Bundled demos:
+
+- `cudaq-kernel-showcase` is the best first demo for the currently supported closed-kernel subset.
+- `cudaq-random` remains the broader stress-test demo on Linux or WSL2.
 
 Current limits:
 

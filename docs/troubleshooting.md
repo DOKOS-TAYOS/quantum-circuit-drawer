@@ -43,6 +43,14 @@ Linux or WSL:
 
 Replace `qiskit` with `cirq`, `pennylane`, or `myqlm` as needed. Keep CUDA-Q installs on Linux or WSL2 only. See [Installation](installation.md#install-optional-framework-extras).
 
+Good first smoke demos after installing an extra:
+
+- `qiskit-control-flow-showcase`
+- `cirq-native-controls-showcase`
+- `pennylane-terminal-outputs-showcase`
+- `myqlm-structural-showcase`
+- `cudaq-kernel-showcase` on Linux or WSL2
+
 ## Support matrix
 
 Use this table to decide whether an issue is inside the strong support path or on a narrower compatibility path.
@@ -90,6 +98,8 @@ For PennyLane wrappers and QNode-like objects:
 - Controlled PennyLane operations can now draw open controls when the tape exposes explicit binary `control_values`.
 - When a Cirq or PennyLane-native construct has no exact shared drawing primitive, the library keeps that native meaning in hover details, annotations, comparison, or diagnostics instead of silently flattening it away.
 
+If you just want to sanity-check the current support quickly, start with `cirq-native-controls-showcase` or `pennylane-terminal-outputs-showcase` and only then move on to the broader `random` demos.
+
 ## CUDA-Q does not install on Windows
 
 CUDA-Q support is Linux/WSL2-first in this project. On native Windows, the optional dependency is not expected to install.
@@ -99,6 +109,7 @@ Recommended options:
 - Use WSL2 for CUDA-Q examples.
 - Use Qiskit, Cirq, PennyLane, or MyQLM on native Windows.
 - Keep CUDA-Q-specific demo commands on Linux or WSL2.
+- Start with `cudaq-kernel-showcase` before trying the broader `cudaq-random` stress demo.
 
 ## No Matplotlib window opens
 

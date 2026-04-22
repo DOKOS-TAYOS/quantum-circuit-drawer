@@ -499,13 +499,42 @@ def test_demo_catalog_exposes_only_the_refreshed_demo_ids() -> None:
     assert demo_ids == {
         "qiskit-random",
         "qiskit-qaoa",
+        "qiskit-control-flow-showcase",
         "cirq-random",
         "cirq-qaoa",
+        "cirq-native-controls-showcase",
         "pennylane-random",
         "pennylane-qaoa",
+        "pennylane-terminal-outputs-showcase",
         "myqlm-random",
+        "myqlm-structural-showcase",
         "cudaq-random",
+        "cudaq-kernel-showcase",
     }
+
+
+def test_showcase_docs_reference_the_new_framework_demos() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    examples_readme = Path("examples/README.md").read_text(encoding="utf-8")
+    frameworks_guide = Path("docs/frameworks.md").read_text(encoding="utf-8")
+
+    for demo_id in (
+        "qiskit-control-flow-showcase",
+        "cirq-native-controls-showcase",
+        "pennylane-terminal-outputs-showcase",
+        "myqlm-structural-showcase",
+        "cudaq-kernel-showcase",
+    ):
+        assert demo_id in examples_readme
+
+    assert "Recommended demos" in readme
+    assert "qiskit-control-flow-showcase" in readme
+    assert "pennylane-terminal-outputs-showcase" in readme
+    assert "qiskit-control-flow-showcase" in frameworks_guide
+    assert "cirq-native-controls-showcase" in frameworks_guide
+    assert "pennylane-terminal-outputs-showcase" in frameworks_guide
+    assert "myqlm-structural-showcase" in frameworks_guide
+    assert "cudaq-kernel-showcase" in frameworks_guide
 
 
 def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
@@ -604,11 +633,15 @@ def test_render_example_closes_rendered_figures(monkeypatch: pytest.MonkeyPatch)
     [
         ("qiskit-random", "qiskit"),
         ("qiskit-qaoa", "qiskit"),
+        ("qiskit-control-flow-showcase", "qiskit"),
         ("cirq-random", "cirq"),
         ("cirq-qaoa", "cirq"),
+        ("cirq-native-controls-showcase", "cirq"),
         ("pennylane-random", "pennylane"),
         ("pennylane-qaoa", "pennylane"),
+        ("pennylane-terminal-outputs-showcase", "pennylane"),
         ("myqlm-random", "qat"),
+        ("myqlm-structural-showcase", "qat"),
     ],
 )
 def test_examples_runner_can_render_selected_optional_demo(
@@ -800,6 +833,7 @@ def test_examples_runner_can_render_3d_slider_demo_for_random_qiskit(
     [
         "cirq_random.py",
         "cirq_qaoa.py",
+        "cirq_native_controls_showcase.py",
     ],
 )
 def test_cirq_examples_use_narrow_imports(
@@ -808,7 +842,9 @@ def test_cirq_examples_use_narrow_imports(
     source = (examples_directory() / module_path).read_text(encoding="utf-8")
 
     assert "import cirq" not in source
-    assert "from cirq.circuits import Circuit, Moment" in source
+    assert "from cirq.circuits import" in source
+    assert "Circuit" in source
+    assert "Moment" in source
     assert "from cirq.devices import LineQubit" in source
     assert "from cirq.ops import" in source
     assert "measure" in source
@@ -819,6 +855,7 @@ def test_cirq_examples_use_narrow_imports(
     [
         "pennylane_random.py",
         "pennylane_qaoa.py",
+        "pennylane_terminal_outputs_showcase.py",
     ],
 )
 def test_pennylane_examples_use_narrow_imports(
@@ -829,7 +866,8 @@ def test_pennylane_examples_use_narrow_imports(
     assert "import pennylane as qml" not in source
     assert "from pennylane.tape import QuantumTape" in source
     assert "from pennylane.ops import" in source
-    assert "from pennylane.measurements import probs" in source
+    assert "from pennylane.measurements import" in source
+    assert "probs" in source
 
 
 @pytest.mark.parametrize(
@@ -837,8 +875,10 @@ def test_pennylane_examples_use_narrow_imports(
     [
         ("cirq-random", "cirq", "cirq"),
         ("cirq-qaoa", "cirq", "cirq"),
+        ("cirq-native-controls-showcase", "cirq", "cirq"),
         ("pennylane-random", "pennylane", "pennylane"),
         ("pennylane-qaoa", "pennylane", "pennylane"),
+        ("pennylane-terminal-outputs-showcase", "pennylane", "pennylane"),
     ],
 )
 def test_optional_demo_builders_return_real_framework_objects(
