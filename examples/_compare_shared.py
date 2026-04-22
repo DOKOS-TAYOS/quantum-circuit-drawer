@@ -13,6 +13,11 @@ try:
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
 
+try:
+    from ._render_support import normalize_figsize, release_rendered_result, set_figure_title
+except ImportError:
+    from _render_support import normalize_figsize, release_rendered_result, set_figure_title
+
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
@@ -144,7 +149,7 @@ def request_from_namespace(args: Namespace) -> CompareExampleRequest:
     return CompareExampleRequest(
         output=getattr(args, "output", None),
         show=bool(getattr(args, "show", True)),
-        figsize=_normalize_figsize(getattr(args, "figsize", DEFAULT_COMPARE_FIGSIZE)),
+        figsize=normalize_figsize(getattr(args, "figsize", DEFAULT_COMPARE_FIGSIZE)),
         left_label=_optional_str(getattr(args, "left_label", None)),
         right_label=_optional_str(getattr(args, "right_label", None)),
         highlight_differences=_optional_bool(getattr(args, "highlight_differences", None)),
@@ -162,31 +167,36 @@ def render_compare_example(
 ) -> None:
     """Render one compare payload and optionally report the saved file."""
 
-    if payload.compare_kind == "circuits":
-        config = _merge_circuit_compare_config(
-            cast(CircuitCompareConfig, payload.config),
-            request=request,
-        )
-        result = compare_circuits(
-            payload.left_data,
-            payload.right_data,
-            left_config=payload.left_config,
-            right_config=payload.right_config,
-            config=config,
-        )
-    else:
-        config = _merge_histogram_compare_config(
-            cast(HistogramCompareConfig, payload.config),
-            request=request,
-        )
-        result = compare_histograms(
-            payload.left_data,
-            payload.right_data,
-            config=config,
-        )
-    _set_compare_figure_title(figure=result.figure, title=saved_label)
-    if request.output is not None:
-        print(f"Saved {saved_label} to {request.output}")
+    result: object | None = None
+    try:
+        if payload.compare_kind == "circuits":
+            config = _merge_circuit_compare_config(
+                cast(CircuitCompareConfig, payload.config),
+                request=request,
+            )
+            result = compare_circuits(
+                payload.left_data,
+                payload.right_data,
+                left_config=payload.left_config,
+                right_config=payload.right_config,
+                config=config,
+            )
+        else:
+            config = _merge_histogram_compare_config(
+                cast(HistogramCompareConfig, payload.config),
+                request=request,
+            )
+            result = compare_histograms(
+                payload.left_data,
+                payload.right_data,
+                config=config,
+            )
+        set_figure_title(figure=result.figure, title=saved_label)
+        if request.output is not None:
+            print(f"Saved {saved_label} to {request.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
 
 
 def run_compare_example(
@@ -243,16 +253,6 @@ def _merge_histogram_compare_config(
     )
 
 
-def _normalize_figsize(value: object) -> tuple[float, float]:
-    if not isinstance(value, tuple | list) or len(value) != 2:
-        raise SystemExit("--figsize must contain width and height.")
-    figure_width = float(value[0])
-    figure_height = float(value[1])
-    if figure_width <= 0.0 or figure_height <= 0.0:
-        raise SystemExit("--figsize values must be positive.")
-    return figure_width, figure_height
-
-
 def _optional_top_k(value: object) -> int | None:
     if value is None:
         return None
@@ -283,16 +283,3 @@ def _optional_bool(value: object) -> bool | None:
     if value is None or isinstance(value, bool):
         return value
     raise SystemExit("Boolean compare options must be true or false.")
-
-
-def _set_compare_figure_title(*, figure: object, title: str) -> None:
-    if hasattr(figure, "set_label"):
-        figure.set_label(title)
-    canvas = getattr(figure, "canvas", None)
-    manager = getattr(canvas, "manager", None)
-    if manager is None or not hasattr(manager, "set_window_title"):
-        return
-    try:
-        manager.set_window_title(title)
-    except Exception:
-        return

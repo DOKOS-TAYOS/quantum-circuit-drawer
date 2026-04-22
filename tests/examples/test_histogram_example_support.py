@@ -4,6 +4,7 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pytest
 
 
@@ -221,3 +222,175 @@ def test_render_histogram_example_plots_and_reports_saved_output(
     assert fake_figure.label == "histogram-counts"
     assert fake_figure.canvas.manager.window_titles == ["histogram-counts"]
     assert f"Saved histogram-counts to {output}" in captured.out
+
+
+def test_render_histogram_example_closes_rendered_figure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._histogram_shared import (
+        HistogramDemoPayload,
+        HistogramExampleRequest,
+        render_histogram_example,
+    )
+
+    from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramResult
+
+    def fake_plot_histogram(
+        data: object,
+        *,
+        config: HistogramConfig | None = None,
+        ax: object = None,
+    ) -> HistogramResult:
+        del data, config, ax
+        figure, axes = plt.subplots()
+        return HistogramResult(
+            figure=figure,
+            axes=axes,
+            kind=HistogramKind.COUNTS,
+            state_labels=("00", "11"),
+            values=(5.0, 3.0),
+            qubits=None,
+        )
+
+    monkeypatch.setattr("examples._histogram_shared.plot_histogram", fake_plot_histogram)
+
+    request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
+    payload = HistogramDemoPayload(
+        data={"00": 5, "11": 3},
+        config=HistogramConfig(kind=HistogramKind.COUNTS, show=False),
+    )
+
+    plt.close("all")
+    try:
+        render_histogram_example(
+            payload,
+            request=request,
+            saved_label="histogram-counts",
+        )
+
+        assert tuple(plt.get_fignums()) == ()
+    finally:
+        plt.close("all")
+
+
+def test_render_histogram_example_ignores_destroyed_window_title_errors_and_closes_figure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._histogram_shared import (
+        HistogramDemoPayload,
+        HistogramExampleRequest,
+        render_histogram_example,
+    )
+
+    from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramResult
+
+    class TclError(RuntimeError):
+        pass
+
+    figure, axes = plt.subplots()
+    manager = figure.canvas.manager
+    assert manager is not None
+    titles: list[str] = []
+
+    def failing_set_window_title(title: str) -> None:
+        titles.append(title)
+        raise TclError('can\'t invoke "wm" command: application has been destroyed')
+
+    monkeypatch.setattr(manager, "set_window_title", failing_set_window_title)
+
+    def fake_plot_histogram(
+        data: object,
+        *,
+        config: HistogramConfig | None = None,
+        ax: object = None,
+    ) -> HistogramResult:
+        del data, config, ax
+        return HistogramResult(
+            figure=figure,
+            axes=axes,
+            kind=HistogramKind.COUNTS,
+            state_labels=("00", "11"),
+            values=(5.0, 3.0),
+            qubits=None,
+        )
+
+    monkeypatch.setattr("examples._histogram_shared.plot_histogram", fake_plot_histogram)
+
+    request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
+    payload = HistogramDemoPayload(
+        data={"00": 5, "11": 3},
+        config=HistogramConfig(kind=HistogramKind.COUNTS, show=False),
+    )
+
+    plt.close("all")
+    try:
+        render_histogram_example(
+            payload,
+            request=request,
+            saved_label="histogram-counts",
+        )
+
+        assert figure.get_label() == "histogram-counts"
+        assert titles == ["histogram-counts"]
+        assert tuple(plt.get_fignums()) == ()
+    finally:
+        plt.close("all")
+
+
+def test_render_histogram_example_reraises_unexpected_window_title_errors_and_closes_figure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._histogram_shared import (
+        HistogramDemoPayload,
+        HistogramExampleRequest,
+        render_histogram_example,
+    )
+
+    from quantum_circuit_drawer import HistogramConfig, HistogramKind, HistogramResult
+
+    figure, axes = plt.subplots()
+    manager = figure.canvas.manager
+    assert manager is not None
+
+    def failing_set_window_title(title: str) -> None:
+        del title
+        raise RuntimeError("unexpected title failure")
+
+    monkeypatch.setattr(manager, "set_window_title", failing_set_window_title)
+
+    def fake_plot_histogram(
+        data: object,
+        *,
+        config: HistogramConfig | None = None,
+        ax: object = None,
+    ) -> HistogramResult:
+        del data, config, ax
+        return HistogramResult(
+            figure=figure,
+            axes=axes,
+            kind=HistogramKind.COUNTS,
+            state_labels=("00", "11"),
+            values=(5.0, 3.0),
+            qubits=None,
+        )
+
+    monkeypatch.setattr("examples._histogram_shared.plot_histogram", fake_plot_histogram)
+
+    request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
+    payload = HistogramDemoPayload(
+        data={"00": 5, "11": 3},
+        config=HistogramConfig(kind=HistogramKind.COUNTS, show=False),
+    )
+
+    plt.close("all")
+    try:
+        with pytest.raises(RuntimeError, match="unexpected title failure"):
+            render_histogram_example(
+                payload,
+                request=request,
+                saved_label="histogram-counts",
+            )
+
+        assert tuple(plt.get_fignums()) == ()
+    finally:
+        plt.close("all")

@@ -13,6 +13,11 @@ try:
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
 
+try:
+    from ._render_support import normalize_figsize, release_rendered_result, set_figure_title
+except ImportError:
+    from _render_support import normalize_figsize, release_rendered_result, set_figure_title
+
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import HistogramConfig, plot_histogram  # noqa: E402
@@ -250,7 +255,7 @@ def request_from_namespace(args: Namespace) -> HistogramExampleRequest:
         show_uniform_reference=_optional_bool(getattr(args, "show_uniform_reference", None)),
         output=args.output,
         show=bool(args.show),
-        figsize=_normalize_figsize(args.figsize),
+        figsize=normalize_figsize(args.figsize),
     )
 
 
@@ -262,11 +267,16 @@ def render_histogram_example(
 ) -> None:
     """Plot one built histogram payload and optionally report the saved file."""
 
-    config = build_histogram_config(payload.config, request=request)
-    result = plot_histogram(payload.data, config=config)
-    _set_histogram_figure_title(figure=result.figure, title=saved_label)
-    if request.output is not None:
-        print(f"Saved {saved_label} to {request.output}")
+    result: object | None = None
+    try:
+        config = build_histogram_config(payload.config, request=request)
+        result = plot_histogram(payload.data, config=config)
+        set_figure_title(figure=result.figure, title=saved_label)
+        if request.output is not None:
+            print(f"Saved {saved_label} to {request.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
 
 
 def run_histogram_example(
@@ -296,35 +306,6 @@ def build_histogram_config(
         base_config,
         **_request_overrides(request),
     )
-
-
-def _normalize_figsize(value: object) -> tuple[float, float]:
-    if not isinstance(value, tuple | list) or len(value) != 2:
-        raise SystemExit("--figsize must contain width and height.")
-
-    figure_width = float(value[0])
-    figure_height = float(value[1])
-    if figure_width <= 0.0 or figure_height <= 0.0:
-        raise SystemExit("--figsize values must be positive.")
-    return figure_width, figure_height
-
-
-def _set_histogram_figure_title(*, figure: object, title: str) -> None:
-    if hasattr(figure, "set_label"):
-        figure.set_label(title)
-    _set_histogram_window_title(figure=figure, title=title)
-
-
-def _set_histogram_window_title(*, figure: object, title: str) -> None:
-    canvas = getattr(figure, "canvas", None)
-    manager = getattr(canvas, "manager", None)
-    if manager is None or not hasattr(manager, "set_window_title"):
-        return
-
-    try:
-        manager.set_window_title(title)
-    except Exception:
-        return
 
 
 def _request_overrides(request: HistogramExampleRequest) -> dict[str, object]:

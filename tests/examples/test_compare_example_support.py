@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pytest
 
 
@@ -251,3 +252,187 @@ def test_render_compare_example_dispatches_histogram_compare(
     assert config.top_k == 4
     assert config.show is False
     assert config.figsize == (11.0, 5.0)
+
+
+def test_render_compare_example_closes_rendered_figure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._compare_shared import (
+        CompareDemoPayload,
+        CompareExampleRequest,
+        render_compare_example,
+    )
+
+    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult
+
+    def fake_compare_circuits(
+        left_circuit: object,
+        right_circuit: object,
+        *,
+        left_config: object = None,
+        right_config: object = None,
+        config: CircuitCompareConfig | None = None,
+        axes: object = None,
+    ) -> CircuitCompareResult:
+        del left_circuit, right_circuit, left_config, right_config, config, axes
+        figure, subplot_axes = plt.subplots(1, 2)
+        return CircuitCompareResult(
+            figure=figure,
+            axes=(subplot_axes[0], subplot_axes[1]),
+            left_result=object(),  # type: ignore[arg-type]
+            right_result=object(),  # type: ignore[arg-type]
+            metrics=object(),  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr("examples._compare_shared.compare_circuits", fake_compare_circuits)
+
+    request = CompareExampleRequest(output=None, show=False, figsize=(12.0, 5.0))
+    payload = CompareDemoPayload(
+        compare_kind="circuits",
+        left_data={"kind": "left"},
+        right_data={"kind": "right"},
+        config=CircuitCompareConfig(show=False),
+    )
+
+    plt.close("all")
+    try:
+        render_compare_example(
+            payload,
+            request=request,
+            saved_label="compare-circuits-qiskit-transpile",
+        )
+
+        assert tuple(plt.get_fignums()) == ()
+    finally:
+        plt.close("all")
+
+
+def test_render_compare_example_ignores_destroyed_window_title_errors_and_closes_figure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._compare_shared import (
+        CompareDemoPayload,
+        CompareExampleRequest,
+        render_compare_example,
+    )
+
+    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult
+
+    class TclError(RuntimeError):
+        pass
+
+    figure, subplot_axes = plt.subplots(1, 2)
+    manager = figure.canvas.manager
+    assert manager is not None
+    titles: list[str] = []
+
+    def failing_set_window_title(title: str) -> None:
+        titles.append(title)
+        raise TclError('can\'t invoke "wm" command: application has been destroyed')
+
+    monkeypatch.setattr(manager, "set_window_title", failing_set_window_title)
+
+    def fake_compare_circuits(
+        left_circuit: object,
+        right_circuit: object,
+        *,
+        left_config: object = None,
+        right_config: object = None,
+        config: CircuitCompareConfig | None = None,
+        axes: object = None,
+    ) -> CircuitCompareResult:
+        del left_circuit, right_circuit, left_config, right_config, config, axes
+        return CircuitCompareResult(
+            figure=figure,
+            axes=(subplot_axes[0], subplot_axes[1]),
+            left_result=object(),  # type: ignore[arg-type]
+            right_result=object(),  # type: ignore[arg-type]
+            metrics=object(),  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr("examples._compare_shared.compare_circuits", fake_compare_circuits)
+
+    request = CompareExampleRequest(output=None, show=False, figsize=(12.0, 5.0))
+    payload = CompareDemoPayload(
+        compare_kind="circuits",
+        left_data={"kind": "left"},
+        right_data={"kind": "right"},
+        config=CircuitCompareConfig(show=False),
+    )
+
+    plt.close("all")
+    try:
+        render_compare_example(
+            payload,
+            request=request,
+            saved_label="compare-circuits-qiskit-transpile",
+        )
+
+        assert figure.get_label() == "compare-circuits-qiskit-transpile"
+        assert titles == ["compare-circuits-qiskit-transpile"]
+        assert tuple(plt.get_fignums()) == ()
+    finally:
+        plt.close("all")
+
+
+def test_render_compare_example_reraises_unexpected_window_title_errors_and_closes_figure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._compare_shared import (
+        CompareDemoPayload,
+        CompareExampleRequest,
+        render_compare_example,
+    )
+
+    from quantum_circuit_drawer import CircuitCompareConfig, CircuitCompareResult
+
+    figure, subplot_axes = plt.subplots(1, 2)
+    manager = figure.canvas.manager
+    assert manager is not None
+
+    def failing_set_window_title(title: str) -> None:
+        del title
+        raise RuntimeError("unexpected title failure")
+
+    monkeypatch.setattr(manager, "set_window_title", failing_set_window_title)
+
+    def fake_compare_circuits(
+        left_circuit: object,
+        right_circuit: object,
+        *,
+        left_config: object = None,
+        right_config: object = None,
+        config: CircuitCompareConfig | None = None,
+        axes: object = None,
+    ) -> CircuitCompareResult:
+        del left_circuit, right_circuit, left_config, right_config, config, axes
+        return CircuitCompareResult(
+            figure=figure,
+            axes=(subplot_axes[0], subplot_axes[1]),
+            left_result=object(),  # type: ignore[arg-type]
+            right_result=object(),  # type: ignore[arg-type]
+            metrics=object(),  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr("examples._compare_shared.compare_circuits", fake_compare_circuits)
+
+    request = CompareExampleRequest(output=None, show=False, figsize=(12.0, 5.0))
+    payload = CompareDemoPayload(
+        compare_kind="circuits",
+        left_data={"kind": "left"},
+        right_data={"kind": "right"},
+        config=CircuitCompareConfig(show=False),
+    )
+
+    plt.close("all")
+    try:
+        with pytest.raises(RuntimeError, match="unexpected title failure"):
+            render_compare_example(
+                payload,
+                request=request,
+                saved_label="compare-circuits-qiskit-transpile",
+            )
+
+        assert tuple(plt.get_fignums()) == ()
+    finally:
+        plt.close("all")

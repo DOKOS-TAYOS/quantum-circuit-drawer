@@ -2,28 +2,33 @@
 
 from __future__ import annotations
 
-import gc
 import re
 import sys
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import Literal, cast
 
 try:
     from ._bootstrap import ensure_local_project_on_path
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
 
+try:
+    from ._render_support import (
+        normalize_figsize,
+        release_rendered_result,
+        set_result_figure_titles,
+    )
+except ImportError:
+    from _render_support import normalize_figsize, release_rendered_result, set_result_figure_titles
+
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer.api import draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.config import DrawConfig, DrawMode  # noqa: E402
 from quantum_circuit_drawer.hover import HoverOptions  # noqa: E402
-
-if TYPE_CHECKING:
-    from matplotlib.figure import Figure
 
 ViewMode = Literal["2d", "3d"]
 RenderMode = Literal["auto", "pages", "pages_controls", "slider", "full"]
@@ -249,7 +254,7 @@ def request_from_namespace(
     )
     if qubits < 1:
         raise SystemExit("--qubits must be at least 1.")
-    figure_width, figure_height = _normalize_figsize(getattr(args, "figsize", DEFAULT_DEMO_FIGSIZE))
+    figure_width, figure_height = normalize_figsize(getattr(args, "figsize", DEFAULT_DEMO_FIGSIZE))
     hover_matrix_max_qubits = _coerce_int(
         getattr(args, "hover_matrix_max_qubits", 2),
         "--hover-matrix-max-qubits",
@@ -321,17 +326,6 @@ def _next_star_tree_wire_count(default_qubits: int) -> int:
     while ((3 * (2**depth)) - 2) < candidate:
         depth += 1
     return (3 * (2**depth)) - 2
-
-
-def _normalize_figsize(value: object) -> tuple[float, float]:
-    if not isinstance(value, tuple | list) or len(value) != 2:
-        raise SystemExit("--figsize must contain width and height.")
-
-    figure_width = float(value[0])
-    figure_height = float(value[1])
-    if figure_width <= 0.0 or figure_height <= 0.0:
-        raise SystemExit("--figsize values must be positive.")
-    return figure_width, figure_height
 
 
 def _parse_render_mode(value: object) -> RenderMode:
@@ -413,26 +407,6 @@ def _normalize_output_path(value: object) -> Path | None:
     if value is None or isinstance(value, Path):
         return value
     return Path(str(value))
-
-
-def _result_figures(result: object) -> tuple[object, ...]:
-    figures = getattr(result, "figures", ())
-    if figures is None:
-        return ()
-    if isinstance(figures, tuple):
-        return figures
-    if isinstance(figures, list):
-        return tuple(figures)
-    try:
-        return tuple(figures)
-    except TypeError:
-        return ()
-
-
-def _matplotlib_result_figures(result: object) -> tuple[Figure, ...]:
-    from matplotlib.figure import Figure
-
-    return tuple(figure for figure in _result_figures(result) if isinstance(figure, Figure))
 
 
 def demo_style(*, columns: int) -> dict[str, object]:
@@ -523,13 +497,13 @@ def render_example(
             if friendly_error is not None:
                 raise friendly_error from None
             raise
-        _set_demo_figure_titles(result=result, saved_label=saved_label)
+        set_result_figure_titles(result=result, saved_label=saved_label)
 
         if request.output is not None:
             print(f"Saved {saved_label} to {request.output}")
     finally:
         if result is not None:
-            _release_rendered_result(result)
+            release_rendered_result(result)
 
 
 def run_example(
@@ -558,68 +532,6 @@ def run_example(
         framework=framework,
         saved_label=saved_label,
     )
-
-
-def _set_demo_figure_titles(*, result: object, saved_label: str) -> None:
-    figures = _result_figures(result)
-    if not figures:
-        return
-
-    total_figures = len(figures)
-    for page_index, figure in enumerate(figures, start=1):
-        title = (
-            saved_label
-            if total_figures == 1
-            else f"{saved_label} - page {page_index}/{total_figures}"
-        )
-        set_label = getattr(figure, "set_label", None)
-        if callable(set_label):
-            set_label(title)
-        _set_demo_window_title(figure=figure, title=title)
-
-
-def _set_demo_window_title(*, figure: object, title: str) -> None:
-    canvas = getattr(figure, "canvas", None)
-    manager = getattr(canvas, "manager", None)
-    if manager is None or not hasattr(manager, "set_window_title"):
-        return
-
-    try:
-        manager.set_window_title(title)
-    except Exception as error:
-        if _is_destroyed_window_error(error):
-            return
-        raise
-
-
-def _is_destroyed_window_error(error: Exception) -> bool:
-    error_name = type(error).__name__
-    if error_name not in {"TclError", "RuntimeError"}:
-        return False
-
-    normalized_message = str(error).lower()
-    destroyed_markers = (
-        "application has been destroyed",
-        "already deleted",
-        "has been deleted",
-        "does not exist",
-    )
-    return any(marker in normalized_message for marker in destroyed_markers)
-
-
-def _release_rendered_result(result: object) -> None:
-    figures = _matplotlib_result_figures(result)
-    if not figures:
-        return
-
-    from matplotlib import pyplot as plt
-
-    for figure in figures:
-        try:
-            plt.close(figure)
-        except Exception:
-            continue
-    gc.collect()
 
 
 def _friendly_demo_render_error(

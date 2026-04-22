@@ -56,6 +56,7 @@
 - `compare_circuits(...)` no longer treats visually similar but semantically different native adapter paths as identical once semantic provenance is available
 - Hover matrix inference for simple controlled single-qubit gates now respects open-control states, so control-on-`0` no longer shows the wrong compact matrix in tooltips
 - Example and benchmark helpers now validate builder callability earlier and clean up rendered Matplotlib figures more defensively after demo execution
+- Histogram and compare example helpers now share the same figure-title and cleanup support as the main example runner, so they close rendered Matplotlib figures reliably and only ignore benign destroyed-window title errors
 - Tightened public config validation so boolean values are no longer accepted where positive numeric `figsize`, `top_k`, `result_index`, qubit-index, or hover matrix limits are required
 - `HoverOptions` now validates direct construction the same way as mapping-based hover input, preventing invalid booleans and unsupported `show_matrix` values from slipping through
 - Unified circuit and histogram output saving behind one shared export helper so directory creation, Matplotlib save handling, and wrapped `RenderingError` behavior stay consistent
