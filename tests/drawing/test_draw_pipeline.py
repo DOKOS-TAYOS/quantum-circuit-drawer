@@ -410,7 +410,11 @@ def test_prepare_draw_pipeline_falls_back_to_legacy_adapter_when_semantic_ir_is_
         {
             "circuit": {"kind": "legacy"},
             "options": {"composite_mode": "compact", "explicit_matrices": False},
-        }
+        },
+        {
+            "circuit": {"kind": "legacy"},
+            "options": {"composite_mode": "expand", "explicit_matrices": False},
+        },
     ]
     assert adapter.calls == [
         {
@@ -443,7 +447,11 @@ def test_prepare_draw_pipeline_prefers_semantic_adapter_path_when_available(
         {
             "circuit": {"kind": "semantic"},
             "options": {"composite_mode": "compact", "explicit_matrices": True},
-        }
+        },
+        {
+            "circuit": {"kind": "semantic"},
+            "options": {"composite_mode": "expand", "explicit_matrices": True},
+        },
     ]
     assert pipeline.detected_framework == "semantic_demo"
     assert pipeline.semantic_ir.metadata["framework"] == "semantic_demo"

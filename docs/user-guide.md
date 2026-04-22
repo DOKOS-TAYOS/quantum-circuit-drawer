@@ -52,7 +52,7 @@ In managed 2D mode, the library creates one figure per page. In managed 3D mode,
 
 Use this when you want a managed page browser:
 
-- 2D: `Page` and `Visible`
+- 2D: `Page` and `Visible`, plus `Wires: All/Active`, `Ancillas: Show/Hide`, and a contextual `Collapse` / `Expand` block action when semantic provenance is available
 - 3D: `Page` and `Visible`, with several visible 3D pages stacked vertically
 
 This is the best default for normal script execution.
@@ -61,8 +61,12 @@ This is the best default for normal script execution.
 
 Use this when the circuit is wide and you want a viewport instead of separate pages:
 
-- 2D: horizontal and vertical sliders when needed
+- 2D: horizontal and vertical sliders when needed, click-based contextual selection, `Wires: All/Active`, `Ancillas: Show/Hide`, contextual block collapse/expand, and folded-wire markers such as `... N hidden wires ...` when intermediate wires are filtered out
 - 3D: horizontal slider only
+
+Those exploration controls currently apply only to managed 2D figures. Static renders and 3D managed views keep their existing behavior.
+
+Selection and wire filtering work for plain `CircuitIR` too. Block collapse/expand depends on semantic provenance from the current adapter path, so it may stay disabled for narrower legacy inputs that do not expose enough block structure.
 
 #### `full`
 

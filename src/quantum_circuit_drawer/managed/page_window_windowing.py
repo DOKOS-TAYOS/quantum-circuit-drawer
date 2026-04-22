@@ -5,7 +5,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..drawing.pages import _items_for_page
-from ..layout.scene import LayoutScene, ScenePage
+from ..layout.scene import (
+    LayoutScene,
+    SceneBarrier,
+    SceneConnection,
+    SceneControl,
+    SceneGate,
+    SceneGateAnnotation,
+    SceneMeasurement,
+    ScenePage,
+    SceneSwap,
+)
 from ..renderers._matplotlib_page_projection import _ProjectedPage
 
 if TYPE_CHECKING:
@@ -28,6 +38,24 @@ def _clamp_visible_page_count(
 
 def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
     visible_pages = tuple(_window_pages(state))
+    shifted_gates: list[SceneGate] = []
+    shifted_gate_annotations: list[SceneGateAnnotation] = []
+    shifted_controls: list[SceneControl] = []
+    shifted_connections: list[SceneConnection] = []
+    shifted_swaps: list[SceneSwap] = []
+    shifted_barriers: list[SceneBarrier] = []
+    shifted_measurements: list[SceneMeasurement] = []
+    for page_index in _visible_page_indexes(state):
+        source_page = state.scene.pages[page_index]
+        shifted_gates.extend(_items_for_page(state.scene.gates, page=source_page))
+        shifted_gate_annotations.extend(
+            _items_for_page(state.scene.gate_annotations, page=source_page)
+        )
+        shifted_controls.extend(_items_for_page(state.scene.controls, page=source_page))
+        shifted_connections.extend(_items_for_page(state.scene.connections, page=source_page))
+        shifted_swaps.extend(_items_for_page(state.scene.swaps, page=source_page))
+        shifted_barriers.extend(_items_for_page(state.scene.barriers, page=source_page))
+        shifted_measurements.extend(_items_for_page(state.scene.measurements, page=source_page))
     return LayoutScene(
         width=_visible_page_width(state),
         height=state.scene.page_height
@@ -38,14 +66,15 @@ def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
         page_height=state.scene.page_height,
         style=state.scene.style,
         wires=state.scene.wires,
-        gates=(),
-        gate_annotations=(),
-        controls=(),
-        connections=(),
-        swaps=(),
-        barriers=(),
-        measurements=(),
+        gates=tuple(shifted_gates),
+        gate_annotations=tuple(shifted_gate_annotations),
+        controls=tuple(shifted_controls),
+        connections=tuple(shifted_connections),
+        swaps=tuple(shifted_swaps),
+        barriers=tuple(shifted_barriers),
+        measurements=tuple(shifted_measurements),
         texts=state.scene.texts,
+        wire_fold_markers=state.scene.wire_fold_markers,
         pages=visible_pages,
         hover=state.scene.hover,
         wire_y_positions=dict(state.scene.wire_y_positions),

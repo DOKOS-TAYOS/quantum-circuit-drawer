@@ -55,6 +55,7 @@ class LayoutEngine:
             barriers=scene_collections.barriers,
             measurements=scene_collections.measurements,
             texts=scene_collections.texts,
+            wire_fold_markers=(),
             pages=scaffold.pages,
             wire_y_positions=scaffold.wire_positions,
             page_count_for_text_scale=len(scaffold.pages),

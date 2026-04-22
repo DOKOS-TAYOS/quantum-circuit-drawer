@@ -19,7 +19,6 @@ from ._helpers import (
     append_semantic_classical_conditions,
     build_classical_register,
     canonical_gate_spec,
-    expand_operation_sequence,
     extract_dependency_types,
     is_expected_matrix_unavailable_error,
     normalized_detail_lines,
@@ -119,7 +118,7 @@ class PennyLaneAdapter(BaseAdapter):
         }
 
         semantic_operations: list[SemanticOperationIR] = []
-        for operation in tape.operations:
+        for operation_index, operation in enumerate(tape.operations):
             semantic_operations.extend(
                 self._convert_operation(
                     operation,
@@ -127,6 +126,7 @@ class PennyLaneAdapter(BaseAdapter):
                     mid_measure_targets=mid_measure_targets,
                     composite_mode=composite_mode,
                     explicit_matrices=explicit_matrices,
+                    location=(operation_index,),
                 )
             )
 
@@ -171,6 +171,7 @@ class PennyLaneAdapter(BaseAdapter):
         composite_mode: str,
         explicit_matrices: bool,
         decomposition_origin: str | None = None,
+        location: tuple[int, ...] = (),
     ) -> list[SemanticOperationIR]:
         if self._is_mid_measure(operation):
             if not operation.wires:
@@ -189,7 +190,8 @@ class PennyLaneAdapter(BaseAdapter):
                         framework=self.framework_name,
                         native_name="MidMeasureMP",
                         native_kind="measurement",
-                        location=(0,),
+                        decomposition_origin=decomposition_origin,
+                        location=location,
                     ),
                     metadata={"classical_bit_label": classical_bit_label},
                 )
@@ -208,6 +210,7 @@ class PennyLaneAdapter(BaseAdapter):
                 composite_mode=composite_mode,
                 explicit_matrices=explicit_matrices,
                 decomposition_origin=decomposition_origin,
+                location=location,
             )
             return [
                 replace(
@@ -226,19 +229,28 @@ class PennyLaneAdapter(BaseAdapter):
         if composite_mode == "expand" and canonical_gate.family is CanonicalGateFamily.CUSTOM:
             decomposition = self._decomposition(operation)
             if decomposition:
-                return expand_operation_sequence(
-                    decomposition,
-                    lambda nested_operation: self._convert_operation(
-                        cast(_PennyLaneOperationLike, nested_operation),
-                        wire_ids,
-                        mid_measure_targets=mid_measure_targets,
-                        composite_mode=composite_mode,
-                        explicit_matrices=explicit_matrices,
-                        decomposition_origin=getattr(
-                            operation, "name", operation.__class__.__name__
-                        ),
-                    ),
-                )
+                expanded_operations: list[SemanticOperationIR] = []
+                composite_name = getattr(operation, "name", operation.__class__.__name__)
+                for nested_index, nested_operation in enumerate(decomposition):
+                    expanded_operations.extend(
+                        self._convert_operation(
+                            cast(_PennyLaneOperationLike, nested_operation),
+                            wire_ids,
+                            mid_measure_targets=mid_measure_targets,
+                            composite_mode=composite_mode,
+                            explicit_matrices=explicit_matrices,
+                            decomposition_origin=composite_name,
+                            location=(*location, nested_index),
+                        )
+                    )
+                return expanded_operations
+
+        native_name = getattr(operation, "name", operation.__class__.__name__)
+        composite_label = (
+            native_name
+            if canonical_gate.family is CanonicalGateFamily.CUSTOM and decomposition_origin is None
+            else None
+        )
 
         control_wires = tuple(
             wire_ids[wire] for wire in getattr(operation, "control_wires", ()) if wire in wire_ids
@@ -263,9 +275,11 @@ class PennyLaneAdapter(BaseAdapter):
                     target_wires=target_wires,
                     provenance=semantic_provenance(
                         framework=self.framework_name,
-                        native_name=getattr(operation, "name", operation.__class__.__name__),
+                        native_name=native_name,
                         native_kind="swap",
                         decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=location,
                     ),
                 )
             ]
@@ -277,9 +291,11 @@ class PennyLaneAdapter(BaseAdapter):
                     target_wires=target_wires,
                     provenance=semantic_provenance(
                         framework=self.framework_name,
-                        native_name=getattr(operation, "name", operation.__class__.__name__),
+                        native_name=native_name,
                         native_kind="barrier",
                         decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=location,
                     ),
                 )
             ]
@@ -300,9 +316,11 @@ class PennyLaneAdapter(BaseAdapter):
                     ),
                     provenance=semantic_provenance(
                         framework=self.framework_name,
-                        native_name=getattr(operation, "name", operation.__class__.__name__),
+                        native_name=native_name,
                         native_kind="controlled_gate",
                         decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=location,
                     ),
                     metadata=self._matrix_metadata(
                         operation,
@@ -324,9 +342,11 @@ class PennyLaneAdapter(BaseAdapter):
                 ),
                 provenance=semantic_provenance(
                     framework=self.framework_name,
-                    native_name=getattr(operation, "name", operation.__class__.__name__),
-                    native_kind="gate",
+                    native_name=native_name,
+                    native_kind=("composite" if composite_label is not None else "gate"),
                     decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
+                    location=location,
                 ),
                 metadata=self._matrix_metadata(
                     operation,

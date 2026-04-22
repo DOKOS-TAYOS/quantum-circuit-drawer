@@ -23,7 +23,12 @@ from ._matplotlib_axes import (
     finalize_axes,
     prepare_axes,
 )
-from ._matplotlib_connections import draw_barriers, draw_connections, draw_wires
+from ._matplotlib_connections import (
+    draw_barriers,
+    draw_connections,
+    draw_wire_fold_markers,
+    draw_wires,
+)
 from ._matplotlib_gates import (
     draw_controls,
     draw_gate_annotation,
@@ -124,6 +129,7 @@ __all__ = [
     "draw_swaps",
     "draw_text",
     "draw_wires",
+    "draw_wire_fold_markers",
     "draw_x_target_circles",
     "draw_x_target_segments",
     "finalize_axes",

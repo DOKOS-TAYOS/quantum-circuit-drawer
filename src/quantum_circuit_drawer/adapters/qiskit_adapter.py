@@ -126,6 +126,8 @@ class QiskitAdapter(BaseAdapter):
         composite_mode: str,
         location: tuple[int, ...] = (),
         explicit_matrices: bool = True,
+        decomposition_origin: str | None = None,
+        composite_label: str | None = None,
     ) -> list[SemanticOperationIR]:
         operation, qubits, clbits = self._normalize_entry(entry)
         raw_name = str(getattr(operation, "name", operation.__class__.__name__))
@@ -157,6 +159,8 @@ class QiskitAdapter(BaseAdapter):
                         framework=self.framework_name,
                         native_name=raw_name,
                         native_kind="measurement",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
                         location=location,
                     ),
                     metadata={
@@ -197,6 +201,8 @@ class QiskitAdapter(BaseAdapter):
                         framework=self.framework_name,
                         native_name=raw_name,
                         native_kind="barrier",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
                         location=location,
                     ),
                 )
@@ -211,6 +217,8 @@ class QiskitAdapter(BaseAdapter):
                         framework=self.framework_name,
                         native_name=raw_name,
                         native_kind="swap",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
                         location=location,
                     ),
                     metadata=matrix_metadata,
@@ -238,6 +246,8 @@ class QiskitAdapter(BaseAdapter):
                         framework=self.framework_name,
                         native_name=raw_name,
                         native_kind="controlled_gate",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
                         location=location,
                     ),
                     metadata=matrix_metadata,
@@ -271,6 +281,7 @@ class QiskitAdapter(BaseAdapter):
                         framework=self.framework_name,
                         native_name=raw_name,
                         native_kind="composite",
+                        decomposition_origin=decomposition_origin,
                         composite_label=raw_name,
                         location=location,
                     ),
@@ -292,6 +303,8 @@ class QiskitAdapter(BaseAdapter):
                     framework=self.framework_name,
                     native_name=raw_name,
                     native_kind="gate",
+                    decomposition_origin=decomposition_origin,
+                    composite_label=composite_label,
                     location=location,
                 ),
                 metadata=matrix_metadata,
@@ -582,6 +595,7 @@ class QiskitAdapter(BaseAdapter):
         definition = getattr(operation, "definition", None)
         if definition is None:
             return []
+        composite_name = str(getattr(operation, "name", operation.__class__.__name__))
 
         if len(definition.qubits) != len(qubits):
             raise UnsupportedOperationError(
@@ -615,6 +629,8 @@ class QiskitAdapter(BaseAdapter):
                     composite_mode=composite_mode,
                     location=(*location, nested_index),
                     explicit_matrices=explicit_matrices,
+                    decomposition_origin=composite_name,
+                    composite_label=composite_name,
                 )
             )
         return expanded_operations

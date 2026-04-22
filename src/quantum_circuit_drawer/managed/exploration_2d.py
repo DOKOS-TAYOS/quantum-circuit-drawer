@@ -1,0 +1,822 @@
+"""Shared exploration-state helpers for managed interactive 2D rendering."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
+
+from matplotlib.axes import Axes
+from matplotlib.backend_bases import MouseEvent
+
+from .._compat import StrEnum
+from ..drawing.pages import _items_for_page
+from ..ir.circuit import CircuitIR
+from ..ir.lowering import lower_semantic_circuit
+from ..ir.operations import OperationKind
+from ..ir.semantic import (
+    SemanticCircuitIR,
+    SemanticOperationIR,
+    SemanticProvenanceIR,
+    pack_semantic_operations,
+    semantic_operation_id,
+    semantic_operation_id_from_location,
+)
+from ..ir.wires import WireIR, WireKind
+from ..layout.scene import (
+    LayoutScene,
+    SceneBarrier,
+    SceneConnection,
+    SceneControl,
+    SceneGate,
+    SceneGateAnnotation,
+    SceneMeasurement,
+    SceneSwap,
+    SceneVisualState,
+    SceneWireFoldMarker,
+)
+from ..renderers._matplotlib_page_projection import page_x_offset, page_y_offset
+
+_CLICK_CONNECTION_HALF_WIDTH = 0.1
+_ANCILLA_NAME_HINTS = ("ancilla", "anc", "work")
+
+
+class WireFilterMode(StrEnum):
+    """Wire visibility mode for managed 2D exploration."""
+
+    ALL = "all"
+    ACTIVE = "active"
+
+
+@dataclass(frozen=True, slots=True)
+class ExplorationBlock:
+    """Top-level semantic block that can be collapsed or expanded."""
+
+    block_id: str
+    label: str
+    top_level_location: tuple[int, ...]
+    operation_ids: tuple[str, ...]
+    wire_ids: tuple[str, ...]
+    operation_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExplorationHiddenWireRange:
+    """Contiguous hidden wires between two visible wires."""
+
+    before_wire_id: str
+    after_wire_id: str
+    hidden_wire_ids: tuple[str, ...]
+
+    @property
+    def hidden_wire_count(self) -> int:
+        return len(self.hidden_wire_ids)
+
+
+@dataclass(frozen=True, slots=True)
+class ExplorationCatalog:
+    """Static semantic exploration metadata shared by slider and page-window modes."""
+
+    current_semantic_ir: SemanticCircuitIR
+    expanded_semantic_ir: SemanticCircuitIR
+    blocks: dict[str, ExplorationBlock]
+    block_id_by_operation_id: dict[str, str]
+    initial_collapsed_block_ids: frozenset[str]
+
+
+@dataclass(slots=True)
+class Managed2DExplorationState:
+    """Mutable exploration state shared by the 2D managed views."""
+
+    catalog: ExplorationCatalog
+    collapsed_block_ids: set[str]
+    wire_filter_mode: WireFilterMode = WireFilterMode.ALL
+    show_ancillas: bool = True
+    selected_operation_id: str | None = None
+    transformed_semantic_ir: SemanticCircuitIR | None = None
+    hidden_wire_ranges: tuple[ExplorationHiddenWireRange, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TransformedExplorationCircuit:
+    """Semantic circuit after collapse and wire-filter transforms."""
+
+    semantic_ir: SemanticCircuitIR
+    circuit_ir: CircuitIR
+    hidden_wire_ranges: tuple[ExplorationHiddenWireRange, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ExplorationSelectionScope:
+    """Selection-derived emphasis state for one transformed semantic circuit."""
+
+    selected_operation_id: str | None
+    related_operation_ids: tuple[str, ...]
+    selected_wire_ids: tuple[str, ...]
+
+    @property
+    def emphasized_operation_ids(self) -> tuple[str, ...]:
+        if self.selected_operation_id is None:
+            return ()
+        return tuple(dict.fromkeys((self.selected_operation_id, *self.related_operation_ids)))
+
+
+@dataclass(frozen=True, slots=True)
+class ExplorationBlockAction:
+    """Context-sensitive block action available for the current selection."""
+
+    action: str
+    block_id: str
+    label: str
+
+
+@dataclass(frozen=True, slots=True)
+class SceneClickTarget:
+    """Clickable scene-space hit target for operation selection."""
+
+    operation_id: str
+    x_min: float
+    x_max: float
+    y_min: float
+    y_max: float
+
+    @property
+    def area(self) -> float:
+        return max(0.0, self.x_max - self.x_min) * max(0.0, self.y_max - self.y_min)
+
+
+def build_exploration_catalog(
+    current_semantic_ir: SemanticCircuitIR,
+    expanded_semantic_ir: SemanticCircuitIR,
+) -> ExplorationCatalog:
+    """Build the shared semantic catalog used by managed 2D exploration."""
+
+    blocks: dict[str, ExplorationBlock] = {}
+    block_id_by_operation_id: dict[str, str] = {}
+    grouped_operations = _operations_by_top_level_location(expanded_semantic_ir)
+    wire_order = {wire.id: index for index, wire in enumerate(expanded_semantic_ir.all_wires)}
+
+    for top_level_location, operations in grouped_operations:
+        label = _collapse_label(operations)
+        if label is None or len(operations) <= 1:
+            continue
+
+        block_id = semantic_operation_id_from_location(top_level_location)
+        wire_ids = tuple(
+            sorted(
+                {wire_id for operation in operations for wire_id in operation.occupied_wire_ids},
+                key=lambda wire_id: wire_order.get(wire_id, len(wire_order)),
+            )
+        )
+        operation_ids = tuple(semantic_operation_id(operation) for operation in operations)
+        blocks[block_id] = ExplorationBlock(
+            block_id=block_id,
+            label=label,
+            top_level_location=top_level_location,
+            operation_ids=operation_ids,
+            wire_ids=wire_ids,
+            operation_count=len(operations),
+        )
+        block_id_by_operation_id[block_id] = block_id
+        for operation_id in operation_ids:
+            block_id_by_operation_id[operation_id] = block_id
+
+    return ExplorationCatalog(
+        current_semantic_ir=current_semantic_ir,
+        expanded_semantic_ir=expanded_semantic_ir,
+        blocks=blocks,
+        block_id_by_operation_id=block_id_by_operation_id,
+        initial_collapsed_block_ids=_initial_collapsed_block_ids(
+            current_semantic_ir=current_semantic_ir,
+            blocks=blocks,
+        ),
+    )
+
+
+def managed_exploration_state(
+    current_semantic_ir: SemanticCircuitIR,
+    expanded_semantic_ir: SemanticCircuitIR,
+) -> Managed2DExplorationState:
+    """Build the shared mutable exploration state for one managed 2D figure."""
+
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+    return Managed2DExplorationState(
+        catalog=catalog,
+        collapsed_block_ids=set(catalog.initial_collapsed_block_ids),
+    )
+
+
+def transform_semantic_circuit(
+    catalog: ExplorationCatalog,
+    *,
+    collapsed_block_ids: set[str] | frozenset[str],
+    wire_filter_mode: WireFilterMode,
+    show_ancillas: bool,
+) -> TransformedExplorationCircuit:
+    """Apply collapse and wire-visibility transforms to the expanded semantic source."""
+
+    collapsed_operations = _collapse_top_level_blocks(
+        catalog.expanded_semantic_ir,
+        blocks=catalog.blocks,
+        collapsed_block_ids=collapsed_block_ids,
+    )
+    collapsed_circuit = SemanticCircuitIR(
+        quantum_wires=catalog.expanded_semantic_ir.quantum_wires,
+        classical_wires=catalog.expanded_semantic_ir.classical_wires,
+        layers=pack_semantic_operations(collapsed_operations),
+        name=catalog.expanded_semantic_ir.name,
+        metadata=dict(catalog.expanded_semantic_ir.metadata),
+        diagnostics=tuple(catalog.expanded_semantic_ir.diagnostics),
+    )
+
+    visible_wire_ids = _visible_wire_ids(
+        collapsed_circuit,
+        wire_filter_mode=wire_filter_mode,
+        show_ancillas=show_ancillas,
+    )
+    filtered_operations = tuple(
+        operation
+        for operation in _flatten_operations(collapsed_circuit)
+        if set(operation.occupied_wire_ids).issubset(visible_wire_ids)
+    )
+    filtered_circuit = SemanticCircuitIR(
+        quantum_wires=tuple(
+            wire for wire in collapsed_circuit.quantum_wires if wire.id in visible_wire_ids
+        ),
+        classical_wires=tuple(
+            wire for wire in collapsed_circuit.classical_wires if wire.id in visible_wire_ids
+        ),
+        layers=pack_semantic_operations(filtered_operations),
+        name=collapsed_circuit.name,
+        metadata=dict(collapsed_circuit.metadata),
+        diagnostics=tuple(collapsed_circuit.diagnostics),
+    )
+    return TransformedExplorationCircuit(
+        semantic_ir=filtered_circuit,
+        circuit_ir=lower_semantic_circuit(filtered_circuit),
+        hidden_wire_ranges=_hidden_wire_ranges(
+            all_wires=collapsed_circuit.all_wires,
+            visible_wire_ids=visible_wire_ids,
+        ),
+    )
+
+
+def selection_scope(
+    circuit: SemanticCircuitIR,
+    *,
+    selected_operation_id: str | None,
+) -> ExplorationSelectionScope:
+    """Compute related operations and wires for the current selection."""
+
+    if selected_operation_id is None:
+        return ExplorationSelectionScope(
+            selected_operation_id=None,
+            related_operation_ids=(),
+            selected_wire_ids=(),
+        )
+
+    operations = _flatten_operations(circuit)
+    operation_ids = [semantic_operation_id(operation) for operation in operations]
+    try:
+        selected_index = operation_ids.index(selected_operation_id)
+    except ValueError:
+        return ExplorationSelectionScope(
+            selected_operation_id=None,
+            related_operation_ids=(),
+            selected_wire_ids=(),
+        )
+
+    selected_operation = operations[selected_index]
+    selected_wire_ids = tuple(dict.fromkeys(selected_operation.occupied_wire_ids))
+    selected_wire_set = set(selected_wire_ids)
+
+    related_operation_ids: list[str] = []
+    previous_operation = _neighbor_operation(
+        operations,
+        start_index=selected_index - 1,
+        step=-1,
+        wire_ids=selected_wire_set,
+    )
+    if previous_operation is not None:
+        related_operation_ids.append(semantic_operation_id(previous_operation))
+
+    next_operation = _neighbor_operation(
+        operations,
+        start_index=selected_index + 1,
+        step=1,
+        wire_ids=selected_wire_set,
+    )
+    if next_operation is not None:
+        related_operation_ids.append(semantic_operation_id(next_operation))
+
+    return ExplorationSelectionScope(
+        selected_operation_id=selected_operation_id,
+        related_operation_ids=tuple(related_operation_ids),
+        selected_wire_ids=selected_wire_ids,
+    )
+
+
+def selected_block_action(
+    catalog: ExplorationCatalog,
+    *,
+    selected_operation_id: str | None,
+    collapsed_block_ids: set[str] | frozenset[str],
+) -> ExplorationBlockAction | None:
+    """Return the contextual block action available for the current selection."""
+
+    if selected_operation_id is None:
+        return None
+
+    block_id = catalog.block_id_by_operation_id.get(selected_operation_id)
+    if block_id is None:
+        return None
+
+    block = catalog.blocks.get(block_id)
+    if block is None:
+        return None
+
+    if block_id in collapsed_block_ids:
+        return ExplorationBlockAction(
+            action="expand",
+            block_id=block_id,
+            label=f"Expand {block.label}",
+        )
+    return ExplorationBlockAction(
+        action="collapse",
+        block_id=block_id,
+        label=f"Collapse {block.label}",
+    )
+
+
+def next_selected_operation_id_for_block_action(
+    catalog: ExplorationCatalog,
+    action: ExplorationBlockAction,
+) -> str:
+    """Return the operation selection that should remain active after a block action."""
+
+    if action.action == "expand":
+        block = catalog.blocks[action.block_id]
+        return block.operation_ids[0]
+    return action.block_id
+
+
+def apply_scene_visual_state(
+    scene: LayoutScene,
+    circuit: SemanticCircuitIR,
+    *,
+    selected_operation_id: str | None,
+) -> LayoutScene:
+    """Return a scene copy with contextual emphasis applied to visible elements."""
+
+    scope = selection_scope(circuit, selected_operation_id=selected_operation_id)
+    if scope.selected_operation_id is None:
+        return scene
+
+    emphasized_operation_ids = set(scope.emphasized_operation_ids)
+    selected_wire_ids = set(scope.selected_wire_ids)
+    operation_ids = {semantic_operation_id(operation) for operation in _flatten_operations(circuit)}
+    return replace(
+        scene,
+        wires=tuple(
+            replace(
+                wire,
+                visual_state=(
+                    SceneVisualState.HIGHLIGHTED
+                    if wire.id in selected_wire_ids
+                    else SceneVisualState.DIMMED
+                ),
+            )
+            for wire in scene.wires
+        ),
+        gates=tuple(
+            _with_operation_visual_state(
+                gate,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for gate in scene.gates
+        ),
+        gate_annotations=tuple(
+            _with_operation_visual_state(
+                annotation,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for annotation in scene.gate_annotations
+        ),
+        controls=tuple(
+            _with_operation_visual_state(
+                control,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for control in scene.controls
+        ),
+        connections=tuple(
+            _with_operation_visual_state(
+                connection,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for connection in scene.connections
+        ),
+        swaps=tuple(
+            _with_operation_visual_state(
+                swap,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for swap in scene.swaps
+        ),
+        barriers=tuple(
+            _with_operation_visual_state(
+                barrier,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for barrier in scene.barriers
+        ),
+        measurements=tuple(
+            _with_operation_visual_state(
+                measurement,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for measurement in scene.measurements
+        ),
+        texts=tuple(
+            replace(
+                text,
+                visual_state=(
+                    SceneVisualState.HIGHLIGHTED
+                    if text.wire_id in selected_wire_ids
+                    else SceneVisualState.DIMMED
+                    if text.wire_id is not None
+                    else text.visual_state
+                ),
+            )
+            for text in scene.texts
+        ),
+    )
+
+
+def append_wire_fold_markers(
+    scene: LayoutScene,
+    hidden_wire_ranges: Sequence[ExplorationHiddenWireRange],
+) -> LayoutScene:
+    """Return a scene copy with hidden-wire markers inserted between visible wire groups."""
+
+    if not hidden_wire_ranges:
+        return replace(scene, wire_fold_markers=())
+
+    markers: list[SceneWireFoldMarker] = []
+    for hidden_range in hidden_wire_ranges:
+        before_y = scene.wire_y_positions.get(hidden_range.before_wire_id)
+        after_y = scene.wire_y_positions.get(hidden_range.after_wire_id)
+        if before_y is None or after_y is None:
+            continue
+        markers.append(
+            SceneWireFoldMarker(
+                x=scene.style.margin_left + min(0.4, scene.style.gate_width * 0.45),
+                y=(before_y + after_y) / 2.0,
+                hidden_wire_count=hidden_range.hidden_wire_count,
+                text=_hidden_wire_marker_text(hidden_range.hidden_wire_count),
+            )
+        )
+
+    return replace(scene, wire_fold_markers=tuple(markers))
+
+
+def scene_click_targets(scene: LayoutScene) -> tuple[SceneClickTarget, ...]:
+    """Build clickable operation hit-boxes for the currently rendered scene."""
+
+    targets: list[SceneClickTarget] = []
+    for page in scene.pages:
+        x_offset = page_x_offset(page, scene)
+        y_offset = page_y_offset(page)
+        for gate in _items_for_page(scene.gates, page=page):
+            if gate.operation_id is None:
+                continue
+            targets.append(
+                SceneClickTarget(
+                    operation_id=gate.operation_id,
+                    x_min=gate.x + x_offset - (gate.width / 2.0),
+                    x_max=gate.x + x_offset + (gate.width / 2.0),
+                    y_min=gate.y + y_offset - (gate.height / 2.0),
+                    y_max=gate.y + y_offset + (gate.height / 2.0),
+                )
+            )
+        for measurement in _items_for_page(scene.measurements, page=page):
+            if measurement.operation_id is None:
+                continue
+            targets.append(
+                SceneClickTarget(
+                    operation_id=measurement.operation_id,
+                    x_min=measurement.x + x_offset - (measurement.width / 2.0),
+                    x_max=measurement.x + x_offset + (measurement.width / 2.0),
+                    y_min=measurement.quantum_y + y_offset - (measurement.height / 2.0),
+                    y_max=measurement.quantum_y + y_offset + (measurement.height / 2.0),
+                )
+            )
+        for control in _items_for_page(scene.controls, page=page):
+            if control.operation_id is None:
+                continue
+            radius = scene.style.control_radius
+            targets.append(
+                SceneClickTarget(
+                    operation_id=control.operation_id,
+                    x_min=control.x + x_offset - radius,
+                    x_max=control.x + x_offset + radius,
+                    y_min=control.y + y_offset - radius,
+                    y_max=control.y + y_offset + radius,
+                )
+            )
+        for swap in _items_for_page(scene.swaps, page=page):
+            if swap.operation_id is None:
+                continue
+            targets.append(
+                SceneClickTarget(
+                    operation_id=swap.operation_id,
+                    x_min=swap.x + x_offset - swap.marker_size,
+                    x_max=swap.x + x_offset + swap.marker_size,
+                    y_min=swap.y_top + y_offset - swap.marker_size,
+                    y_max=swap.y_bottom + y_offset + swap.marker_size,
+                )
+            )
+        for connection in _items_for_page(scene.connections, page=page):
+            if connection.operation_id is None:
+                continue
+            targets.append(
+                SceneClickTarget(
+                    operation_id=connection.operation_id,
+                    x_min=connection.x + x_offset - _CLICK_CONNECTION_HALF_WIDTH,
+                    x_max=connection.x + x_offset + _CLICK_CONNECTION_HALF_WIDTH,
+                    y_min=min(connection.y_start, connection.y_end) + y_offset,
+                    y_max=max(connection.y_start, connection.y_end) + y_offset,
+                )
+            )
+    return tuple(targets)
+
+
+def clicked_operation_id(
+    axes: Axes,
+    scene: LayoutScene,
+    event: MouseEvent,
+) -> str | None:
+    """Resolve the selected operation id for one click inside the main axes."""
+
+    if event.inaxes is not axes or event.xdata is None or event.ydata is None:
+        return None
+
+    x_value = float(event.xdata)
+    y_value = float(event.ydata)
+    matching_targets = [
+        target
+        for target in scene_click_targets(scene)
+        if target.x_min <= x_value <= target.x_max and target.y_min <= y_value <= target.y_max
+    ]
+    if not matching_targets:
+        return None
+    return min(matching_targets, key=lambda target: target.area).operation_id
+
+
+def toggle_wire_filter_mode(mode: WireFilterMode) -> WireFilterMode:
+    """Return the alternate wire-filter mode."""
+
+    if mode is WireFilterMode.ALL:
+        return WireFilterMode.ACTIVE
+    return WireFilterMode.ALL
+
+
+def _collapse_top_level_blocks(
+    expanded_semantic_ir: SemanticCircuitIR,
+    *,
+    blocks: dict[str, ExplorationBlock],
+    collapsed_block_ids: set[str] | frozenset[str],
+) -> tuple[SemanticOperationIR, ...]:
+    grouped_operations = _operations_by_top_level_location(expanded_semantic_ir)
+    wire_order = {wire.id: index for index, wire in enumerate(expanded_semantic_ir.all_wires)}
+    collapsed_operations: list[SemanticOperationIR] = []
+    for top_level_location, operations in grouped_operations:
+        block_id = semantic_operation_id_from_location(top_level_location)
+        block = blocks.get(block_id)
+        if block is None or block_id not in collapsed_block_ids:
+            collapsed_operations.extend(operations)
+            continue
+        collapsed_operations.append(
+            _collapsed_block_operation(
+                block,
+                operations=operations,
+                wire_order=wire_order,
+            )
+        )
+    return tuple(collapsed_operations)
+
+
+def _collapsed_block_operation(
+    block: ExplorationBlock,
+    *,
+    operations: Sequence[SemanticOperationIR],
+    wire_order: dict[str, int],
+) -> SemanticOperationIR:
+    first_operation = operations[0]
+    target_wires = tuple(
+        sorted(block.wire_ids, key=lambda wire_id: wire_order.get(wire_id, len(wire_order)))
+    )
+    return SemanticOperationIR(
+        kind=OperationKind.GATE,
+        name=block.label,
+        label=block.label,
+        target_wires=target_wires,
+        hover_details=(
+            f"collapsed block: {block.label}",
+            f"operations: {block.operation_count}",
+        ),
+        provenance=SemanticProvenanceIR(
+            framework=first_operation.provenance.framework,
+            native_name=block.label,
+            native_kind="composite",
+            composite_label=block.label,
+            location=block.top_level_location,
+        ),
+        metadata={
+            "collapsed_block": True,
+            "suppress_target_annotations": True,
+        },
+    )
+
+
+def _visible_wire_ids(
+    circuit: SemanticCircuitIR,
+    *,
+    wire_filter_mode: WireFilterMode,
+    show_ancillas: bool,
+) -> set[str]:
+    used_wire_ids = {
+        wire_id
+        for operation in _flatten_operations(circuit)
+        for wire_id in operation.occupied_wire_ids
+    }
+    visible_wire_ids = {
+        wire.id
+        for wire in circuit.all_wires
+        if wire_filter_mode is WireFilterMode.ALL or wire.id in used_wire_ids
+    }
+    if show_ancillas:
+        return visible_wire_ids
+
+    filtered_wire_ids = {
+        wire_id for wire_id in visible_wire_ids if not _is_ancilla_wire(circuit.wire_map[wire_id])
+    }
+    if filtered_wire_ids:
+        return filtered_wire_ids
+    return visible_wire_ids
+
+
+def _is_ancilla_wire(wire: WireIR) -> bool:
+    if wire.kind is not WireKind.QUANTUM:
+        return False
+    label = (wire.label or wire.id).strip().lower()
+    return any(hint in label for hint in _ANCILLA_NAME_HINTS)
+
+
+def _hidden_wire_ranges(
+    *,
+    all_wires: Sequence[WireIR],
+    visible_wire_ids: set[str],
+) -> tuple[ExplorationHiddenWireRange, ...]:
+    ordered_visible_indexes = [
+        index for index, wire in enumerate(all_wires) if wire.id in visible_wire_ids
+    ]
+    ranges: list[ExplorationHiddenWireRange] = []
+    for left_index, right_index in zip(
+        ordered_visible_indexes, ordered_visible_indexes[1:], strict=False
+    ):
+        if right_index - left_index <= 1:
+            continue
+        hidden_wire_ids = tuple(wire.id for wire in all_wires[left_index + 1 : right_index])
+        if not hidden_wire_ids:
+            continue
+        ranges.append(
+            ExplorationHiddenWireRange(
+                before_wire_id=all_wires[left_index].id,
+                after_wire_id=all_wires[right_index].id,
+                hidden_wire_ids=hidden_wire_ids,
+            )
+        )
+    return tuple(ranges)
+
+
+def _initial_collapsed_block_ids(
+    *,
+    current_semantic_ir: SemanticCircuitIR,
+    blocks: dict[str, ExplorationBlock],
+) -> frozenset[str]:
+    collapsed_ids = {
+        semantic_operation_id(operation)
+        for operation in _flatten_operations(current_semantic_ir)
+        if semantic_operation_id(operation) in blocks
+        and (
+            operation.provenance.native_kind == "composite"
+            or operation.provenance.composite_label is not None
+            or operation.metadata.get("collapsed_block") is True
+        )
+    }
+    return frozenset(collapsed_ids)
+
+
+def _operations_by_top_level_location(
+    circuit: SemanticCircuitIR,
+) -> tuple[tuple[tuple[int, ...], tuple[SemanticOperationIR, ...]], ...]:
+    grouped: list[tuple[tuple[int, ...], list[SemanticOperationIR]]] = []
+    current_top_level: tuple[int, ...] | None = None
+    current_group: list[SemanticOperationIR] = []
+    for operation in _flatten_operations(circuit):
+        top_level_location = _top_level_location(operation)
+        if current_top_level != top_level_location and current_group:
+            grouped.append((current_top_level or (), list(current_group)))
+            current_group.clear()
+        current_top_level = top_level_location
+        current_group.append(operation)
+    if current_group:
+        grouped.append((current_top_level or (), list(current_group)))
+    return tuple((location, tuple(operations)) for location, operations in grouped)
+
+
+def _top_level_location(operation: SemanticOperationIR) -> tuple[int, ...]:
+    if not operation.provenance.location:
+        return ()
+    return (operation.provenance.location[0],)
+
+
+def _collapse_label(operations: Sequence[SemanticOperationIR]) -> str | None:
+    if not operations:
+        return None
+    if not any(len(operation.provenance.location) > 1 for operation in operations):
+        return None
+    for operation in operations:
+        for candidate in (
+            operation.provenance.composite_label,
+            operation.provenance.decomposition_origin,
+            operation.provenance.native_name,
+        ):
+            if candidate:
+                return candidate
+    return None
+
+
+def _flatten_operations(circuit: SemanticCircuitIR) -> tuple[SemanticOperationIR, ...]:
+    return tuple(operation for layer in circuit.layers for operation in layer.operations)
+
+
+def _neighbor_operation(
+    operations: Sequence[SemanticOperationIR],
+    *,
+    start_index: int,
+    step: int,
+    wire_ids: set[str],
+) -> SemanticOperationIR | None:
+    index = start_index
+    while 0 <= index < len(operations):
+        operation = operations[index]
+        if wire_ids.intersection(operation.occupied_wire_ids):
+            return operation
+        index += step
+    return None
+
+
+def _with_operation_visual_state(
+    item: SceneGate
+    | SceneGateAnnotation
+    | SceneControl
+    | SceneConnection
+    | SceneSwap
+    | SceneBarrier
+    | SceneMeasurement,
+    *,
+    selected_operation_id: str | None,
+    emphasized_operation_ids: set[str],
+    operation_ids: set[str],
+) -> object:
+    operation_id = getattr(item, "operation_id", None)
+    if operation_id is None or operation_id not in operation_ids:
+        return item
+    if operation_id in emphasized_operation_ids:
+        if operation_id == selected_operation_id:
+            state = SceneVisualState.HIGHLIGHTED
+        else:
+            state = SceneVisualState.RELATED
+    else:
+        state = SceneVisualState.DIMMED
+    return replace(item, visual_state=state)
+
+
+def _hidden_wire_marker_text(hidden_wire_count: int) -> str:
+    noun = "wire" if hidden_wire_count == 1 else "wires"
+    return f"... {hidden_wire_count} hidden {noun} ..."

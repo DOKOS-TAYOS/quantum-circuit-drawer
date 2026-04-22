@@ -52,6 +52,7 @@ class PreparedDrawPipeline:
     normalized_style: DrawStyle
     ir: CircuitIR
     semantic_ir: SemanticCircuitIR
+    expanded_semantic_ir: SemanticCircuitIR
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     paged_scene: LayoutScene | LayoutScene3D
     renderer: BaseRenderer
@@ -64,6 +65,7 @@ class PreparedDrawPipeline:
 class _ResolvedPipelineIr:
     ir: CircuitIR
     semantic_ir: SemanticCircuitIR
+    expanded_semantic_ir: SemanticCircuitIR
     detected_framework: str
     adapter_name: str
     diagnostics: tuple[RenderDiagnostic, ...]
@@ -103,6 +105,7 @@ def prepare_draw_pipeline(
     if isinstance(resolved_circuit, CircuitIR) and resolved_framework in {None, "ir"}:
         ir = resolved_circuit
         semantic_ir = semantic_circuit_from_circuit_ir(ir)
+        expanded_semantic_ir = semantic_ir
         adapter_name = "IRAdapter(fast-path)"
         detected_framework = "ir"
         pipeline_diagnostics = list(metadata_diagnostics(ir.metadata))
@@ -116,6 +119,7 @@ def prepare_draw_pipeline(
         )
         ir = resolved_ir.ir
         semantic_ir = resolved_ir.semantic_ir
+        expanded_semantic_ir = resolved_ir.expanded_semantic_ir
         adapter_name = resolved_ir.adapter_name
         detected_framework = resolved_ir.detected_framework
         pipeline_diagnostics = list(resolved_ir.diagnostics)
@@ -169,6 +173,7 @@ def prepare_draw_pipeline(
         normalized_style=normalized_style,
         ir=ir,
         semantic_ir=semantic_ir,
+        expanded_semantic_ir=expanded_semantic_ir,
         layout_engine=layout_engine,
         paged_scene=paged_scene,
         renderer=renderer,
@@ -348,19 +353,29 @@ def _resolve_pipeline_ir(
         circuit=circuit,
         adapter_options=adapter_options,
     )
+    expanded_semantic_ir = _load_expanded_semantic_ir(
+        semantic_loader,
+        circuit=circuit,
+        adapter_options=adapter_options,
+        fallback_semantic_ir=semantic_ir,
+    )
     diagnostics: list[RenderDiagnostic] = []
     if semantic_ir is None:
         ir = adapter.to_ir(circuit, options=adapter_options)
         semantic_ir = semantic_circuit_from_circuit_ir(ir)
+        expanded_semantic_ir = semantic_ir
         diagnostics.extend(metadata_diagnostics(ir.metadata))
     else:
         ir = lower_semantic_circuit(semantic_ir)
         diagnostics.extend(semantic_ir.diagnostics)
         diagnostics.extend(metadata_diagnostics(semantic_ir.metadata))
+        if expanded_semantic_ir is None:
+            expanded_semantic_ir = semantic_ir
 
     return _ResolvedPipelineIr(
         ir=ir,
         semantic_ir=semantic_ir,
+        expanded_semantic_ir=expanded_semantic_ir,
         detected_framework=resolved_framework or adapter.framework_name,
         adapter_name=type(adapter).__name__,
         diagnostics=deduplicated_diagnostics(diagnostics),
@@ -403,3 +418,27 @@ def _load_semantic_ir(
     if not callable(semantic_loader):
         return None
     return cast(_SemanticIrLoader, semantic_loader)(circuit, options=adapter_options)
+
+
+def _load_expanded_semantic_ir(
+    semantic_loader: object,
+    *,
+    circuit: object,
+    adapter_options: Mapping[str, object],
+    fallback_semantic_ir: SemanticCircuitIR | None,
+) -> SemanticCircuitIR | None:
+    if not callable(semantic_loader):
+        return fallback_semantic_ir
+    if str(adapter_options.get("composite_mode", "compact")) == "expand":
+        return fallback_semantic_ir
+
+    expanded_options = dict(adapter_options)
+    expanded_options["composite_mode"] = "expand"
+    try:
+        return cast(_SemanticIrLoader, semantic_loader)(circuit, options=expanded_options)
+    except Exception:
+        logger.debug(
+            "Falling back to non-expanded semantic IR because expanded loading failed",
+            exc_info=True,
+        )
+        return fallback_semantic_ir

@@ -67,6 +67,7 @@ def append_classical_condition_connections(
     anchor_center_y: float,
     anchor_half_extent: float,
 ) -> None:
+    operation_id = _operation_id(operation)
     for anchor in iter_classical_condition_anchors(operation.classical_conditions):
         wire_y = builder.scaffold.wire_positions[anchor.wire_id]
         direction = 1.0 if wire_y >= anchor_center_y else -1.0
@@ -81,6 +82,7 @@ def append_classical_condition_connections(
                 linestyle="solid",
                 arrow_at_end=True,
                 label=anchor.label,
+                operation_id=operation_id,
             )
         )
 
@@ -94,6 +96,7 @@ def layout_measurement(
     x: float,
 ) -> None:
     style = builder.scaffold.draw_style
+    operation_id = _operation_id(operation)
     quantum_y = builder.scaffold.wire_positions[operation.target_wires[0]]
     classical_target = (
         operation.classical_target
@@ -136,6 +139,7 @@ def layout_measurement(
             connector_x=connector_x,
             connector_y=connector_y,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     if classical_y is not None:
@@ -149,6 +153,7 @@ def layout_measurement(
                 linestyle="dashed",
                 arrow_at_end=True,
                 label=classical_label,
+                operation_id=operation_id,
             )
         )
 
@@ -162,7 +167,13 @@ def layout_barrier(
 ) -> None:
     y_top, y_bottom = vertical_span(builder.scaffold.wire_positions, operation.target_wires)
     builder.barriers.append(
-        SceneBarrier(column=column, x=x, y_top=y_top - 0.3, y_bottom=y_bottom + 0.3)
+        SceneBarrier(
+            column=column,
+            x=x,
+            y_top=y_top - 0.3,
+            y_bottom=y_bottom + 0.3,
+            operation_id=_operation_id(operation),
+        )
     )
 
 
@@ -174,6 +185,7 @@ def layout_swap(
     x: float,
 ) -> None:
     style = builder.scaffold.draw_style
+    operation_id = _operation_id(operation)
     y_top, y_bottom = vertical_span(builder.scaffold.wire_positions, operation.target_wires)
     hover_data = builder._maybe_hover_data(
         operation=operation,
@@ -191,6 +203,7 @@ def layout_swap(
             y_start=y_top,
             y_end=y_bottom,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     builder.swaps.append(
@@ -201,6 +214,7 @@ def layout_swap(
             y_bottom=y_bottom,
             marker_size=style.swap_marker_size,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     append_classical_condition_connections(
@@ -230,6 +244,7 @@ def layout_controlled_gate(
         return
 
     style = builder.scaffold.draw_style
+    operation_id = _operation_id(operation)
     y_top, y_bottom = vertical_span(builder.scaffold.wire_positions, operation.target_wires)
     gate_y = (y_top + y_bottom) / 2
     gate_height = max(style.gate_height, (y_bottom - y_top) + style.gate_height)
@@ -254,6 +269,7 @@ def layout_controlled_gate(
             kind=operation.kind,
             render_style=GateRenderStyle.BOX,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     append_gate_annotations(
@@ -262,6 +278,7 @@ def layout_controlled_gate(
         x=x,
         width=metrics.width,
         target_wires=operation.target_wires,
+        operation_id=operation_id,
     )
     append_semantic_annotations(
         builder,
@@ -282,6 +299,7 @@ def layout_controlled_gate(
                     simple_binary_states[control_index] if simple_binary_states is not None else 1
                 ),
                 hover_data=hover_data,
+                operation_id=operation_id,
             )
         )
     span_top, span_bottom = vertical_span(
@@ -295,6 +313,7 @@ def layout_controlled_gate(
             y_start=span_top,
             y_end=span_bottom,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     append_classical_condition_connections(
@@ -315,6 +334,7 @@ def layout_controlled_z(
     x: float,
 ) -> None:
     style = builder.scaffold.draw_style
+    operation_id = _operation_id(operation)
     simple_binary_states = binary_control_states(operation)
     hover_data = builder._maybe_hover_data(
         operation=operation,
@@ -335,6 +355,7 @@ def layout_controlled_z(
                     simple_binary_states[control_index] if simple_binary_states is not None else 1
                 ),
                 hover_data=hover_data,
+                operation_id=operation_id,
             )
         )
     for target_wire in operation.target_wires:
@@ -345,6 +366,7 @@ def layout_controlled_z(
                 y=builder.scaffold.wire_positions[target_wire],
                 state=1,
                 hover_data=hover_data,
+                operation_id=operation_id,
             )
         )
     control_ids = (*operation.control_wires, *operation.target_wires)
@@ -356,6 +378,7 @@ def layout_controlled_z(
             y_start=span_top,
             y_end=span_bottom,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     append_classical_condition_connections(
@@ -377,6 +400,7 @@ def layout_controlled_x(
 ) -> None:
     style = builder.scaffold.draw_style
     target_wire = operation.target_wires[0]
+    operation_id = _operation_id(operation)
     target_y = builder.scaffold.wire_positions[target_wire]
     simple_binary_states = binary_control_states(operation)
     hover_data = builder._maybe_hover_data(
@@ -400,6 +424,7 @@ def layout_controlled_x(
             kind=operation.kind,
             render_style=GateRenderStyle.X_TARGET,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     for control_index, control_id in enumerate(operation.control_wires):
@@ -412,6 +437,7 @@ def layout_controlled_x(
                     simple_binary_states[control_index] if simple_binary_states is not None else 1
                 ),
                 hover_data=hover_data,
+                operation_id=operation_id,
             )
         )
     span_top, span_bottom = vertical_span(
@@ -425,6 +451,7 @@ def layout_controlled_x(
             y_start=span_top,
             y_end=span_bottom,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     append_classical_condition_connections(
@@ -446,6 +473,7 @@ def layout_gate(
     x: float,
 ) -> None:
     style = builder.scaffold.draw_style
+    operation_id = _operation_id(operation)
     y_top, y_bottom = vertical_span(builder.scaffold.wire_positions, operation.target_wires)
     gate_y = (y_top + y_bottom) / 2
     gate_height = max(style.gate_height, (y_bottom - y_top) + style.gate_height)
@@ -470,6 +498,7 @@ def layout_gate(
             kind=operation.kind,
             render_style=GateRenderStyle.BOX,
             hover_data=hover_data,
+            operation_id=operation_id,
         )
     )
     append_gate_annotations(
@@ -478,6 +507,7 @@ def layout_gate(
         x=x,
         width=metrics.width,
         target_wires=operation.target_wires,
+        operation_id=operation_id,
     )
     append_semantic_annotations(
         builder,
@@ -532,6 +562,7 @@ def append_gate_annotations(
     x: float,
     width: float,
     target_wires: Sequence[str],
+    operation_id: str | None,
 ) -> None:
     if len(target_wires) <= 1:
         return
@@ -545,6 +576,7 @@ def append_gate_annotations(
                 y=builder.scaffold.wire_positions[wire_id],
                 text=str(target_index),
                 font_size=builder.scaffold.draw_style.font_size * 0.56,
+                operation_id=operation_id,
             )
         )
 
@@ -561,6 +593,7 @@ def append_semantic_annotations(
     raw_annotations = operation.metadata.get("native_annotations", ())
     if not isinstance(raw_annotations, tuple | list):
         return
+    operation_id = _operation_id(operation)
 
     annotation_texts = tuple(str(annotation) for annotation in raw_annotations if str(annotation))
     if not annotation_texts:
@@ -575,5 +608,13 @@ def append_semantic_annotations(
                 y=top_y - (annotation_index * 0.22),
                 text=annotation_text,
                 font_size=builder.scaffold.draw_style.font_size * 0.48,
+                operation_id=operation_id,
             )
         )
+
+
+def _operation_id(operation: OperationIR) -> str | None:
+    resolved = operation.metadata.get("semantic_operation_id")
+    if isinstance(resolved, str) and resolved:
+        return resolved
+    return None

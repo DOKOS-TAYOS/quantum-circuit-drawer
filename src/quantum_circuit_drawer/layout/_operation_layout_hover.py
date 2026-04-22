@@ -65,8 +65,11 @@ def build_hover_data(
         for wire_id in unique_other_wire_ids
     )
     matrix, matrix_dimension = hover_matrix_and_dimension(builder, operation)
+    operation_id = operation.metadata.get("semantic_operation_id")
     return SceneHoverData(
-        key=f"op-{column}-{id(operation)}",
+        key=str(operation_id)
+        if isinstance(operation_id, str) and operation_id
+        else f"op-{column}-{id(operation)}",
         name=name,
         qubit_labels=qubit_labels,
         other_wire_labels=other_wire_labels,

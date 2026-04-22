@@ -35,6 +35,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
     state.axes.clear()
 
     window_scene = _window_scene(state)
+    state.window_scene = window_scene
     state.figure.patch.set_facecolor(window_scene.style.theme.figure_facecolor)
     prepare_axes(state.axes, window_scene)
     gate_text_context = _build_gate_text_fitting_context(state.axes, window_scene)

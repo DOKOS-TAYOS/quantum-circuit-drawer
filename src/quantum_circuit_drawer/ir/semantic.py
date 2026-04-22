@@ -43,6 +43,15 @@ def _parameter_signature_token(value: object) -> object:
     return value
 
 
+def semantic_operation_id_from_location(location: Sequence[int]) -> str:
+    """Return a stable operation identifier derived from semantic provenance location."""
+
+    resolved_location = tuple(int(index) for index in location)
+    if not resolved_location:
+        return "op:root"
+    return "op:" + ".".join(str(index) for index in resolved_location)
+
+
 @dataclass(frozen=True, slots=True)
 class SemanticProvenanceIR:
     """Framework-native provenance attached to one semantic operation."""
@@ -208,3 +217,15 @@ def semantic_operation_signature(
         operation.provenance.composite_label,
         operation.provenance.location,
     )
+
+
+def semantic_operation_id(operation: SemanticOperationIR) -> str:
+    """Return the stable semantic identifier for one operation."""
+
+    explicit_id = operation.metadata.get("semantic_operation_id")
+    if isinstance(explicit_id, str) and explicit_id:
+        return explicit_id
+    if operation.provenance.location:
+        return semantic_operation_id_from_location(operation.provenance.location)
+    fallback_wire_token = ",".join(operation.target_wires)
+    return f"op:unlocated:{operation.name}:{fallback_wire_token}"
