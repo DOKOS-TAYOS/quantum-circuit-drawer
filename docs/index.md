@@ -13,7 +13,7 @@ This documentation is organized around what a user normally wants to do first: i
 | Check framework support and differences | [Frameworks](frameworks.md) |
 | Copy-paste common tasks | [Recipes](recipes.md) |
 | Diagnose a failure quickly | [Troubleshooting](troubleshooting.md) |
-| Run or copy example scripts | [Examples](../examples/README.md) with `qiskit-2d-exploration-showcase` as the best managed-2D starting point |
+| Run or copy example scripts | [Examples](../examples/README.md) with `qiskit-2d-exploration-showcase` for managed 2D and `qiskit-3d-exploration-showcase` for managed 3D |
 | Extend the library with adapters or layouts | [Extension API](extensions.md) |
 | Contribute to the repository | [Development](development.md) |
 
@@ -37,7 +37,7 @@ This documentation is organized around what a user normally wants to do first: i
 1. [User guide](user-guide.md#when-to-choose-each-draw-mode)
 2. [Recipes](recipes.md#2d-slider-for-wide-circuits)
 3. [Examples](../examples/README.md)
-   Start with `qiskit-2d-exploration-showcase`
+   Start with `qiskit-2d-exploration-showcase` for 2D or `qiskit-3d-exploration-showcase` for 3D
 
 ### I mainly care about histograms and result analysis
 

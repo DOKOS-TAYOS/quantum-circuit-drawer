@@ -64,6 +64,7 @@ _ANCILLA_BUTTON_WIDTH = 0.13
 _BLOCK_TOGGLE_BUTTON_WIDTH = 0.18
 _SLIDER_CONTROL_ZORDER = 2.0
 _OPTIONAL_BUTTON_ZORDER = 1.0
+_CLICK_RELEASE_MAX_DRAG_PIXELS = 6.0
 
 
 @dataclass(slots=True)
@@ -90,7 +91,9 @@ class Managed3DPageSliderState:
     ancilla_toggle_axes: Axes | None = None
     block_toggle_axes: Axes | None = None
     exploration: Managed2DExplorationState | None = None
-    click_callback_id: int | None = None
+    click_press_callback_id: int | None = None
+    click_release_callback_id: int | None = None
+    pending_click: tuple[float, float] | None = None
 
     def show_start_column(self, start_column: int) -> None:
         """Render the requested 3D column window on the managed axes."""
@@ -363,15 +366,37 @@ def _attach_3d_slider_selection_clicks(state: Managed3DPageSliderState) -> None:
     canvas = getattr(state.figure, "canvas", None)
     if canvas is None:
         return
-    if state.click_callback_id is not None:
-        canvas.mpl_disconnect(state.click_callback_id)
+    if state.click_press_callback_id is not None:
+        canvas.mpl_disconnect(state.click_press_callback_id)
+    if state.click_release_callback_id is not None:
+        canvas.mpl_disconnect(state.click_release_callback_id)
 
-    def _handle_click(event: MouseEvent) -> None:
-        if state.exploration is None or event.inaxes is not state.axes:
+    def _handle_press(event: MouseEvent) -> None:
+        if state.exploration is None or event.inaxes is not state.axes or event.button != 1:
+            state.pending_click = None
+            return
+        state.pending_click = (float(event.x), float(event.y))
+
+    def _handle_release(event: MouseEvent) -> None:
+        if state.exploration is None:
+            return
+        pending_click = state.pending_click
+        state.pending_click = None
+        if (
+            pending_click is None
+            or event.inaxes is not state.axes
+            or event.button != 1
+            or ((float(event.x) - pending_click[0]) ** 2 + (float(event.y) - pending_click[1]) ** 2)
+            ** 0.5
+            > _CLICK_RELEASE_MAX_DRAG_PIXELS
+        ):
             return
         state.select_operation(clicked_artist_operation_id(state.axes, event))
 
-    state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
+    state.click_press_callback_id = int(canvas.mpl_connect("button_press_event", _handle_press))
+    state.click_release_callback_id = int(
+        canvas.mpl_connect("button_release_event", _handle_release)
+    )
 
 
 def _3d_slider_exploration_button_bounds(
@@ -388,12 +413,12 @@ def _3d_slider_exploration_button_bounds(
         selected_operation_id=state.exploration.selected_operation_id,
     )
     ordered_buttons: list[tuple[str, float]] = []
+    if availability.show_block_toggle:
+        ordered_buttons.append(("block", _BLOCK_TOGGLE_BUTTON_WIDTH))
     if availability.show_wire_filter:
         ordered_buttons.append(("wire_filter", _WIRE_FILTER_BUTTON_WIDTH))
     if availability.show_ancilla_toggle:
         ordered_buttons.append(("ancilla", _ANCILLA_BUTTON_WIDTH))
-    if availability.show_block_toggle:
-        ordered_buttons.append(("block", _BLOCK_TOGGLE_BUTTON_WIDTH))
 
     right = _OPTIONAL_CONTROL_RIGHT
     bounds: dict[str, tuple[float, float, float, float]] = {}

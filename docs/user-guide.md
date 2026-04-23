@@ -53,24 +53,26 @@ In managed 2D mode, the library creates one figure per page. In managed 3D mode,
 Use this when you want a managed page browser:
 
 - 2D: `Page` and `Visible`, plus `Wires: All/Active`, `Ancillas: Show/Hide`, and a contextual `Collapse` / `Expand` block action when semantic provenance is available
-- 3D: `Page` and `Visible`, with several visible 3D pages stacked vertically
+- 3D: `Page` and `Visible`, plus the same contextual `Wires`, `Ancillas`, and block controls when they can change the current view, with several visible 3D pages stacked vertically
 
 This is the best default for normal script execution.
 
 If you want a concrete showcase for those 2D controls, start with `qiskit-2d-exploration-showcase` from [Examples](../examples/README.md).
+
+If you want the managed 3D version of that workflow, start with `qiskit-3d-exploration-showcase`.
 
 #### `slider`
 
 Use this when the circuit is wide and you want a viewport instead of separate pages:
 
 - 2D: horizontal and vertical sliders when needed, click-based contextual selection, `Wires: All/Active`, `Ancillas: Show/Hide`, contextual block collapse/expand, and folded-wire markers such as `... N hidden wires ...` when intermediate wires are filtered out
-- 3D: horizontal slider only
-
-Those exploration controls currently apply only to managed 2D figures. Static renders and 3D managed views keep their existing behavior.
+- 3D: horizontal slider, click-based topology-aware selection, and the same contextual `Wires`, `Ancillas`, and block collapse/expand controls when semantic provenance is available
 
 Selection and wire filtering work for plain `CircuitIR` too. Block collapse/expand depends on semantic provenance from the current adapter path, so it may stay disabled for narrower legacy inputs that do not expose enough block structure.
 
 `qiskit-2d-exploration-showcase` is the clearest bundled demo for this path because it combines idle wires, ancillas, and reusable composite blocks in one workflow.
+
+`qiskit-3d-exploration-showcase` is the clearest bundled demo for the 3D path because it combines topology-aware selection, expand/collapse, and persistent expanded-block highlighting in one managed scene.
 
 #### `full`
 
@@ -169,6 +171,7 @@ What changes in 3D:
 - `slider` is horizontal only
 - `full` works
 - managed `pages_controls` preserves a shared camera while you navigate
+- managed 3D exploration keeps a selected operation active while you rotate, and only clears it on a clean background click
 
 ## Presets, Style, And Hover
 
@@ -333,7 +336,7 @@ What you get back:
 - one figure with two subplot axes
 - one nested `DrawResult` per side
 - metrics such as layers, total operations, multi-qubit operations, swaps, and measurements
-- optional highlighted background bands on layers that changed
+- an optional summary card above the figure plus thin per-column diff markers on layers that changed
 
 Use this for:
 
@@ -373,6 +376,8 @@ This is especially useful for:
 - baseline vs new execution comparisons
 - comparing two result objects with the same logical meaning but different noise levels
 
+On interactive Matplotlib backends, the compare legend is clickable so you can hide or restore either series without rebuilding the figure.
+
 ## Histogram Workflows
 
 ### Single histogram
@@ -389,6 +394,8 @@ result = plot_histogram(
 ### Counts vs quasi-probabilities
 
 `HistogramKind.AUTO` infers counts when the values are non-negative integers and otherwise treats the data as quasi-probabilities.
+
+When quasi-probabilities stay non-negative, the histogram keeps a zero-based vertical axis like the counts view. If any visible value is negative, the axis expands below zero again.
 
 You can still force the meaning:
 

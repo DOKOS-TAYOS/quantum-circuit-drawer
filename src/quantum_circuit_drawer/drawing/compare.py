@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
+from matplotlib.patches import FancyBboxPatch, Rectangle
+from matplotlib.transforms import blended_transform_factory
+
 from ..circuit_compare import CircuitCompareConfig, CircuitCompareMetrics, CircuitCompareResult
 from ..config import (
     CircuitAppearanceOptions,
@@ -50,6 +53,13 @@ class _CircuitStats:
     multi_qubit_count: int
     measurement_count: int
     swap_count: int
+
+
+_SUMMARY_CARD_BOUNDS = (0.24, 0.89, 0.52, 0.095)
+_SUMMARY_CARD_ROW_COUNT = 6
+_SUMMARY_CARD_PADDING_X = 0.018
+_SUMMARY_CARD_HEADER_OFFSET = 0.022
+_SUMMARY_CARD_ROW_SPACING = 0.0115
 
 
 def compare_circuits(
@@ -128,6 +138,8 @@ def compare_circuits(
         metrics=metrics,
         left_text_color=left_prepared.pipeline.normalized_style.theme.text_color,
         right_text_color=right_prepared.pipeline.normalized_style.theme.text_color,
+        summary_facecolor=left_prepared.pipeline.normalized_style.theme.ui_surface_facecolor
+        or left_prepared.pipeline.normalized_style.theme.axes_facecolor,
     )
     if resolved_compare_config.output_path is not None:
         save_rendered_figure(figure, resolved_compare_config.output_path)
@@ -407,25 +419,30 @@ def highlight_compare_columns(
     scene: LayoutScene,
     columns: tuple[int, ...],
 ) -> None:
-    """Draw visual diff bands for the provided column indices."""
+    """Draw thin top markers for the provided differing column indices."""
 
     if not columns:
         return
     column_spans = scene_column_spans(scene)
     facecolor = scene.style.theme.accent_color
+    marker_transform = blended_transform_factory(axes.transData, axes.transAxes)
     for column in columns:
         column_span = column_spans.get(column)
         if column_span is None:
             continue
-        band = axes.axvspan(
-            column_span[0],
-            column_span[1],
-            color=facecolor,
-            alpha=0.06,
-            zorder=0.1,
-            linewidth=0.0,
+        marker = Rectangle(
+            (column_span[0], 0.982),
+            column_span[1] - column_span[0],
+            0.018,
+            transform=marker_transform,
+            facecolor=facecolor,
+            edgecolor="none",
+            alpha=0.1,
+            zorder=6.0,
+            clip_on=False,
         )
-        band.set_gid("circuit-compare-diff-band")
+        marker.set_gid("circuit-compare-diff-marker")
+        axes.add_patch(marker)
 
 
 def scene_column_spans(scene: LayoutScene) -> dict[int, tuple[float, float]]:
@@ -478,27 +495,133 @@ def apply_compare_titles(
     metrics: CircuitCompareMetrics,
     left_text_color: str,
     right_text_color: str,
+    summary_facecolor: str,
 ) -> None:
-    """Apply per-side titles and the shared comparison summary."""
+    """Apply per-side titles and the shared comparison summary card."""
 
     left_axes.set_title(config.left_title, color=left_text_color)
     right_axes.set_title(config.right_title, color=right_text_color)
+    summary_figure = cast("Figure", left_axes.figure)
+    _clear_compare_summary_artifacts(summary_figure)
+    if summary_figure._suptitle is not None:
+        summary_figure._suptitle.remove()
+        summary_figure._suptitle = None
     if not config.show_summary:
         return
-    summary_figure = cast("Figure", left_axes.figure)
-    summary_figure.suptitle(
-        (
-            f"Layers {metrics.left_layer_count}->{metrics.right_layer_count} "
-            f"(\u0394 {metrics.layer_delta:+d}) | "
-            f"Ops {metrics.left_operation_count}->{metrics.right_operation_count} "
-            f"(\u0394 {metrics.operation_delta:+d}) | "
-            f"2Q {metrics.left_multi_qubit_count}->{metrics.right_multi_qubit_count} "
-            f"(\u0394 {metrics.multi_qubit_delta:+d}) | "
-            f"SWAP {metrics.left_swap_count}->{metrics.right_swap_count} "
-            f"(\u0394 {metrics.swap_delta:+d}) | "
-            f"Meas {metrics.left_measurement_count}->{metrics.right_measurement_count} "
-            f"(\u0394 {metrics.measurement_delta:+d})"
-        ),
-        fontsize=11.0,
-        color=left_text_color,
+
+    _add_compare_summary_card(
+        figure=summary_figure,
+        metrics=metrics,
+        text_color=left_text_color,
+        card_facecolor=summary_facecolor,
     )
+
+
+def _clear_compare_summary_artifacts(figure: Figure) -> None:
+    figure.patches[:] = [
+        patch
+        for patch in figure.patches
+        if getattr(patch, "get_gid", lambda: None)() != "circuit-compare-summary-card"
+    ]
+    for text in tuple(figure.texts):
+        if getattr(text, "get_gid", lambda: None)() not in {
+            "circuit-compare-summary-header",
+            "circuit-compare-summary-row",
+        }:
+            continue
+        text.remove()
+
+
+def _add_compare_summary_card(
+    *,
+    figure: Figure,
+    metrics: CircuitCompareMetrics,
+    text_color: str,
+    card_facecolor: str,
+) -> None:
+    card_x, card_y, card_width, card_height = _SUMMARY_CARD_BOUNDS
+    card = FancyBboxPatch(
+        (card_x, card_y),
+        card_width,
+        card_height,
+        boxstyle="round,pad=0.008,rounding_size=0.01",
+        transform=figure.transFigure,
+        facecolor=card_facecolor,
+        edgecolor=text_color,
+        linewidth=0.8,
+        alpha=0.94,
+    )
+    card.set_gid("circuit-compare-summary-card")
+    figure.patches.append(card)
+
+    header_y = card_y + card_height - _SUMMARY_CARD_HEADER_OFFSET
+    metric_x = card_x + _SUMMARY_CARD_PADDING_X
+    left_x = card_x + (card_width * 0.55)
+    right_x = card_x + (card_width * 0.73)
+    delta_x = card_x + (card_width * 0.89)
+
+    for text, x_position, alignment in (
+        ("Metric", metric_x, "left"),
+        ("Left", left_x, "center"),
+        ("Right", right_x, "center"),
+        ("\u0394", delta_x, "center"),
+    ):
+        artist = figure.text(
+            x_position,
+            header_y,
+            text,
+            color=text_color,
+            ha=alignment,
+            va="center",
+            fontsize=10.0,
+            fontweight="bold",
+        )
+        artist.set_gid("circuit-compare-summary-header")
+
+    rows = (
+        ("Layers", metrics.left_layer_count, metrics.right_layer_count, metrics.layer_delta),
+        (
+            "Ops",
+            metrics.left_operation_count,
+            metrics.right_operation_count,
+            metrics.operation_delta,
+        ),
+        (
+            "2Q",
+            metrics.left_multi_qubit_count,
+            metrics.right_multi_qubit_count,
+            metrics.multi_qubit_delta,
+        ),
+        ("SWAP", metrics.left_swap_count, metrics.right_swap_count, metrics.swap_delta),
+        (
+            "Measurements",
+            metrics.left_measurement_count,
+            metrics.right_measurement_count,
+            metrics.measurement_delta,
+        ),
+        (
+            "Diff cols",
+            metrics.differing_layer_count + metrics.left_only_layer_count,
+            metrics.differing_layer_count + metrics.right_only_layer_count,
+            metrics.right_only_layer_count - metrics.left_only_layer_count,
+        ),
+    )
+
+    for row_index, (label, left_value, right_value, delta_value) in enumerate(rows):
+        row_y = header_y - ((row_index + 1) * _SUMMARY_CARD_ROW_SPACING)
+        for text, x_position, alignment in (
+            (label, metric_x, "left"),
+            (str(left_value), left_x, "center"),
+            (str(right_value), right_x, "center"),
+            (f"{int(delta_value):+d}", delta_x, "center"),
+        ):
+            artist = figure.text(
+                x_position,
+                row_y,
+                text,
+                color=text_color,
+                ha=alignment,
+                va="center",
+                fontsize=9.2,
+            )
+            artist.set_gid("circuit-compare-summary-row")

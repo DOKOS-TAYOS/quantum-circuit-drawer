@@ -83,6 +83,7 @@ class ExplorationBlock:
     operation_ids: tuple[str, ...]
     wire_ids: tuple[str, ...]
     operation_count: int
+    original_collapsed_operation: SemanticOperationIR | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +190,10 @@ def build_exploration_catalog(
     block_id_by_operation_id: dict[str, str] = {}
     grouped_operations = _operations_by_top_level_location(expanded_semantic_ir)
     wire_order = {wire.id: index for index, wire in enumerate(expanded_semantic_ir.all_wires)}
+    current_operations_by_id = {
+        semantic_operation_id(operation): operation
+        for operation in _flatten_operations(current_semantic_ir)
+    }
 
     for top_level_location, operations in grouped_operations:
         label = _collapse_label(operations)
@@ -210,6 +215,7 @@ def build_exploration_catalog(
             operation_ids=operation_ids,
             wire_ids=wire_ids,
             operation_count=len(operations),
+            original_collapsed_operation=current_operations_by_id.get(block_id),
         )
         block_id_by_operation_id[block_id] = block_id
         for operation_id in operation_ids:
@@ -440,16 +446,19 @@ def apply_scene_visual_state(
     """Return a scene copy with contextual emphasis applied to visible elements."""
 
     scope = selection_scope(circuit, selected_operation_id=selected_operation_id)
+    grouped_operation_ids = _expanded_group_operation_ids(circuit)
     if scope.selected_operation_id is None:
-        return replace(scene, group_highlights=())
+        return replace(
+            scene,
+            group_highlights=_group_highlights_for_operation_ids(
+                scene,
+                grouped_operation_ids=grouped_operation_ids,
+            ),
+        )
 
     emphasized_operation_ids = set(scope.emphasized_operation_ids)
     selected_wire_ids = set(scope.selected_wire_ids)
     operation_ids = {semantic_operation_id(operation) for operation in _flatten_operations(circuit)}
-    grouped_operation_ids = _group_highlight_operation_ids(
-        circuit,
-        selected_operation_id=scope.selected_operation_id,
-    )
     return replace(
         scene,
         wires=tuple(
@@ -582,13 +591,36 @@ def apply_scene_visual_state_3d(
     """Return a 3D scene copy with contextual emphasis applied."""
 
     scope = selection_scope(circuit, selected_operation_id=selected_operation_id)
+    grouped_operation_ids = _expanded_group_operation_ids(circuit)
+    if scope.selected_operation_id is None:
+        return replace(
+            scene,
+            wires=tuple(
+                replace(wire, visual_state=SceneVisualState.DEFAULT) for wire in scene.wires
+            ),
+            gates=tuple(
+                replace(
+                    gate,
+                    visual_state=SceneVisualState.DEFAULT,
+                    group_highlighted=gate.operation_id in grouped_operation_ids,
+                )
+                for gate in scene.gates
+            ),
+            markers=tuple(
+                replace(marker, visual_state=SceneVisualState.DEFAULT) for marker in scene.markers
+            ),
+            connections=tuple(
+                replace(connection, visual_state=SceneVisualState.DEFAULT)
+                for connection in scene.connections
+            ),
+            texts=tuple(
+                replace(text, visual_state=SceneVisualState.DEFAULT) for text in scene.texts
+            ),
+        )
+
     selected_wire_ids = set(scope.selected_wire_ids)
     emphasized_operation_ids = set(scope.emphasized_operation_ids)
     operation_ids = {semantic_operation_id(operation) for operation in _flatten_operations(circuit)}
-    grouped_operation_ids = _group_highlight_operation_ids(
-        circuit,
-        selected_operation_id=scope.selected_operation_id,
-    )
     return replace(
         scene,
         wires=tuple(
@@ -799,6 +831,9 @@ def _collapsed_block_operation(
     operations: Sequence[SemanticOperationIR],
     wire_order: dict[str, int],
 ) -> SemanticOperationIR:
+    if block.original_collapsed_operation is not None:
+        return block.original_collapsed_operation
+
     first_operation = operations[0]
     target_wires = tuple(
         sorted(block.wire_ids, key=lambda wire_id: wire_order.get(wire_id, len(wire_order)))
@@ -917,6 +952,17 @@ def _group_highlight_operation_ids(
         for operation in operations
         if _decomposition_group_key(operation) == selected_group_key
     )
+
+
+def _expanded_group_operation_ids(
+    circuit: SemanticCircuitIR,
+) -> frozenset[str]:
+    operation_ids: set[str] = set()
+    for operation in _flatten_operations(circuit):
+        if _decomposition_group_key(operation) is None:
+            continue
+        operation_ids.add(semantic_operation_id(operation))
+    return frozenset(operation_ids)
 
 
 def _decomposition_group_key(

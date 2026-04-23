@@ -135,6 +135,13 @@ def test_compare_demo_catalog_exposes_expected_demo_ids() -> None:
     }
 
 
+def test_compare_examples_readme_mentions_histogram_legend_toggle() -> None:
+    examples_readme = Path("examples/README.md").read_text(encoding="utf-8")
+
+    assert "compare-histograms-ideal-vs-sampled" in examples_readme
+    assert "legend" in examples_readme.lower()
+
+
 def test_compare_composite_modes_builder_avoids_qft_deprecation_warning() -> None:
     if run_compare_demo_module.find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the QFT deprecation regression test")

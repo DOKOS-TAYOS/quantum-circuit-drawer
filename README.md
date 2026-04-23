@@ -283,7 +283,7 @@ result = compare_histograms(
 )
 ```
 
-This is useful when you want one aligned state space and quick metrics such as total variation distance.
+This is useful when you want one aligned state space and quick metrics such as total variation distance. On interactive Matplotlib backends, the compare legend is clickable so you can hide or restore either series while keeping the axes and hover state in sync.
 
 ## Build With Public IR Tools
 
@@ -376,6 +376,8 @@ result = draw_quantum_circuit(
 
 If you want to see the managed 2D controls intentionally exercised instead of configuring them from scratch, start with `qiskit-2d-exploration-showcase`.
 
+If you want the same style of managed exploration in 3D, start with `qiskit-3d-exploration-showcase`.
+
 ## Recommended Demos
 
 The fastest way to see the current strengths of the library is to run one of the bundled showcase demos:
@@ -383,6 +385,7 @@ The fastest way to see the current strengths of the library is to run one of the
 | Demo id | What it highlights |
 | --- | --- |
 | `qiskit-2d-exploration-showcase` | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual `Collapse` / `Expand` |
+| `qiskit-3d-exploration-showcase` | Managed 3D exploration with topology-aware selection, persistent expanded-block highlights, and contextual `Collapse` / `Expand` |
 | `qiskit-control-flow-showcase` | Compact Qiskit control-flow boxes plus open controls |
 | `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions on the same workflow |
 | `ir-basic-workflow` | Framework-free rendering from the public `CircuitIR` types |
@@ -390,26 +393,31 @@ The fastest way to see the current strengths of the library is to run one of the
 | `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
 | `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
 | `cudaq-kernel-showcase` | The supported closed-kernel CUDA-Q subset with reset and basis measurements |
-| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required |
+| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend toggles on interactive backends |
+| `histogram-quasi-nonnegative` | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero |
 
 Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
 .\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
+.\.venv\Scripts\python.exe examples\histogram_quasi_nonnegative.py
 ```
 
 Linux or WSL:
 
 ```bash
 .venv/bin/python examples/qiskit_2d_exploration_showcase.py
+.venv/bin/python examples/qiskit_3d_exploration_showcase.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand
 .venv/bin/python examples/ir_basic_workflow.py
 .venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
+.venv/bin/python examples/histogram_quasi_nonnegative.py
 ```
 
 The full curated catalog, including direct script commands, histogram demos, compare demos, and per-framework recommendations, lives in [examples/README.md](examples/README.md).

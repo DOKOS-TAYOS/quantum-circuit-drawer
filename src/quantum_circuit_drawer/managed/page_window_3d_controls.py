@@ -374,12 +374,12 @@ def _page_window_exploration_button_bounds(
         selected_operation_id=state.exploration.selected_operation_id,
     )
     ordered_buttons: list[tuple[str, float]] = []
+    if availability.show_block_toggle:
+        ordered_buttons.append(("block", _BLOCK_TOGGLE_BUTTON_WIDTH))
     if availability.show_wire_filter:
         ordered_buttons.append(("wire_filter", _WIRE_FILTER_BUTTON_WIDTH))
     if availability.show_ancilla_toggle:
         ordered_buttons.append(("ancilla", _ANCILLA_BUTTON_WIDTH))
-    if availability.show_block_toggle:
-        ordered_buttons.append(("block", _BLOCK_TOGGLE_BUTTON_WIDTH))
 
     right = _OPTIONAL_CONTROL_RIGHT
     bounds: dict[str, tuple[float, float, float, float]] = {}

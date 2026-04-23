@@ -162,6 +162,137 @@ def test_3d_page_window_block_toggle_expands_selection_and_preserves_it_across_t
         plt.close(figure)
 
 
+def test_3d_page_window_expanded_group_highlight_persists_without_selection() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    style = DrawStyle(max_page_width=3.0)
+    layout_engine = LayoutEngine3D()
+    draw_options = DrawPipelineOptions(
+        composite_mode="compact",
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        direct=True,
+        hover=HoverOptions(enabled=True),
+    )
+    initial_scene = _compute_3d_scene(
+        layout_engine,
+        current_circuit,
+        style,
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    pipeline = PreparedDrawPipeline(
+        normalized_style=style,
+        ir=current_circuit,
+        semantic_ir=current_semantic_ir,
+        expanded_semantic_ir=expanded_semantic_ir,
+        layout_engine=layout_engine,
+        paged_scene=initial_scene,
+        renderer=MatplotlibRenderer3D(),
+        draw_options=draw_options,
+    )
+    page_scenes = windowed_3d_page_scenes(pipeline, figure_size=(6.0, 4.2))
+    figure, axes = create_managed_figure(
+        initial_scene,
+        figure_width=6.0,
+        figure_height=4.2,
+        use_agg=True,
+        projection="3d",
+    )
+
+    try:
+        page_window = configure_3d_page_window(
+            figure=figure,
+            axes=axes,
+            pipeline=pipeline,
+            page_scenes=page_scenes,
+            set_page_window=set_page_window,
+        )
+
+        page_window.select_operation("op:0")
+        page_window.toggle_selected_block()
+        page_window.select_operation(None)
+
+        assert page_window.exploration is not None
+        assert page_window.exploration.selected_operation_id is None
+        assert any(
+            gate.group_highlighted for gate in page_window.current_scene.gates if gate.operation_id
+        )
+        assert all(
+            gate.visual_state is SceneVisualState.DEFAULT
+            for gate in page_window.current_scene.gates
+            if gate.operation_id is not None
+        )
+    finally:
+        plt.close(figure)
+
+
+def test_3d_page_slider_background_drag_does_not_clear_selection() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        page_slider=True,
+    )
+
+    try:
+        page_slider = cast(Managed3DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.exploration is not None
+
+        selected_gate = next(gate for gate in page_slider.current_scene.gates if gate.operation_id)
+        assert selected_gate.operation_id is not None
+
+        _dispatch_click_release_at_3d_point(figure, axes, selected_gate.center)
+
+        assert page_slider.exploration.selected_operation_id == selected_gate.operation_id
+
+        _dispatch_drag_in_axes(
+            figure,
+            axes,
+            start=(axes.bbox.x0 + 12.0, axes.bbox.y0 + 12.0),
+            end=(axes.bbox.x0 + 42.0, axes.bbox.y0 + 36.0),
+        )
+
+        assert page_slider.exploration.selected_operation_id == selected_gate.operation_id
+    finally:
+        plt.close(figure)
+
+
+def test_3d_page_slider_background_click_clears_selection() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        page_slider=True,
+    )
+
+    try:
+        page_slider = cast(Managed3DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.exploration is not None
+
+        selected_gate = next(gate for gate in page_slider.current_scene.gates if gate.operation_id)
+        assert selected_gate.operation_id is not None
+
+        _dispatch_click_release_at_3d_point(figure, axes, selected_gate.center)
+        assert page_slider.exploration.selected_operation_id == selected_gate.operation_id
+
+        _dispatch_click_release_in_axes(
+            figure,
+            axes,
+            display=(axes.bbox.x0 + 12.0, axes.bbox.y0 + 12.0),
+        )
+
+        assert page_slider.exploration.selected_operation_id is None
+    finally:
+        plt.close(figure)
+
+
 def _dispatch_click_at_3d_point(
     figure: Figure,
     axes: Axes3D,
@@ -175,14 +306,80 @@ def _dispatch_click_at_3d_point(
         axes.get_proj(),
     )
     display_x, display_y = axes.transData.transform((projected_x, projected_y))
-    event = MouseEvent(
+    _dispatch_click_release_in_axes(
+        figure,
+        axes,
+        display=(float(display_x), float(display_y)),
+    )
+
+
+def _dispatch_click_release_at_3d_point(
+    figure: Figure,
+    axes: Axes3D,
+    point: object,
+) -> None:
+    figure.canvas.draw()
+    projected_x, projected_y, _ = proj3d.proj_transform(
+        float(getattr(point, "x")),
+        float(getattr(point, "y")),
+        float(getattr(point, "z")),
+        axes.get_proj(),
+    )
+    display_x, display_y = axes.transData.transform((projected_x, projected_y))
+    _dispatch_click_release_in_axes(
+        figure,
+        axes,
+        display=(float(display_x), float(display_y)),
+    )
+
+
+def _dispatch_click_release_in_axes(
+    figure: Figure,
+    axes: Axes3D,
+    *,
+    display: tuple[float, float],
+) -> None:
+    press_event = MouseEvent(
         "button_press_event",
         figure.canvas,
-        float(display_x),
-        float(display_y),
+        display[0],
+        display[1],
         button=1,
     )
-    figure.canvas.callbacks.process("button_press_event", event)
+    figure.canvas.callbacks.process("button_press_event", press_event)
+    release_event = MouseEvent(
+        "button_release_event",
+        figure.canvas,
+        display[0],
+        display[1],
+        button=1,
+    )
+    figure.canvas.callbacks.process("button_release_event", release_event)
+
+
+def _dispatch_drag_in_axes(
+    figure: Figure,
+    axes: Axes3D,
+    *,
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> None:
+    press_event = MouseEvent(
+        "button_press_event",
+        figure.canvas,
+        start[0],
+        start[1],
+        button=1,
+    )
+    figure.canvas.callbacks.process("button_press_event", press_event)
+    release_event = MouseEvent(
+        "button_release_event",
+        figure.canvas,
+        end[0],
+        end[1],
+        button=1,
+    )
+    figure.canvas.callbacks.process("button_release_event", release_event)
 
 
 def _semantic_block_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:

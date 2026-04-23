@@ -11,6 +11,7 @@ The examples are organized around normal user workflows:
 | Demo | Why run it first | Platform |
 | --- | --- | --- |
 | `qiskit-2d-exploration-showcase` | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual block controls | Windows and Linux |
+| `qiskit-3d-exploration-showcase` | Managed 3D exploration with topology-aware selection, persistent block highlights, and contextual block controls | Windows and Linux |
 | `qiskit-control-flow-showcase` | Native Qiskit control-flow boxes and open controls | Windows and Linux |
 | `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions | Windows and Linux |
 | `ir-basic-workflow` | Framework-free example built directly from `CircuitIR` | Windows and Linux |
@@ -18,7 +19,7 @@ The examples are organized around normal user workflows:
 | `pennylane-terminal-outputs-showcase` | `qml.cond(...)`, mid-measurement, and terminal output boxes | Prefer Linux or WSL |
 | `myqlm-structural-showcase` | Native MyQLM adapter path with compact composite routines | Windows and Linux with MyQLM |
 | `cudaq-kernel-showcase` | Supported closed-kernel subset for CUDA-Q | Linux or WSL2 |
-| `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API without extras | Windows and Linux |
+| `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend toggles on supported backends | Windows and Linux |
 
 ## Discovery
 
@@ -50,6 +51,7 @@ This block avoids CUDA-Q and the Cirq/PennyLane demos that are documented as les
 
 ```powershell
 .\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
@@ -63,6 +65,7 @@ This block avoids CUDA-Q and the Cirq/PennyLane demos that are documented as les
 .\.venv\Scripts\python.exe examples\histogram_multi_register.py
 .\.venv\Scripts\python.exe examples\histogram_uniform_reference.py
 .\.venv\Scripts\python.exe examples\histogram_quasi.py
+.\.venv\Scripts\python.exe examples\histogram_quasi_nonnegative.py
 .\.venv\Scripts\python.exe examples\histogram_top_k.py
 .\.venv\Scripts\python.exe examples\histogram_result_index.py
 .\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
@@ -82,6 +85,7 @@ This block includes the full curated catalog.
 
 ```bash
 .venv/bin/python examples/qiskit_2d_exploration_showcase.py
+.venv/bin/python examples/qiskit_3d_exploration_showcase.py
 .venv/bin/python examples/ir_basic_workflow.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py
@@ -105,6 +109,7 @@ This block includes the full curated catalog.
 .venv/bin/python examples/histogram_multi_register.py
 .venv/bin/python examples/histogram_uniform_reference.py
 .venv/bin/python examples/histogram_quasi.py
+.venv/bin/python examples/histogram_quasi_nonnegative.py
 .venv/bin/python examples/histogram_top_k.py
 .venv/bin/python examples/histogram_result_index.py
 .venv/bin/python examples/histogram_marginal.py
@@ -122,10 +127,11 @@ This block includes the full curated catalog.
 | Demo | Focus | Notes |
 | --- | --- | --- |
 | `qiskit-2d-exploration-showcase` | Managed 2D exploration, active-wire filtering, ancilla toggles, folded-wire markers, contextual collapse/expand | Best first demo for `pages_controls` and `slider` on a circuit with intentional idle wires and reusable composite structure |
+| `qiskit-3d-exploration-showcase` | Managed 3D exploration, topology-aware selection, and contextual block controls | Best first demo for managed 3D exploration, selection, expand/collapse, and topology switching on the shared semantic path |
 | `qiskit-control-flow-showcase` | Native `if_else`, `switch_case`, loops, open controls | Best first Qiskit demo |
 | `qiskit-composite-modes-showcase` | Composite instructions that are useful with `--composite-mode compact|expand` | Shows the difference between readable boxes and expanded structure, with compact versus expanded composite instructions on the same workflow |
 | `qiskit-random` | Broad stress test | Good for modes, hover, presets, and large layouts |
-| `qiskit-qaoa` | Dense structured ansatz | Good for 3D and topology-aware layouts |
+| `qiskit-qaoa` | Dense structured ansatz | Good as a secondary 3D stress test after the managed 3D exploration showcase |
 | `cirq-native-controls-showcase` | Open controls, classical control, `CircuitOperation` provenance | Native Cirq semantics with rich CircuitOperation provenance |
 | `cirq-random` | Broad stress test | Good for larger Cirq scenes |
 | `cirq-qaoa` | Dense structured ansatz | Good for repeated cost/mixer layers |
@@ -144,6 +150,7 @@ Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_random.py
@@ -163,6 +170,7 @@ Linux or WSL:
 
 ```bash
 .venv/bin/python examples/qiskit_2d_exploration_showcase.py
+.venv/bin/python examples/qiskit_3d_exploration_showcase.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py
 .venv/bin/python examples/qiskit_random.py
@@ -186,11 +194,15 @@ Use the broad Qiskit demos for option sweeps because they are the most reliable 
 
 When you specifically want the managed 2D controls, use `qiskit-2d-exploration-showcase` first and then widen out to `qiskit-random`.
 
+When you want managed 3D exploration, start with `qiskit-3d-exploration-showcase` before using `qiskit-qaoa` as the denser follow-up.
+
 Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py --mode pages_controls
 .\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py --mode slider --columns 9
+.\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py --view 3d --mode pages_controls --topology grid
+.\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py --view 3d --mode slider --topology star
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode auto
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls --hover-matrix always
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode slider --columns 28
@@ -205,6 +217,8 @@ Linux or WSL:
 ```bash
 .venv/bin/python examples/qiskit_2d_exploration_showcase.py --mode pages_controls
 .venv/bin/python examples/qiskit_2d_exploration_showcase.py --mode slider --columns 9
+.venv/bin/python examples/qiskit_3d_exploration_showcase.py --view 3d --mode pages_controls --topology grid
+.venv/bin/python examples/qiskit_3d_exploration_showcase.py --view 3d --mode slider --topology star
 .venv/bin/python examples/qiskit_random.py --mode auto
 .venv/bin/python examples/qiskit_random.py --mode pages_controls --hover-matrix always
 .venv/bin/python examples/qiskit_random.py --mode slider --columns 28
@@ -236,6 +250,7 @@ Useful circuit flags:
 | `histogram-multi-register` | Decimal labels per register | none |
 | `histogram-uniform-reference` | Uniform reference line | none |
 | `histogram-quasi` | Negative quasi-probabilities | none |
+| `histogram-quasi-nonnegative` | Non-negative quasi-probabilities with a zero-based vertical axis | none |
 | `histogram-top-k` | Top-k filtering and ordering | none |
 | `histogram-result-index` | Selecting one payload from several results | none |
 | `histogram-marginal` | Joint marginal from a Qiskit result | qiskit |
@@ -255,6 +270,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples\histogram_multi_register.py
 .\.venv\Scripts\python.exe examples\histogram_uniform_reference.py
 .\.venv\Scripts\python.exe examples\histogram_quasi.py
+.\.venv\Scripts\python.exe examples\histogram_quasi_nonnegative.py
 .\.venv\Scripts\python.exe examples\histogram_top_k.py
 .\.venv\Scripts\python.exe examples\histogram_result_index.py
 .\.venv\Scripts\python.exe examples\histogram_marginal.py
@@ -269,6 +285,7 @@ Linux or WSL:
 .venv/bin/python examples/histogram_multi_register.py
 .venv/bin/python examples/histogram_uniform_reference.py
 .venv/bin/python examples/histogram_quasi.py
+.venv/bin/python examples/histogram_quasi_nonnegative.py
 .venv/bin/python examples/histogram_top_k.py
 .venv/bin/python examples/histogram_result_index.py
 .venv/bin/python examples/histogram_marginal.py
@@ -301,7 +318,7 @@ Useful histogram flags:
 | --- | --- | --- |
 | `compare-circuits-qiskit-transpile` | Before/after transpilation | qiskit |
 | `compare-circuits-composite-modes` | Compact versus expanded composite views | qiskit |
-| `compare-histograms-ideal-vs-sampled` | Ideal versus sampled distribution on one state space | none |
+| `compare-histograms-ideal-vs-sampled` | Ideal versus sampled distribution on one state space, with clickable legend toggles on interactive backends | none |
 
 ### Commands
 
@@ -321,6 +338,8 @@ Linux or WSL:
 .venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
 ```
 
+On interactive Matplotlib backends, `compare-histograms-ideal-vs-sampled` lets you click either the legend swatch or the legend label to hide and restore each series.
+
 Useful compare flags:
 
 - `--left-label <name>`
@@ -338,8 +357,9 @@ Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe examples\run_demo.py --demo qiskit-2d-exploration-showcase --mode slider --columns 9
+.\.venv\Scripts\python.exe examples\run_demo.py --demo qiskit-3d-exploration-showcase --view 3d --mode pages_controls --topology grid
 .\.venv\Scripts\python.exe examples\run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand
-.\.venv\Scripts\python.exe examples\run_histogram_demo.py --demo histogram-top-k --top-k 3
+.\.venv\Scripts\python.exe examples\run_histogram_demo.py --demo histogram-quasi-nonnegative
 .\.venv\Scripts\python.exe examples\run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc
 ```
 
@@ -347,7 +367,8 @@ Linux or WSL:
 
 ```bash
 .venv/bin/python examples/run_demo.py --demo qiskit-2d-exploration-showcase --mode slider --columns 9
+.venv/bin/python examples/run_demo.py --demo qiskit-3d-exploration-showcase --view 3d --mode pages_controls --topology grid
 .venv/bin/python examples/run_demo.py --demo qiskit-composite-modes-showcase --composite-mode expand
-.venv/bin/python examples/run_histogram_demo.py --demo histogram-top-k --top-k 3
+.venv/bin/python examples/run_histogram_demo.py --demo histogram-quasi-nonnegative
 .venv/bin/python examples/run_compare_demo.py --demo compare-histograms-ideal-vs-sampled --sort delta_desc
 ```

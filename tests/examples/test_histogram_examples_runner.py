@@ -231,6 +231,7 @@ def test_histogram_demo_catalog_exposes_expected_demo_ids() -> None:
         "histogram-interactive-large",
         "histogram-multi-register",
         "histogram-myqlm-result",
+        "histogram-quasi-nonnegative",
         "histogram-uniform-reference",
         "histogram-pennylane-probs",
         "histogram-quasi",
@@ -308,6 +309,7 @@ def test_run_histogram_demo_script_imports_drawer_from_local_worktree_src() -> N
         "histogram-multi-register",
         "histogram-uniform-reference",
         "histogram-quasi",
+        "histogram-quasi-nonnegative",
     ],
 )
 def test_histogram_examples_runner_can_render_builtin_demo(

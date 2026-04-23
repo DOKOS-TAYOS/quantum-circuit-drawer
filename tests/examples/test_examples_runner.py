@@ -502,6 +502,7 @@ def test_demo_catalog_exposes_only_the_refreshed_demo_ids() -> None:
         "qiskit-random",
         "qiskit-qaoa",
         "qiskit-2d-exploration-showcase",
+        "qiskit-3d-exploration-showcase",
         "qiskit-control-flow-showcase",
         "qiskit-composite-modes-showcase",
         "cirq-random",
@@ -589,6 +590,7 @@ def test_showcase_docs_reference_the_new_framework_demos() -> None:
 
     for demo_id in (
         "qiskit-2d-exploration-showcase",
+        "qiskit-3d-exploration-showcase",
         "qiskit-control-flow-showcase",
         "qiskit-composite-modes-showcase",
         "ir-basic-workflow",
@@ -601,11 +603,14 @@ def test_showcase_docs_reference_the_new_framework_demos() -> None:
 
     assert "Recommended demos" in readme
     assert "qiskit-2d-exploration-showcase" in readme
+    assert "qiskit-3d-exploration-showcase" in readme
     assert "qiskit-control-flow-showcase" in readme
     assert "qiskit-composite-modes-showcase" in readme
     assert "pennylane-terminal-outputs-showcase" in readme
     assert "qiskit-2d-exploration-showcase" in docs_index
+    assert "qiskit-3d-exploration-showcase" in docs_index
     assert "qiskit-control-flow-showcase" in frameworks_guide
+    assert "qiskit-3d-exploration-showcase" in frameworks_guide
     assert "qiskit-composite-modes-showcase" in frameworks_guide
     assert "ir-basic-workflow" in frameworks_guide
     assert "cirq-native-controls-showcase" in frameworks_guide
@@ -613,6 +618,7 @@ def test_showcase_docs_reference_the_new_framework_demos() -> None:
     assert "myqlm-structural-showcase" in frameworks_guide
     assert "cudaq-kernel-showcase" in frameworks_guide
     assert "qiskit-2d-exploration-showcase" in user_guide
+    assert "qiskit-3d-exploration-showcase" in user_guide
 
 
 def test_showcase_catalog_and_examples_readme_use_current_compatibility_language() -> None:
@@ -621,6 +627,9 @@ def test_showcase_catalog_and_examples_readme_use_current_compatibility_language
 
     assert showcase_specs["qiskit-2d-exploration-showcase"].description == (
         "Qiskit showcase for managed 2D exploration, active-wire filtering, and contextual block controls"
+    )
+    assert showcase_specs["qiskit-3d-exploration-showcase"].description == (
+        "Qiskit showcase for managed 3D exploration, topology-aware selection, and contextual block controls"
     )
     assert showcase_specs["qiskit-control-flow-showcase"].description == (
         "Qiskit showcase for compact control-flow boxes and open controls"
@@ -652,6 +661,8 @@ def test_showcase_catalog_and_examples_readme_use_current_compatibility_language
     assert "CircuitIR" in examples_readme
     assert "Wires: All/Active" in examples_readme
     assert "Ancillas: Show/Hide" in examples_readme
+    assert "managed 3D exploration" in examples_readme
+    assert "topology-aware selection" in examples_readme
 
 
 def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
@@ -750,6 +761,7 @@ def test_render_example_closes_rendered_figures(monkeypatch: pytest.MonkeyPatch)
     [
         ("qiskit-random", "qiskit"),
         ("qiskit-qaoa", "qiskit"),
+        ("qiskit-3d-exploration-showcase", "qiskit"),
         ("qiskit-control-flow-showcase", "qiskit"),
         ("cirq-random", "cirq"),
         ("cirq-qaoa", "cirq"),
@@ -1087,3 +1099,32 @@ def test_qiskit_2d_exploration_showcase_script_can_render_directly(
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
     assert f"Saved qiskit-2d-exploration-showcase to {output_path}" in result.stdout
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_qiskit_3d_exploration_showcase_script_can_render_directly(
+    sandbox_tmp_path: Path,
+) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the direct 3D showcase smoke test")
+
+    script_path = repo_root_for(Path(__file__)) / "examples" / "qiskit_3d_exploration_showcase.py"
+    output_path = sandbox_tmp_path / "qiskit-3d-exploration-showcase-direct.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved qiskit-3d-exploration-showcase to {output_path}" in result.stdout

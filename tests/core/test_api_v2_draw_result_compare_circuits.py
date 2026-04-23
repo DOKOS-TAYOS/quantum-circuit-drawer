@@ -7,6 +7,8 @@ from types import ModuleType, SimpleNamespace
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib import patches as matplotlib_patches
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import quantum_circuit_drawer
@@ -394,12 +396,17 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
     )
 
     for axes in result.axes:
-        diff_bands = [
+        diff_markers = [
+            patch
+            for patch in axes.patches
+            if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-diff-marker"
+        ]
+        assert diff_markers
+        assert not [
             patch
             for patch in axes.patches
             if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-diff-band"
         ]
-        assert diff_bands
 
     assert_figure_has_visible_content(result.figure)
 
@@ -439,18 +446,63 @@ def test_compare_circuits_keeps_hover_zoom_state_and_dark_titles_readable(
     assert get_text_scaling_state(result.axes[1]) is not None
     assert result.axes[0].title.get_color() == theme.text_color
     assert result.axes[1].title.get_color() == theme.text_color
-    assert figure._suptitle is not None
-    assert figure._suptitle.get_color() == theme.text_color
+    assert figure._suptitle is None
+    assert {"Metric", "Left", "Right", "Δ"}.issubset({text.get_text() for text in figure.texts})
+    assert any(
+        text.get_color() == theme.text_color for text in figure.texts if text.get_text() == "Metric"
+    )
 
-    diff_bands = [
+    diff_markers = [
         patch
         for patch in result.axes[0].patches
-        if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-diff-band"
+        if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-diff-marker"
     ]
-    assert diff_bands
-    assert diff_bands[0].get_alpha() < 0.09
+    assert diff_markers
+    assert diff_markers[0].get_alpha() < 0.12
 
     plt.close(figure)
+
+
+def test_compare_circuits_hover_shows_gate_details_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.request.figure_backend_name",
+        lambda _figure: "qtagg",
+    )
+
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(
+                appearance=CircuitAppearanceOptions(
+                    hover=True,
+                )
+            ),
+            output=OutputOptions(show=False),
+        ),
+    )
+
+    try:
+        hover_state = get_hover_state(result.axes[0])
+
+        assert hover_state is not None
+
+        result.figure.canvas.draw()
+        gate_patch = next(
+            patch
+            for patch in result.axes[0].patches
+            if isinstance(patch, matplotlib_patches.FancyBboxPatch)
+        )
+        _dispatch_motion_event(result.figure, result.axes[0], gate_patch)
+
+        annotation = hover_state.annotation
+
+        assert annotation.get_visible() is True
+        assert annotation.get_text()
+    finally:
+        plt.close(result.figure)
 
 
 def test_compare_circuits_uses_caller_managed_axes_and_saves_single_output(
@@ -638,3 +690,19 @@ def test_compare_circuits_rejects_unsupported_draw_modes_for_v1(
                 **kwargs,
             ),
         )
+
+
+def _dispatch_motion_event(
+    figure: plt.Figure,
+    axes: plt.Axes,
+    patch: object,
+) -> None:
+    bbox = patch.get_window_extent(renderer=figure.canvas.get_renderer())
+    event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        float((bbox.x0 + bbox.x1) / 2.0),
+        float((bbox.y0 + bbox.y1) / 2.0),
+    )
+    event.inaxes = axes
+    figure.canvas.callbacks.process("motion_notify_event", event)

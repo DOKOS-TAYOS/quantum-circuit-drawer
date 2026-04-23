@@ -12,6 +12,10 @@
 - Extended managed 3D exploration so slider and pages-controls views now support operation selection, shared semantic highlighting, active-wire and ancilla toggles, and contextual block expand/collapse actions just like managed 2D exploration
 - Added shared canonical semantic decompositions for `RXX`, `RYY`, `RZZ`, and `RZX`, so Qiskit and PennyLane can expand these fundamental gates through the same composite-expansion flow while preserving parameters, provenance, and hover details
 - Improved managed 3D scene readability by carrying semantic operation IDs into rendered artists, preserving selection across topology changes, tinting grouped decomposition members, and making selected and related operations visually clearer in the 3D view
+- Added a dedicated `qiskit-3d-exploration-showcase` demo and refreshed the examples catalog, README, and user docs so managed 3D exploration is now the recommended first-stop workflow instead of being hidden behind the broader QAOA demo
+- Refined managed exploration so expanded decomposition-group highlights remain visible even without an active selection, `Block` is ordered before `Wires` and `Ancillas`, and collapsing a block that originally started collapsed restores its original width and label geometry instead of forcing the compact synthetic shape
+- Reworked `compare_circuits(...)` so the shared summary now renders as a compact top card, per-column differences use thin theme-aware markers instead of tinted background bands, and compare-mode hover remains available on interactive backends
+- Added `histogram-quasi-nonnegative` and updated compare-histogram docs to call out clickable legend toggles on interactive backends
 
 ### Fixed
 
@@ -19,6 +23,7 @@
 - Interactive histogram hovers now cover the uniform reference guide line with an explanation of the uniform baseline and how its value is derived
 - Quasi-probability histograms now keep a counts-like zero lower bound whenever all currently visible values are non-negative, while still preserving full support for genuinely negative quasi-distributions
 - Interactive compare histograms for counts now let you click legend entries to hide or restore each series, update hover and axis limits from only the visible series, and keep a stable empty state if all series are temporarily hidden
+- Managed 3D exploration now keeps the current selection while you rotate or drag the scene, clearing it only on a clean background click
 
 ## [0.4.0] - 2026-04-22
 

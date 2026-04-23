@@ -92,7 +92,9 @@ class Managed3DPageWindowState:
     ui_palette: ManagedUiPalette | None = None
     is_syncing_inputs: bool = False
     exploration: Managed2DExplorationState | None = None
-    click_callback_id: int | None = None
+    click_press_callback_id: int | None = None
+    click_release_callback_id: int | None = None
+    pending_click: tuple[float, float, Axes3D] | None = None
 
     @property
     def current_scene(self) -> LayoutScene3D:
@@ -291,13 +293,34 @@ def _attach_3d_window_selection_clicks(state: Managed3DPageWindowState) -> None:
     canvas = getattr(state.figure, "canvas", None)
     if canvas is None:
         return
-    if state.click_callback_id is not None:
-        canvas.mpl_disconnect(state.click_callback_id)
+    if state.click_press_callback_id is not None:
+        canvas.mpl_disconnect(state.click_press_callback_id)
+    if state.click_release_callback_id is not None:
+        canvas.mpl_disconnect(state.click_release_callback_id)
 
-    def _handle_click(event: MouseEvent) -> None:
-        if state.exploration is None or event.inaxes not in state.display_axes:
+    def _handle_press(event: MouseEvent) -> None:
+        if state.exploration is None or event.inaxes not in state.display_axes or event.button != 1:
+            state.pending_click = None
+            return
+        state.pending_click = (float(event.x), float(event.y), cast("Axes3D", event.inaxes))
+
+    def _handle_release(event: MouseEvent) -> None:
+        if state.exploration is None:
+            return
+        pending_click = state.pending_click
+        state.pending_click = None
+        if pending_click is None or event.inaxes not in state.display_axes or event.button != 1:
             return
         clicked_axes = cast("Axes3D", event.inaxes)
+        if clicked_axes is not pending_click[2]:
+            return
+        if (
+            (float(event.x) - pending_click[0]) ** 2 + (float(event.y) - pending_click[1]) ** 2
+        ) ** 0.5 > 6.0:
+            return
         state.select_operation(clicked_artist_operation_id(clicked_axes, event))
 
-    state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
+    state.click_press_callback_id = int(canvas.mpl_connect("button_press_event", _handle_press))
+    state.click_release_callback_id = int(
+        canvas.mpl_connect("button_release_event", _handle_release)
+    )

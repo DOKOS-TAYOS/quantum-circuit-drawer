@@ -68,6 +68,20 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             dependency_module="qiskit",
         ),
         DemoSpec(
+            demo_id="qiskit-3d-exploration-showcase",
+            description=(
+                "Qiskit showcase for managed 3D exploration, topology-aware selection, "
+                "and contextual block controls"
+            ),
+            module_name="examples.qiskit_3d_exploration_showcase",
+            builder_name="build_circuit",
+            framework="qiskit",
+            default_qubits=8,
+            default_columns=6,
+            columns_help="Repeated composite motifs to place across the 3D exploration showcase",
+            dependency_module="qiskit",
+        ),
+        DemoSpec(
             demo_id="qiskit-control-flow-showcase",
             description="Qiskit showcase for compact control-flow boxes and open controls",
             module_name="examples.qiskit_control_flow_showcase",

@@ -65,6 +65,12 @@ def get_demo_catalog() -> tuple[HistogramDemoSpec, ...]:
             builder_name="build_demo",
         ),
         HistogramDemoSpec(
+            demo_id="histogram-quasi-nonnegative",
+            description="Quasi-probability histogram that stays above zero on the visible axis",
+            module_name="examples.histogram_quasi_nonnegative",
+            builder_name="build_demo",
+        ),
+        HistogramDemoSpec(
             demo_id="histogram-top-k",
             description="Counts histogram focused on top-k ordering and filtering",
             module_name="examples.histogram_top_k",

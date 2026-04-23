@@ -87,6 +87,9 @@ def add_render_arguments(
     default_columns: int | None,
     columns_help: str,
     default_seed: int = 7,
+    default_mode: RenderMode = "auto",
+    default_view: ViewMode = "2d",
+    default_topology: TopologyMode = "line",
 ) -> None:
     """Attach the shared render arguments to one example parser."""
 
@@ -111,7 +114,7 @@ def add_render_arguments(
     parser.add_argument(
         "--mode",
         choices=("auto", "pages", "pages_controls", "slider", "full"),
-        default="auto",
+        default=default_mode,
         help=(
             "Render with the library default, page figures, a managed page viewer, a slider, "
             "or the full unpaged scene. In 3D, pages_controls stacks the visible pages vertically."
@@ -120,13 +123,13 @@ def add_render_arguments(
     parser.add_argument(
         "--view",
         choices=("2d", "3d"),
-        default="2d",
+        default=default_view,
         help="Choose the 2D or topology-aware 3D renderer.",
     )
     parser.add_argument(
         "--topology",
         choices=SUPPORTED_TOPOLOGIES,
-        default="line",
+        default=default_topology,
         help="3D topology. It is ignored in 2D mode.",
     )
     parser.add_argument(
@@ -220,6 +223,9 @@ def parse_example_args(
     default_columns: int,
     columns_help: str,
     default_seed: int = 7,
+    default_mode: RenderMode = "auto",
+    default_view: ViewMode = "2d",
+    default_topology: TopologyMode = "line",
 ) -> ExampleRequest:
     """Parse and validate the shared command-line arguments."""
 
@@ -230,6 +236,9 @@ def parse_example_args(
         default_columns=default_columns,
         columns_help=columns_help,
         default_seed=default_seed,
+        default_mode=default_mode,
+        default_view=default_view,
+        default_topology=default_topology,
     )
     return request_from_namespace(
         parser.parse_args(),
@@ -531,6 +540,9 @@ def run_example(
     default_columns: int,
     columns_help: str,
     default_seed: int = 7,
+    default_mode: RenderMode = "auto",
+    default_view: ViewMode = "2d",
+    default_topology: TopologyMode = "line",
 ) -> None:
     """Parse CLI options, build the subject, and render the example."""
 
@@ -540,6 +552,9 @@ def run_example(
         default_columns=default_columns,
         columns_help=columns_help,
         default_seed=default_seed,
+        default_mode=default_mode,
+        default_view=default_view,
+        default_topology=default_topology,
     )
     render_example(
         builder(request),
