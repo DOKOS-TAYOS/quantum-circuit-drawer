@@ -476,6 +476,68 @@ def test_compare_circuits_keeps_hover_zoom_state_and_dark_titles_readable(
     plt.close(figure)
 
 
+def test_compare_circuits_summary_card_is_narrower_taller_and_omits_diff_columns() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
+    )
+
+    summary_card = next(
+        patch
+        for patch in result.figure.patches
+        if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-summary-card"
+    )
+    summary_text = {
+        text.get_text()
+        for text in result.figure.texts
+        if getattr(text, "get_gid", lambda: None)()
+        in {"circuit-compare-summary-header", "circuit-compare-summary-row"}
+    }
+
+    assert summary_card.get_width() <= 0.42
+    assert summary_card.get_height() >= 0.2
+    assert summary_card.get_y() < 0.8
+    assert "Diff cols" not in summary_text
+
+    plt.close(result.figure)
+
+
+@pytest.mark.parametrize("mode", [DrawMode.PAGES, DrawMode.SLIDER, DrawMode.PAGES_CONTROLS])
+def test_compare_circuits_supports_managed_modes_as_separate_circuit_figures(
+    mode: DrawMode,
+) -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(render=CircuitRenderOptions(mode=mode)),
+            output=OutputOptions(show=False),
+        ),
+    )
+
+    assert result.figure is not result.left_result.primary_figure
+    assert result.figure is not result.right_result.primary_figure
+    assert result.left_result.primary_figure is not result.right_result.primary_figure
+    assert result.left_result.mode is mode
+    assert result.right_result.mode is mode
+    assert result.axes == (result.left_result.primary_axes, result.right_result.primary_axes)
+    assert result.left_result.page_count >= 1
+    assert result.right_result.page_count >= 1
+    assert any(
+        getattr(patch, "get_gid", lambda: None)() == "circuit-compare-summary-card"
+        for patch in result.figure.patches
+    )
+    assert {
+        text.get_text()
+        for text in result.figure.texts
+        if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+    }.isdisjoint({"Diff cols"})
+
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
 def test_compare_circuits_hover_shows_gate_details_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -684,7 +746,6 @@ def test_compare_circuits_supports_mixed_cudaq_and_ir_inputs(
     ("config_side", "render_options"),
     [
         ("left", CircuitRenderOptions(view="3d")),
-        ("right", CircuitRenderOptions(mode=DrawMode.SLIDER)),
     ],
 )
 def test_compare_circuits_rejects_unsupported_draw_modes_for_v1(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from matplotlib.patches import FancyBboxPatch, Rectangle
@@ -28,14 +28,16 @@ from ..ir.semantic import (
 )
 from ..managed.rendering import render_draw_pipeline_on_axes
 from ..renderers._render_support import save_rendered_figure, show_figure_if_supported
-from .preparation import INTERACTIVE_COMPARE_MODES, prepare_draw_call
-from .results import build_draw_result, normalized_saved_path
+from .managed_modes import draw_result_from_prepared_call
+from .preparation import prepare_draw_call
+from .results import build_draw_result, combined_draw_diagnostics, normalized_saved_path
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
     from ..layout.scene import LayoutScene
+    from ..result import DrawResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,10 +57,12 @@ class _CircuitStats:
     swap_count: int
 
 
-_SUMMARY_CARD_BOUNDS = (0.2, 0.81, 0.6, 0.18)
+_SUMMARY_CARD_BOUNDS = (0.3, 0.74, 0.4, 0.23)
+_SUMMARY_FIGURE_CARD_BOUNDS = (0.06, 0.1, 0.88, 0.8)
+_SUMMARY_FIGURE_SIZE = (3.8, 2.3)
 _SUMMARY_CARD_PADDING_X = 0.02
-_SUMMARY_CARD_HEADER_OFFSET = 0.03
-_SUMMARY_CARD_ROW_SPACING = 0.022
+_SUMMARY_CARD_HEADER_OFFSET = 0.04
+_SUMMARY_CARD_ROW_SPACING = 0.033
 
 
 def compare_circuits(
@@ -74,6 +78,32 @@ def compare_circuits(
     if axes is not None and resolved_compare_config.figsize is not None:
         raise ValueError("figsize cannot be used with axes in compare_circuits")
 
+    normalized_left_config = normalize_compare_draw_config(
+        merge_compare_side_config(resolved_compare_config, side_label="left"),
+        side_label="left",
+    )
+    normalized_right_config = normalize_compare_draw_config(
+        merge_compare_side_config(resolved_compare_config, side_label="right"),
+        side_label="right",
+    )
+    uses_managed_compare = (
+        normalized_left_config.mode is not DrawMode.FULL
+        or normalized_right_config.mode is not DrawMode.FULL
+    )
+    if axes is not None and uses_managed_compare:
+        raise ValueError(
+            "compare_circuits managed modes require separate Matplotlib-managed figures "
+            "and cannot be used with axes"
+        )
+    if uses_managed_compare:
+        return _compare_circuits_with_managed_side_figures(
+            left_circuit,
+            right_circuit,
+            config=resolved_compare_config,
+            left_config=normalized_left_config,
+            right_config=normalized_right_config,
+        )
+
     left_axes: Axes
     right_axes: Axes
     if axes is None:
@@ -85,14 +115,6 @@ def compare_circuits(
         left_axes, right_axes = axes
         figure = shared_figure_for_compare_axes(left_axes, right_axes)
 
-    normalized_left_config = normalize_compare_draw_config(
-        merge_compare_side_config(resolved_compare_config, side_label="left"),
-        side_label="left",
-    )
-    normalized_right_config = normalize_compare_draw_config(
-        merge_compare_side_config(resolved_compare_config, side_label="right"),
-        side_label="right",
-    )
     left_prepared = prepare_draw_call(left_circuit, config=normalized_left_config, ax=left_axes)
     right_prepared = prepare_draw_call(
         right_circuit,
@@ -178,6 +200,114 @@ def compare_circuits(
     )
 
 
+def _compare_circuits_with_managed_side_figures(
+    left_circuit: object,
+    right_circuit: object,
+    *,
+    config: CircuitCompareConfig,
+    left_config: DrawConfig,
+    right_config: DrawConfig,
+) -> CircuitCompareResult:
+    """Render managed compare modes as two normal side figures plus one summary figure."""
+
+    left_config = _with_compare_side_output(left_config, compare_config=config)
+    right_config = _with_compare_side_output(right_config, compare_config=config)
+    left_prepared = prepare_draw_call(left_circuit, config=left_config, ax=None)
+    right_prepared = prepare_draw_call(right_circuit, config=right_config, ax=None)
+    metrics, _diff_summary = circuit_compare_metrics(
+        left_prepared.pipeline.ir,
+        right_prepared.pipeline.ir,
+        left_semantic=left_prepared.pipeline.semantic_ir,
+        right_semantic=right_prepared.pipeline.semantic_ir,
+    )
+    left_result = draw_result_from_prepared_call(left_prepared)
+    right_result = draw_result_from_prepared_call(right_prepared)
+    left_text_color = left_prepared.pipeline.normalized_style.theme.text_color
+    right_text_color = right_prepared.pipeline.normalized_style.theme.text_color
+    _apply_title_to_draw_result(left_result, config.left_title, text_color=left_text_color)
+    _apply_title_to_draw_result(right_result, config.right_title, text_color=right_text_color)
+
+    summary_figure = _build_compare_summary_figure(
+        config=config,
+        metrics=metrics,
+        text_color=left_text_color,
+        card_facecolor=(
+            left_prepared.pipeline.normalized_style.theme.ui_surface_facecolor
+            or left_prepared.pipeline.normalized_style.theme.axes_facecolor
+        ),
+        figure_facecolor=left_prepared.pipeline.normalized_style.theme.figure_facecolor,
+    )
+    if config.output_path is not None and config.show_summary:
+        save_rendered_figure(summary_figure, config.output_path)
+    if config.show and config.show_summary:
+        show_figure_if_supported(summary_figure, show=True)
+
+    return CircuitCompareResult(
+        figure=summary_figure,
+        axes=(left_result.primary_axes, right_result.primary_axes),
+        left_result=left_result,
+        right_result=right_result,
+        metrics=metrics,
+        diagnostics=combined_draw_diagnostics(
+            left_prepared.diagnostics,
+            right_prepared.diagnostics,
+        ),
+        saved_path=(
+            normalized_saved_path(config.output_path)
+            if config.output_path is not None and config.show_summary
+            else None
+        ),
+    )
+
+
+def _with_compare_side_output(
+    config: DrawConfig,
+    *,
+    compare_config: CircuitCompareConfig,
+) -> DrawConfig:
+    return replace(
+        config,
+        output=OutputOptions(
+            show=compare_config.show,
+            output_path=None,
+            figsize=compare_config.figsize,
+        ),
+    )
+
+
+def _apply_title_to_draw_result(
+    result: DrawResult,
+    title: str,
+    *,
+    text_color: str,
+) -> None:
+    for axes in result.axes:
+        axes.set_title(title, color=text_color)
+
+
+def _build_compare_summary_figure(
+    *,
+    config: CircuitCompareConfig,
+    metrics: CircuitCompareMetrics,
+    text_color: str,
+    card_facecolor: str,
+    figure_facecolor: str,
+) -> Figure:
+    import matplotlib.pyplot as plt
+
+    figure = plt.figure(figsize=_SUMMARY_FIGURE_SIZE)
+    figure.patch.set_facecolor(figure_facecolor)
+    if config.show_summary:
+        _add_compare_summary_card(
+            figure=figure,
+            metrics=metrics,
+            text_color=text_color,
+            card_facecolor=card_facecolor,
+            bounds=_SUMMARY_FIGURE_CARD_BOUNDS,
+        )
+    return figure
+
+
 def normalize_compare_draw_config(
     config: DrawConfig,
     *,
@@ -189,8 +319,7 @@ def normalize_compare_draw_config(
         raise ValueError(
             f"compare_circuits only supports 2D rendering; {side_label}_render.view must be '2d'"
         )
-    if config.mode in INTERACTIVE_COMPARE_MODES:
-        raise ValueError("compare_circuits does not support slider or page-control modes in v1")
+    mode = DrawMode.FULL if config.mode is DrawMode.AUTO else config.mode
     return DrawConfig(
         side=DrawSideConfig(
             render=CircuitRenderOptions(
@@ -198,7 +327,7 @@ def normalize_compare_draw_config(
                 backend=config.backend,
                 layout=config.layout,
                 view="2d",
-                mode=DrawMode.FULL,
+                mode=mode,
                 composite_mode=config.composite_mode,
                 topology=config.topology,
                 topology_qubits=config.topology_qubits,
@@ -539,8 +668,9 @@ def _add_compare_summary_card(
     metrics: CircuitCompareMetrics,
     text_color: str,
     card_facecolor: str,
+    bounds: tuple[float, float, float, float] = _SUMMARY_CARD_BOUNDS,
 ) -> None:
-    card_x, card_y, card_width, card_height = _SUMMARY_CARD_BOUNDS
+    card_x, card_y, card_width, card_height = bounds
     card = FancyBboxPatch(
         (card_x, card_y),
         card_width,
@@ -599,12 +729,6 @@ def _add_compare_summary_card(
             metrics.left_measurement_count,
             metrics.right_measurement_count,
             metrics.measurement_delta,
-        ),
-        (
-            "Diff cols",
-            metrics.differing_layer_count + metrics.left_only_layer_count,
-            metrics.differing_layer_count + metrics.right_only_layer_count,
-            metrics.right_only_layer_count - metrics.left_only_layer_count,
         ),
     )
 

@@ -337,10 +337,11 @@ result = compare_circuits(
 
 What you get back:
 
-- one figure with two subplot axes
-- one nested `DrawResult` per side
+- one figure with two subplot axes in the default/static path
+- two normal per-side circuit figures plus one compact summary figure when you request `pages`, `pages_controls`, or `slider`
+- one nested `DrawResult` per side, so each side exposes its own figures, axes, mode, and page count
 - metrics such as layers, total operations, multi-qubit operations, swaps, and measurements
-- an optional summary card above the figure plus thin per-column diff markers on layers that changed
+- an optional compact summary card; the summary focuses on stable aggregate metrics and does not report diff-column counts
 
 Use this for:
 
