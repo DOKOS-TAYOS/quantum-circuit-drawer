@@ -1104,11 +1104,6 @@ def _initial_collapsed_block_ids(
         semantic_operation_id(operation)
         for operation in _flatten_operations(current_semantic_ir)
         if semantic_operation_id(operation) in blocks
-        and (
-            operation.provenance.native_kind == "composite"
-            or operation.provenance.composite_label is not None
-            or operation.metadata.get("collapsed_block") is True
-        )
     }
     return frozenset(collapsed_ids)
 

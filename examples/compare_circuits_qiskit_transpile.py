@@ -18,8 +18,10 @@ except ImportError:
     )
 
 from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
     CircuitCompareConfig,
     CircuitCompareOptions,
+    DrawSideConfig,
     OutputOptions,
 )
 
@@ -40,6 +42,11 @@ def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
         left_data=original_circuit,
         right_data=transpiled_circuit,
         config=CircuitCompareConfig(
+            shared=DrawSideConfig(
+                appearance=CircuitAppearanceOptions(
+                    hover=True,
+                )
+            ),
             compare=CircuitCompareOptions(
                 left_title="Original",
                 right_title="Transpiled",

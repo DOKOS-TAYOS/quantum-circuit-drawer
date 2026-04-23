@@ -451,6 +451,19 @@ def test_compare_circuits_keeps_hover_zoom_state_and_dark_titles_readable(
     assert any(
         text.get_color() == theme.text_color for text in figure.texts if text.get_text() == "Metric"
     )
+    summary_card = next(
+        patch
+        for patch in figure.patches
+        if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-summary-card"
+    )
+    summary_row_positions = [
+        text.get_position()[1]
+        for text in figure.texts
+        if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+    ]
+    assert summary_card.get_height() >= 0.14
+    assert summary_row_positions
+    assert min(summary_row_positions) >= summary_card.get_y() + 0.015
 
     diff_markers = [
         patch

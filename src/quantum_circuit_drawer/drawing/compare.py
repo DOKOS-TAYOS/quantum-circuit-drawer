@@ -55,11 +55,10 @@ class _CircuitStats:
     swap_count: int
 
 
-_SUMMARY_CARD_BOUNDS = (0.24, 0.89, 0.52, 0.095)
-_SUMMARY_CARD_ROW_COUNT = 6
-_SUMMARY_CARD_PADDING_X = 0.018
-_SUMMARY_CARD_HEADER_OFFSET = 0.022
-_SUMMARY_CARD_ROW_SPACING = 0.0115
+_SUMMARY_CARD_BOUNDS = (0.2, 0.81, 0.6, 0.18)
+_SUMMARY_CARD_PADDING_X = 0.02
+_SUMMARY_CARD_HEADER_OFFSET = 0.03
+_SUMMARY_CARD_ROW_SPACING = 0.022
 
 
 def compare_circuits(
@@ -556,9 +555,9 @@ def _add_compare_summary_card(
 
     header_y = card_y + card_height - _SUMMARY_CARD_HEADER_OFFSET
     metric_x = card_x + _SUMMARY_CARD_PADDING_X
-    left_x = card_x + (card_width * 0.55)
-    right_x = card_x + (card_width * 0.73)
-    delta_x = card_x + (card_width * 0.89)
+    left_x = card_x + (card_width * 0.56)
+    right_x = card_x + (card_width * 0.74)
+    delta_x = card_x + (card_width * 0.9)
 
     for text, x_position, alignment in (
         ("Metric", metric_x, "left"),
@@ -573,7 +572,7 @@ def _add_compare_summary_card(
             color=text_color,
             ha=alignment,
             va="center",
-            fontsize=10.0,
+            fontsize=11.0,
             fontweight="bold",
         )
         artist.set_gid("circuit-compare-summary-header")
@@ -622,6 +621,6 @@ def _add_compare_summary_card(
                 color=text_color,
                 ha=alignment,
                 va="center",
-                fontsize=9.2,
+                fontsize=10.0,
             )
             artist.set_gid("circuit-compare-summary-row")

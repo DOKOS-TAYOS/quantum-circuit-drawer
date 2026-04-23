@@ -142,6 +142,28 @@ def test_compare_examples_readme_mentions_histogram_legend_toggle() -> None:
     assert "legend" in examples_readme.lower()
 
 
+def test_compare_circuit_demo_builders_enable_hover() -> None:
+    transpile_module = importlib.import_module("examples.compare_circuits_qiskit_transpile")
+    composite_module = importlib.import_module("examples.compare_circuits_composite_modes")
+    request = CompareExampleRequest(
+        left_label=None,
+        right_label=None,
+        highlight_differences=None,
+        show_summary=None,
+        sort=None,
+        top_k=None,
+        output=None,
+        show=False,
+        figsize=(11.0, 5.6),
+    )
+
+    transpile_payload = transpile_module.build_demo(request)
+    composite_payload = composite_module.build_demo(request)
+
+    assert transpile_payload.config.shared.appearance.hover.enabled is True
+    assert composite_payload.config.shared.appearance.hover.enabled is True
+
+
 def test_compare_composite_modes_builder_avoids_qft_deprecation_warning() -> None:
     if run_compare_demo_module.find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the QFT deprecation regression test")

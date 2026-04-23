@@ -19,6 +19,9 @@
 
 ### Fixed
 
+- Fundamental two-qubit decomposition blocks such as repeated `RZZ` gates now start in the correct collapsed state for managed exploration, so expanding one block in 3D no longer expands every matching gate in the figure
+- Circuit-compare demos now enable hover explicitly, so interactive backends expose the same hover details there as the core `compare_circuits(...)` API
+- The circuit-compare summary card now uses a taller layout with larger row spacing so all metrics stay readable instead of overlapping vertically
 - Managed 2D hovers now stay visually above the slider row, and the slider row no longer overlaps the lower managed buttons
 - Interactive histogram hovers now cover the uniform reference guide line with an explanation of the uniform baseline and how its value is derived
 - Quasi-probability histograms now keep a counts-like zero lower bound whenever all currently visible values are non-negative, while still preserving full support for genuinely negative quasi-distributions

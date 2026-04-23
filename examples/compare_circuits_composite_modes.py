@@ -19,9 +19,11 @@ except ImportError:
     )
 
 from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
     CircuitCompareConfig,
     CircuitCompareOptions,
     CircuitRenderOptions,
+    DrawSideConfig,
     OutputOptions,
 )
 
@@ -36,6 +38,11 @@ def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
         left_data=circuit,
         right_data=circuit,
         config=CircuitCompareConfig(
+            shared=DrawSideConfig(
+                appearance=CircuitAppearanceOptions(
+                    hover=True,
+                )
+            ),
             left_render=CircuitRenderOptions(
                 framework="qiskit",
                 composite_mode="compact",
