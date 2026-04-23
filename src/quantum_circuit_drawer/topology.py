@@ -314,26 +314,54 @@ def grid_topology(qubit_count: int) -> HardwareTopology:
     """Build a near-square ragged grid topology for the requested qubits."""
 
     _validate_positive_qubit_count(qubit_count)
-    columns = max(1, math.ceil(math.sqrt(float(qubit_count))))
+    columns = _compact_grid_column_count(qubit_count)
     node_ids = tuple(range(qubit_count))
+    row_starts = tuple(range(0, qubit_count, columns))
+    row_widths = tuple(min(columns, qubit_count - row_start) for row_start in row_starts)
+    row_offsets = tuple(
+        _compact_grid_row_offset(columns=columns, row_width=row_width) for row_width in row_widths
+    )
     coordinates: dict[HardwareNodeId, tuple[float, float]] = {}
     edges: list[tuple[HardwareNodeId, HardwareNodeId]] = []
-    for index in node_ids:
-        row = index // columns
-        column = index % columns
-        coordinates[index] = (float(column), float(-row))
-        if column > 0:
-            edges.append((index - 1, index))
-        if row > 0:
-            above_index = index - columns
-            if above_index >= 0:
-                edges.append((above_index, index))
+    for row, row_start in enumerate(row_starts):
+        row_width = row_widths[row]
+        row_offset = row_offsets[row]
+        for column in range(row_width):
+            index = row_start + column
+            coordinates[index] = (row_offset + float(column), float(-row))
+            if column > 0:
+                edges.append((index - 1, index))
+            if row > 0:
+                previous_row_start = row_starts[row - 1]
+                previous_row_width = row_widths[row - 1]
+                previous_row_offset = row_offsets[row - 1]
+                above_column = min(
+                    previous_row_width - 1,
+                    max(0, int(round(coordinates[index][0] - previous_row_offset))),
+                )
+                edges.append((previous_row_start + above_column, index))
     return HardwareTopology(
         node_ids=node_ids,
         edges=tuple(edges),
         coordinates=coordinates,
         name="grid",
     )
+
+
+def _compact_grid_column_count(qubit_count: int) -> int:
+    square_side = math.isqrt(qubit_count)
+    remainder = qubit_count - (square_side * square_side)
+    if remainder == 0:
+        return square_side
+    if remainder <= math.ceil(square_side / 2.0):
+        return square_side
+    return square_side + 1
+
+
+def _compact_grid_row_offset(*, columns: int, row_width: int) -> float:
+    if row_width == columns:
+        return 0.0
+    return float(columns - row_width) / 2.0
 
 
 def star_topology(qubit_count: int) -> HardwareTopology:

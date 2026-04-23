@@ -167,6 +167,25 @@ def test_builtin_topologies_accept_flexible_qubit_counts() -> None:
     assert len(quantum_circuit_drawer.honeycomb_topology(7).node_ids) == 7
 
 
+def test_grid_topology_prefers_square_core_for_small_remainders() -> None:
+    topology = quantum_circuit_drawer.grid_topology(10)
+
+    assert sorted({position[0] for position in topology.coordinates.values()}) == [
+        0.0,
+        1.0,
+        2.0,
+    ]
+    assert sorted({position[1] for position in topology.coordinates.values()}) == [
+        -3.0,
+        -2.0,
+        -1.0,
+        0.0,
+    ]
+    assert topology.coordinates[9] == (1.0, -3.0)
+    assert (7, 9) in topology.edges
+    assert (8, 9) not in topology.edges
+
+
 def test_static_topology_can_render_used_or_all_nodes_when_circuit_is_smaller() -> None:
     topology = HardwareTopology(
         node_ids=(0, 1, 2, 3),

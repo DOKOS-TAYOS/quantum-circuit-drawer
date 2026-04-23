@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Made flexible `grid` topologies keep a square core for small remainders, so counts such as 10 render as a compact `3 x 3` patch plus one centered extra node instead of widening to sparse rows
 - Made circuit comparison summaries narrower and slightly taller, removed the diff-column count row, and allowed `compare_circuits(...)` to use managed `pages`, `pages_controls`, and `slider` modes by rendering each side as its own normal circuit figure plus a compact summary figure
 - Reworked 3D topology handling around typed static, functional, 1D periodic, and 2D periodic definitions; built-in `line`, `grid`, `star`, `star_tree`, and `honeycomb` topologies now resize through functional builders, and new render options control full-topology versus used-node display and resize-on-fit behavior
 - Polished managed 2D exploration controls so `Wires`, `Ancillas`, and block actions only appear when they can actually change the current view, and moved the horizontal slider onto its own row above the lower button strip
