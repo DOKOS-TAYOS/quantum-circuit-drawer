@@ -126,6 +126,8 @@ def compare_circuits(
         right_axes=rendered_right_axes,
         config=resolved_compare_config,
         metrics=metrics,
+        left_text_color=left_prepared.pipeline.normalized_style.theme.text_color,
+        right_text_color=right_prepared.pipeline.normalized_style.theme.text_color,
     )
     if resolved_compare_config.output_path is not None:
         save_rendered_figure(figure, resolved_compare_config.output_path)
@@ -410,7 +412,7 @@ def highlight_compare_columns(
     if not columns:
         return
     column_spans = scene_column_spans(scene)
-    facecolor = "#f59e0b"
+    facecolor = scene.style.theme.accent_color
     for column in columns:
         column_span = column_spans.get(column)
         if column_span is None:
@@ -419,7 +421,7 @@ def highlight_compare_columns(
             column_span[0],
             column_span[1],
             color=facecolor,
-            alpha=0.09,
+            alpha=0.06,
             zorder=0.1,
             linewidth=0.0,
         )
@@ -474,11 +476,13 @@ def apply_compare_titles(
     right_axes: Axes,
     config: CircuitCompareConfig,
     metrics: CircuitCompareMetrics,
+    left_text_color: str,
+    right_text_color: str,
 ) -> None:
     """Apply per-side titles and the shared comparison summary."""
 
-    left_axes.set_title(config.left_title)
-    right_axes.set_title(config.right_title)
+    left_axes.set_title(config.left_title, color=left_text_color)
+    right_axes.set_title(config.right_title, color=right_text_color)
     if not config.show_summary:
         return
     summary_figure = cast("Figure", left_axes.figure)
@@ -496,4 +500,5 @@ def apply_compare_titles(
             f"(\u0394 {metrics.measurement_delta:+d})"
         ),
         fontsize=11.0,
+        color=left_text_color,
     )

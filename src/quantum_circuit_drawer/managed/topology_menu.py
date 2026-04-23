@@ -34,9 +34,9 @@ _ALL_TOPOLOGIES: tuple[TopologyName, ...] = (
     "star_tree",
     "honeycomb",
 )
-_MENU_LABEL_FONT_SIZE = 11.0
-_MENU_RADIO_MARKER_SIZE = 90.0
-_PAGE_WINDOW_MENU_BOUNDS = (0.76, 0.22, 0.2, 0.34)
+_MENU_LABEL_FONT_SIZE = 10.0
+_MENU_RADIO_MARKER_SIZE = 72.0
+_PAGE_WINDOW_MENU_BOUNDS = (0.77, 0.24, 0.17, 0.29)
 
 
 @dataclass(slots=True)

@@ -50,6 +50,17 @@ def _dispatch_motion_event_at_axes_center(figure: Figure, axes: object) -> None:
     figure.canvas.callbacks.process("motion_notify_event", event)
 
 
+def _dispatch_motion_event_at_data(figure: Figure, axes: object, *, x: float, y: float) -> None:
+    display_x, display_y = axes.transData.transform((x, y))
+    event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        float(display_x),
+        float(display_y),
+    )
+    figure.canvas.callbacks.process("motion_notify_event", event)
+
+
 def test_plot_histogram_interactive_mode_attaches_controls_and_windowed_view() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
@@ -345,6 +356,33 @@ def test_histogram_interactive_hover_reports_bitstring_and_value(
     assert annotation.get_visible() is True
     assert f"Bitstring: {state.visible_labels[0]}" in annotation.get_text()
     assert expected_value_label in annotation.get_text()
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_uniform_reference_line_shows_explanatory_hover() -> None:
+    result = plot_histogram(
+        {"00": 7, "01": 5, "10": 9, "11": 1},
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            show_uniform_reference=True,
+            figsize=(10.0, 4.0),
+        ),
+    )
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    result.figure.canvas.draw()
+
+    uniform_reference = (7 + 5 + 9 + 1) / 4.0
+    _dispatch_motion_event_at_data(result.figure, result.axes, x=1.5, y=uniform_reference)
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is True
+    assert "uniform" in annotation.get_text().lower()
+    assert "2^2" in annotation.get_text()
+    assert "22" in annotation.get_text()
 
     plt.close(result.figure)
 

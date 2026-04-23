@@ -119,14 +119,17 @@ def test_draw_quantum_circuit_adds_discrete_page_slider_for_wrapped_managed_figu
     horizontal_slider = page_slider.horizontal_slider
     assert horizontal_slider is not None
 
-    assert len(figure.axes) == 5
+    assert len(figure.axes) == 2
     assert page_slider.vertical_slider is None
     assert page_slider.start_column == 0
+    assert page_slider.wire_filter_button is None
+    assert page_slider.ancilla_toggle_button is None
+    assert page_slider.block_toggle_button is None
     assert slider_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#171221"))
     assert horizontal_slider.label.get_text() == ""
     assert horizontal_slider._handle.get_markerfacecolor() == "#b794f6"
-    assert slider_bottom < 0.1
-    assert slider_height > 0.05
+    assert slider_bottom > 0.1
+    assert slider_height >= 0.04
     assert axes.get_xlim()[0] == pytest.approx(0.0)
     initial_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
 
@@ -250,7 +253,7 @@ def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider
     assert axes.figure is figure
     assert_saved_image_has_visible_content(output)
     assert saved_axes_counts == [1]
-    assert len(figure.axes) == 5
+    assert len(figure.axes) == 2
     plt.close(figure)
 
 
@@ -707,7 +710,10 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     )
     assert page_slider.vertical_slider.label.get_text() == ""
     assert page_slider.start_row == 0
-    assert len(figure.axes) == 8
+    assert len(figure.axes) == 6
+    assert page_slider.wire_filter_button is not None
+    assert page_slider.ancilla_toggle_button is None
+    assert page_slider.block_toggle_button is None
 
     visible_qubits_box = page_slider.visible_qubits_box
     assert visible_qubits_box is not None
@@ -792,7 +798,10 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     assert page_slider.visible_qubits_box is not None
     assert page_slider.visible_qubits_decrement_button is not None
     assert page_slider.visible_qubits_increment_button is not None
-    assert len(figure.axes) == 9
+    assert len(figure.axes) == 6
+    assert page_slider.wire_filter_button is None
+    assert page_slider.ancilla_toggle_button is None
+    assert page_slider.block_toggle_button is None
 
     initial_xlim = axes.get_xlim()
     initial_ylim = axes.get_ylim()
@@ -870,6 +879,23 @@ def test_draw_quantum_circuit_page_slider_preserves_control_widgets_during_scrol
     assert page_slider.visible_qubits_box is visible_qubits_box
     assert page_slider.visible_qubits_decrement_button is visible_qubits_decrement_button
     assert page_slider.visible_qubits_increment_button is visible_qubits_increment_button
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_slider_keeps_main_axes_above_slider_row() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.horizontal_axes is not None
+    assert axes.get_zorder() > page_slider.horizontal_axes.get_zorder()
 
     plt.close(figure)
 

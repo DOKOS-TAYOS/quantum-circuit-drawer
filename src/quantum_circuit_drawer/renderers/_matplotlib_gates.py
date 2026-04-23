@@ -15,6 +15,7 @@ from ..layout.scene import (
     SceneControl,
     SceneGate,
     SceneGateAnnotation,
+    SceneGroupHighlight,
     SceneMeasurement,
     SceneSwap,
     SceneText,
@@ -55,6 +56,38 @@ from ._matplotlib_visual_state import (
     line_width_scale_for_visual_state,
     measurement_facecolor_for_visual_state,
 )
+
+
+def draw_group_highlights(
+    ax: Axes,
+    highlights: Sequence[SceneGroupHighlight],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> tuple[Patch, ...] | None:
+    if not highlights:
+        return None
+
+    patches: list[Patch] = []
+    for highlight in highlights:
+        patch = FancyBboxPatch(
+            (
+                highlight.x + x_offset - (highlight.width / 2.0),
+                highlight.y + y_offset - (highlight.height / 2.0),
+            ),
+            highlight.width,
+            highlight.height,
+            boxstyle="round,pad=0.03,rounding_size=0.08",
+            facecolor=scene.style.theme.accent_color,
+            edgecolor=scene.style.theme.accent_color,
+            linewidth=1.0,
+            zorder=OCCLUSION_LAYER_ZORDER - 1.0,
+            alpha=0.08 * alpha_for_visual_state(highlight.visual_state),
+        )
+        patch.set_gid("decomposition-group-highlight")
+        patches.append(_add_patch_artist(ax, patch))
+    return tuple(patches)
 
 
 def draw_gate_box(

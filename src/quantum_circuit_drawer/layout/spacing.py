@@ -48,6 +48,8 @@ def uses_compact_label_width(
 ) -> bool:
     """Return whether a short non-parametric gate should keep a square footprint."""
 
+    if operation.metadata.get("compact_width") is True:
+        return True
     if subtitle is not None:
         return False
     if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:

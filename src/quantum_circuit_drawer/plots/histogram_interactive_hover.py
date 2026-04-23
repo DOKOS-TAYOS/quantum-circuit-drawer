@@ -84,6 +84,9 @@ def attach_histogram_hover(
     kind: HistogramKind,
     label_mode: HistogramStateLabelMode,
     theme: DrawTheme,
+    uniform_reference_value: float | None = None,
+    reference_total: float | None = None,
+    bit_width: int | None = None,
 ) -> None:
     """Attach hover annotations to histogram bars."""
 
@@ -110,39 +113,59 @@ def attach_histogram_hover(
     canvas = axes.figure.canvas
     if canvas is None:
         return
-    active_index: int | None = None
+    active_target: tuple[str, int | None] | None = None
     bars = tuple(patch for patch in axes.patches if isinstance(patch, Rectangle))
 
     def hide_annotation() -> None:
-        nonlocal active_index
+        nonlocal active_target
         if annotation.get_visible():
             annotation.set_visible(False)
-            active_index = None
+            active_target = None
             canvas.draw_idle()
 
     def on_motion(event: Event) -> None:
-        nonlocal active_index
+        nonlocal active_target
         if not isinstance(event, MouseEvent) or event.inaxes is not axes:
             hide_annotation()
             return
         hovered_index = _hovered_bar_index(bars, event)
-        if hovered_index is None:
-            hide_annotation()
-            return
-        if active_index == hovered_index:
-            return
-        annotation.xy = (event.x, event.y)
-        annotation.set_text(
-            _histogram_hover_text(
-                state_labels[hovered_index],
-                values[hovered_index],
-                kind,
-                label_mode=label_mode,
+        if hovered_index is not None:
+            if active_target == ("bar", hovered_index):
+                return
+            annotation.xy = (event.x, event.y)
+            annotation.set_text(
+                _histogram_hover_text(
+                    state_labels[hovered_index],
+                    values[hovered_index],
+                    kind,
+                    label_mode=label_mode,
+                )
             )
-        )
-        annotation.set_visible(True)
-        active_index = hovered_index
-        canvas.draw_idle()
+            annotation.set_visible(True)
+            active_target = ("bar", hovered_index)
+            canvas.draw_idle()
+            return
+        if _hovered_uniform_reference(
+            axes,
+            event,
+            uniform_reference_value=uniform_reference_value,
+        ):
+            if active_target == ("uniform", None):
+                return
+            annotation.xy = (event.x, event.y)
+            annotation.set_text(
+                _uniform_reference_hover_text(
+                    kind=kind,
+                    uniform_reference_value=uniform_reference_value,
+                    reference_total=reference_total,
+                    bit_width=bit_width,
+                )
+            )
+            annotation.set_visible(True)
+            active_target = ("uniform", None)
+            canvas.draw_idle()
+            return
+        hide_annotation()
 
     callback_id = canvas.mpl_connect("motion_notify_event", on_motion)
     set_hover_state(axes, HoverState(annotation=annotation, callback_id=callback_id))
@@ -177,6 +200,37 @@ def _histogram_hover_text(
         f"{state_label_name}: {displayed_state_label}\n"
         f"{value_label}: {_formatted_histogram_value(value, kind)}"
     )
+
+
+def _hovered_uniform_reference(
+    axes: Axes,
+    event: MouseEvent,
+    *,
+    uniform_reference_value: float | None,
+) -> bool:
+    if uniform_reference_value is None or event.xdata is None or event.ydata is None:
+        return False
+    _, line_y = axes.transData.transform((0.0, float(uniform_reference_value)))
+    return abs(float(event.y) - float(line_y)) <= 6.0
+
+
+def _uniform_reference_hover_text(
+    *,
+    kind: HistogramKind,
+    uniform_reference_value: float | None,
+    reference_total: float | None,
+    bit_width: int | None,
+) -> str:
+    if uniform_reference_value is None or bit_width is None:
+        return "Uniform reference"
+    if kind is HistogramKind.COUNTS and reference_total is not None:
+        total_text = _formatted_histogram_value(reference_total, HistogramKind.COUNTS)
+        reference_text = _formatted_histogram_value(uniform_reference_value, kind)
+        return (
+            f"Uniform reference\nExpected counts: {total_text} / 2^{bit_width} = {reference_text}"
+        )
+    reference_text = _formatted_histogram_value(uniform_reference_value, kind)
+    return f"Uniform reference\nUniform probability: 1 / 2^{bit_width} = {reference_text}"
 
 
 def _formatted_histogram_value(value: float, kind: HistogramKind) -> str:

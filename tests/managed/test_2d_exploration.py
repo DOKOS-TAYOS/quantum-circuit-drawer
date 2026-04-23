@@ -234,14 +234,23 @@ def test_slider_block_toggle_expands_and_recovers_semantic_block() -> None:
         )
         page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
         assert page_slider is not None
+        assert page_slider.block_toggle_button is None
 
         page_slider.select_operation("op:0")
+
+        assert page_slider.block_toggle_button is not None
+        assert page_slider.block_toggle_axes is not None
+
         page_slider.toggle_selected_block()
 
         assert page_slider.exploration is not None
         assert page_slider.exploration.selected_operation_id == "op:0.0"
         assert "QFT" not in {gate.label for gate in page_slider.scene.gates}
         assert {"H", "X", "Z"}.issubset({gate.label for gate in page_slider.scene.gates})
+        assert any(
+            getattr(patch, "get_gid", lambda: None)() == "decomposition-group-highlight"
+            for patch in axes.patches
+        )
 
         page_slider.toggle_selected_block()
 
@@ -249,6 +258,22 @@ def test_slider_block_toggle_expands_and_recovers_semantic_block() -> None:
         assert "QFT" in {gate.label for gate in page_slider.scene.gates}
     finally:
         plt.close(figure)
+
+
+def test_collapsed_long_label_block_keeps_compact_single_column_width() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_long_label_block_circuits()
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+
+    transformed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=set(catalog.initial_collapsed_block_ids),
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    scene = LayoutEngine().compute(lower_semantic_circuit(transformed.semantic_ir), DrawStyle())
+
+    assert len(scene.gates) == 1
+    assert scene.gates[0].width == pytest.approx(DrawStyle().gate_width)
 
 
 def test_page_window_click_selection_uses_visible_page_coordinates() -> None:
@@ -735,6 +760,77 @@ def _interleaved_semantic_block_circuits() -> tuple[SemanticCircuitIR, SemanticC
                             decomposition_origin="Prep",
                             composite_label="Prep",
                             location=(1, 2),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
+    return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_long_label_block_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(2)
+    )
+    current_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="ProbabilityFlowBlock",
+                        label="ProbabilityFlowBlock",
+                        target_wires=("q0", "q1"),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="ProbabilityFlowBlock",
+                            native_kind="composite",
+                            composite_label="ProbabilityFlowBlock",
+                            location=(0,),
+                        ),
+                        metadata={"collapsed_block": True},
+                    ),
+                )
+            ),
+        ),
+    )
+    expanded_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Hadamard",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Hadamard",
+                            native_kind="gate",
+                            decomposition_origin="ProbabilityFlowBlock",
+                            composite_label="ProbabilityFlowBlock",
+                            location=(0, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="CX",
+                            native_kind="gate",
+                            decomposition_origin="ProbabilityFlowBlock",
+                            composite_label="ProbabilityFlowBlock",
+                            location=(0, 1),
                         ),
                     ),
                 )

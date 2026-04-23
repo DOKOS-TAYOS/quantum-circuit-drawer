@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Polished managed 2D exploration controls so `Wires`, `Ancillas`, and block actions only appear when they can actually change the current view, and moved the horizontal slider onto its own row above the lower button strip
+- Made compare-mode difference bands subtler and theme-aware, kept hover and zoom-responsive text behavior on compare axes, and applied theme text colors to per-side titles and the shared summary for dark-mode readability
+- Tightened 2D exploration emphasis so the selected operation stands out more clearly than related neighbors, added low-alpha grouped highlight boxes around expanded decomposition members, and kept collapsed synthetic blocks compact even with long labels
+- Normalized probability-style visible gate labels such as `PROBABILITY`, `PROB`, and `PROBS` to `Prob` while preserving the native result kind in hover details
+- Shrunk the managed 3D topology selector panel slightly by reducing its bounds, marker size, and label size together
+
+### Fixed
+
+- Managed 2D hovers now stay visually above the slider row, and the slider row no longer overlaps the lower managed buttons
+- Interactive histogram hovers now cover the uniform reference guide line with an explanation of the uniform baseline and how its value is derived
+
 ## [0.4.0] - 2026-04-22
 
 ### Added

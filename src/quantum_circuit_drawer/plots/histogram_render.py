@@ -81,12 +81,13 @@ def draw_histogram_axes(
     if kind is HistogramKind.QUASI:
         axes.axhline(0.0, color=reference_line_color(theme), linewidth=1.0, linestyle="--")
     if uniform_reference_value is not None:
-        axes.axhline(
+        uniform_line = axes.axhline(
             uniform_reference_value,
             color=reference_line_color(theme),
             linewidth=1.2,
             linestyle=":",
         )
+        uniform_line.set_gid("histogram-uniform-reference-line")
     axes.set_xticks(list(positions))
     axes.set_xticklabels(tick_labels_for_states(display_labels, thin=thin_xlabels))
     if positions:

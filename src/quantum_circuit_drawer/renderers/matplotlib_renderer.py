@@ -49,6 +49,7 @@ from .matplotlib_primitives import (
     draw_gate_annotation,
     draw_gate_box,
     draw_gate_label,
+    draw_group_highlights,
     draw_measurement_box,
     draw_measurement_symbol,
     draw_swaps,
@@ -186,6 +187,13 @@ class MatplotlibRenderer(BaseRenderer):
             x_end=wire_x_end,
             text_fit_context=gate_text_context,
             text_fit_cache=gate_text_cache,
+        )
+        draw_group_highlights(
+            axes,
+            projected_page.group_highlights,
+            scene,
+            x_offset=x_offset,
+            y_offset=y_offset,
         )
         draw_barriers(axes, projected_page.barriers, scene, x_offset=x_offset, y_offset=y_offset)
         draw_connections(

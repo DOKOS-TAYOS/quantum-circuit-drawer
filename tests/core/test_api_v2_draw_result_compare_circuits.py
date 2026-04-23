@@ -29,6 +29,11 @@ from quantum_circuit_drawer import (
     draw_quantum_circuit,
 )
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
+from quantum_circuit_drawer.renderers._matplotlib_figure import (
+    get_hover_state,
+    get_text_scaling_state,
+)
+from quantum_circuit_drawer.style.theme import resolve_theme
 from tests.support import (
     assert_figure_has_visible_content,
     assert_saved_image_has_visible_content,
@@ -399,6 +404,53 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
     assert_figure_has_visible_content(result.figure)
 
     plt.close(result.figure)
+
+
+def test_compare_circuits_keeps_hover_zoom_state_and_dark_titles_readable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.request.figure_backend_name",
+        lambda _figure: "qtagg",
+    )
+
+    figure, axes = plt.subplots(1, 2, figsize=(9.0, 3.2))
+    theme = resolve_theme("dark")
+
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(
+                appearance=CircuitAppearanceOptions(
+                    hover=True,
+                    style={"theme": "dark"},
+                )
+            ),
+            output=OutputOptions(show=False),
+        ),
+        axes=(axes[0], axes[1]),
+    )
+
+    assert result.axes == (axes[0], axes[1])
+    assert get_hover_state(result.axes[0]) is not None
+    assert get_hover_state(result.axes[1]) is not None
+    assert get_text_scaling_state(result.axes[0]) is not None
+    assert get_text_scaling_state(result.axes[1]) is not None
+    assert result.axes[0].title.get_color() == theme.text_color
+    assert result.axes[1].title.get_color() == theme.text_color
+    assert figure._suptitle is not None
+    assert figure._suptitle.get_color() == theme.text_color
+
+    diff_bands = [
+        patch
+        for patch in result.axes[0].patches
+        if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-diff-band"
+    ]
+    assert diff_bands
+    assert diff_bands[0].get_alpha() < 0.09
+
+    plt.close(figure)
 
 
 def test_compare_circuits_uses_caller_managed_axes_and_saves_single_output(

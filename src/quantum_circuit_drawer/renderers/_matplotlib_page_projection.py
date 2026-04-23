@@ -12,6 +12,7 @@ from ..layout.scene import (
     SceneControl,
     SceneGate,
     SceneGateAnnotation,
+    SceneGroupHighlight,
     SceneMeasurement,
     ScenePage,
     SceneSwap,
@@ -24,6 +25,7 @@ class _ProjectedPage:
     connections: tuple[SceneConnection, ...]
     gates: tuple[SceneGate, ...]
     gate_annotations: tuple[SceneGateAnnotation, ...]
+    group_highlights: tuple[SceneGroupHighlight, ...]
     measurements: tuple[SceneMeasurement, ...]
     controls: tuple[SceneControl, ...]
     swaps: tuple[SceneSwap, ...]
@@ -36,6 +38,7 @@ _SceneColumnItem = TypeVar(
     SceneControl,
     SceneGate,
     SceneGateAnnotation,
+    SceneGroupHighlight,
     SceneMeasurement,
     SceneSwap,
 )
@@ -68,6 +71,7 @@ def project_pages(scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
     connections = bucket_by_page(scene.connections, page_index_lookup, page_count)
     gates = bucket_by_page(scene.gates, page_index_lookup, page_count)
     gate_annotations = bucket_by_page(scene.gate_annotations, page_index_lookup, page_count)
+    group_highlights = bucket_by_page(scene.group_highlights, page_index_lookup, page_count)
     measurements = bucket_by_page(scene.measurements, page_index_lookup, page_count)
     controls = bucket_by_page(scene.controls, page_index_lookup, page_count)
     swaps = bucket_by_page(scene.swaps, page_index_lookup, page_count)
@@ -77,6 +81,7 @@ def project_pages(scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
             connections=connections[page_index],
             gates=gates[page_index],
             gate_annotations=gate_annotations[page_index],
+            group_highlights=group_highlights[page_index],
             measurements=measurements[page_index],
             controls=controls[page_index],
             swaps=swaps[page_index],

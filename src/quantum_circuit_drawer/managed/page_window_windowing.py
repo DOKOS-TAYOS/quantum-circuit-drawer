@@ -12,6 +12,7 @@ from ..layout.scene import (
     SceneControl,
     SceneGate,
     SceneGateAnnotation,
+    SceneGroupHighlight,
     SceneMeasurement,
     ScenePage,
     SceneSwap,
@@ -44,6 +45,7 @@ def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
     shifted_connections: list[SceneConnection] = []
     shifted_swaps: list[SceneSwap] = []
     shifted_barriers: list[SceneBarrier] = []
+    shifted_group_highlights: list[SceneGroupHighlight] = []
     shifted_measurements: list[SceneMeasurement] = []
     for page_index in _visible_page_indexes(state):
         source_page = state.scene.pages[page_index]
@@ -55,6 +57,9 @@ def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
         shifted_connections.extend(_items_for_page(state.scene.connections, page=source_page))
         shifted_swaps.extend(_items_for_page(state.scene.swaps, page=source_page))
         shifted_barriers.extend(_items_for_page(state.scene.barriers, page=source_page))
+        shifted_group_highlights.extend(
+            _items_for_page(state.scene.group_highlights, page=source_page)
+        )
         shifted_measurements.extend(_items_for_page(state.scene.measurements, page=source_page))
     return LayoutScene(
         width=_visible_page_width(state),
@@ -79,6 +84,7 @@ def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
         hover=state.scene.hover,
         wire_y_positions=dict(state.scene.wire_y_positions),
         page_count_for_text_scale=state.total_pages,
+        group_highlights=tuple(shifted_group_highlights),
     )
 
 
@@ -130,6 +136,7 @@ def _project_page(scene: LayoutScene, page_index: int) -> _ProjectedPage:
         connections=_items_for_page(scene.connections, page=page),
         gates=_items_for_page(scene.gates, page=page),
         gate_annotations=_items_for_page(scene.gate_annotations, page=page),
+        group_highlights=_items_for_page(scene.group_highlights, page=page),
         measurements=_items_for_page(scene.measurements, page=page),
         controls=_items_for_page(scene.controls, page=page),
         swaps=_items_for_page(scene.swaps, page=page),

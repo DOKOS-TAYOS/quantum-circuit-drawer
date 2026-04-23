@@ -170,6 +170,16 @@ class SceneWireFoldMarker:
 
 
 @dataclass(slots=True)
+class SceneGroupHighlight:
+    column: int
+    x: float
+    y: float
+    width: float
+    height: float
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
+
+
+@dataclass(slots=True)
 class ScenePage:
     index: int
     start_column: int
@@ -200,3 +210,4 @@ class LayoutScene:
     hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
     wire_y_positions: dict[str, float] = field(default_factory=dict)
     page_count_for_text_scale: int | None = None
+    group_highlights: tuple[SceneGroupHighlight, ...] = ()

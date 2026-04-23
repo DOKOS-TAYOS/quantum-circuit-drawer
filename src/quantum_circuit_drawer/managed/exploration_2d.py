@@ -30,6 +30,7 @@ from ..layout.scene import (
     SceneControl,
     SceneGate,
     SceneGateAnnotation,
+    SceneGroupHighlight,
     SceneMeasurement,
     SceneSwap,
     SceneVisualState,
@@ -141,6 +142,15 @@ class ExplorationBlockAction:
 
 
 @dataclass(frozen=True, slots=True)
+class ExplorationControlAvailability:
+    """Resolved visibility for managed exploration controls."""
+
+    show_wire_filter: bool
+    show_ancilla_toggle: bool
+    show_block_toggle: bool
+
+
+@dataclass(frozen=True, slots=True)
 class SceneClickTarget:
     """Clickable scene-space hit target for operation selection."""
 
@@ -225,18 +235,9 @@ def transform_semantic_circuit(
 ) -> TransformedExplorationCircuit:
     """Apply collapse and wire-visibility transforms to the expanded semantic source."""
 
-    collapsed_operations = _collapse_top_level_blocks(
-        catalog.expanded_semantic_ir,
-        blocks=catalog.blocks,
+    collapsed_circuit = _collapsed_semantic_circuit(
+        catalog,
         collapsed_block_ids=collapsed_block_ids,
-    )
-    collapsed_circuit = SemanticCircuitIR(
-        quantum_wires=catalog.expanded_semantic_ir.quantum_wires,
-        classical_wires=catalog.expanded_semantic_ir.classical_wires,
-        layers=pack_semantic_operations(collapsed_operations),
-        name=catalog.expanded_semantic_ir.name,
-        metadata=dict(catalog.expanded_semantic_ir.metadata),
-        diagnostics=tuple(catalog.expanded_semantic_ir.diagnostics),
     )
 
     visible_wire_ids = _visible_wire_ids(
@@ -268,6 +269,52 @@ def transform_semantic_circuit(
             all_wires=collapsed_circuit.all_wires,
             visible_wire_ids=visible_wire_ids,
         ),
+    )
+
+
+def exploration_control_availability(
+    catalog: ExplorationCatalog,
+    *,
+    collapsed_block_ids: set[str] | frozenset[str],
+    wire_filter_mode: WireFilterMode,
+    show_ancillas: bool,
+    selected_operation_id: str | None,
+) -> ExplorationControlAvailability:
+    """Return which managed exploration controls can currently change the view."""
+
+    collapsed_circuit = _collapsed_semantic_circuit(
+        catalog,
+        collapsed_block_ids=collapsed_block_ids,
+    )
+    all_visible_wire_ids = _visible_wire_ids(
+        collapsed_circuit,
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=show_ancillas,
+    )
+    active_visible_wire_ids = _visible_wire_ids(
+        collapsed_circuit,
+        wire_filter_mode=WireFilterMode.ACTIVE,
+        show_ancillas=show_ancillas,
+    )
+    ancillas_shown_wire_ids = _visible_wire_ids(
+        collapsed_circuit,
+        wire_filter_mode=wire_filter_mode,
+        show_ancillas=True,
+    )
+    ancillas_hidden_wire_ids = _visible_wire_ids(
+        collapsed_circuit,
+        wire_filter_mode=wire_filter_mode,
+        show_ancillas=False,
+    )
+    return ExplorationControlAvailability(
+        show_wire_filter=all_visible_wire_ids != active_visible_wire_ids,
+        show_ancilla_toggle=ancillas_shown_wire_ids != ancillas_hidden_wire_ids,
+        show_block_toggle=selected_block_action(
+            catalog,
+            selected_operation_id=selected_operation_id,
+            collapsed_block_ids=collapsed_block_ids,
+        )
+        is not None,
     )
 
 
@@ -380,11 +427,15 @@ def apply_scene_visual_state(
 
     scope = selection_scope(circuit, selected_operation_id=selected_operation_id)
     if scope.selected_operation_id is None:
-        return scene
+        return replace(scene, group_highlights=())
 
     emphasized_operation_ids = set(scope.emphasized_operation_ids)
     selected_wire_ids = set(scope.selected_wire_ids)
     operation_ids = {semantic_operation_id(operation) for operation in _flatten_operations(circuit)}
+    grouped_operation_ids = _group_highlight_operation_ids(
+        circuit,
+        selected_operation_id=scope.selected_operation_id,
+    )
     return replace(
         scene,
         wires=tuple(
@@ -473,6 +524,10 @@ def apply_scene_visual_state(
                 ),
             )
             for text in scene.texts
+        ),
+        group_highlights=_group_highlights_for_operation_ids(
+            scene,
+            grouped_operation_ids=grouped_operation_ids,
         ),
     )
 
@@ -630,6 +685,26 @@ def _collapse_top_level_blocks(
     return tuple(collapsed_operations)
 
 
+def _collapsed_semantic_circuit(
+    catalog: ExplorationCatalog,
+    *,
+    collapsed_block_ids: set[str] | frozenset[str],
+) -> SemanticCircuitIR:
+    collapsed_operations = _collapse_top_level_blocks(
+        catalog.expanded_semantic_ir,
+        blocks=catalog.blocks,
+        collapsed_block_ids=collapsed_block_ids,
+    )
+    return SemanticCircuitIR(
+        quantum_wires=catalog.expanded_semantic_ir.quantum_wires,
+        classical_wires=catalog.expanded_semantic_ir.classical_wires,
+        layers=pack_semantic_operations(collapsed_operations),
+        name=catalog.expanded_semantic_ir.name,
+        metadata=dict(catalog.expanded_semantic_ir.metadata),
+        diagnostics=tuple(catalog.expanded_semantic_ir.diagnostics),
+    )
+
+
 def _collapsed_block_operation(
     block: ExplorationBlock,
     *,
@@ -658,6 +733,7 @@ def _collapsed_block_operation(
         ),
         metadata={
             "collapsed_block": True,
+            "compact_width": True,
             "suppress_target_annotations": True,
         },
     )
@@ -722,6 +798,167 @@ def _hidden_wire_ranges(
             )
         )
     return tuple(ranges)
+
+
+def _group_highlight_operation_ids(
+    circuit: SemanticCircuitIR,
+    *,
+    selected_operation_id: str | None,
+) -> frozenset[str]:
+    if selected_operation_id is None:
+        return frozenset()
+
+    operations = _flatten_operations(circuit)
+    selected_operation = next(
+        (
+            operation
+            for operation in operations
+            if semantic_operation_id(operation) == selected_operation_id
+        ),
+        None,
+    )
+    if selected_operation is None:
+        return frozenset()
+
+    selected_group_key = _decomposition_group_key(selected_operation)
+    if selected_group_key is None:
+        return frozenset()
+
+    return frozenset(
+        semantic_operation_id(operation)
+        for operation in operations
+        if _decomposition_group_key(operation) == selected_group_key
+    )
+
+
+def _decomposition_group_key(
+    operation: SemanticOperationIR,
+) -> tuple[int, str] | None:
+    if operation.metadata.get("collapsed_block") is True:
+        return None
+    location = operation.provenance.location
+    composite_label = (
+        operation.provenance.composite_label or operation.provenance.decomposition_origin
+    )
+    if location is None or len(location) < 2 or composite_label is None:
+        return None
+    return int(location[0]), composite_label
+
+
+def _group_highlights_for_operation_ids(
+    scene: LayoutScene,
+    *,
+    grouped_operation_ids: frozenset[str],
+) -> tuple[SceneGroupHighlight, ...]:
+    if not grouped_operation_ids:
+        return ()
+
+    bounds_by_operation_id: dict[str, list[float]] = {}
+    connection_half_width = max(0.06, scene.style.control_radius * 0.6)
+
+    for gate in scene.gates:
+        _extend_group_bounds(
+            bounds_by_operation_id,
+            operation_id=gate.operation_id,
+            grouped_operation_ids=grouped_operation_ids,
+            column=gate.column,
+            x_min=gate.x - (gate.width / 2.0),
+            x_max=gate.x + (gate.width / 2.0),
+            y_min=gate.y - (gate.height / 2.0),
+            y_max=gate.y + (gate.height / 2.0),
+        )
+    for measurement in scene.measurements:
+        _extend_group_bounds(
+            bounds_by_operation_id,
+            operation_id=measurement.operation_id,
+            grouped_operation_ids=grouped_operation_ids,
+            column=measurement.column,
+            x_min=measurement.x - (measurement.width / 2.0),
+            x_max=measurement.x + (measurement.width / 2.0),
+            y_min=measurement.quantum_y - (measurement.height / 2.0),
+            y_max=measurement.quantum_y + (measurement.height / 2.0),
+        )
+    for control in scene.controls:
+        _extend_group_bounds(
+            bounds_by_operation_id,
+            operation_id=control.operation_id,
+            grouped_operation_ids=grouped_operation_ids,
+            column=control.column,
+            x_min=control.x - scene.style.control_radius,
+            x_max=control.x + scene.style.control_radius,
+            y_min=control.y - scene.style.control_radius,
+            y_max=control.y + scene.style.control_radius,
+        )
+    for swap in scene.swaps:
+        _extend_group_bounds(
+            bounds_by_operation_id,
+            operation_id=swap.operation_id,
+            grouped_operation_ids=grouped_operation_ids,
+            column=swap.column,
+            x_min=swap.x - swap.marker_size,
+            x_max=swap.x + swap.marker_size,
+            y_min=swap.y_top - swap.marker_size,
+            y_max=swap.y_bottom + swap.marker_size,
+        )
+    for connection in scene.connections:
+        _extend_group_bounds(
+            bounds_by_operation_id,
+            operation_id=connection.operation_id,
+            grouped_operation_ids=grouped_operation_ids,
+            column=connection.column,
+            x_min=connection.x - connection_half_width,
+            x_max=connection.x + connection_half_width,
+            y_min=min(connection.y_start, connection.y_end),
+            y_max=max(connection.y_start, connection.y_end),
+        )
+
+    x_padding = max(0.06, scene.style.gate_width * 0.08)
+    y_padding = max(0.08, scene.style.gate_height * 0.1)
+    highlights: list[SceneGroupHighlight] = []
+    for bounds in bounds_by_operation_id.values():
+        column, x_min, x_max, y_min, y_max = bounds
+        highlights.append(
+            SceneGroupHighlight(
+                column=int(column),
+                x=(x_min + x_max) / 2.0,
+                y=(y_min + y_max) / 2.0,
+                width=(x_max - x_min) + (x_padding * 2.0),
+                height=(y_max - y_min) + (y_padding * 2.0),
+                visual_state=SceneVisualState.HIGHLIGHTED,
+            )
+        )
+    return tuple(sorted(highlights, key=lambda highlight: (highlight.column, highlight.x)))
+
+
+def _extend_group_bounds(
+    bounds_by_operation_id: dict[str, list[float]],
+    *,
+    operation_id: str | None,
+    grouped_operation_ids: frozenset[str],
+    column: int,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+) -> None:
+    if operation_id is None or operation_id not in grouped_operation_ids:
+        return
+
+    bounds = bounds_by_operation_id.get(operation_id)
+    if bounds is None:
+        bounds_by_operation_id[operation_id] = [
+            float(column),
+            float(x_min),
+            float(x_max),
+            float(y_min),
+            float(y_max),
+        ]
+        return
+
+    bounds[1] = min(bounds[1], float(x_min))
+    bounds[2] = max(bounds[2], float(x_max))
+    bounds[3] = min(bounds[3], float(y_min))
+    bounds[4] = max(bounds[4], float(y_max))
 
 
 def _initial_collapsed_block_ids(

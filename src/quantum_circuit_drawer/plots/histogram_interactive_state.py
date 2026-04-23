@@ -258,6 +258,12 @@ class HistogramInteractiveState:
                 kind=self.kind,
                 label_mode=self.label_mode,
                 theme=self.theme,
+                uniform_reference_value=uniform_reference,
+                reference_total=float(sum(values_by_state.values())),
+                bit_width=resolved_histogram_bit_width(
+                    bit_width=self.bit_width,
+                    qubits=self.active_qubits,
+                ),
             )
         sync_slider(self)
         sync_marginal_text_box(self)

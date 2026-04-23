@@ -55,6 +55,8 @@ def format_gate_name(name: str) -> str:
 
     compact = name.replace("_", "").replace("-", "")
     uppercase = compact.upper()
+    if uppercase in {"PROB", "PROBS", "PROBABILITY"}:
+        return "Prob"
     if uppercase == "ISWAP":
         return "iSWAP"
     if uppercase.endswith("DG") and compact.isalpha() and 3 <= len(compact) <= 5:

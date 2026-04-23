@@ -10,9 +10,9 @@ def alpha_for_visual_state(visual_state: SceneVisualState) -> float:
     """Return the alpha multiplier for one scene visual state."""
 
     if visual_state is SceneVisualState.DIMMED:
-        return 0.22
+        return 0.2
     if visual_state is SceneVisualState.RELATED:
-        return 0.88
+        return 0.74
     return 1.0
 
 
@@ -20,9 +20,9 @@ def line_width_scale_for_visual_state(visual_state: SceneVisualState) -> float:
     """Return the line-width multiplier for one scene visual state."""
 
     if visual_state is SceneVisualState.HIGHLIGHTED:
-        return 1.35
+        return 1.5
     if visual_state is SceneVisualState.RELATED:
-        return 1.15
+        return 1.1
     return 1.0
 
 

@@ -21,6 +21,9 @@ from quantum_circuit_drawer.utils.formatting import (
         ("iSWAP", "iSWAP"),
         ("u2", "U2"),
         ("rx", "RX"),
+        ("PROBABILITY", "Prob"),
+        ("PROB", "Prob"),
+        ("PROBS", "Prob"),
         ("controlled-swap", "controlled-swap"),
     ],
 )

@@ -33,6 +33,7 @@ from .exploration_2d import (
     append_wire_fold_markers,
     apply_scene_visual_state,
     clicked_operation_id,
+    exploration_control_availability,
     managed_exploration_state,
     next_selected_operation_id_for_block_action,
     selected_block_action,
@@ -51,9 +52,16 @@ if TYPE_CHECKING:
 
 _VIEWPORT_EPSILON = 1e-6
 _DEFAULT_VISIBLE_QUBITS = 15
-_WIRE_FILTER_BUTTON_BOUNDS = (0.62, 0.05, 0.12, 0.06)
-_ANCILLA_BUTTON_BOUNDS = (0.75, 0.05, 0.12, 0.06)
-_BLOCK_TOGGLE_BUTTON_BOUNDS = (0.88, 0.05, 0.09, 0.06)
+_OPTIONAL_CONTROL_BOTTOM = 0.05
+_OPTIONAL_CONTROL_HEIGHT = 0.06
+_OPTIONAL_CONTROL_RIGHT = 0.97
+_OPTIONAL_CONTROL_GAP = 0.01
+_WIRE_FILTER_BUTTON_WIDTH = 0.13
+_ANCILLA_BUTTON_WIDTH = 0.13
+_BLOCK_TOGGLE_BUTTON_WIDTH = 0.18
+_MAIN_AXES_ZORDER = 3.0
+_SLIDER_CONTROL_ZORDER = 2.0
+_OPTIONAL_BUTTON_ZORDER = 1.0
 
 __all__ = [
     "_DEFAULT_VISIBLE_QUBITS",
@@ -491,6 +499,7 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     clear_hover_state(state.axes)
     state.axes.clear()
     state.axes.set_position(layout.main_axes_bounds)
+    state.axes.set_zorder(_MAIN_AXES_ZORDER)
     setattr(state.axes, "_quantum_circuit_drawer_windowed_clip", True)
     set_viewport_width(state.figure, viewport_width=state.viewport_width)
     state.renderer._render_2d_scene(
@@ -533,6 +542,7 @@ def _attach_2d_controls(
             layout.horizontal_axes_bounds,
             facecolor=palette.surface_facecolor,
         )
+        horizontal_axes.set_zorder(_SLIDER_CONTROL_ZORDER)
         _style_control_axes(horizontal_axes, palette=palette)
         horizontal_slider = Slider(
             ax=horizontal_axes,
@@ -559,6 +569,7 @@ def _attach_2d_controls(
             layout.vertical_axes_bounds,
             facecolor=palette.surface_facecolor,
         )
+        vertical_axes.set_zorder(_SLIDER_CONTROL_ZORDER)
         _style_control_axes(vertical_axes, palette=palette)
         vertical_slider = Slider(
             ax=vertical_axes,
@@ -588,6 +599,7 @@ def _attach_2d_controls(
             layout.visible_qubits_axes_bounds,
             facecolor=palette.surface_facecolor,
         )
+        visible_qubits_axes.set_zorder(_SLIDER_CONTROL_ZORDER)
         _style_control_axes(visible_qubits_axes, palette=palette)
         visible_qubits_box = TextBox(
             visible_qubits_axes,
@@ -611,6 +623,7 @@ def _attach_2d_controls(
                 layout.visible_qubits_increment_axes_bounds,
                 facecolor=palette.surface_facecolor,
             )
+            visible_qubits_increment_axes.set_zorder(_SLIDER_CONTROL_ZORDER)
             _style_control_axes(visible_qubits_increment_axes, palette=palette)
             visible_qubits_increment_button = Button(
                 visible_qubits_increment_axes,
@@ -629,6 +642,7 @@ def _attach_2d_controls(
                 layout.visible_qubits_decrement_axes_bounds,
                 facecolor=palette.surface_facecolor,
             )
+            visible_qubits_decrement_axes.set_zorder(_SLIDER_CONTROL_ZORDER)
             _style_control_axes(visible_qubits_decrement_axes, palette=palette)
             visible_qubits_decrement_button = Button(
                 visible_qubits_decrement_axes,
@@ -643,53 +657,60 @@ def _attach_2d_controls(
             state.visible_qubits_decrement_button = visible_qubits_decrement_button
             state.visible_qubits_decrement_axes = visible_qubits_decrement_axes
 
-    wire_filter_axes = state.figure.add_axes(
-        _WIRE_FILTER_BUTTON_BOUNDS,
-        facecolor=palette.surface_facecolor,
-    )
-    _style_control_axes(wire_filter_axes, palette=palette)
-    wire_filter_button = Button(
-        wire_filter_axes,
-        "",
-        color=palette.surface_facecolor,
-        hovercolor=palette.surface_hover_facecolor,
-    )
-    _style_stepper_button(wire_filter_button, palette=palette)
-    wire_filter_button.on_clicked(lambda _: state.toggle_wire_filter())
-    state.wire_filter_button = wire_filter_button
-    state.wire_filter_axes = wire_filter_axes
+    button_bounds = _slider_exploration_button_bounds(state)
+    if "wire_filter" in button_bounds:
+        wire_filter_axes = state.figure.add_axes(
+            button_bounds["wire_filter"],
+            facecolor=palette.surface_facecolor,
+        )
+        wire_filter_axes.set_zorder(_OPTIONAL_BUTTON_ZORDER)
+        _style_control_axes(wire_filter_axes, palette=palette)
+        wire_filter_button = Button(
+            wire_filter_axes,
+            "",
+            color=palette.surface_facecolor,
+            hovercolor=palette.surface_hover_facecolor,
+        )
+        _style_stepper_button(wire_filter_button, palette=palette)
+        wire_filter_button.on_clicked(lambda _: state.toggle_wire_filter())
+        state.wire_filter_button = wire_filter_button
+        state.wire_filter_axes = wire_filter_axes
 
-    ancilla_toggle_axes = state.figure.add_axes(
-        _ANCILLA_BUTTON_BOUNDS,
-        facecolor=palette.surface_facecolor,
-    )
-    _style_control_axes(ancilla_toggle_axes, palette=palette)
-    ancilla_toggle_button = Button(
-        ancilla_toggle_axes,
-        "",
-        color=palette.surface_facecolor,
-        hovercolor=palette.surface_hover_facecolor,
-    )
-    _style_stepper_button(ancilla_toggle_button, palette=palette)
-    ancilla_toggle_button.on_clicked(lambda _: state.toggle_ancillas())
-    state.ancilla_toggle_button = ancilla_toggle_button
-    state.ancilla_toggle_axes = ancilla_toggle_axes
+    if "ancilla" in button_bounds:
+        ancilla_toggle_axes = state.figure.add_axes(
+            button_bounds["ancilla"],
+            facecolor=palette.surface_facecolor,
+        )
+        ancilla_toggle_axes.set_zorder(_OPTIONAL_BUTTON_ZORDER)
+        _style_control_axes(ancilla_toggle_axes, palette=palette)
+        ancilla_toggle_button = Button(
+            ancilla_toggle_axes,
+            "",
+            color=palette.surface_facecolor,
+            hovercolor=palette.surface_hover_facecolor,
+        )
+        _style_stepper_button(ancilla_toggle_button, palette=palette)
+        ancilla_toggle_button.on_clicked(lambda _: state.toggle_ancillas())
+        state.ancilla_toggle_button = ancilla_toggle_button
+        state.ancilla_toggle_axes = ancilla_toggle_axes
 
-    block_toggle_axes = state.figure.add_axes(
-        _BLOCK_TOGGLE_BUTTON_BOUNDS,
-        facecolor=palette.surface_facecolor,
-    )
-    _style_control_axes(block_toggle_axes, palette=palette)
-    block_toggle_button = Button(
-        block_toggle_axes,
-        "",
-        color=palette.surface_facecolor,
-        hovercolor=palette.surface_hover_facecolor,
-    )
-    _style_stepper_button(block_toggle_button, palette=palette)
-    block_toggle_button.on_clicked(lambda _: state.toggle_selected_block())
-    state.block_toggle_button = block_toggle_button
-    state.block_toggle_axes = block_toggle_axes
+    if "block" in button_bounds:
+        block_toggle_axes = state.figure.add_axes(
+            button_bounds["block"],
+            facecolor=palette.surface_facecolor,
+        )
+        block_toggle_axes.set_zorder(_OPTIONAL_BUTTON_ZORDER)
+        _style_control_axes(block_toggle_axes, palette=palette)
+        block_toggle_button = Button(
+            block_toggle_axes,
+            "",
+            color=palette.surface_facecolor,
+            hovercolor=palette.surface_hover_facecolor,
+        )
+        _style_stepper_button(block_toggle_button, palette=palette)
+        block_toggle_button.on_clicked(lambda _: state.toggle_selected_block())
+        state.block_toggle_button = block_toggle_button
+        state.block_toggle_axes = block_toggle_axes
 
 
 def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
@@ -910,15 +931,16 @@ def _needs_2d_control_rebuild(
         layout.visible_qubits_increment_axes_bounds is None
     ):
         return True
-    if state.exploration is not None and (
-        state.wire_filter_button is None
-        or state.ancilla_toggle_button is None
-        or state.block_toggle_button is None
-        or state.wire_filter_axes is None
-        or state.ancilla_toggle_axes is None
-        or state.block_toggle_axes is None
-    ):
-        return True
+    desired_optional_buttons = _slider_exploration_button_bounds(state)
+    optional_button_presence = {
+        "wire_filter": state.wire_filter_button is not None and state.wire_filter_axes is not None,
+        "ancilla": state.ancilla_toggle_button is not None
+        and state.ancilla_toggle_axes is not None,
+        "block": state.block_toggle_button is not None and state.block_toggle_axes is not None,
+    }
+    for button_name, is_present in optional_button_presence.items():
+        if is_present != (button_name in desired_optional_buttons):
+            return True
 
     if state.horizontal_slider is not None and state.horizontal_slider.valmax != float(
         state.max_start_column
@@ -1019,6 +1041,40 @@ def _attach_slider_selection_clicks(state: Managed2DPageSliderState) -> None:
     state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
 
 
+def _slider_exploration_button_bounds(
+    state: Managed2DPageSliderState,
+) -> dict[str, tuple[float, float, float, float]]:
+    if state.exploration is None:
+        return {}
+
+    availability = exploration_control_availability(
+        state.exploration.catalog,
+        collapsed_block_ids=state.exploration.collapsed_block_ids,
+        wire_filter_mode=state.exploration.wire_filter_mode,
+        show_ancillas=state.exploration.show_ancillas,
+        selected_operation_id=state.exploration.selected_operation_id,
+    )
+    ordered_buttons: list[tuple[str, float]] = []
+    if availability.show_wire_filter:
+        ordered_buttons.append(("wire_filter", _WIRE_FILTER_BUTTON_WIDTH))
+    if availability.show_ancilla_toggle:
+        ordered_buttons.append(("ancilla", _ANCILLA_BUTTON_WIDTH))
+    if availability.show_block_toggle:
+        ordered_buttons.append(("block", _BLOCK_TOGGLE_BUTTON_WIDTH))
+
+    right = _OPTIONAL_CONTROL_RIGHT
+    bounds: dict[str, tuple[float, float, float, float]] = {}
+    for button_name, width in reversed(ordered_buttons):
+        bounds[button_name] = (
+            right - width,
+            _OPTIONAL_CONTROL_BOTTOM,
+            width,
+            _OPTIONAL_CONTROL_HEIGHT,
+        )
+        right -= width + _OPTIONAL_CONTROL_GAP
+    return bounds
+
+
 def _sync_exploration_buttons(state: Managed2DPageSliderState) -> None:
     if state.exploration is None:
         return
@@ -1054,9 +1110,7 @@ def _sync_exploration_buttons(state: Managed2DPageSliderState) -> None:
         collapsed_block_ids=state.exploration.collapsed_block_ids,
     )
     if state.block_toggle_button is not None:
-        state.block_toggle_button.label.set_text(
-            "No block" if block_action is None else block_action.label
-        )
+        state.block_toggle_button.label.set_text("" if block_action is None else block_action.label)
         state.block_toggle_button.label.set_fontsize(8.3)
         _set_button_enabled(
             state.block_toggle_button,

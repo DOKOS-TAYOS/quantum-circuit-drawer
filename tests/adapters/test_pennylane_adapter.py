@@ -624,7 +624,7 @@ def test_pennylane_terminal_outputs_render_as_gate_boxes(
     scene = LayoutEngine().compute(ir, DrawStyle())
 
     assert len(scene.measurements) == 0
-    gate = next(gate for gate in scene.gates if gate.label == "PROBS")
+    gate = next(gate for gate in scene.gates if gate.label == "Prob")
     assert gate.kind is OperationKind.GATE
     assert gate.hover_data is not None
     assert gate.hover_data.details == (
@@ -639,9 +639,9 @@ def test_pennylane_terminal_outputs_render_as_gate_boxes(
     )
     texts = [normalize_rendered_text(text.get_text()) for text in axes.texts]
 
-    assert "PROBS" in texts
+    assert "Prob" in texts
     assert "c" not in texts
-    assert_axes_contains_circuit_artists(axes, expected_texts={"PROBS", "0", "1"})
+    assert_axes_contains_circuit_artists(axes, expected_texts={"Prob", "0", "1"})
     assert_figure_has_visible_content(figure)
 
 

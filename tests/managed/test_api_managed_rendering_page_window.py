@@ -55,7 +55,9 @@ def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging(
     plt.close(figure)
 
 
-def test_draw_quantum_circuit_page_window_allocates_compact_inputs_and_wide_block_toggle() -> None:
+def test_draw_quantum_circuit_page_window_hides_noop_exploration_buttons_and_keeps_inputs_compact() -> (
+    None
+):
     figure, _ = draw_quantum_circuit(
         build_wrapped_ir(),
         style={"max_page_width": 4.0},
@@ -70,13 +72,12 @@ def test_draw_quantum_circuit_page_window_allocates_compact_inputs_and_wide_bloc
         assert page_window is not None
         assert page_window.page_axes is not None
         assert page_window.visible_pages_axes is not None
-        assert page_window.block_toggle_axes is not None
-        assert page_window.ancilla_toggle_axes is not None
+        assert page_window.wire_filter_axes is None
+        assert page_window.ancilla_toggle_axes is None
+        assert page_window.block_toggle_axes is None
 
         page_width = page_window.page_axes.get_position().width
         visible_width = page_window.visible_pages_axes.get_position().width
-        block_width = page_window.block_toggle_axes.get_position().width
-        ancilla_width = page_window.ancilla_toggle_axes.get_position().width
         visible_gap = (
             page_window.visible_pages_axes.get_position().x0
             - page_window.page_axes.get_position().x1
@@ -84,9 +85,8 @@ def test_draw_quantum_circuit_page_window_allocates_compact_inputs_and_wide_bloc
 
         assert page_width <= 0.064
         assert visible_width <= 0.064
-        assert block_width >= 0.12
-        assert block_width > ancilla_width
         assert visible_gap <= 0.22
+        assert len(figure.axes) == 7
     finally:
         plt.close(figure)
 
