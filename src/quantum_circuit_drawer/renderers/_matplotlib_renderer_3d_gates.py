@@ -14,7 +14,15 @@ from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
 
 from ..layout.scene_3d import GateRenderStyle3D, LayoutScene3D, SceneGate3D
 from ..style import resolved_gate_edge_line_width, resolved_wire_line_width
+from ._matplotlib_figure import append_artist_click_target
 from ._matplotlib_renderer_3d_geometry import _PreparedBatchedGateGeometry3D, _RenderContext3D
+from ._matplotlib_visual_state import (
+    alpha_for_visual_state,
+    color_for_visual_state,
+    gate_facecolor_for_visual_state,
+    line_width_scale_for_visual_state,
+    measurement_facecolor_for_visual_state,
+)
 from ._render_support import backend_supports_interaction, figure_backend_name
 
 if TYPE_CHECKING:
@@ -170,7 +178,7 @@ def draw_gates_3d(
     scene: LayoutScene3D,
     render_context: _RenderContext3D,
 ) -> list[tuple[Artist, str]]:
-    if scene.hover_enabled:
+    if scene.hover_enabled or _requires_individual_gate_artists(scene):
         return draw_gates_with_hover_3d(renderer, axes, scene, render_context)
     draw_gates_batched_3d(renderer, axes, scene, render_context)
     return []
@@ -184,25 +192,92 @@ def draw_gates_with_hover_3d(
 ) -> list[tuple[Artist, str]]:
     hover_targets: list[tuple[Artist, str]] = []
     for gate in scene.gates:
+        if gate.group_highlighted:
+            _draw_group_highlight_overlay_3d(
+                renderer,
+                axes,
+                gate,
+                render_context,
+                scene,
+            )
         if gate.render_style is GateRenderStyle3D.X_TARGET:
             hover_targets.extend(renderer._draw_x_target(axes, gate, scene, render_context))
             continue
         display_gate = renderer._display_compensated_gate(axes, gate, render_context=render_context)
         collection = Poly3DCollection(
             renderer._cuboid_faces(display_gate),
-            facecolors=scene.style.theme.measurement_facecolor
-            if gate.render_style is GateRenderStyle3D.MEASUREMENT
-            else scene.style.theme.gate_facecolor,
-            edgecolors=scene.style.theme.measurement_color
-            if gate.render_style is GateRenderStyle3D.MEASUREMENT
-            else scene.style.theme.gate_edgecolor,
-            linewidths=resolved_gate_edge_line_width(scene.style),
-            alpha=0.96,
+            facecolors=_gate_facecolor_3d(scene, gate),
+            edgecolors=color_for_visual_state(
+                scene.style.theme.measurement_color
+                if gate.render_style is GateRenderStyle3D.MEASUREMENT
+                else scene.style.theme.gate_edgecolor,
+                theme=scene.style.theme,
+                visual_state=gate.visual_state,
+            ),
+            linewidths=resolved_gate_edge_line_width(scene.style)
+            * line_width_scale_for_visual_state(gate.visual_state),
+            alpha=0.96 * alpha_for_visual_state(gate.visual_state),
         )
         axes.add_collection3d(collection)
+        if gate.operation_id is not None:
+            append_artist_click_target(
+                axes,
+                artist=collection,
+                operation_id=gate.operation_id,
+                priority=40,
+            )
         if gate.hover_text:
             hover_targets.append((collection, gate.hover_text))
     return hover_targets
+
+
+def _gate_facecolor_3d(scene: LayoutScene3D, gate: SceneGate3D) -> str:
+    if gate.render_style is GateRenderStyle3D.MEASUREMENT:
+        return measurement_facecolor_for_visual_state(
+            theme=scene.style.theme,
+            visual_state=gate.visual_state,
+        )
+    return gate_facecolor_for_visual_state(
+        theme=scene.style.theme,
+        visual_state=gate.visual_state,
+    )
+
+
+def _draw_group_highlight_overlay_3d(
+    renderer: MatplotlibRenderer3D,
+    axes: Axes3D,
+    gate: SceneGate3D,
+    render_context: _RenderContext3D,
+    scene: LayoutScene3D,
+) -> None:
+    padded_gate = replace(
+        gate,
+        size_x=gate.size_x * 1.14,
+        size_y=gate.size_y * 1.14,
+        size_z=gate.size_z * 1.18,
+    )
+    display_gate = renderer._display_compensated_gate(
+        axes,
+        padded_gate,
+        render_context=render_context,
+    )
+    overlay = Poly3DCollection(
+        renderer._cuboid_faces(display_gate),
+        facecolors=scene.style.theme.accent_color,
+        edgecolors="none",
+        alpha=0.11,
+    )
+    overlay.set_zorder(2.1)
+    axes.add_collection3d(overlay)
+
+
+def _requires_individual_gate_artists(scene: LayoutScene3D) -> bool:
+    return any(
+        gate.operation_id is not None
+        or gate.visual_state.name != "DEFAULT"
+        or gate.group_highlighted
+        for gate in scene.gates
+    )
 
 
 def draw_gates_batched_3d(
@@ -286,8 +361,14 @@ def draw_x_target_3d(
         closed_ring_points[:, 0],
         closed_ring_points[:, 1],
         closed_ring_points[:, 2],
-        color=scene.style.theme.wire_color,
-        linewidth=resolved_wire_line_width(scene.style),
+        color=color_for_visual_state(
+            scene.style.theme.wire_color,
+            theme=scene.style.theme,
+            visual_state=gate.visual_state,
+        ),
+        linewidth=resolved_wire_line_width(scene.style)
+        * line_width_scale_for_visual_state(gate.visual_state),
+        alpha=alpha_for_visual_state(gate.visual_state),
     )
     cross_collection = Line3DCollection(
         [
@@ -300,11 +381,34 @@ def draw_x_target_3d(
                 (gate.center.x, gate.center.y + radius, gate.center.z),
             ),
         ],
-        colors=scene.style.theme.wire_color,
-        linewidths=resolved_wire_line_width(scene.style),
+        colors=color_for_visual_state(
+            scene.style.theme.wire_color,
+            theme=scene.style.theme,
+            visual_state=gate.visual_state,
+        ),
+        linewidths=resolved_wire_line_width(scene.style)
+        * line_width_scale_for_visual_state(gate.visual_state),
+        alpha=alpha_for_visual_state(gate.visual_state),
     )
     axes.add_collection3d(cross_collection)
-    return [(circle_line, gate.hover_text)] if gate.hover_text else []
+    if gate.operation_id is not None:
+        append_artist_click_target(
+            axes,
+            artist=circle_line,
+            operation_id=gate.operation_id,
+            priority=40,
+        )
+        append_artist_click_target(
+            axes,
+            artist=cross_collection,
+            operation_id=gate.operation_id,
+            priority=45,
+        )
+    hover_targets: list[tuple[Artist, str]] = []
+    if gate.hover_text:
+        hover_targets.append((circle_line, gate.hover_text))
+        hover_targets.append((cross_collection, gate.hover_text))
+    return hover_targets
 
 
 def draw_x_targets_batched_3d(

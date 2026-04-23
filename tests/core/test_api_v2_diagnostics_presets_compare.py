@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import pytest
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import MouseEvent, PickEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.text import Annotation
@@ -54,6 +54,16 @@ def _dispatch_motion_event(figure: Figure, patch: object) -> None:
         y + (height / 2.0),
     )
     figure.canvas.callbacks.process("motion_notify_event", event)
+
+
+def _dispatch_pick_event(figure: Figure, artist: object) -> None:
+    event = PickEvent(
+        "pick_event",
+        figure.canvas,
+        MouseEvent("button_press_event", figure.canvas, 0.0, 0.0, button=1),
+        artist,
+    )
+    figure.canvas.callbacks.process("pick_event", event)
 
 
 def build_placeholder_ready_myqlm_circuit() -> FakeMyQLMCircuit:
@@ -408,5 +418,82 @@ def test_compare_histograms_hover_can_be_disabled() -> None:
     )
 
     assert get_hover_state(result.axes) is None
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_legend_toggle_hides_series_and_updates_hover_and_limits() -> None:
+    result = compare_histograms(
+        {"00": 8, "01": 2},
+        {"00": 4, "01": 5},
+        config=build_public_histogram_compare_config(
+            show=False,
+            sort=HistogramCompareSort.STATE,
+            left_label="Ideal",
+            right_label="Sampled",
+        ),
+    )
+
+    legend = result.axes.get_legend()
+
+    assert legend is not None
+
+    _dispatch_pick_event(result.figure, legend.get_texts()[0])
+
+    left_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:left"
+    ]
+    right_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:right"
+    ]
+
+    assert left_patches
+    assert right_patches
+    assert all(patch.get_visible() is False for patch in left_patches)
+    assert all(patch.get_visible() is True for patch in right_patches)
+    assert result.axes.get_ylim() == pytest.approx((0.0, 5.25))
+
+    result.figure.canvas.draw()
+    _dispatch_motion_event(result.figure, right_patches[0])
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is True
+    assert "Sampled counts: 4" in annotation.get_text()
+    assert "Ideal counts" not in annotation.get_text()
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_legend_toggle_keeps_empty_state_stable_when_all_series_hidden() -> None:
+    result = compare_histograms(
+        {"00": 8, "01": 2},
+        {"00": 4, "01": 5},
+        config=build_public_histogram_compare_config(
+            show=False,
+            sort=HistogramCompareSort.STATE,
+            left_label="Ideal",
+            right_label="Sampled",
+        ),
+    )
+
+    legend = result.axes.get_legend()
+
+    assert legend is not None
+
+    for legend_text in legend.get_texts():
+        _dispatch_pick_event(result.figure, legend_text)
+
+    assert result.axes.get_ylim() == pytest.approx((0.0, 1.0))
+
+    result.figure.canvas.draw()
+    visible_patch = next(iter(result.axes.patches))
+    _dispatch_motion_event(result.figure, visible_patch)
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is False
 
     plt.close(result.figure)

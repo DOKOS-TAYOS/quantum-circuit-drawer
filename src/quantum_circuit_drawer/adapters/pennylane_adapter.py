@@ -15,6 +15,7 @@ from ..ir.operations import CanonicalGateFamily, OperationKind
 from ..ir.semantic import SemanticCircuitIR, SemanticOperationIR, pack_semantic_operations
 from ..ir.wires import WireIR, WireKind
 from ..utils.matrix_support import square_matrix
+from ._fundamental_decompositions import expand_fundamental_semantic_gate
 from ._helpers import (
     append_semantic_classical_conditions,
     build_classical_register,
@@ -226,6 +227,17 @@ class PennyLaneAdapter(BaseAdapter):
         canonical_gate = canonical_gate_spec(
             getattr(operation, "name", operation.__class__.__name__)
         )
+        if composite_mode == "expand":
+            expanded_fundamental = expand_fundamental_semantic_gate(
+                framework=self.framework_name,
+                canonical_family=canonical_gate.family,
+                raw_name=str(getattr(operation, "name", operation.__class__.__name__)),
+                target_wires=tuple(wire_ids[wire] for wire in operation.wires),
+                parameters=tuple(getattr(operation, "parameters", ()) or ()),
+                location=location,
+            )
+            if expanded_fundamental:
+                return list(expanded_fundamental)
         if composite_mode == "expand" and canonical_gate.family is CanonicalGateFamily.CUSTOM:
             decomposition = self._decomposition(operation)
             if decomposition:

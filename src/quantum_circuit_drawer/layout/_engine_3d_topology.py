@@ -104,6 +104,7 @@ def build_wire_texts_3d(
                 text=wire.label or wire.id,
                 font_size=draw_style.font_size * 0.88,
                 role="label",
+                wire_id=wire.id,
             )
         )
     for wire in circuit.classical_wires:
@@ -114,6 +115,7 @@ def build_wire_texts_3d(
                 text=wire.label or wire.id,
                 font_size=draw_style.font_size * 0.82,
                 role="label",
+                wire_id=wire.id,
             )
         )
     return texts

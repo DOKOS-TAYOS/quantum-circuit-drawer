@@ -402,6 +402,20 @@ def test_plot_histogram_draws_uniform_reference_for_marginal_quasi_using_subset_
     plt.close(result.figure)
 
 
+def test_plot_histogram_uses_zero_lower_bound_for_non_negative_quasi_values() -> None:
+    result = plot_histogram(
+        {"00": 0.6, "11": 0.4},
+        config=build_public_histogram_config(
+            show=False,
+            kind=HistogramKind.QUASI,
+        ),
+    )
+
+    assert result.axes.get_ylim()[0] == pytest.approx(0.0)
+
+    plt.close(result.figure)
+
+
 def test_plot_histogram_uses_dark_theme_by_default() -> None:
     result = plot_histogram(
         {"00": 5, "11": 3},

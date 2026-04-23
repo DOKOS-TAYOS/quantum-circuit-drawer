@@ -797,6 +797,33 @@ def test_pennylane_adapter_expands_composite_operations_when_requested() -> None
     assert operations[0].name == "H"
 
 
+def test_pennylane_adapter_expands_fundamental_rzz_operation_when_requested() -> None:
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(FakeOperation(name="RZZ", wires=(0, 1), parameters=(0.7,)),),
+        measurements=(),
+    )
+
+    semantic_ir = PennyLaneAdapter().to_semantic_ir(
+        tape,
+        options={"composite_mode": "expand"},
+    )
+    operations = [operation for layer in semantic_ir.layers for operation in layer.operations]
+
+    assert [operation.name for operation in operations] == ["X", "RZ", "X"]
+    assert [operation.kind for operation in operations] == [
+        OperationKind.CONTROLLED_GATE,
+        OperationKind.GATE,
+        OperationKind.CONTROLLED_GATE,
+    ]
+    assert [operation.provenance.decomposition_origin for operation in operations] == [
+        "RZZ",
+        "RZZ",
+        "RZZ",
+    ]
+    assert [operation.provenance.location for operation in operations] == [(0, 0), (0, 1), (0, 2)]
+
+
 @skip_real_pennylane_on_windows
 @pytest.mark.integration
 def test_pennylane_adapter_converts_multi_wire_terminal_measurements() -> None:

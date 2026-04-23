@@ -20,7 +20,11 @@ from ..managed.view_state_3d import (
     Managed3DFixedViewState,
 )
 from ..typing import OutputPath, RenderResult
-from ._matplotlib_figure import clear_hover_state, create_managed_figure
+from ._matplotlib_figure import (
+    clear_artist_click_targets,
+    clear_hover_state,
+    create_managed_figure,
+)
 from ._matplotlib_renderer_3d_axes import (
     apply_fixed_view_state_3d,
     axes_box_aspect_for_renderer_3d,
@@ -140,6 +144,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         figure = axes_3d.figure
         fixed_view_state = self._managed_fixed_view_state(axes_3d)
         self._clear_batched_text_artists(axes_3d)
+        clear_artist_click_targets(axes_3d)
         clear_hover_state(axes_3d)
         figure.patch.set_facecolor(scene.style.theme.figure_facecolor)
         self._prepare_axes(axes_3d, scene, fixed_view_state=fixed_view_state)

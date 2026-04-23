@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
 
 from matplotlib.axes import Axes
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure, SubFigure
 
@@ -22,6 +23,7 @@ _TEXT_SCALING_ATTR = "_quantum_circuit_drawer_text_scaling_state"
 _BASE_FONT_SIZE_ATTR = "_quantum_circuit_drawer_base_font_size"
 _GATE_TEXT_METADATA_ATTR = "_quantum_circuit_drawer_gate_text_metadata"
 _HOVER_STATE_ATTR = "_quantum_circuit_drawer_hover_state"
+_ARTIST_CLICK_TARGETS_ATTR = "_quantum_circuit_drawer_artist_click_targets"
 
 
 @dataclass(slots=True)
@@ -60,6 +62,13 @@ class GateTextMetadata:
 class HoverState:
     annotation: object
     callback_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ArtistClickTarget:
+    artist: object
+    operation_id: str
+    priority: int = 0
 
 
 class _SupportsRemove(Protocol):
@@ -279,6 +288,63 @@ def clear_hover_state(axes: Axes) -> None:
             # ``axes.clear()`` can detach the annotation before hover cleanup runs.
             pass
     delattr(axes, _HOVER_STATE_ATTR)
+
+
+def append_artist_click_target(
+    axes: Axes,
+    *,
+    artist: object,
+    operation_id: str,
+    priority: int,
+) -> None:
+    """Append one click target artist to the axes metadata."""
+
+    current_targets = list(get_artist_click_targets(axes))
+    current_targets.append(
+        ArtistClickTarget(
+            artist=artist,
+            operation_id=operation_id,
+            priority=int(priority),
+        )
+    )
+    setattr(axes, _ARTIST_CLICK_TARGETS_ATTR, tuple(current_targets))
+
+
+def get_artist_click_targets(axes: Axes) -> tuple[ArtistClickTarget, ...]:
+    """Return click-target artists attached to the axes, if any."""
+
+    targets = getattr(axes, _ARTIST_CLICK_TARGETS_ATTR, ())
+    if not isinstance(targets, tuple):
+        return ()
+    if not all(isinstance(target, ArtistClickTarget) for target in targets):
+        return ()
+    return cast("tuple[ArtistClickTarget, ...]", targets)
+
+
+def clear_artist_click_targets(axes: Axes) -> None:
+    """Clear all click-target artist metadata from the axes."""
+
+    setattr(axes, _ARTIST_CLICK_TARGETS_ATTR, ())
+
+
+def clicked_artist_operation_id(
+    axes: Axes,
+    event: MouseEvent,
+) -> str | None:
+    """Resolve the clicked semantic operation from registered artist targets."""
+
+    if event.inaxes is not axes:
+        return None
+
+    matches: list[tuple[int, int, str]] = []
+    for index, target in enumerate(get_artist_click_targets(axes)):
+        artist = target.artist
+        contains, _ = artist.contains(event) if hasattr(artist, "contains") else (False, {})
+        if contains:
+            matches.append((int(target.priority), -index, target.operation_id))
+    if not matches:
+        return None
+    return max(matches)[2]
 
 
 def _metadata_for(figure: Figure | SubFigure) -> _ManagedFigureMetadata:

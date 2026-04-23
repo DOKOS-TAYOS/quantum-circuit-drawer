@@ -16,11 +16,17 @@ from ..style import (
     resolved_measurement_line_width,
     resolved_topology_edge_line_width,
 )
+from ._matplotlib_figure import append_artist_click_target
 from ._matplotlib_renderer_3d_hover import attach_hover_3d
 from ._matplotlib_renderer_3d_text import (
     _aligned_text_path,
     _TextPathCacheKey,
     _visible_3d_text_value,
+)
+from ._matplotlib_visual_state import (
+    alpha_for_visual_state,
+    color_for_visual_state,
+    line_width_scale_for_visual_state,
 )
 from ._render_support import backend_supports_interaction, figure_backend_name
 
@@ -59,7 +65,7 @@ def draw_markers_3d(
     axes: Axes3D,
     scene: LayoutScene3D,
 ) -> list[tuple[Artist, str]]:
-    if scene.hover_enabled:
+    if scene.hover_enabled or _requires_individual_marker_artists(scene):
         return draw_markers_with_hover_3d(renderer, axes, scene)
     return draw_markers_batched_3d(axes, scene)
 
@@ -86,8 +92,12 @@ def draw_markers_with_hover_3d(
             )
             continue
         if marker.style is MarkerStyle3D.CONTROL:
-            control_color = (
-                scene.style.theme.control_color or scene.style.theme.control_connection_color
+            control_color = color_for_visual_state(
+                scene.style.theme.control_color
+                or scene.style.theme.control_connection_color
+                or scene.style.theme.accent_color,
+                theme=scene.style.theme,
+                visual_state=marker.visual_state,
             )
             artist = axes.scatter(
                 [marker.center.x],
@@ -98,10 +108,19 @@ def draw_markers_with_hover_3d(
                     scene.style.theme.axes_facecolor if marker.state == 0 else control_color
                 ),
                 edgecolors=control_color,
-                linewidths=max(1.0, resolved_connection_line_width(scene.style)),
+                linewidths=max(1.0, resolved_connection_line_width(scene.style))
+                * line_width_scale_for_visual_state(marker.visual_state),
+                alpha=alpha_for_visual_state(marker.visual_state),
                 depthshade=False,
                 zorder=3.4,
             )
+            if marker.operation_id is not None:
+                append_artist_click_target(
+                    axes,
+                    artist=artist,
+                    operation_id=marker.operation_id,
+                    priority=35,
+                )
             hover_targets.append((artist, "control"))
             continue
         size = marker.size
@@ -116,11 +135,24 @@ def draw_markers_with_hover_3d(
                     (marker.center.x + size, marker.center.y - size, marker.center.z),
                 ),
             ],
-            colors=scene.style.theme.wire_color,
-            linewidths=resolved_connection_line_width(scene.style),
+            colors=color_for_visual_state(
+                scene.style.theme.wire_color,
+                theme=scene.style.theme,
+                visual_state=marker.visual_state,
+            ),
+            linewidths=resolved_connection_line_width(scene.style)
+            * line_width_scale_for_visual_state(marker.visual_state),
+            alpha=alpha_for_visual_state(marker.visual_state),
         )
         collection.set_zorder(3.1)
         axes.add_collection3d(collection)
+        if marker.operation_id is not None:
+            append_artist_click_target(
+                axes,
+                artist=collection,
+                operation_id=marker.operation_id,
+                priority=30,
+            )
     return hover_targets
 
 
@@ -298,7 +330,7 @@ def draw_texts_3d(
 def draw_texts_standard_3d(axes: Axes3D, scene: LayoutScene3D) -> None:
     for text in scene.texts:
         visible_text = _visible_3d_text_value(text.text, role=text.role, scene=scene)
-        axes.text(
+        text_artist = axes.text(
             text.position.x,
             text.position.y,
             text.position.z,
@@ -307,8 +339,20 @@ def draw_texts_standard_3d(axes: Axes3D, scene: LayoutScene3D) -> None:
             va=text.va,
             multialignment=text.ha,
             fontsize=text.font_size or scene.style.font_size,
-            color=scene.style.theme.classical_wire_color,
+            color=color_for_visual_state(
+                scene.style.theme.text_color,
+                theme=scene.style.theme,
+                visual_state=text.visual_state,
+            ),
+            alpha=alpha_for_visual_state(text.visual_state),
         )
+        if text.operation_id is not None:
+            append_artist_click_target(
+                axes,
+                artist=text_artist,
+                operation_id=text.operation_id,
+                priority=20,
+            )
 
 
 def draw_texts_batched_offscreen_3d(
@@ -415,4 +459,11 @@ def attach_hover_targets_3d(
         hover_facecolor=scene.style.theme.hover_facecolor,
         hover_edgecolor=scene.style.theme.hover_edgecolor,
         hover_text_color=scene.style.theme.hover_text_color,
+    )
+
+
+def _requires_individual_marker_artists(scene: LayoutScene3D) -> bool:
+    return any(
+        marker.operation_id is not None or marker.visual_state.name != "DEFAULT"
+        for marker in scene.markers
     )

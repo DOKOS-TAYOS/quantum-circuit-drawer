@@ -17,6 +17,12 @@ from ..style import (
     resolved_wire_line_width,
 )
 from ..utils.formatting import format_visible_label
+from ._matplotlib_figure import append_artist_click_target
+from ._matplotlib_visual_state import (
+    alpha_for_visual_state,
+    color_for_visual_state,
+    line_width_scale_for_visual_state,
+)
 
 if TYPE_CHECKING:
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
@@ -62,6 +68,14 @@ def connection_geometry_points_3d(
 def draw_wires_3d(axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
     hover_targets: list[tuple[Artist, str]] = []
     for wire in scene.wires:
+        wire_color = color_for_visual_state(
+            scene.style.theme.classical_wire_color
+            if wire.double_line
+            else scene.style.theme.wire_color,
+            theme=scene.style.theme,
+            visual_state=wire.visual_state,
+        )
+        wire_alpha = alpha_for_visual_state(wire.visual_state)
         if wire.double_line:
             offset = 0.06
             line = None
@@ -70,8 +84,10 @@ def draw_wires_3d(axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]
                     [wire.start.x + delta, wire.end.x + delta],
                     [wire.start.y, wire.end.y],
                     [wire.start.z, wire.end.z],
-                    color=scene.style.theme.classical_wire_color,
-                    linewidth=resolved_classical_wire_line_width(scene.style),
+                    color=wire_color,
+                    linewidth=resolved_classical_wire_line_width(scene.style)
+                    * line_width_scale_for_visual_state(wire.visual_state),
+                    alpha=wire_alpha,
                     zorder=1.0,
                 )
             if line is not None and wire.hover_text:
@@ -81,8 +97,10 @@ def draw_wires_3d(axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]
             [wire.start.x, wire.end.x],
             [wire.start.y, wire.end.y],
             [wire.start.z, wire.end.z],
-            color=scene.style.theme.wire_color,
-            linewidth=resolved_wire_line_width(scene.style),
+            color=wire_color,
+            linewidth=resolved_wire_line_width(scene.style)
+            * line_width_scale_for_visual_state(wire.visual_state),
+            alpha=wire_alpha,
             zorder=1.1,
         )
         if wire.hover_text:
@@ -95,7 +113,7 @@ def draw_connections_3d(
     axes: Axes3D,
     scene: LayoutScene3D,
 ) -> list[tuple[Artist, str]]:
-    if scene.hover_enabled:
+    if scene.hover_enabled or _requires_individual_connection_artists(scene):
         return draw_connections_with_hover_3d(renderer, axes, scene)
     draw_connections_batched_3d(renderer, axes, scene)
     return []
@@ -133,6 +151,13 @@ def draw_connections_with_hover_3d(
             2.4 if connection.render_style is ConnectionRenderStyle3D.CONTROL else 0.8
         )
         axes.add_collection3d(collection)
+        if connection.operation_id is not None:
+            append_artist_click_target(
+                axes,
+                artist=collection,
+                operation_id=connection.operation_id,
+                priority=25,
+            )
         if connection.label:
             renderer._draw_connection_label(axes, connection, scene)
         if connection.hover_text:
@@ -223,12 +248,18 @@ def connection_color_3d(
     scene: LayoutScene3D,
 ) -> str:
     if connection.is_classical:
-        return scene.style.theme.classical_wire_color
-    if connection.render_style is ConnectionRenderStyle3D.CONTROL:
-        return scene.style.theme.control_connection_color or scene.style.theme.accent_color
-    if connection.render_style is ConnectionRenderStyle3D.TOPOLOGY_EDGE:
-        return scene.style.theme.topology_edge_color or scene.style.theme.accent_color
-    return scene.style.theme.wire_color
+        base_color = scene.style.theme.classical_wire_color
+    elif connection.render_style is ConnectionRenderStyle3D.CONTROL:
+        base_color = scene.style.theme.control_connection_color or scene.style.theme.accent_color
+    elif connection.render_style is ConnectionRenderStyle3D.TOPOLOGY_EDGE:
+        base_color = scene.style.theme.topology_edge_color or scene.style.theme.accent_color
+    else:
+        base_color = scene.style.theme.wire_color
+    return color_for_visual_state(
+        base_color,
+        theme=scene.style.theme,
+        visual_state=connection.visual_state,
+    )
 
 
 def connection_line_width_3d(
@@ -236,12 +267,20 @@ def connection_line_width_3d(
     scene: LayoutScene3D,
 ) -> float:
     if connection.is_classical:
-        return resolved_classical_wire_line_width(scene.style)
+        return resolved_classical_wire_line_width(scene.style) * line_width_scale_for_visual_state(
+            connection.visual_state
+        )
     if connection.render_style is ConnectionRenderStyle3D.CONTROL:
-        return resolved_connection_line_width(scene.style)
+        return resolved_connection_line_width(scene.style) * line_width_scale_for_visual_state(
+            connection.visual_state
+        )
     if connection.render_style is ConnectionRenderStyle3D.TOPOLOGY_EDGE:
-        return resolved_topology_edge_line_width(scene.style)
-    return resolved_connection_line_width(scene.style)
+        return resolved_topology_edge_line_width(scene.style) * line_width_scale_for_visual_state(
+            connection.visual_state
+        )
+    return resolved_connection_line_width(scene.style) * line_width_scale_for_visual_state(
+        connection.visual_state
+    )
 
 
 def draw_connection_label_3d(
@@ -259,10 +298,9 @@ def draw_connection_label_3d(
         label_point.y,
         label_point.z,
         visible_label,
-        color=scene.style.theme.classical_wire_color
-        if connection.is_classical
-        else scene.style.theme.wire_color,
+        color=connection_color_3d(connection, scene),
         fontsize=scene.style.font_size * 0.72,
+        alpha=alpha_for_visual_state(connection.visual_state),
     )
 
 
@@ -297,6 +335,13 @@ def offset_segments_along_x_3d(
         )
         for first, second in segments
     ]
+
+
+def _requires_individual_connection_artists(scene: LayoutScene3D) -> bool:
+    return any(
+        connection.operation_id is not None or connection.visual_state.name != "DEFAULT"
+        for connection in scene.connections
+    )
 
 
 def arrowhead_segments_3d(

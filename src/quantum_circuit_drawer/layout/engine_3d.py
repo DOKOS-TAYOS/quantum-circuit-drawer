@@ -348,6 +348,7 @@ class LayoutEngine3D:
                         column=column,
                         points=(barrier_points[0], barrier_points[-1]),
                         label="barrier",
+                        operation_id=_operation_id_3d(operation),
                     )
                 )
             return
@@ -383,6 +384,7 @@ class LayoutEngine3D:
                         text=gate_text,
                         font_size=label_font_size,
                         role="gate_label_block" if gate.subtitle else "label",
+                        operation_id=_operation_id_3d(operation),
                     )
                 )
 
@@ -406,6 +408,7 @@ class LayoutEngine3D:
                             if simple_binary_states is not None
                             else 1
                         ),
+                        operation_id=_operation_id_3d(operation),
                     )
                 )
                 candidate_anchor_wire_ids = tuple(
@@ -436,6 +439,7 @@ class LayoutEngine3D:
                         points=connection_points,
                         render_style=ConnectionRenderStyle3D.CONTROL,
                         hover_text=hover_text,
+                        operation_id=_operation_id_3d(operation),
                     )
                 )
             if self._uses_canonical_controlled_z(operation):
@@ -451,6 +455,7 @@ class LayoutEngine3D:
                         style=MarkerStyle3D.CONTROL,
                         size=draw_style.control_radius * _CONTROL_MARKER_SCALE,
                         state=1,
+                        operation_id=_operation_id_3d(operation),
                     )
                 )
         self._append_classical_condition_connections(
@@ -495,6 +500,7 @@ class LayoutEngine3D:
                 render_style=GateRenderStyle3D.MEASUREMENT,
                 hover_text=self._gate_hover_text(metrics),
                 target_positions=(target_point,),
+                operation_id=_operation_id_3d(operation),
             )
         )
         if not hover_enabled and label:
@@ -514,6 +520,7 @@ class LayoutEngine3D:
                     text=gate_text,
                     font_size=label_font_size,
                     role="gate_label_block" if subtitle else "label",
+                    operation_id=_operation_id_3d(operation),
                 )
             )
         if isinstance(operation, MeasurementIR) and operation.classical_target is not None:
@@ -533,6 +540,7 @@ class LayoutEngine3D:
                     is_classical=True,
                     arrow_at_end=True,
                     label=classical_label,
+                    operation_id=_operation_id_3d(operation),
                 )
             )
 
@@ -558,10 +566,17 @@ class LayoutEngine3D:
                     center=point,
                     style=MarkerStyle3D.SWAP,
                     size=draw_style.swap_marker_size * _SWAP_MARKER_SCALE,
+                    operation_id=_operation_id_3d(operation),
                 )
             )
         if len(target_points) == 2:
-            connections.append(SceneConnection3D(column=column, points=target_points))
+            connections.append(
+                SceneConnection3D(
+                    column=column,
+                    points=target_points,
+                    operation_id=_operation_id_3d(operation),
+                )
+            )
 
     def _build_gate(
         self,
@@ -612,6 +627,7 @@ class LayoutEngine3D:
             render_style=render_style,
             hover_text=self._gate_hover_text(metrics),
             target_positions=target_points,
+            operation_id=_operation_id_3d(operation),
         )
 
     def _append_classical_condition_connections(
@@ -698,3 +714,10 @@ class LayoutEngine3D:
             gate_size=gate_size,
             default_font_size=default_font_size,
         )
+
+
+def _operation_id_3d(operation: OperationIR) -> str | None:
+    resolved = operation.metadata.get("semantic_operation_id")
+    if isinstance(resolved, str) and resolved:
+        return resolved
+    return None

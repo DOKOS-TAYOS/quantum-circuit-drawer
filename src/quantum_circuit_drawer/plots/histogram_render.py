@@ -214,6 +214,12 @@ def resolved_histogram_y_limits(
 
     lower_bound = min((float(value) for value in values), default=0.0)
     upper_bound = max((float(value) for value in values), default=0.0)
+    if uniform_reference_value is not None and float(uniform_reference_value) >= 0.0:
+        upper_bound = max(upper_bound, float(uniform_reference_value))
+    if lower_bound >= 0.0:
+        if upper_bound <= 0.0:
+            return 0.0, 1.0
+        return 0.0, upper_bound * 1.05
     lower_bound = min(lower_bound, 0.0)
     upper_bound = max(upper_bound, 0.0)
     if uniform_reference_value is not None:

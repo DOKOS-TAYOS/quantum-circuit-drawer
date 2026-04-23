@@ -15,6 +15,7 @@ from ..ir.wires import WireIR, WireKind
 from ..utils.matrix_support import square_matrix
 from . import _qiskit_classical as qiskit_classical_helpers
 from . import _qiskit_control_flow as qiskit_control_flow_helpers
+from ._fundamental_decompositions import expand_fundamental_semantic_gate
 from ._helpers import (
     canonical_gate_spec,
     extract_dependency_types,
@@ -254,6 +255,19 @@ class QiskitAdapter(BaseAdapter):
                 )
             ]
 
+        canonical_gate = canonical_gate_spec(name)
+        if composite_mode == "expand":
+            expanded_fundamental = expand_fundamental_semantic_gate(
+                framework=self.framework_name,
+                canonical_family=canonical_gate.family,
+                raw_name=raw_name,
+                target_wires=target_wires,
+                parameters=parameters,
+                location=location,
+            )
+            if expanded_fundamental:
+                return list(expanded_fundamental)
+
         if self._is_composite_instruction(operation):
             if composite_mode == "expand":
                 return self._expand_definition(
@@ -291,7 +305,6 @@ class QiskitAdapter(BaseAdapter):
 
         if not target_wires:
             raise UnsupportedOperationError(f"Qiskit operation '{name}' has no drawable targets")
-        canonical_gate = canonical_gate_spec(name)
         return [
             SemanticOperationIR(
                 kind=OperationKind.GATE,

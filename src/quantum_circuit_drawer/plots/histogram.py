@@ -9,6 +9,7 @@ from ..drawing.runtime import detect_runtime_context
 from ..style.theme import resolve_theme
 from .histogram_compare import (
     attach_histogram_compare_hover,
+    attach_histogram_compare_legend_toggle,
     build_compare_metrics,
     draw_histogram_compare_axes,
     ordered_comparison_state_labels,
@@ -233,7 +234,7 @@ def compare_histograms(
 
     figure, axes = resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
     theme = resolve_theme(resolved_config.theme)
-    bar_groups = draw_histogram_compare_axes(
+    artists = draw_histogram_compare_axes(
         figure=figure,
         axes=axes,
         state_labels=ordered_state_labels,
@@ -247,7 +248,7 @@ def compare_histograms(
     if resolved_config.hover:
         attach_histogram_compare_hover(
             axes,
-            bar_groups=bar_groups,
+            artists=artists,
             state_labels=ordered_state_labels,
             left_values=left_values,
             right_values=right_values,
@@ -255,6 +256,14 @@ def compare_histograms(
             theme=theme,
             left_label=resolved_config.left_label,
             right_label=resolved_config.right_label,
+        )
+    if comparison_kind is HistogramKind.COUNTS:
+        attach_histogram_compare_legend_toggle(
+            axes,
+            artists=artists,
+            left_values=left_values,
+            right_values=right_values,
+            kind=comparison_kind,
         )
     save_histogram_if_requested(figure, output_path=resolved_config.output_path)
     if resolved_config.show:

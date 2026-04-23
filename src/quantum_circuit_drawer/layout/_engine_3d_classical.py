@@ -29,5 +29,13 @@ def append_classical_condition_connections_3d(
                 is_classical=True,
                 double_line=True,
                 label=anchor.label,
+                operation_id=_operation_id_3d(operation),
             )
         )
+
+
+def _operation_id_3d(operation: OperationIR) -> str | None:
+    resolved = operation.metadata.get("semantic_operation_id")
+    if isinstance(resolved, str) and resolved:
+        return resolved
+    return None

@@ -36,6 +36,13 @@ from ..layout.scene import (
     SceneVisualState,
     SceneWireFoldMarker,
 )
+from ..layout.scene_3d import (
+    LayoutScene3D,
+    SceneConnection3D,
+    SceneGate3D,
+    SceneMarker3D,
+    SceneText3D,
+)
 from ..renderers._matplotlib_page_projection import page_x_offset, page_y_offset
 
 _CLICK_CONNECTION_HALF_WIDTH = 0.1
@@ -49,6 +56,13 @@ _SceneOperationVisualItem = TypeVar(
     SceneSwap,
     SceneBarrier,
     SceneMeasurement,
+)
+_SceneOperationVisualItem3D = TypeVar(
+    "_SceneOperationVisualItem3D",
+    SceneGate3D,
+    SceneConnection3D,
+    SceneMarker3D,
+    SceneText3D,
 )
 
 
@@ -557,6 +571,80 @@ def append_wire_fold_markers(
         )
 
     return replace(scene, wire_fold_markers=tuple(markers))
+
+
+def apply_scene_visual_state_3d(
+    scene: LayoutScene3D,
+    circuit: SemanticCircuitIR,
+    *,
+    selected_operation_id: str | None,
+) -> LayoutScene3D:
+    """Return a 3D scene copy with contextual emphasis applied."""
+
+    scope = selection_scope(circuit, selected_operation_id=selected_operation_id)
+    selected_wire_ids = set(scope.selected_wire_ids)
+    emphasized_operation_ids = set(scope.emphasized_operation_ids)
+    operation_ids = {semantic_operation_id(operation) for operation in _flatten_operations(circuit)}
+    grouped_operation_ids = _group_highlight_operation_ids(
+        circuit,
+        selected_operation_id=scope.selected_operation_id,
+    )
+    return replace(
+        scene,
+        wires=tuple(
+            replace(
+                wire,
+                visual_state=(
+                    SceneVisualState.HIGHLIGHTED
+                    if wire.id in selected_wire_ids
+                    else SceneVisualState.DIMMED
+                    if scope.selected_operation_id is not None
+                    else SceneVisualState.DEFAULT
+                ),
+            )
+            for wire in scene.wires
+        ),
+        gates=tuple(
+            replace(
+                _with_operation_visual_state_3d(
+                    gate,
+                    selected_operation_id=scope.selected_operation_id,
+                    emphasized_operation_ids=emphasized_operation_ids,
+                    operation_ids=operation_ids,
+                ),
+                group_highlighted=gate.operation_id in grouped_operation_ids,
+            )
+            for gate in scene.gates
+        ),
+        markers=tuple(
+            _with_operation_visual_state_3d(
+                marker,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for marker in scene.markers
+        ),
+        connections=tuple(
+            _with_operation_visual_state_3d(
+                connection,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+            )
+            for connection in scene.connections
+        ),
+        texts=tuple(
+            _with_text_visual_state_3d(
+                text,
+                selected_operation_id=scope.selected_operation_id,
+                emphasized_operation_ids=emphasized_operation_ids,
+                operation_ids=operation_ids,
+                selected_wire_ids=selected_wire_ids,
+            )
+            for text in scene.texts
+        ),
+    )
 
 
 def scene_click_targets(scene: LayoutScene) -> tuple[SceneClickTarget, ...]:
@@ -1088,6 +1176,58 @@ def _with_operation_visual_state(
     else:
         state = SceneVisualState.DIMMED
     return replace(item, visual_state=state)
+
+
+def _with_operation_visual_state_3d(
+    item: _SceneOperationVisualItem3D,
+    *,
+    selected_operation_id: str | None,
+    emphasized_operation_ids: set[str],
+    operation_ids: set[str],
+) -> _SceneOperationVisualItem3D:
+    operation_id = getattr(item, "operation_id", None)
+    if operation_id is None or operation_id not in operation_ids:
+        default_state = (
+            SceneVisualState.DIMMED
+            if selected_operation_id is not None and getattr(item, "column", -1) >= 0
+            else SceneVisualState.DEFAULT
+        )
+        return replace(item, visual_state=default_state)
+    if operation_id in emphasized_operation_ids:
+        if operation_id == selected_operation_id:
+            state = SceneVisualState.HIGHLIGHTED
+        else:
+            state = SceneVisualState.RELATED
+    else:
+        state = SceneVisualState.DIMMED
+    return replace(item, visual_state=state)
+
+
+def _with_text_visual_state_3d(
+    text: SceneText3D,
+    *,
+    selected_operation_id: str | None,
+    emphasized_operation_ids: set[str],
+    operation_ids: set[str],
+    selected_wire_ids: set[str],
+) -> SceneText3D:
+    if text.operation_id is not None:
+        return _with_operation_visual_state_3d(
+            text,
+            selected_operation_id=selected_operation_id,
+            emphasized_operation_ids=emphasized_operation_ids,
+            operation_ids=operation_ids,
+        )
+    if text.wire_id is not None and selected_operation_id is not None:
+        return replace(
+            text,
+            visual_state=(
+                SceneVisualState.HIGHLIGHTED
+                if text.wire_id in selected_wire_ids
+                else SceneVisualState.DIMMED
+            ),
+        )
+    return replace(text, visual_state=SceneVisualState.DEFAULT)
 
 
 def _hidden_wire_marker_text(hidden_wire_count: int) -> str:

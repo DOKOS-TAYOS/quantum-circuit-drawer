@@ -8,6 +8,7 @@ from .._compat import StrEnum
 from ..ir.operations import OperationKind
 from ..ir.wires import WireKind
 from ..style import DrawStyle
+from .scene import SceneVisualState
 from .topology_3d import Topology3D
 
 
@@ -53,6 +54,7 @@ class SceneWire3D:
     end: Point3D
     double_line: bool = False
     hover_text: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -65,6 +67,8 @@ class SceneConnection3D:
     arrow_at_end: bool = False
     label: str | None = None
     hover_text: str | None = None
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -91,6 +95,9 @@ class SceneGate3D:
     render_style: GateRenderStyle3D = GateRenderStyle3D.BOX
     hover_text: str | None = None
     target_positions: tuple[Point3D, ...] = field(default_factory=tuple)
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
+    group_highlighted: bool = False
 
 
 @dataclass(slots=True)
@@ -100,6 +107,8 @@ class SceneMarker3D:
     style: MarkerStyle3D
     size: float
     state: int = 1
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
@@ -110,6 +119,9 @@ class SceneText3D:
     va: str = "center"
     font_size: float | None = None
     role: str = "label"
+    wire_id: str | None = None
+    operation_id: str | None = None
+    visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 
 @dataclass(slots=True)
