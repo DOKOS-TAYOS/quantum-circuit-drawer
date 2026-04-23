@@ -252,8 +252,8 @@ result = compare_circuits(
 
 `CircuitCompareResult` gives you:
 
-- one comparison figure
-- one `DrawResult` per side
+- one comparison figure in the default/static path, or a compact summary figure when you request managed modes
+- one `DrawResult` per side, including normal `pages`, `pages_controls`, and `slider` figures when those modes are requested
 - structural metrics such as operation counts, measurement counts, swap counts, and differing layers
 
 ## Compare Two Histograms

@@ -216,18 +216,19 @@ Notes:
 - `shared` provides the baseline `DrawSideConfig` used on both sides
 - `left_render` / `right_render` override only the render block on one side
 - `left_appearance` / `right_appearance` override only the appearance block on one side
-- per-side interactive modes and output ownership are normalized internally
+- the default `auto` mode is normalized to a compact `full` side-by-side comparison
+- explicit circuit modes `pages`, `pages_controls`, and `slider` render the two circuits as normal managed circuit figures and use `result.figure` for the compact comparison summary
 
 ### `CircuitCompareResult`
 
-`compare_circuits(...)` returns one figure with two subplot axes.
+`compare_circuits(...)` returns one side-by-side figure in the default/static path. When a managed circuit mode is requested, it returns two normal per-side circuit figures plus one compact summary figure.
 
 Fields:
 
-- `figure`
-- `axes`
-- `left_result`
-- `right_result`
+- `figure`: the side-by-side figure in static comparison, or the compact summary figure in managed-mode comparison
+- `axes`: the primary left and right circuit axes
+- `left_result`: nested `DrawResult` for the left circuit
+- `right_result`: nested `DrawResult` for the right circuit
 - `metrics`
 - `diagnostics`
 - `saved_path`
@@ -497,6 +498,7 @@ For histograms:
 ### `axes` for `compare_circuits(...)`
 
 `compare_circuits(...)` accepts `axes=(left_axes, right_axes)` when you want to embed the comparison in your own Matplotlib figure.
+Caller-owned axes are only valid for the default/static comparison path. Managed compare modes such as `pages`, `pages_controls`, and `slider` create their own figures, just like `draw_quantum_circuit(...)`.
 
 ## Style and theme
 
