@@ -321,17 +321,18 @@ def test_build_topology_grid_prefers_more_columns_when_near_square() -> None:
     assert len(y_values) == 2
 
 
-def test_build_topology_honeycomb_accepts_only_reference_53_qubits() -> None:
+def test_build_topology_honeycomb_accepts_reference_and_smaller_counts() -> None:
     valid_wires = tuple(
         WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
         for index in range(53)
     )
 
     topology = build_topology("honeycomb", valid_wires)
+    smaller_topology = build_topology("honeycomb", valid_wires[:7])
 
     assert len(topology.nodes) == 53
-    with pytest.raises(ValueError, match="topology 'honeycomb' does not support 52 quantum wires"):
-        build_topology("honeycomb", valid_wires[:-1])
+    assert len(smaller_topology.nodes) == 7
+    assert smaller_topology.edges
 
 
 def test_topology_3d_caches_neighbor_map_and_shortest_paths() -> None:

@@ -228,19 +228,11 @@ draw_quantum_circuit(
 )
 ```
 
-## A 3D Topology Rejects The Qubit Count
+## A 3D Topology Is Smaller Than The Circuit
 
-Some 3D topologies have shape constraints:
+The built-in topology names are flexible and support arbitrary positive qubit counts. A size error usually means you passed a static `HardwareTopology`, or you passed a functional or periodic topology with a fixed initial size and kept the default `topology_resize="error"`.
 
-| Topology | Constraint |
-| --- | --- |
-| `line` | Works for any number of qubits |
-| `grid` | Needs an exact rectangular factorization with at least `2 x 2` |
-| `star` | Needs at least 2 qubits |
-| `star_tree` | Accepts sizes of the form `3 * 2^d - 2` |
-| `honeycomb` | Currently targets a 53-qubit reference layout |
-
-If a topology does not fit your circuit, start with:
+For a flexible topology, ask the renderer to fit it to the circuit:
 
 ```python
 from quantum_circuit_drawer import (
@@ -254,11 +246,17 @@ draw_quantum_circuit(
     circuit,
     config=DrawConfig(
         side=DrawSideConfig(
-            render=CircuitRenderOptions(view="3d", topology="line"),
+            render=CircuitRenderOptions(
+                view="3d",
+                topology=my_functional_or_periodic_topology,
+                topology_resize="fit",
+            ),
         ),
     ),
 )
 ```
+
+Static `HardwareTopology` inputs never resize. If you want to keep the static topology but the circuit has fewer qubits, use `topology_qubits="used"` to show only allocated nodes or `topology_qubits="all"` to show the full topology footprint with inactive physical-node labels.
 
 ## MyQLM `Program` Objects Do Not Draw Directly
 

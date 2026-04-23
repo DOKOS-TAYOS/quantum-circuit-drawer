@@ -74,6 +74,8 @@ def _prepare_3d_pipeline(
     topology: str | HardwareTopology = "line",
     topology_menu: bool = False,
     direct: bool = True,
+    topology_qubits: str = "used",
+    topology_resize: str = "error",
 ) -> PreparedDrawPipeline:
     request = build_draw_request(
         circuit=circuit,
@@ -83,6 +85,8 @@ def _prepare_3d_pipeline(
         topology=topology,  # type: ignore[arg-type]
         topology_menu=topology_menu,
         direct=direct,
+        topology_qubits=topology_qubits,  # type: ignore[arg-type]
+        topology_resize=topology_resize,  # type: ignore[arg-type]
         hover=True,
     )
     return prepare_draw_pipeline(
@@ -109,6 +113,17 @@ def _prepare_request(
 def test_public_package_exports_builder_and_hardware_topology() -> None:
     assert quantum_circuit_drawer.CircuitBuilder is CircuitBuilder
     assert quantum_circuit_drawer.HardwareTopology is HardwareTopology
+    for export_name in (
+        "FunctionalTopology",
+        "PeriodicTopology1D",
+        "PeriodicTopology2D",
+        "line_topology",
+        "grid_topology",
+        "star_topology",
+        "star_tree_topology",
+        "honeycomb_topology",
+    ):
+        assert hasattr(quantum_circuit_drawer, export_name)
 
 
 def test_hardware_topology_from_coupling_map_preserves_custom_coordinates() -> None:
@@ -132,6 +147,155 @@ def test_hardware_topology_from_coupling_map_preserves_custom_coordinates() -> N
         "q2": (2.5, 0.0),
     }
     assert built_topology.edges == (("q0", "q1"), ("q1", "q2"))
+
+
+def test_builtin_topologies_accept_flexible_qubit_counts() -> None:
+    for topology_name, wire_count in (
+        ("grid", 5),
+        ("star", 1),
+        ("star_tree", 5),
+        ("honeycomb", 7),
+    ):
+        built_topology = build_topology(topology_name, _build_quantum_wires(wire_count))
+
+        assert len(built_topology.nodes) == wire_count
+
+    assert len(quantum_circuit_drawer.line_topology(3).node_ids) == 3
+    assert len(quantum_circuit_drawer.grid_topology(5).node_ids) == 5
+    assert len(quantum_circuit_drawer.star_topology(1).node_ids) == 1
+    assert len(quantum_circuit_drawer.star_tree_topology(5).node_ids) == 5
+    assert len(quantum_circuit_drawer.honeycomb_topology(7).node_ids) == 7
+
+
+def test_static_topology_can_render_used_or_all_nodes_when_circuit_is_smaller() -> None:
+    topology = HardwareTopology(
+        node_ids=(0, 1, 2, 3),
+        edges=((0, 1), (1, 2), (2, 3)),
+        coordinates={
+            0: (0.0, 0.0),
+            1: (1.0, 0.0),
+            2: (2.0, 0.0),
+            3: (3.0, 0.0),
+        },
+        name="line4",
+    )
+
+    used_topology = build_topology(topology, _build_quantum_wires(2))
+    full_topology = build_topology(topology, _build_quantum_wires(2), topology_qubits="all")
+
+    assert [node.wire_id for node in used_topology.nodes] == ["q0", "q1"]
+    assert used_topology.edges == (("q0", "q1"),)
+    assert [node.label for node in full_topology.nodes] == ["q0", "q1", "2", "3"]
+    assert [node.wire_id for node in full_topology.nodes[:2]] == ["q0", "q1"]
+    assert len(full_topology.nodes) == 4
+    assert full_topology.edges == (
+        ("q0", "q1"),
+        ("q1", "topology_line4_2"),
+        ("topology_line4_2", "topology_line4_3"),
+    )
+
+
+def test_static_topology_rejects_larger_circuit_even_with_fit_policy() -> None:
+    topology = HardwareTopology.from_coupling_map([(0, 1), (1, 2)], name="line3")
+
+    with pytest.raises(ValueError, match="static topology 'line3' has 3 nodes but circuit uses 4"):
+        build_topology(
+            topology,
+            _build_quantum_wires(4),
+            topology_resize="fit",
+        )
+
+
+def test_functional_topology_resizes_only_when_requested() -> None:
+    topology = quantum_circuit_drawer.FunctionalTopology(
+        quantum_circuit_drawer.line_topology,
+        qubit_count=2,
+        name="dynamic_line",
+    )
+
+    with pytest.raises(ValueError, match="topology 'dynamic_line' has 2 nodes but circuit uses 3"):
+        build_topology(topology, _build_quantum_wires(3))
+
+    built_topology = build_topology(
+        topology,
+        _build_quantum_wires(3),
+        topology_resize="fit",
+    )
+
+    assert [node.wire_id for node in built_topology.nodes] == ["q0", "q1", "q2"]
+
+
+def test_periodic_1d_topology_auto_expands_to_fit_required_qubits() -> None:
+    cell = HardwareTopology(node_ids=("x",), edges=(), coordinates={"x": (0.0, 0.0)})
+    topology = quantum_circuit_drawer.PeriodicTopology1D(
+        initial_cell=cell,
+        periodic_cell=cell,
+        final_cell=cell,
+        bridge_edges=(("x", "x"),),
+        repeat_count=1,
+        name="chain",
+    )
+
+    built_topology = build_topology(
+        topology,
+        _build_quantum_wires(5),
+        topology_resize="fit",
+    )
+
+    assert [node.wire_id for node in built_topology.nodes] == ["q0", "q1", "q2", "q3", "q4"]
+    assert len(built_topology.edges) == 4
+
+
+def test_periodic_2d_topology_auto_expands_balanced_grid_to_fit_required_qubits() -> None:
+    cell = HardwareTopology(node_ids=("x",), edges=(), coordinates={"x": (0.0, 0.0)})
+    topology = quantum_circuit_drawer.PeriodicTopology2D(
+        top_left_cell=cell,
+        top_edge_cell=cell,
+        top_right_cell=cell,
+        left_edge_cell=cell,
+        center_cell=cell,
+        right_edge_cell=cell,
+        bottom_left_cell=cell,
+        bottom_edge_cell=cell,
+        bottom_right_cell=cell,
+        horizontal_bridge_edges=(("x", "x"),),
+        vertical_bridge_edges=(("x", "x"),),
+        rows=1,
+        columns=1,
+        name="patch",
+    )
+
+    built_topology = build_topology(
+        topology,
+        _build_quantum_wires(12),
+        topology_qubits="all",
+        topology_resize="fit",
+    )
+
+    assert len(built_topology.nodes) == 16
+    assert len({node.x for node in built_topology.nodes}) == 4
+    assert len({node.y for node in built_topology.nodes}) == 4
+
+
+def test_full_topology_render_adds_inactive_quantum_wires_with_physical_labels() -> None:
+    topology = HardwareTopology(
+        node_ids=(0, 1, 2),
+        edges=((0, 1), (1, 2)),
+        coordinates={0: (0.0, 0.0), 1: (1.0, 0.0), 2: (2.0, 0.0)},
+        name="line3",
+    )
+
+    pipeline = _prepare_3d_pipeline(
+        _build_topology_ir(2),
+        topology=topology,
+        topology_qubits="all",
+    )
+
+    assert [wire.label for wire in pipeline.paged_scene.wires if wire.kind is WireKind.QUANTUM] == [
+        "q0",
+        "q1",
+        "2",
+    ]
 
 
 def test_hardware_topology_autolayout_is_deterministic() -> None:

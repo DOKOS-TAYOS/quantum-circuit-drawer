@@ -16,9 +16,11 @@ from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_
 from ..ir.semantic import SemanticCircuitIR
 from ..style import DrawStyle, normalize_style
 from ..topology import (
-    HardwareTopology,
     TopologyInput,
+    is_builtin_topology,
     normalize_topology_input,
+    normalize_topology_qubits,
+    normalize_topology_resize,
     topology_display_name,
 )
 from ..typing import (
@@ -140,6 +142,8 @@ def prepare_draw_pipeline(
             topology_name=topology,
             direct=direct,
             hover_enabled=hover_enabled,
+            topology_qubits=draw_options.topology_qubits,
+            topology_resize=draw_options.topology_resize,
         )
         layout_engine = layout_engine_3d
         renderer = MatplotlibRenderer3D()
@@ -194,13 +198,25 @@ def coerce_pipeline_options(
         composite_mode=str(options.get("composite_mode", "compact")),
         view=cast(ViewMode, str(options.get("view", "2d"))),
         topology=normalize_topology_input(options.get("topology", "line")),
+        topology_qubits=normalize_topology_qubits(options.get("topology_qubits", "used")),
+        topology_resize=normalize_topology_resize(options.get("topology_resize", "error")),
         topology_menu=bool(options.get("topology_menu", False)),
         direct=bool(options.get("direct", True)),
         hover=_normalize_hover_option(options.get("hover", False)),
         extra={
             key: value
             for key, value in options.items()
-            if key not in {"composite_mode", "view", "topology", "topology_menu", "direct", "hover"}
+            if key
+            not in {
+                "composite_mode",
+                "view",
+                "topology",
+                "topology_qubits",
+                "topology_resize",
+                "topology_menu",
+                "direct",
+                "hover",
+            }
         },
     )
 
@@ -261,6 +277,8 @@ def _compute_3d_scene(
     topology_name: TopologyInput,
     direct: bool,
     hover_enabled: bool,
+    topology_qubits: str = "used",
+    topology_resize: str = "error",
 ) -> LayoutScene3D:
     if hasattr(layout_engine, "_compute_with_normalized_style"):
         return cast(_NormalizedLayoutEngine3DLike, layout_engine)._compute_with_normalized_style(
@@ -269,6 +287,8 @@ def _compute_3d_scene(
             topology_name=topology_name,
             direct=direct,
             hover_enabled=hover_enabled,
+            topology_qubits=normalize_topology_qubits(topology_qubits),
+            topology_resize=normalize_topology_resize(topology_resize),
         )
     return layout_engine.compute(
         circuit,
@@ -323,7 +343,7 @@ def _resolve_topology_menu_options(
     draw_options: DrawPipelineOptions,
 ) -> tuple[DrawPipelineOptions, tuple[RenderDiagnostic, ...]]:
     topology = draw_options.topology
-    if draw_options.topology_menu and isinstance(topology, HardwareTopology):
+    if draw_options.topology_menu and not is_builtin_topology(topology):
         return (
             replace(draw_options, topology_menu=False),
             (

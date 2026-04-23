@@ -11,7 +11,14 @@ from .diagnostics import RenderDiagnostic
 from .hover import HoverOptions, normalize_hover
 from .presets import StylePreset, apply_draw_style_preset, normalize_style_preset
 from .style import DrawStyle
-from .topology import TopologyInput, normalize_topology_input
+from .topology import (
+    TopologyInput,
+    TopologyQubitMode,
+    TopologyResizeMode,
+    normalize_topology_input,
+    normalize_topology_qubits,
+    normalize_topology_resize,
+)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -63,6 +70,8 @@ class CircuitRenderOptions:
     mode: DrawMode = DrawMode.AUTO
     composite_mode: str = "compact"
     topology: TopologyMode = "line"
+    topology_qubits: TopologyQubitMode = "used"
+    topology_resize: TopologyResizeMode = "error"
     topology_menu: bool = False
     direct: bool = True
     unsupported_policy: UnsupportedPolicy | str = UnsupportedPolicy.RAISE
@@ -73,6 +82,8 @@ class CircuitRenderOptions:
         _validate_choice("view", self.view, {"2d", "3d"})
         _validate_choice("composite_mode", self.composite_mode, {"compact", "expand"})
         object.__setattr__(self, "topology", normalize_topology_input(self.topology))
+        object.__setattr__(self, "topology_qubits", normalize_topology_qubits(self.topology_qubits))
+        object.__setattr__(self, "topology_resize", normalize_topology_resize(self.topology_resize))
         _validate_bool("topology_menu", self.topology_menu)
         _validate_bool("direct", self.direct)
         object.__setattr__(
@@ -151,6 +162,14 @@ class DrawConfig:
     @property
     def topology(self) -> TopologyMode:
         return self.side.render.topology
+
+    @property
+    def topology_qubits(self) -> TopologyQubitMode:
+        return self.side.render.topology_qubits
+
+    @property
+    def topology_resize(self) -> TopologyResizeMode:
+        return self.side.render.topology_resize
 
     @property
     def topology_menu(self) -> bool:
@@ -265,6 +284,8 @@ __all__ = [
     "OutputOptions",
     "ResolvedDrawConfig",
     "TopologyMode",
+    "TopologyQubitMode",
+    "TopologyResizeMode",
     "UnsupportedPolicy",
     "ViewMode",
     "normalize_draw_mode",

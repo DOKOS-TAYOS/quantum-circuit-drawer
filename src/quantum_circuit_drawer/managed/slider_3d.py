@@ -194,6 +194,8 @@ class Managed3DPageSliderState:
             topology_name=self.pipeline.draw_options.topology,
             direct=self.pipeline.draw_options.direct,
             hover_enabled=self.pipeline.draw_options.hover.enabled,
+            topology_qubits=self.pipeline.draw_options.topology_qubits,
+            topology_resize=self.pipeline.draw_options.topology_resize,
         )
         if self.exploration is not None and self.exploration.transformed_semantic_ir is not None:
             scene = apply_scene_visual_state_3d(

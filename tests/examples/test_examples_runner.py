@@ -285,17 +285,10 @@ def test_run_demo_with_args_accepts_3d_slider_and_loads_demo(
     ]
 
 
-@pytest.mark.parametrize(
-    ("topology", "expected_qubits"),
-    [
-        ("star_tree", 10),
-        ("honeycomb", 53),
-    ],
-)
-def test_run_demo_with_args_uses_topology_compatible_3d_defaults_when_qubits_omitted(
+@pytest.mark.parametrize("topology", ["star_tree", "honeycomb"])
+def test_run_demo_with_args_uses_demo_3d_defaults_when_qubits_omitted(
     monkeypatch: pytest.MonkeyPatch,
     topology: str,
-    expected_qubits: int,
 ) -> None:
     built_subject = {"kind": "3d-pages-controls-demo"}
     builder_calls: list[ExampleRequest] = []
@@ -356,7 +349,7 @@ def test_run_demo_with_args_uses_topology_compatible_3d_defaults_when_qubits_omi
 
     assert builder_calls == [
         ExampleRequest(
-            qubits=expected_qubits,
+            qubits=8,
             columns=6,
             mode="pages_controls",
             view="3d",

@@ -15,7 +15,14 @@ from ..renderers._render_support import (
     pyplot_backend_supports_interaction,
 )
 from ..style import DrawStyle
-from ..topology import TopologyInput, normalize_topology_input
+from ..topology import (
+    TopologyInput,
+    TopologyQubitMode,
+    TopologyResizeMode,
+    normalize_topology_input,
+    normalize_topology_qubits,
+    normalize_topology_resize,
+)
 from ..typing import LayoutEngine3DLike, LayoutEngineLike, OutputPath
 
 if TYPE_CHECKING:
@@ -39,6 +46,8 @@ class DrawPipelineOptions:
     composite_mode: str = "compact"
     view: ViewMode = "2d"
     topology: TopologyMode = "line"
+    topology_qubits: TopologyQubitMode = "used"
+    topology_resize: TopologyResizeMode = "error"
     topology_menu: bool = False
     direct: bool = True
     hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
@@ -54,6 +63,8 @@ class DrawPipelineOptions:
             "composite_mode": self.composite_mode,
             "view": self.view,
             "topology": self.topology,
+            "topology_qubits": self.topology_qubits,
+            "topology_resize": self.topology_resize,
             "topology_menu": self.topology_menu,
             "direct": self.direct,
             "hover": self.hover,
@@ -69,7 +80,15 @@ class DrawPipelineOptions:
         """
 
         options = self.to_mapping()
-        for key in ("view", "topology", "topology_menu", "direct", "hover"):
+        for key in (
+            "view",
+            "topology",
+            "topology_qubits",
+            "topology_resize",
+            "topology_menu",
+            "direct",
+            "hover",
+        ):
             options.pop(key, None)
         return options
 
@@ -109,6 +128,8 @@ def build_draw_request(
     composite_mode: str = "compact",
     view: ViewMode = "2d",
     topology: TopologyMode = "line",
+    topology_qubits: TopologyQubitMode = "used",
+    topology_resize: TopologyResizeMode = "error",
     topology_menu: bool = False,
     direct: bool = True,
     hover: bool | HoverOptions | Mapping[str, object] = False,
@@ -124,6 +145,8 @@ def build_draw_request(
     validate_public_options(
         view=view,
         topology=topology,
+        topology_qubits=topology_qubits,
+        topology_resize=topology_resize,
         composite_mode=composite_mode,
         direct=direct,
         show=show,
@@ -156,6 +179,8 @@ def build_draw_request(
             composite_mode=composite_mode,
             view=view,
             topology=normalize_topology_input(topology),
+            topology_qubits=normalize_topology_qubits(topology_qubits),
+            topology_resize=normalize_topology_resize(topology_resize),
             topology_menu=topology_menu,
             direct=direct,
             hover=resolved_hover,
@@ -169,6 +194,8 @@ def validate_public_options(
     *,
     view: object,
     topology: object,
+    topology_qubits: object,
+    topology_resize: object,
     composite_mode: object,
     direct: object,
     show: object,
@@ -181,6 +208,8 @@ def validate_public_options(
 
     _validate_choice("view", view, _VALID_VIEW_MODES)
     normalize_topology_input(topology)
+    normalize_topology_qubits(topology_qubits)
+    normalize_topology_resize(topology_resize)
     _validate_choice("composite_mode", composite_mode, _VALID_COMPOSITE_MODES)
     _validate_bool("direct", direct)
     _validate_bool("show", show)
@@ -307,6 +336,8 @@ __all__ = [
     "TYPE_CHECKING",
     "TopologyInput",
     "TopologyMode",
+    "TopologyQubitMode",
+    "TopologyResizeMode",
     "UnsupportedBackendError",
     "ViewMode",
     "_VALID_COMPOSITE_MODES",
@@ -324,6 +355,8 @@ __all__ = [
     "figure_backend_name",
     "normalize_hover",
     "normalize_topology_input",
+    "normalize_topology_qubits",
+    "normalize_topology_resize",
     "pyplot_backend_supports_interaction",
     "resolve_effective_hover",
     "validate_draw_request",

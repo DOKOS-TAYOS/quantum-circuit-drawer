@@ -305,43 +305,12 @@ def _resolve_request_qubits(
     view: ViewMode,
     topology: TopologyMode,
 ) -> int:
+    del topology
     if qubits is not None:
         return qubits
-    if view != "3d":
-        return int(default_qubits)
-    return _topology_compatible_default_qubits(
-        default_qubits=default_qubits,
-        topology=topology,
-    )
-
-
-def _topology_compatible_default_qubits(*, default_qubits: int, topology: TopologyMode) -> int:
-    if topology == "line":
-        return max(1, default_qubits)
-    if topology == "grid":
-        return _next_grid_wire_count(default_qubits)
-    if topology == "star":
-        return max(2, default_qubits)
-    if topology == "star_tree":
-        return _next_star_tree_wire_count(default_qubits)
-    return 53
-
-
-def _next_grid_wire_count(default_qubits: int) -> int:
-    candidate = max(4, default_qubits)
-    while True:
-        for rows in range(2, int(candidate**0.5) + 1):
-            if candidate % rows == 0 and (candidate // rows) >= 2:
-                return candidate
-        candidate += 1
-
-
-def _next_star_tree_wire_count(default_qubits: int) -> int:
-    candidate = max(4, default_qubits)
-    depth = 1
-    while ((3 * (2**depth)) - 2) < candidate:
-        depth += 1
-    return (3 * (2**depth)) - 2
+    if view == "3d":
+        return max(1, int(default_qubits))
+    return int(default_qubits)
 
 
 def _parse_render_mode(value: object) -> RenderMode:
@@ -572,10 +541,15 @@ def _friendly_demo_render_error(
     if request.view != "3d":
         return None
 
-    match = re.search(
+    unsupported_match = re.search(
         r"topology '([^']+)' does not support (\d+) quantum wire(?:s)?",
         str(error),
     )
+    size_match = re.search(
+        r"topology '([^']+)' has \d+ nodes but circuit uses (\d+)",
+        str(error),
+    )
+    match = unsupported_match or size_match
     if match is None:
         return None
 

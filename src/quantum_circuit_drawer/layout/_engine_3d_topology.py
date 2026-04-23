@@ -22,7 +22,7 @@ _TOPOLOGY_PLANE_PADDING = 0.55
 
 def build_topology_nodes_3d(
     *,
-    circuit: CircuitIR,
+    topology: Topology3D,
     quantum_wire_positions: dict[str, Point3D],
     draw_style: DrawStyle,
 ) -> list[SceneMarker3D]:
@@ -31,11 +31,11 @@ def build_topology_nodes_3d(
     return [
         SceneMarker3D(
             column=-1,
-            center=quantum_wire_positions[wire.id],
+            center=quantum_wire_positions[wire.wire_id],
             style=MarkerStyle3D.TOPOLOGY_NODE,
             size=draw_style.control_radius * _TOPOLOGY_NODE_SIZE,
         )
-        for wire in circuit.quantum_wires
+        for wire in topology.nodes
     ]
 
 
@@ -85,6 +85,7 @@ def build_topology_planes_3d(
 def build_wire_texts_3d(
     *,
     circuit: CircuitIR,
+    topology: Topology3D,
     quantum_wire_positions: dict[str, Point3D],
     classical_wire_positions: dict[str, Point3D],
     hover_enabled: bool,
@@ -96,15 +97,15 @@ def build_wire_texts_3d(
         return []
 
     texts: list[SceneText3D] = []
-    for wire in circuit.quantum_wires:
-        position = quantum_wire_positions[wire.id]
+    for wire in topology.nodes:
+        position = quantum_wire_positions[wire.wire_id]
         texts.append(
             SceneText3D(
                 position=Point3D(x=position.x, y=position.y + 0.24, z=position.z - 0.35),
-                text=wire.label or wire.id,
+                text=wire.label or wire.wire_id,
                 font_size=draw_style.font_size * 0.88,
                 role="label",
-                wire_id=wire.id,
+                wire_id=wire.wire_id,
             )
         )
     for wire in circuit.classical_wires:

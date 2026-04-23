@@ -40,6 +40,8 @@ def windowed_3d_page_scenes(
             topology_name=pipeline.draw_options.topology,
             direct=pipeline.draw_options.direct,
             hover_enabled=pipeline.draw_options.hover.enabled,
+            topology_qubits=pipeline.draw_options.topology_qubits,
+            topology_resize=pipeline.draw_options.topology_resize,
         )
         for start_column, end_column in page_ranges
     )
@@ -134,6 +136,8 @@ def _rebalance_narrow_3d_page_ranges(
             topology_name=pipeline.draw_options.topology,
             direct=pipeline.draw_options.direct,
             hover_enabled=pipeline.draw_options.hover.enabled,
+            topology_qubits=pipeline.draw_options.topology_qubits,
+            topology_resize=pipeline.draw_options.topology_resize,
         )
         cached_ratio = _projected_scene_aspect_ratio(
             scene=scene,

@@ -91,6 +91,8 @@ def build_public_draw_config(
     mode: object = "auto",
     composite_mode: str = "compact",
     topology: str = "line",
+    topology_qubits: str = "used",
+    topology_resize: str = "error",
     topology_menu: bool = False,
     direct: bool = True,
     preset: object = None,
@@ -113,6 +115,8 @@ def build_public_draw_config(
                 mode=mode,  # type: ignore[arg-type]
                 composite_mode=composite_mode,
                 topology=topology,  # type: ignore[arg-type]
+                topology_qubits=topology_qubits,  # type: ignore[arg-type]
+                topology_resize=topology_resize,  # type: ignore[arg-type]
                 topology_menu=topology_menu,
                 direct=direct,
                 unsupported_policy=unsupported_policy,  # type: ignore[arg-type]
@@ -598,6 +602,8 @@ def draw_quantum_circuit_legacy(
     composite_mode: str = "compact",
     view: str = "2d",
     topology: str = "line",
+    topology_qubits: str = "used",
+    topology_resize: str = "error",
     topology_menu: bool = False,
     direct: bool = True,
     hover: object = False,
@@ -627,6 +633,8 @@ def draw_quantum_circuit_legacy(
         composite_mode=composite_mode,
         view=view,  # type: ignore[arg-type]
         topology=topology,  # type: ignore[arg-type]
+        topology_qubits=topology_qubits,  # type: ignore[arg-type]
+        topology_resize=topology_resize,  # type: ignore[arg-type]
         topology_menu=topology_menu,
         direct=direct,
         hover=hover,

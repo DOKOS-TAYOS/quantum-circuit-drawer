@@ -155,6 +155,8 @@ result = draw_quantum_circuit(
                 view="3d",
                 mode="pages_controls",
                 topology="grid",
+                topology_qubits="used",
+                topology_resize="error",
                 topology_menu=True,
                 direct=False,
             ),
@@ -172,6 +174,8 @@ What changes in 3D:
 - `full` works
 - managed `pages_controls` preserves a shared camera while you navigate
 - managed 3D exploration keeps a selected operation active while you rotate, and only clears it on a clean background click
+
+The built-in topology names are flexible: `"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"` can all be built for arbitrary positive qubit counts. For a circuit that uses fewer qubits than the topology contains, `topology_qubits="used"` renders only the first allocated topology nodes, while `topology_qubits="all"` keeps the inactive physical nodes visible and labels them with their topology ids. For non-static topologies, `topology_resize="fit"` lets the renderer rebuild the topology when the circuit needs more nodes; static `HardwareTopology` inputs stay exact and raise an explicit size error instead.
 
 ## Presets, Style, And Hover
 

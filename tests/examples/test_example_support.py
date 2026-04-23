@@ -188,16 +188,9 @@ def test_request_from_namespace_accepts_3d_pages_controls() -> None:
     assert request.topology == "grid"
 
 
-@pytest.mark.parametrize(
-    ("topology", "expected_qubits"),
-    [
-        ("star_tree", 10),
-        ("honeycomb", 53),
-    ],
-)
-def test_request_from_namespace_uses_topology_compatible_default_qubits_in_3d(
+@pytest.mark.parametrize("topology", ["star_tree", "honeycomb"])
+def test_request_from_namespace_uses_demo_default_qubits_in_3d(
     topology: str,
-    expected_qubits: int,
 ) -> None:
     from examples._shared import request_from_namespace
 
@@ -219,7 +212,7 @@ def test_request_from_namespace_uses_topology_compatible_default_qubits_in_3d(
 
     request = request_from_namespace(args, default_qubits=8, default_columns=5)
 
-    assert request.qubits == expected_qubits
+    assert request.qubits == 8
 
 
 def test_request_from_namespace_rejects_non_positive_hover_matrix_max_qubits() -> None:
@@ -628,7 +621,7 @@ def test_render_example_reports_unsupported_3d_topology_cleanly(
         ax: object = None,
     ) -> object:
         del circuit, config, ax
-        raise ValueError("topology 'honeycomb' does not support 10 quantum wires")
+        raise ValueError("topology 'custom' has 5 nodes but circuit uses 10")
 
     monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
 
@@ -637,7 +630,7 @@ def test_render_example_reports_unsupported_3d_topology_cleanly(
         columns=16,
         mode="pages_controls",
         view="3d",
-        topology="honeycomb",
+        topology="line",
         seed=7,
         output=None,
         show=False,
@@ -651,7 +644,7 @@ def test_render_example_reports_unsupported_3d_topology_cleanly(
     with pytest.raises(
         SystemExit,
         match=(
-            "3D topology 'honeycomb' is not available for this demo with 10 qubits.*change --qubits"
+            "3D topology 'custom' is not available for this demo with 10 qubits.*change --qubits"
         ),
     ):
         render_example(

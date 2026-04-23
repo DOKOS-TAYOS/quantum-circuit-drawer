@@ -201,6 +201,8 @@ def normalize_compare_draw_config(
                 mode=DrawMode.FULL,
                 composite_mode=config.composite_mode,
                 topology=config.topology,
+                topology_qubits=config.topology_qubits,
+                topology_resize=config.topology_resize,
                 topology_menu=False,
                 direct=config.direct,
                 unsupported_policy=config.unsupported_policy,

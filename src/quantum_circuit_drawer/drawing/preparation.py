@@ -68,6 +68,8 @@ def prepare_draw_call(
         composite_mode=resolved_config.config.composite_mode,
         view=resolved_config.config.view,
         topology=resolved_config.config.topology,
+        topology_qubits=resolved_config.config.topology_qubits,
+        topology_resize=resolved_config.config.topology_resize,
         topology_menu=resolved_config.config.topology_menu,
         direct=resolved_config.config.direct,
         hover=resolved_config.config.hover,
