@@ -35,7 +35,17 @@ from .hover import HoverOptions
 from .presets import StylePreset
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
-from .topology import HardwareTopology
+from .topology import (
+    FunctionalTopology,
+    HardwareTopology,
+    PeriodicTopology1D,
+    PeriodicTopology2D,
+    grid_topology,
+    honeycomb_topology,
+    line_topology,
+    star_topology,
+    star_tree_topology,
+)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -150,6 +160,7 @@ __all__ = [
     "DrawSideConfig",
     "DrawStyle",
     "DrawTheme",
+    "FunctionalTopology",
     "HistogramAppearanceOptions",
     "HistogramCompareConfig",
     "HistogramCompareMetrics",
@@ -169,6 +180,8 @@ __all__ = [
     "HoverOptions",
     "LayoutError",
     "OutputOptions",
+    "PeriodicTopology1D",
+    "PeriodicTopology2D",
     "QuantumCircuitDrawerError",
     "RenderingError",
     "RenderDiagnostic",
@@ -182,7 +195,12 @@ __all__ = [
     "compare_circuits",
     "compare_histograms",
     "draw_quantum_circuit",
+    "grid_topology",
+    "honeycomb_topology",
+    "line_topology",
     "plot_histogram",
+    "star_topology",
+    "star_tree_topology",
 ]
 
 

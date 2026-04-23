@@ -8,8 +8,9 @@ from collections.abc import Sequence
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind, binary_control_states
+from ..ir.wires import WireKind
 from ..style import DrawStyle, normalize_style
-from ..topology import TopologyInput
+from ..topology import TopologyInput, TopologyQubitMode, TopologyResizeMode
 from ._engine_3d_classical import append_classical_condition_connections_3d
 from ._engine_3d_metrics import _OperationMetrics3D, build_operation_metrics_3d
 from ._engine_3d_operations import (
@@ -66,6 +67,8 @@ class LayoutEngine3D:
         topology_name: TopologyInput,
         direct: bool,
         hover_enabled: bool,
+        topology_qubits: TopologyQubitMode = "used",
+        topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:
         return self._compute_with_normalized_style(
             circuit,
@@ -73,6 +76,8 @@ class LayoutEngine3D:
             topology_name=topology_name,
             direct=direct,
             hover_enabled=hover_enabled,
+            topology_qubits=topology_qubits,
+            topology_resize=topology_resize,
         )
 
     def _compute_with_normalized_style(
@@ -83,10 +88,17 @@ class LayoutEngine3D:
         topology_name: TopologyInput,
         direct: bool,
         hover_enabled: bool,
+        topology_qubits: TopologyQubitMode = "used",
+        topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:
         draw_style = style
         normalized_layers = normalize_draw_layers(circuit)
-        topology = build_topology(topology_name, tuple(circuit.quantum_wires))
+        topology = build_topology(
+            topology_name,
+            tuple(circuit.quantum_wires),
+            topology_qubits=topology_qubits,
+            topology_resize=topology_resize,
+        )
         metrics = self._build_operation_metrics(normalized_layers, draw_style)
         gate_depth = self._gate_cube_size(draw_style)
         column_depth_step = self._column_depth_step(draw_style)
@@ -116,13 +128,14 @@ class LayoutEngine3D:
 
         wires = self._build_wires(
             circuit=circuit,
+            topology=topology,
             quantum_wire_positions=quantum_wire_positions,
             classical_wire_positions=classical_wire_positions,
             z_end=z_end,
         )
         gates: list[SceneGate3D] = []
         markers = self._build_topology_nodes(
-            circuit=circuit,
+            topology=topology,
             quantum_wire_positions=quantum_wire_positions,
             draw_style=draw_style,
         )
@@ -136,6 +149,7 @@ class LayoutEngine3D:
         )
         texts = self._build_wire_texts(
             circuit=circuit,
+            topology=topology,
             quantum_wire_positions=quantum_wire_positions,
             classical_wire_positions=classical_wire_positions,
             hover_enabled=hover_enabled,
@@ -206,21 +220,22 @@ class LayoutEngine3D:
         self,
         *,
         circuit: CircuitIR,
+        topology: Topology3D,
         quantum_wire_positions: dict[str, Point3D],
         classical_wire_positions: dict[str, Point3D],
         z_end: float,
     ) -> tuple[SceneWire3D, ...]:
         wires: list[SceneWire3D] = []
-        for wire in circuit.quantum_wires:
-            start = quantum_wire_positions[wire.id]
+        for wire in topology.nodes:
+            start = quantum_wire_positions[wire.wire_id]
             wires.append(
                 SceneWire3D(
-                    id=wire.id,
-                    label=wire.label or wire.id,
-                    kind=wire.kind,
+                    id=wire.wire_id,
+                    label=wire.label or wire.wire_id,
+                    kind=WireKind.QUANTUM,
                     start=start,
                     end=Point3D(x=start.x, y=start.y, z=z_end),
-                    hover_text=wire.label or wire.id,
+                    hover_text=wire.label or wire.wire_id,
                 )
             )
         for wire in circuit.classical_wires:
@@ -241,12 +256,12 @@ class LayoutEngine3D:
     def _build_topology_nodes(
         self,
         *,
-        circuit: CircuitIR,
+        topology: Topology3D,
         quantum_wire_positions: dict[str, Point3D],
         draw_style: DrawStyle,
     ) -> list[SceneMarker3D]:
         return build_topology_nodes_3d(
-            circuit=circuit,
+            topology=topology,
             quantum_wire_positions=quantum_wire_positions,
             draw_style=draw_style,
         )
@@ -277,6 +292,7 @@ class LayoutEngine3D:
         self,
         *,
         circuit: CircuitIR,
+        topology: Topology3D,
         quantum_wire_positions: dict[str, Point3D],
         classical_wire_positions: dict[str, Point3D],
         hover_enabled: bool,
@@ -284,6 +300,7 @@ class LayoutEngine3D:
     ) -> list[SceneText3D]:
         return build_wire_texts_3d(
             circuit=circuit,
+            topology=topology,
             quantum_wire_positions=quantum_wire_positions,
             classical_wire_positions=classical_wire_positions,
             hover_enabled=hover_enabled,

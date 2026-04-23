@@ -179,21 +179,27 @@ def test_draw_quantum_circuit_accepts_topology_menu_in_managed_3d_view() -> None
     assert axes.name == "3d"
 
 
-def test_draw_quantum_circuit_rejects_invalid_grid_qubit_count_in_3d() -> None:
-    with pytest.raises(ValueError, match="topology 'grid' does not support 2 quantum wires"):
-        draw_quantum_circuit(build_sample_ir(), view="3d", topology="grid", show=False)
+def test_draw_quantum_circuit_accepts_ragged_grid_qubit_count_in_3d() -> None:
+    figure, axes = draw_quantum_circuit(build_sample_ir(), view="3d", topology="grid", show=False)
+
+    assert axes.figure is figure
+    assert axes.name == "3d"
 
 
-def test_draw_quantum_circuit_rejects_invalid_star_topology_for_single_qubit() -> None:
-    with pytest.raises(ValueError, match="topology 'star' does not support 1 quantum wire"):
-        draw_quantum_circuit(_single_qubit_ir(), view="3d", topology="star", show=False)
+def test_draw_quantum_circuit_accepts_single_qubit_star_topology() -> None:
+    figure, axes = draw_quantum_circuit(_single_qubit_ir(), view="3d", topology="star", show=False)
+
+    assert axes.figure is figure
+    assert axes.name == "3d"
 
 
-def test_draw_quantum_circuit_rejects_invalid_star_tree_qubit_count() -> None:
-    with pytest.raises(ValueError, match="topology 'star_tree' does not support 5 quantum wires"):
-        draw_quantum_circuit(
-            build_dense_rotation_ir(layer_count=2, wire_count=5),
-            view="3d",
-            topology="star_tree",
-            show=False,
-        )
+def test_draw_quantum_circuit_accepts_arbitrary_star_tree_qubit_count() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=2, wire_count=5),
+        view="3d",
+        topology="star_tree",
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert axes.name == "3d"

@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Reworked 3D topology handling around typed static, functional, 1D periodic, and 2D periodic definitions; built-in `line`, `grid`, `star`, `star_tree`, and `honeycomb` topologies now resize through functional builders, and new render options control full-topology versus used-node display and resize-on-fit behavior
 - Polished managed 2D exploration controls so `Wires`, `Ancillas`, and block actions only appear when they can actually change the current view, and moved the horizontal slider onto its own row above the lower button strip
 - Made compare-mode difference bands subtler and theme-aware, kept hover and zoom-responsive text behavior on compare axes, and applied theme text colors to per-side titles and the shared summary for dark-mode readability
 - Tightened 2D exploration emphasis so the selected operation stands out more clearly than related neighbors, added low-alpha grouped highlight boxes around expanded decomposition members, and kept collapsed synthetic blocks compact even with long labels

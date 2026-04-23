@@ -256,6 +256,8 @@ def _pipeline_for_topology(
         topology_name=topology,
         direct=draw_options.direct,
         hover_enabled=draw_options.hover.enabled,
+        topology_qubits=draw_options.topology_qubits,
+        topology_resize=draw_options.topology_resize,
     )
     return replace(
         pipeline,

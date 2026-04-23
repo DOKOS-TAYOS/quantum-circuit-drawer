@@ -62,6 +62,8 @@ DrawConfig(
             mode=DrawMode.AUTO,
             composite_mode="compact",
             topology="line",
+            topology_qubits="used",
+            topology_resize="error",
             topology_menu=False,
             direct=True,
             unsupported_policy=UnsupportedPolicy.RAISE,
@@ -89,6 +91,8 @@ Important fields:
 - `side.render.mode`: `DrawMode.AUTO`, `PAGES`, `PAGES_CONTROLS`, `SLIDER`, or `FULL`
 - `side.render.composite_mode`: `"compact"` or `"expand"`
 - `side.render.topology`: only used in 3D
+- `side.render.topology_qubits`: `"used"` renders only allocated topology nodes; `"all"` renders the full topology footprint
+- `side.render.topology_resize`: `"error"` rejects undersized topologies; `"fit"` rebuilds functional or periodic topologies for the circuit size
 - `side.render.topology_menu`: managed interactive 3D topology selector
 - `side.render.direct`: 3D layout flag for topology routing behavior
 - `side.render.unsupported_policy`: `UnsupportedPolicy.RAISE` or `UnsupportedPolicy.PLACEHOLDER`
@@ -124,6 +128,28 @@ For a guided managed-2D walkthrough, see `qiskit-2d-exploration-showcase` in [Ex
   - fail on recoverable unsupported operations
 - `PLACEHOLDER`
   - keep the render alive with placeholders when the unsupported case is recoverable
+
+### 3D topology inputs
+
+`side.render.topology` accepts the built-in names `"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"`, or a typed topology object.
+
+Public topology helpers:
+
+- `HardwareTopology`
+  - static topology with explicit node ids, edges, optional coordinates, and a name
+- `FunctionalTopology`
+  - wraps a `Callable[[int], HardwareTopology]`
+- `PeriodicTopology1D`
+  - composes initial, repeating, and final cells with bridge edges between neighboring cells
+- `PeriodicTopology2D`
+  - composes corner, edge, and center cells with horizontal and vertical bridge edges
+- `line_topology(qubit_count)`
+- `grid_topology(qubit_count)`
+- `star_topology(qubit_count)`
+- `star_tree_topology(qubit_count)`
+- `honeycomb_topology(qubit_count)`
+
+The built-in names are backed by the public functional builders and support any positive qubit count. For circuits that use fewer qubits than a topology contains, `topology_qubits="used"` keeps the view focused on the first allocated nodes, while `topology_qubits="all"` also shows inactive physical nodes using their topology ids as labels. If a circuit needs more nodes than the topology currently has, `topology_resize="fit"` can resize functional and periodic topologies; static `HardwareTopology` instances stay fixed.
 
 ### `StylePreset`
 

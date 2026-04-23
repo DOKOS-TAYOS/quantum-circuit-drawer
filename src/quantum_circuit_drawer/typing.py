@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .layout.scene import LayoutScene
     from .layout.scene_3d import LayoutScene3D
     from .style import DrawStyle
-    from .topology import TopologyInput
+    from .topology import TopologyInput, TopologyQubitMode, TopologyResizeMode
 else:
     Axes = Any
     Figure = Any
@@ -50,6 +50,8 @@ class LayoutEngine3DLike(Protocol):
         topology_name: TopologyInput,
         direct: bool,
         hover_enabled: bool,
+        topology_qubits: TopologyQubitMode = "used",
+        topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:
         """Compute a 3D drawable scene from circuit IR and validated style."""
         ...
@@ -66,6 +68,8 @@ class _NormalizedLayoutEngine3DLike(Protocol):
         topology_name: TopologyInput,
         direct: bool,
         hover_enabled: bool,
+        topology_qubits: TopologyQubitMode = "used",
+        topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:
         """Compute a 3D drawable scene from already-normalized style."""
         ...

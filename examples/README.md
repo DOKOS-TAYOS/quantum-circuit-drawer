@@ -207,7 +207,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls --hover-matrix always
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode slider --columns 28
 .\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
-.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 53
+.\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 17
 .\.venv\Scripts\python.exe examples\qiskit_random.py --preset presentation
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand
 ```
@@ -223,7 +223,7 @@ Linux or WSL:
 .venv/bin/python examples/qiskit_random.py --mode pages_controls --hover-matrix always
 .venv/bin/python examples/qiskit_random.py --mode slider --columns 28
 .venv/bin/python examples/qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
-.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 53
+.venv/bin/python examples/qiskit_qaoa.py --view 3d --topology honeycomb --mode slider --qubits 17
 .venv/bin/python examples/qiskit_random.py --preset presentation
 .venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand
 ```
@@ -237,6 +237,8 @@ Useful circuit flags:
 - `--composite-mode compact|expand`
 - `--unsupported-policy raise|placeholder`
 - `--hover-matrix never|auto|always`
+
+The built-in 3D topologies are flexible, so demo qubit counts are chosen for the circuit you want to inspect rather than for old topology limits.
 
 ## I Want To See Histogram Workflows
 

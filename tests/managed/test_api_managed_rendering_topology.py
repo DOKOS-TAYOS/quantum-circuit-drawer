@@ -76,7 +76,7 @@ def test_draw_quantum_circuit_attaches_lower_left_dark_topology_radio_panel(
     assert axes.figure is figure
     assert menu_state is not None
     assert menu_state.active_topology == "line"
-    assert menu_state.valid_topologies == ("line", "star")
+    assert menu_state.valid_topologies == ("line", "grid", "star", "star_tree", "honeycomb")
     assert menu_state.menu_axes is not None
     assert menu_state.radio is not None
     assert tuple(menu_state.menu_axes.get_position().bounds) == pytest.approx(
@@ -137,7 +137,7 @@ def test_topology_menu_redraws_same_axes_with_new_valid_topology(
     plt.close(figure)
 
 
-def test_topology_menu_keeps_invalid_topologies_visible_but_disabled(
+def test_topology_menu_keeps_all_builtin_topologies_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
@@ -152,17 +152,12 @@ def test_topology_menu_keeps_invalid_topologies_visible_but_disabled(
     menu_state = get_topology_menu_state(figure)
 
     assert menu_state is not None
-    assert menu_state.is_enabled("line") is True
-    assert menu_state.is_enabled("grid") is False
     assert set(menu_state.topologies) == {"line", "grid", "star", "star_tree", "honeycomb"}
-
-    menu_state.select_topology("grid")
-
-    assert menu_state.active_topology == "line"
+    assert all(menu_state.is_enabled(topology) for topology in menu_state.topologies)
     plt.close(figure)
 
 
-def test_topology_menu_reverts_invalid_radio_selection_to_active_topology(
+def test_topology_menu_selects_flexible_grid_topology(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
@@ -181,7 +176,7 @@ def test_topology_menu_reverts_invalid_radio_selection_to_active_topology(
 
     menu_state.select_topology("grid")
 
-    assert menu_state.active_topology == "line"
-    assert menu_state.radio.value_selected == "line"
-    assert menu_state.radio.labels[1].get_color() != menu_state.radio.labels[0].get_color()
+    assert menu_state.active_topology == "grid"
+    assert menu_state.radio.value_selected == "grid"
+    assert menu_state.scene.topology.name == "grid"
     plt.close(figure)
