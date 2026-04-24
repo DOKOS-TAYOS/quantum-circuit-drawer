@@ -18,6 +18,7 @@ from quantum_circuit_drawer.layout.spacing import (
     operation_width_from_parts,
 )
 from quantum_circuit_drawer.style import DrawStyle
+from quantum_circuit_drawer.utils.formatting import format_gate_name
 
 
 def test_draw_style_defaults_to_denser_horizontal_spacing() -> None:
@@ -499,6 +500,40 @@ def test_operation_width_from_parts_expands_for_long_labels_and_subtitles() -> N
             subtitle=subtitle,
         )
         > style.gate_width
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "terminal_kind", "expected_label"),
+    [
+        ("PROBS", "probs", "Prob"),
+        ("EXPVAL", "expval", "ExpVal"),
+        ("COUNTS", "counts", "Counts"),
+    ],
+)
+def test_terminal_result_gate_widths_are_compact(
+    name: str,
+    terminal_kind: str,
+    expected_label: str,
+) -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name=name,
+        target_wires=("q0",),
+        metadata={"pennylane_terminal_kind": terminal_kind},
+    )
+    label, subtitle = operation_label_parts(operation, style)
+
+    assert format_gate_name(label) == expected_label
+    assert (
+        operation_width_from_parts(
+            operation=operation,
+            style=style,
+            label=label,
+            subtitle=subtitle,
+        )
+        < style.gate_width
     )
 
 

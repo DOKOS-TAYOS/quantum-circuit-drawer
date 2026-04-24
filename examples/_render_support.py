@@ -51,21 +51,33 @@ def set_result_figure_titles(*, result: object, saved_label: str) -> None:
 def result_figures(result: object) -> tuple[object, ...]:
     """Return every figure-like object exposed by one render result."""
 
-    figures = getattr(result, "figures", None)
-    if figures is not None:
-        if isinstance(figures, tuple):
-            return figures
-        if isinstance(figures, list):
-            return tuple(figures)
-        try:
-            return tuple(figures)
-        except TypeError:
-            return ()
+    collected: list[object] = []
+    seen: set[int] = set()
 
-    figure = getattr(result, "figure", None)
-    if figure is not None:
-        return (figure,)
-    return ()
+    def append_figures(value: object) -> None:
+        figures = getattr(value, "figures", None)
+        if figures is not None:
+            try:
+                candidates = tuple(figures)
+            except TypeError:
+                candidates = ()
+        else:
+            figure = getattr(value, "figure", None)
+            candidates = (figure,) if figure is not None else ()
+
+        for candidate in candidates:
+            marker = id(candidate)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            collected.append(candidate)
+
+    append_figures(result)
+    for nested_name in ("left_result", "right_result"):
+        nested_result = getattr(result, nested_name, None)
+        if nested_result is not None:
+            append_figures(nested_result)
+    return tuple(collected)
 
 
 def release_rendered_result(result: object) -> None:

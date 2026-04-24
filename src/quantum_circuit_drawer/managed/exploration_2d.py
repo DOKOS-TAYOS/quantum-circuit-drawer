@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import TypeVar
@@ -47,6 +49,9 @@ from ..renderers._matplotlib_page_projection import page_x_offset, page_y_offset
 
 _CLICK_CONNECTION_HALF_WIDTH = 0.1
 _ANCILLA_NAME_HINTS = ("ancilla", "anc", "work")
+_COLLAPSED_LABEL_NUMBER_PATTERN = re.compile(
+    r"(?<![\w.])[-+]?(?:\d+\.\d+|\d+\.|\.\d+)(?:[eE][-+]?\d+)?"
+)
 _SceneOperationVisualItem = TypeVar(
     "_SceneOperationVisualItem",
     SceneGate,
@@ -786,15 +791,24 @@ def _collapse_top_level_blocks(
     blocks: dict[str, ExplorationBlock],
     collapsed_block_ids: set[str] | frozenset[str],
 ) -> tuple[SemanticOperationIR, ...]:
-    grouped_operations = _operations_by_top_level_location(expanded_semantic_ir)
     wire_order = {wire.id: index for index, wire in enumerate(expanded_semantic_ir.all_wires)}
+    grouped_operations = {
+        semantic_operation_id_from_location(top_level_location): operations
+        for top_level_location, operations in _operations_by_top_level_location(
+            expanded_semantic_ir
+        )
+    }
     collapsed_operations: list[SemanticOperationIR] = []
-    for top_level_location, operations in grouped_operations:
-        block_id = semantic_operation_id_from_location(top_level_location)
+    emitted_collapsed_block_ids: set[str] = set()
+    for operation in _flatten_operations(expanded_semantic_ir):
+        block_id = semantic_operation_id_from_location(_top_level_location(operation))
         block = blocks.get(block_id)
         if block is None or block_id not in collapsed_block_ids:
-            collapsed_operations.extend(operations)
+            collapsed_operations.append(operation)
             continue
+        if block_id in emitted_collapsed_block_ids:
+            continue
+        operations = grouped_operations[block_id]
         collapsed_operations.append(
             _collapsed_block_operation(
                 block,
@@ -802,6 +816,7 @@ def _collapse_top_level_blocks(
                 wire_order=wire_order,
             )
         )
+        emitted_collapsed_block_ids.add(block_id)
     return tuple(collapsed_operations)
 
 
@@ -835,13 +850,14 @@ def _collapsed_block_operation(
         return block.original_collapsed_operation
 
     first_operation = operations[0]
+    visible_label = _rounded_collapsed_block_label(block.label)
     target_wires = tuple(
         sorted(block.wire_ids, key=lambda wire_id: wire_order.get(wire_id, len(wire_order)))
     )
     return SemanticOperationIR(
         kind=OperationKind.GATE,
         name=block.label,
-        label=block.label,
+        label=visible_label,
         target_wires=target_wires,
         hover_details=(
             f"collapsed block: {block.label}",
@@ -860,6 +876,20 @@ def _collapsed_block_operation(
             "suppress_target_annotations": True,
         },
     )
+
+
+def _rounded_collapsed_block_label(label: str) -> str:
+    return _COLLAPSED_LABEL_NUMBER_PATTERN.sub(_rounded_numeric_label_match, label)
+
+
+def _rounded_numeric_label_match(match: re.Match[str]) -> str:
+    value = float(match.group(0))
+    if not math.isfinite(value):
+        return match.group(0)
+    rounded = f"{value:.3f}".rstrip("0").rstrip(".")
+    if rounded == "-0":
+        return "0"
+    return rounded
 
 
 def _visible_wire_ids(

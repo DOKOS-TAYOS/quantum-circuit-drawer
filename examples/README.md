@@ -340,10 +340,13 @@ Linux or WSL:
 .venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
 ```
 
+Circuit-compare demos default to `--mode pages_controls`, so they open the left circuit, right circuit, and summary table as three normal Matplotlib windows. Use `--mode full` if you want the older single shared figure.
+
 On interactive Matplotlib backends, `compare-histograms-ideal-vs-sampled` lets you click either the legend swatch or the legend label to hide and restore each series.
 
 Useful compare flags:
 
+- `--mode auto|pages|pages_controls|slider|full`
 - `--left-label <name>`
 - `--right-label <name>`
 - `--highlight-differences` / `--no-highlight-differences`

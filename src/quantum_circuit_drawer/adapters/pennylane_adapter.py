@@ -139,7 +139,7 @@ class PennyLaneAdapter(BaseAdapter):
                     tape_wires=tuple(tape.wires),
                     wire_ids=wire_ids,
                     wire_labels=wire_labels,
-                    location=(measurement_index,),
+                    location=(len(tape.operations) + measurement_index,),
                 )
             )
 
@@ -393,6 +393,8 @@ class PennyLaneAdapter(BaseAdapter):
             "pennylane_terminal_kind": terminal_kind,
             "pennylane_measurement_wires": target_wires,
         }
+        if terminal_kind in {"probs", "expval", "counts"}:
+            metadata["compact_result_width"] = True
         if observable_summary is not None:
             metadata["pennylane_observable_label"] = observable_summary.label
 

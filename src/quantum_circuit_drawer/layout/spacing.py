@@ -5,7 +5,11 @@ from __future__ import annotations
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..style import DrawStyle
-from ..utils.formatting import format_parameters
+from ..utils.formatting import format_gate_name, format_parameters
+
+_COMPACT_RESULT_DISPLAY_LABELS = frozenset({"Prob", "ExpVal", "Counts"})
+_COMPACT_RESULT_TERMINAL_KINDS = frozenset({"probs", "expval", "counts"})
+_COMPACT_RESULT_WIDTH_FACTOR = 0.78
 
 
 def estimate_text_width(text: str, font_size: float) -> float:
@@ -57,6 +61,25 @@ def uses_compact_label_width(
     return len(label) <= 4
 
 
+def uses_compact_result_width(
+    operation: OperationIR | MeasurementIR,
+    label: str,
+    subtitle: str | None,
+) -> bool:
+    """Return whether a terminal result box should use a narrow footprint."""
+
+    if subtitle is not None:
+        return False
+    if operation.kind is not OperationKind.GATE:
+        return False
+    if operation.metadata.get("compact_result_width") is True:
+        return True
+    terminal_kind = operation.metadata.get("pennylane_terminal_kind")
+    if isinstance(terminal_kind, str) and terminal_kind in _COMPACT_RESULT_TERMINAL_KINDS:
+        return True
+    return format_gate_name(label) in _COMPACT_RESULT_DISPLAY_LABELS
+
+
 def operation_width_from_parts(
     *,
     operation: OperationIR | MeasurementIR,
@@ -71,6 +94,8 @@ def operation_width_from_parts(
     if operation.kind is OperationKind.SWAP:
         return style.gate_width
 
+    if uses_compact_result_width(operation, label, subtitle):
+        return max(0.45, style.gate_width * _COMPACT_RESULT_WIDTH_FACTOR)
     if uses_compact_parametric_width(operation, label, subtitle):
         return style.gate_width
     if uses_compact_label_width(operation, label, subtitle):

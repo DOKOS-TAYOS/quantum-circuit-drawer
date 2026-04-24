@@ -26,6 +26,7 @@ from quantum_circuit_drawer.layout.scene import SceneVisualState
 from quantum_circuit_drawer.managed.exploration_2d import (
     WireFilterMode,
     build_exploration_catalog,
+    next_selected_operation_id_for_block_action,
     selected_block_action,
     transform_semantic_circuit,
 )
@@ -164,6 +165,109 @@ def test_fundamental_decomposition_blocks_start_collapsed_and_expand_independent
         if operation_id.startswith("op:2.")
     ]
     assert {"op:0.0", "op:0.1", "op:0.2"}.issubset(transformed_operation_ids)
+
+
+def test_transform_semantic_circuit_preserves_interleaved_expansion_order() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+
+    transformed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=set(),
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    transformed_operation_ids = [
+        semantic_operation_id(operation)
+        for layer in transformed.semantic_ir.layers
+        for operation in layer.operations
+    ]
+
+    assert transformed_operation_ids.index("op:0.1") < transformed_operation_ids.index("op:1")
+    assert transformed_operation_ids.index("op:1") < transformed_operation_ids.index("op:0.2")
+
+
+def test_transform_semantic_circuit_keeps_terminal_outputs_after_expanded_blocks() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_terminal_collision_circuits()
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+
+    transformed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=set(),
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+
+    assert _semantic_operation_names(transformed.semantic_ir)[-1] == "PROBS"
+
+
+def test_block_actions_expand_and_recollapse_multiple_blocks_independently() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+    collapsed_block_ids = set(catalog.initial_collapsed_block_ids)
+
+    first_expand = selected_block_action(
+        catalog,
+        selected_operation_id="op:0",
+        collapsed_block_ids=collapsed_block_ids,
+    )
+    assert first_expand is not None
+    assert first_expand.action == "expand"
+    collapsed_block_ids.discard(first_expand.block_id)
+    assert next_selected_operation_id_for_block_action(catalog, first_expand) == "op:0.0"
+
+    second_expand = selected_block_action(
+        catalog,
+        selected_operation_id="op:2",
+        collapsed_block_ids=collapsed_block_ids,
+    )
+    assert second_expand is not None
+    assert second_expand.action == "expand"
+    collapsed_block_ids.discard(second_expand.block_id)
+    assert next_selected_operation_id_for_block_action(catalog, second_expand) == "op:2.0"
+
+    expanded = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=collapsed_block_ids,
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    expanded_operation_ids = {
+        semantic_operation_id(operation)
+        for layer in expanded.semantic_ir.layers
+        for operation in layer.operations
+    }
+    assert {"op:0.0", "op:0.1", "op:0.2", "op:2.0", "op:2.1", "op:2.2"}.issubset(
+        expanded_operation_ids
+    )
+
+    first_collapse = selected_block_action(
+        catalog,
+        selected_operation_id="op:0.0",
+        collapsed_block_ids=collapsed_block_ids,
+    )
+    assert first_collapse is not None
+    assert first_collapse.action == "collapse"
+    collapsed_block_ids.add(first_collapse.block_id)
+    assert next_selected_operation_id_for_block_action(catalog, first_collapse) == "op:0"
+
+    second_collapse = selected_block_action(
+        catalog,
+        selected_operation_id="op:2.0",
+        collapsed_block_ids=collapsed_block_ids,
+    )
+    assert second_collapse is not None
+    assert second_collapse.action == "collapse"
+    collapsed_block_ids.add(second_collapse.block_id)
+    assert next_selected_operation_id_for_block_action(catalog, second_collapse) == "op:2"
+
+    recollapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=collapsed_block_ids,
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    assert {"RZZ", "H"} == set(_semantic_operation_names(recollapsed.semantic_ir))
 
 
 def test_slider_click_selection_highlights_operation_and_clears_on_background() -> None:
@@ -386,6 +490,22 @@ def test_synthetic_collapsed_long_label_block_keeps_compact_single_column_width(
 
     assert len(scene.gates) == 1
     assert scene.gates[0].width == pytest.approx(DrawStyle().gate_width)
+
+
+def test_synthetic_collapsed_block_rounds_numeric_parameters_in_visible_label() -> None:
+    expanded_semantic_ir = _semantic_parameterized_long_label_block_circuit()
+    catalog = build_exploration_catalog(expanded_semantic_ir, expanded_semantic_ir)
+
+    transformed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:0"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    scene = LayoutEngine().compute(lower_semantic_circuit(transformed.semantic_ir), DrawStyle())
+
+    assert len(scene.gates) == 1
+    assert scene.gates[0].label == "LongRotation(theta=3.142, beta=-0.123)"
 
 
 def test_slider_optional_buttons_place_block_before_wire_and_ancilla_controls() -> None:
@@ -996,6 +1116,204 @@ def _semantic_long_label_block_circuits() -> tuple[SemanticCircuitIR, SemanticCi
                             composite_label="ProbabilityFlowBlock",
                             location=(0, 1),
                         ),
+                    ),
+                )
+            ),
+        ),
+    )
+    return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_parameterized_long_label_block_circuit() -> SemanticCircuitIR:
+    label = "LongRotation(theta=3.14159265, beta=-0.123456)"
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(2)
+    )
+    return SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            decomposition_origin=label,
+                            composite_label=label,
+                            location=(0, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="CX",
+                            native_kind="gate",
+                            decomposition_origin=label,
+                            composite_label=label,
+                            location=(0, 1),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
+
+
+def _semantic_terminal_collision_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(2)
+    )
+    current_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            location=(0,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZZ",
+                        target_wires=("q0", "q1"),
+                        parameters=(0.7,),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="RZZ",
+                            native_kind="gate",
+                            location=(1,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="PROBS",
+                        target_wires=("q0", "q1"),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="ProbabilityMP",
+                            native_kind="probs",
+                            location=(0,),
+                        ),
+                        metadata={"pennylane_terminal_kind": "probs"},
+                    ),
+                )
+            ),
+        ),
+    )
+    expanded_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            location=(0,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="CX",
+                            native_kind="gate",
+                            decomposition_origin="RZZ",
+                            composite_label="RZZ",
+                            location=(1, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        target_wires=("q1",),
+                        parameters=(0.7,),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="RZ",
+                            native_kind="gate",
+                            decomposition_origin="RZZ",
+                            composite_label="RZZ",
+                            location=(1, 1),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="CX",
+                            native_kind="gate",
+                            decomposition_origin="RZZ",
+                            composite_label="RZZ",
+                            location=(1, 2),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="PROBS",
+                        target_wires=("q0", "q1"),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="ProbabilityMP",
+                            native_kind="probs",
+                            location=(0,),
+                        ),
+                        metadata={"pennylane_terminal_kind": "probs"},
                     ),
                 )
             ),

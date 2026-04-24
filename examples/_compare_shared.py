@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal, cast
 
@@ -14,15 +14,21 @@ except ImportError:
     from _bootstrap import ensure_local_project_on_path
 
 try:
-    from ._render_support import normalize_figsize, release_rendered_result, set_figure_title
+    from ._render_support import (
+        normalize_figsize,
+        release_rendered_result,
+        set_result_figure_titles,
+    )
 except ImportError:
-    from _render_support import normalize_figsize, release_rendered_result, set_figure_title
+    from _render_support import normalize_figsize, release_rendered_result, set_result_figure_titles
 
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitCompareConfig,
     CircuitCompareOptions,
+    DrawMode,
+    DrawSideConfig,
     OutputOptions,
     compare_circuits,
     compare_histograms,
@@ -35,6 +41,7 @@ from quantum_circuit_drawer.histogram import (  # noqa: E402
 
 CompareKind = Literal["circuits", "histograms"]
 HistogramCompareSortName = Literal["state", "state_desc", "delta_desc"]
+CircuitCompareModeName = Literal["auto", "pages", "pages_controls", "slider", "full"]
 DEFAULT_COMPARE_FIGSIZE = (11.0, 5.6)
 
 
@@ -51,6 +58,7 @@ class CompareExampleRequest:
     show_summary: bool | None = None
     sort: HistogramCompareSortName | None = None
     top_k: int | None = None
+    mode: CircuitCompareModeName = "pages_controls"
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +117,15 @@ def add_compare_arguments(parser: ArgumentParser) -> None:
         help="Optional top-k override for histogram-compare demos.",
     )
     parser.add_argument(
+        "--mode",
+        choices=("auto", "pages", "pages_controls", "slider", "full"),
+        default="pages_controls",
+        help=(
+            "Circuit compare render mode. Circuit demos default to pages_controls so "
+            "the two circuits and summary table open as separate windows."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         help="Optional path where the compare figure will also be saved.",
@@ -160,6 +177,7 @@ def request_from_namespace(args: Namespace) -> CompareExampleRequest:
         show_summary=_optional_bool(getattr(args, "show_summary", None)),
         sort=_optional_sort(getattr(args, "sort", None)),
         top_k=_optional_top_k(getattr(args, "top_k", None)),
+        mode=_optional_compare_mode(getattr(args, "mode", "pages_controls")),
     )
 
 
@@ -193,7 +211,7 @@ def render_compare_example(
                 payload.right_data,
                 config=config,
             )
-        set_figure_title(figure=result.figure, title=saved_label)
+        set_result_figure_titles(result=result, saved_label=saved_label)
         if request.output is not None:
             print(f"Saved {saved_label} to {request.output}")
     finally:
@@ -222,8 +240,12 @@ def _merge_circuit_compare_config(
     *,
     request: CompareExampleRequest,
 ) -> CircuitCompareConfig:
+    shared = DrawSideConfig(
+        render=replace(config.shared.render, mode=DrawMode(request.mode)),
+        appearance=config.shared.appearance,
+    )
     return CircuitCompareConfig(
-        shared=config.shared,
+        shared=shared,
         left_render=config.left_render,
         right_render=config.right_render,
         left_appearance=config.left_appearance,
@@ -295,6 +317,13 @@ def _optional_sort(value: object) -> HistogramCompareSortName | None:
     if sort not in {"state", "state_desc", "delta_desc"}:
         raise SystemExit("--sort must be one of: state, state_desc, delta_desc.")
     return cast(HistogramCompareSortName, sort)
+
+
+def _optional_compare_mode(value: object) -> CircuitCompareModeName:
+    mode = str(value)
+    if mode not in {"auto", "pages", "pages_controls", "slider", "full"}:
+        raise SystemExit("--mode must be one of: auto, pages, pages_controls, slider, full.")
+    return cast(CircuitCompareModeName, mode)
 
 
 def _optional_str(value: object) -> str | None:
