@@ -108,3 +108,16 @@ def test_resolve_theme_accepts_theme_instances_and_rejects_unknown_names() -> No
 
     with pytest.raises(StyleValidationError, match="unknown theme 'missing'"):
         resolve_theme("missing")
+
+
+def test_resolve_theme_accepts_accessible_high_contrast_theme() -> None:
+    theme = resolve_theme("accessible")
+
+    assert theme.name == "accessible"
+    assert theme.figure_facecolor == "#ffffff"
+    assert theme.axes_facecolor == "#ffffff"
+    assert theme.text_color == "#000000"
+    assert theme.gate_edgecolor == "#000000"
+    assert theme.accent_color == "#0072B2"
+    assert theme.control_connection_color == "#D55E00"
+    assert theme.topology_plane_color == "#009E73"

@@ -149,12 +149,12 @@ def add_histogram_arguments(parser: ArgumentParser) -> None:
     )
     parser.add_argument(
         "--preset",
-        choices=("paper", "notebook", "compact", "presentation"),
+        choices=("paper", "notebook", "compact", "presentation", "accessible"),
         help="Optional style preset applied before explicit overrides.",
     )
     parser.add_argument(
         "--theme",
-        choices=("light", "dark", "paper"),
+        choices=("light", "dark", "paper", "accessible"),
         help="Optional histogram theme override.",
     )
     parser.add_argument(
@@ -249,12 +249,12 @@ def request_from_namespace(args: Namespace) -> HistogramExampleRequest:
         preset=_optional_choice(
             getattr(args, "preset", None),
             option_name="--preset",
-            allowed_values=("paper", "notebook", "compact", "presentation"),
+            allowed_values=("paper", "notebook", "compact", "presentation", "accessible"),
         ),
         theme=_optional_choice(
             getattr(args, "theme", None),
             option_name="--theme",
-            allowed_values=("light", "dark", "paper"),
+            allowed_values=("light", "dark", "paper", "accessible"),
         ),
         draw_style=_optional_histogram_draw_style(getattr(args, "draw_style", None)),
         state_label_mode=_optional_state_label_mode(getattr(args, "state_label_mode", None)),

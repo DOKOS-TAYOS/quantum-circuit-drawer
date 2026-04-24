@@ -30,10 +30,17 @@ def test_normalize_style_preset_accepts_supported_values(
     assert normalize_style_preset(raw_value) is expected
 
 
+def test_normalize_style_preset_accepts_accessible_value() -> None:
+    normalized = normalize_style_preset("accessible")
+
+    assert normalized.value == "accessible"
+    assert StylePreset.ACCESSIBLE is normalized
+
+
 def test_normalize_style_preset_rejects_unknown_values() -> None:
     with pytest.raises(
         ValueError,
-        match="preset must be one of: paper, notebook, compact, presentation",
+        match="preset must be one of: paper, notebook, compact, presentation, accessible",
     ):
         normalize_style_preset("poster")
 
@@ -70,6 +77,26 @@ def test_apply_draw_style_preset_uses_expected_baselines(
     assert normalized.layer_spacing == pytest.approx(expected_layer_spacing)
     assert normalized.gate_width == pytest.approx(expected_gate_size)
     assert normalized.gate_height == pytest.approx(expected_gate_size)
+
+
+def test_accessible_draw_style_preset_uses_stronger_strokes() -> None:
+    preset = normalize_style_preset("accessible")
+
+    normalized = apply_draw_style_preset(None, preset=preset)
+
+    assert normalized.theme.name == "accessible"
+    assert normalized.font_size == pytest.approx(12.0)
+    assert normalized.wire_spacing == pytest.approx(1.25)
+    assert normalized.gate_width == pytest.approx(0.80)
+    assert normalized.gate_height == pytest.approx(0.80)
+    assert normalized.line_width == pytest.approx(1.9)
+    assert normalized.wire_line_width == pytest.approx(2.1)
+    assert normalized.classical_wire_line_width == pytest.approx(1.8)
+    assert normalized.gate_edge_line_width == pytest.approx(2.0)
+    assert normalized.barrier_line_width == pytest.approx(1.8)
+    assert normalized.measurement_line_width == pytest.approx(2.0)
+    assert normalized.connection_line_width == pytest.approx(1.9)
+    assert normalized.topology_edge_line_width == pytest.approx(1.2)
 
 
 def test_apply_draw_style_preset_copies_draw_style_instances_without_merging_preset() -> None:
@@ -135,3 +162,13 @@ def test_histogram_preset_helpers_return_expected_values(
     assert (resolved_theme.name if resolved_theme is not None else None) == expected_theme_name
     assert histogram_draw_style_for_preset(preset) == expected_draw_style
     assert histogram_figsize_for_preset(preset) == expected_figsize
+
+
+def test_accessible_histogram_preset_helpers_return_expected_values() -> None:
+    preset = normalize_style_preset("accessible")
+    resolved_theme = histogram_theme_for_preset(preset)
+
+    assert resolved_theme is not None
+    assert resolved_theme.name == "accessible"
+    assert histogram_draw_style_for_preset(preset) == "outline"
+    assert histogram_figsize_for_preset(preset) == (8.4, 4.6)

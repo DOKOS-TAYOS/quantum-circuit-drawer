@@ -18,6 +18,10 @@ from quantum_circuit_drawer import (
 )
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.histogram import plot_histogram
+from quantum_circuit_drawer.plots.histogram_render import (
+    comparison_secondary_color,
+    negative_bar_color,
+)
 from quantum_circuit_drawer.style.theme import resolve_theme
 from tests.support import (
     assert_figure_has_visible_content,
@@ -53,6 +57,7 @@ def test_plot_histogram_returns_histogram_result_for_counts_dict() -> None:
     assert result.state_labels == ("00", "11")
     assert result.values == (5.0, 3.0)
     assert result.qubits is None
+    assert result.saved_path is None
     assert_figure_has_visible_content(result.figure)
 
     plt.close(result.figure)
@@ -434,6 +439,13 @@ def test_plot_histogram_uses_dark_theme_by_default() -> None:
     plt.close(result.figure)
 
 
+def test_accessible_histogram_theme_uses_colorblind_friendly_contrast_colors() -> None:
+    theme = resolve_theme("accessible")
+
+    assert negative_bar_color(theme) == "#D55E00"
+    assert comparison_secondary_color(theme) == "#D55E00"
+
+
 def test_plot_histogram_outline_style_draws_unfilled_bars() -> None:
     result = plot_histogram(
         {"00": 5, "11": 3},
@@ -476,6 +488,7 @@ def test_plot_histogram_saves_non_empty_output(sandbox_tmp_path) -> None:
     )
 
     assert_saved_image_has_visible_content(output)
+    assert result.saved_path == str(output.resolve())
     plt.close(result.figure)
 
 

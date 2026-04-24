@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `saved_path` to `HistogramResult` and `HistogramCompareResult`, matching `DrawResult` for scripts that save figures through `OutputOptions(output_path=...)`.
+- Added the shared `accessible` style preset and `accessible` theme with high-contrast, colorblind-friendlier colors for circuit and histogram rendering.
+
 ## [0.5.0] - 2026-04-24
 
 ### Changed

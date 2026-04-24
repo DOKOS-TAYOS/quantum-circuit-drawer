@@ -35,6 +35,7 @@ from tests.support import (
     FakeMyQLMOp,
     FakeMyQLMSyntax,
     assert_figure_has_visible_content,
+    assert_saved_image_has_visible_content,
     build_public_draw_config,
     build_public_histogram_compare_config,
     build_public_histogram_config,
@@ -316,7 +317,23 @@ def test_compare_histograms_returns_overlay_result_with_metrics_and_diagnostics(
         max_absolute_delta=7.0,
     )
     assert result.diagnostics == ()
+    assert result.saved_path is None
     assert_figure_has_visible_content(result.figure)
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_reports_normalized_saved_path(sandbox_tmp_path) -> None:
+    output = sandbox_tmp_path / "compare-histograms.png"
+
+    result = compare_histograms(
+        {"00": 8, "01": 2},
+        {"00": 4, "01": 5},
+        config=build_public_histogram_compare_config(show=False, output_path=output),
+    )
+
+    assert_saved_image_has_visible_content(output)
+    assert result.saved_path == str(output.resolve())
 
     plt.close(result.figure)
 

@@ -187,8 +187,9 @@ Presets are the quickest way to change the overall feel of the output:
 - `notebook`
 - `compact`
 - `presentation`
+- `accessible`
 
-They are useful when you want a sensible baseline without tuning many style fields manually.
+They are useful when you want a sensible baseline without tuning many style fields manually. Use `accessible` for high-contrast output that relies less on color alone.
 
 ```python
 from quantum_circuit_drawer import (
@@ -505,6 +506,7 @@ The most used fields are:
 - `values`
 - `qubits`
 - `diagnostics`
+- `saved_path`
 
 ### Comparison results
 
@@ -512,6 +514,7 @@ For comparisons, keep an eye on:
 
 - `CircuitCompareResult.metrics`
 - `HistogramCompareResult.metrics`
+- `HistogramCompareResult.saved_path`
 
 Those metrics are often enough to summarize structural or distribution change programmatically.
 

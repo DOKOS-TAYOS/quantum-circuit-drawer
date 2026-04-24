@@ -41,7 +41,7 @@ ViewMode = Literal["2d", "3d"]
 RenderMode = Literal["auto", "pages", "pages_controls", "slider", "full"]
 TopologyMode = Literal["line", "grid", "star", "star_tree", "honeycomb"]
 HoverMatrixMode = Literal["never", "auto", "always"]
-StylePresetMode = Literal["paper", "notebook", "compact", "presentation"]
+StylePresetMode = Literal["paper", "notebook", "compact", "presentation", "accessible"]
 CompositeMode = Literal["compact", "expand"]
 UnsupportedPolicyMode = Literal["raise", "placeholder"]
 
@@ -140,7 +140,7 @@ def add_render_arguments(
     )
     parser.add_argument(
         "--preset",
-        choices=("paper", "notebook", "compact", "presentation"),
+        choices=("paper", "notebook", "compact", "presentation", "accessible"),
         help="Optional style preset applied before the example-specific width tuning.",
     )
     parser.add_argument(
@@ -346,8 +346,10 @@ def _parse_preset_mode(value: object) -> StylePresetMode | None:
     if value is None:
         return None
     preset = str(value)
-    if preset not in {"paper", "notebook", "compact", "presentation"}:
-        raise SystemExit("--preset must be one of: paper, notebook, compact, presentation.")
+    if preset not in {"paper", "notebook", "compact", "presentation", "accessible"}:
+        raise SystemExit(
+            "--preset must be one of: paper, notebook, compact, presentation, accessible."
+        )
     return cast(StylePresetMode, preset)
 
 

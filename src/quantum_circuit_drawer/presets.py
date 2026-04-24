@@ -17,6 +17,7 @@ class StylePreset(StrEnum):
     NOTEBOOK = "notebook"
     COMPACT = "compact"
     PRESENTATION = "presentation"
+    ACCESSIBLE = "accessible"
 
 
 def normalize_style_preset(value: StylePreset | str | None) -> StylePreset | None:
@@ -63,6 +64,8 @@ def histogram_theme_for_preset(preset: StylePreset | None) -> DrawTheme | None:
         return resolve_theme("paper")
     if preset is StylePreset.NOTEBOOK:
         return resolve_theme("light")
+    if preset is StylePreset.ACCESSIBLE:
+        return resolve_theme("accessible")
     return resolve_theme("dark")
 
 
@@ -74,6 +77,8 @@ def histogram_draw_style_for_preset(preset: StylePreset | None) -> str | None:
     if preset is StylePreset.PAPER:
         return "soft"
     if preset is StylePreset.COMPACT:
+        return "outline"
+    if preset is StylePreset.ACCESSIBLE:
         return "outline"
     if preset is StylePreset.PRESENTATION:
         return "solid"
@@ -123,6 +128,23 @@ def _draw_style_for_preset(preset: StylePreset) -> DrawStyle:
             layer_spacing=0.38,
             gate_width=0.66,
             gate_height=0.66,
+        )
+    if preset is StylePreset.ACCESSIBLE:
+        return replace_draw_style(
+            base_style,
+            theme=resolve_theme("accessible"),
+            font_size=12.0,
+            wire_spacing=1.25,
+            line_width=1.9,
+            wire_line_width=2.1,
+            classical_wire_line_width=1.8,
+            gate_edge_line_width=2.0,
+            barrier_line_width=1.8,
+            measurement_line_width=2.0,
+            connection_line_width=1.9,
+            topology_edge_line_width=1.2,
+            gate_width=0.80,
+            gate_height=0.80,
         )
     return replace_draw_style(
         base_style,

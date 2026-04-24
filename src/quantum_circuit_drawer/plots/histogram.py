@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
+from ..drawing.results import normalized_saved_path
 from ..drawing.runtime import detect_runtime_context
 from ..style.theme import resolve_theme
 from .histogram_compare import (
@@ -171,6 +172,7 @@ def plot_histogram(
         values=values,
         qubits=resolved_config.qubits,
         diagnostics=tuple(diagnostics),
+        saved_path=normalized_saved_path(resolved_config.output_path),
     )
 
 
@@ -282,6 +284,7 @@ def compare_histograms(
         metrics=metrics,
         qubits=resolved_config.qubits,
         diagnostics=(),
+        saved_path=normalized_saved_path(resolved_config.output_path),
     )
 
 

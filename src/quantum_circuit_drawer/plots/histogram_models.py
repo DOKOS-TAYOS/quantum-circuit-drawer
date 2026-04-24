@@ -253,6 +253,7 @@ class HistogramResult:
     values: tuple[float, ...]
     qubits: tuple[int, ...] | None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
+    saved_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -352,6 +353,7 @@ class HistogramCompareResult:
     metrics: HistogramCompareMetrics
     qubits: tuple[int, ...] | None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
+    saved_path: str | None = None
 
 
 def _normalize_kind(value: HistogramKind | str) -> HistogramKind:

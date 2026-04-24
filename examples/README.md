@@ -237,7 +237,7 @@ Useful circuit flags:
 - `--mode auto|pages|pages_controls|slider|full`
 - `--view 2d|3d`
 - `--topology line|grid|star|star_tree|honeycomb`
-- `--preset paper|notebook|compact|presentation`
+- `--preset paper|notebook|compact|presentation|accessible`
 - `--composite-mode compact|expand`
 - `--unsupported-policy raise|placeholder`
 - `--hover-matrix never|auto|always`
@@ -311,8 +311,8 @@ Useful histogram flags:
 - `--qubits 0 2 5`
 - `--result-index <n>`
 - `--data-key <name>`
-- `--preset paper|notebook|compact|presentation`
-- `--theme light|dark|paper`
+- `--preset paper|notebook|compact|presentation|accessible`
+- `--theme light|dark|paper|accessible`
 - `--draw-style solid|outline|soft`
 - `--state-label-mode binary|decimal`
 - `--hover` / `--no-hover`

@@ -157,8 +157,9 @@ The built-in names are backed by the public functional builders and support any 
 - `NOTEBOOK`
 - `COMPACT`
 - `PRESENTATION`
+- `ACCESSIBLE`
 
-Presets are shared by circuit drawing and histogram plotting.
+Presets are shared by circuit drawing and histogram plotting. `ACCESSIBLE` uses a high-contrast, colorblind-friendlier palette and stronger circuit strokes.
 
 ### `DrawResult`
 
@@ -406,6 +407,7 @@ Fields:
 - `values`
 - `qubits`
 - `diagnostics`
+- `saved_path`
 
 Notes:
 
@@ -433,6 +435,7 @@ Fields:
 - `metrics`
 - `qubits`
 - `diagnostics`
+- `saved_path`
 
 `metrics` includes:
 
@@ -523,6 +526,8 @@ Caller-owned axes are only valid for the static comparison path. With axes, `mod
 - topology edges and topology planes
 - hover labels
 - managed UI widgets
+
+Built-in theme names are `light`, `paper`, `dark`, and `accessible`.
 
 ## Hover
 

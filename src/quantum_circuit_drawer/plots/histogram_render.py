@@ -314,6 +314,8 @@ def negative_bar_color(theme: DrawTheme) -> str:
 
     if theme.name == "paper":
         return "#b91c1c"
+    if theme.name == "accessible":
+        return "#D55E00"
     if theme.name == "light":
         return "#dc2626"
     return "#f87171"
@@ -324,6 +326,8 @@ def comparison_secondary_color(theme: DrawTheme) -> str:
 
     if theme.name == "paper":
         return "#2563eb"
+    if theme.name == "accessible":
+        return "#D55E00"
     if theme.name == "light":
         return "#1d4ed8"
     return "#38bdf8"
