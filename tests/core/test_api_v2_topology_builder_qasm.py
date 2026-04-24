@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
@@ -633,6 +634,122 @@ def test_prepare_draw_pipeline_accepts_explicit_qasm_framework() -> None:
             OperationSignature(OperationKind.GATE, CanonicalGateFamily.X, "X", (), ("q0",)),
         ],
     )
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_prepare_draw_pipeline_accepts_openqasm_path(sandbox_tmp_path: Path) -> None:
+    pytest.importorskip("qiskit")
+    qasm_path = sandbox_tmp_path / "bell.qasm"
+    qasm_path.write_text(
+        """
+        OPENQASM 2.0;
+        include "qelib1.inc";
+        qreg q[2];
+        creg c[1];
+        h q[0];
+        cx q[0],q[1];
+        measure q[1] -> c[0];
+        """,
+        encoding="utf-8",
+    )
+
+    request = _prepare_request(qasm_path)
+    pipeline = prepare_draw_pipeline(
+        circuit=request.circuit,
+        framework=request.framework,
+        style=request.style,
+        layout=request.layout,
+        options=request.pipeline_options,
+    )
+
+    assert_quantum_wire_labels(pipeline.ir, ["q0", "q1"])
+    assert_classical_wire_bundles(pipeline.ir, [("c", 1)])
+    assert_operation_signatures(
+        pipeline.ir,
+        [
+            OperationSignature(OperationKind.GATE, CanonicalGateFamily.H, "H", (), ("q0",)),
+            OperationSignature(
+                OperationKind.CONTROLLED_GATE,
+                CanonicalGateFamily.X,
+                "X",
+                (),
+                ("q1",),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.MEASUREMENT,
+                CanonicalGateFamily.CUSTOM,
+                "M",
+                (),
+                ("q1",),
+            ),
+        ],
+    )
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_prepare_draw_pipeline_accepts_openqasm_string_path_with_explicit_framework(
+    sandbox_tmp_path: Path,
+) -> None:
+    pytest.importorskip("qiskit")
+    qasm_path = sandbox_tmp_path / "x_gate.qasm"
+    qasm_path.write_text(
+        """
+        OPENQASM 2.0;
+        include "qelib1.inc";
+        qreg q[1];
+        x q[0];
+        """,
+        encoding="utf-8",
+    )
+
+    request = _prepare_request(str(qasm_path), framework="qasm")
+    pipeline = prepare_draw_pipeline(
+        circuit=request.circuit,
+        framework=request.framework,
+        style=request.style,
+        layout=request.layout,
+        options=request.pipeline_options,
+    )
+
+    assert_operation_signatures(
+        pipeline.ir,
+        [
+            OperationSignature(OperationKind.GATE, CanonicalGateFamily.X, "X", (), ("q0",)),
+        ],
+    )
+
+
+def test_draw_quantum_circuit_qasm_path_reports_missing_file(sandbox_tmp_path: Path) -> None:
+    missing_path = sandbox_tmp_path / "missing.qasm"
+
+    with pytest.raises(UnsupportedFrameworkError, match="OpenQASM file does not exist"):
+        draw_quantum_circuit(missing_path, config=build_public_draw_config(show=False))
+
+
+def test_draw_quantum_circuit_qasm_path_requires_openqasm_header(
+    sandbox_tmp_path: Path,
+) -> None:
+    qasm_path = sandbox_tmp_path / "invalid.qasm"
+    qasm_path.write_text("qreg q[1];", encoding="utf-8")
+
+    with pytest.raises(UnsupportedFrameworkError, match="must start with 'OPENQASM'"):
+        draw_quantum_circuit(qasm_path, config=build_public_draw_config(show=False))
+
+
+def test_draw_quantum_circuit_explicit_qasm_requires_text_or_qasm_path(
+    sandbox_tmp_path: Path,
+) -> None:
+    text_path = sandbox_tmp_path / "circuit.txt"
+    text_path.write_text("OPENQASM 2.0;", encoding="utf-8")
+
+    with pytest.raises(UnsupportedFrameworkError, match=r"\.qasm extension"):
+        draw_quantum_circuit(
+            text_path,
+            config=build_public_draw_config(framework="qasm", show=False),
+        )
 
 
 def test_draw_quantum_circuit_qasm_requires_qiskit_when_missing(

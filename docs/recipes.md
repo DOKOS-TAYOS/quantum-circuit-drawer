@@ -68,6 +68,45 @@ draw_quantum_circuit(
 )
 ```
 
+### Draw OpenQASM 2 text or a `.qasm` file
+
+Install `quantum-circuit-drawer[qiskit]` first because OpenQASM parsing is delegated to Qiskit.
+
+```python
+from pathlib import Path
+
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
+qasm_text = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[1];
+h q[0];
+cx q[0],q[1];
+measure q[1] -> c[0];
+"""
+
+text_result = draw_quantum_circuit(
+    qasm_text,
+    config=DrawConfig(output=OutputOptions(show=False)),
+)
+
+file_result = draw_quantum_circuit(
+    Path("bell.qasm"),
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
+        output=OutputOptions(show=False),
+    ),
+)
+```
+
 ### Draw inside your own Matplotlib axes
 
 ```python

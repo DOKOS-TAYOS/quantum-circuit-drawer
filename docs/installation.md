@@ -62,7 +62,7 @@ Install only the extras you need.
 
 | Extra | Package spec | Typical use |
 | --- | --- | --- |
-| `qiskit` | `quantum-circuit-drawer[qiskit]` | Draw `qiskit.QuantumCircuit` objects |
+| `qiskit` | `quantum-circuit-drawer[qiskit]` | Draw `qiskit.QuantumCircuit` objects and parse OpenQASM 2 text or `.qasm` files |
 | `cirq` | `quantum-circuit-drawer[cirq]` | Draw `cirq.Circuit` objects |
 | `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tapes, scripts, and wrappers with a materialized tape |
 | `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit` objects |
@@ -102,6 +102,7 @@ Use this table as the release support contract when choosing an install path.
 | --- | --- | --- |
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
+| OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
 | Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |

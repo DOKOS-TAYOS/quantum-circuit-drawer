@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added direct OpenQASM 2 file input for `draw_quantum_circuit(...)`, accepting `Path("circuit.qasm")` and string `.qasm` paths through the existing Qiskit parser path.
+- Added README gallery screenshots and refreshed user documentation so OpenQASM 2 text, `.qasm` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
+
 ## [0.5.0] - 2026-04-24
 
 ### Changed
