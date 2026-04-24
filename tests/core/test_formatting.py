@@ -24,6 +24,8 @@ from quantum_circuit_drawer.utils.formatting import (
         ("PROBABILITY", "Prob"),
         ("PROB", "Prob"),
         ("PROBS", "Prob"),
+        ("EXPVAL", "ExpVal"),
+        ("COUNTS", "Counts"),
         ("controlled-swap", "controlled-swap"),
     ],
 )

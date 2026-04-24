@@ -610,6 +610,36 @@ def test_pennylane_adapter_mixes_mid_measure_conditionals_and_terminal_outputs(
     assert operations[2].metadata["pennylane_terminal_kind"] == "probs"
 
 
+def test_pennylane_adapter_places_terminal_output_locations_after_operations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_pennylane(monkeypatch)
+    tape = FakeQuantumTape(
+        wires=(0, 1),
+        operations=(
+            FakeOperation(name="Hadamard", wires=(0,)),
+            FakeOperation(name="RZZ", wires=(0, 1), parameters=(0.7,)),
+            FakeOperation(name="RX", wires=(1,), parameters=(0.2,)),
+        ),
+        measurements=(ProbabilityMP((0, 1)), CountsMP((0, 1))),
+    )
+
+    semantic_ir = PennyLaneAdapter().to_semantic_ir(
+        FakeTapeWrapper(tape),
+        options={"composite_mode": "expand"},
+    )
+    operations = [operation for layer in semantic_ir.layers for operation in layer.operations]
+    terminal_outputs = [
+        operation
+        for operation in operations
+        if operation.metadata.get("pennylane_terminal_kind") in {"probs", "counts"}
+    ]
+
+    assert [operation.name for operation in terminal_outputs] == ["PROBS", "COUNTS"]
+    assert [operation.provenance.location for operation in terminal_outputs] == [(3,), (4,)]
+    assert [operation.name for operation in operations][-2:] == ["PROBS", "COUNTS"]
+
+
 def test_pennylane_terminal_outputs_render_as_gate_boxes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

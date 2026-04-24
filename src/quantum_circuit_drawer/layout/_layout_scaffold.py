@@ -8,7 +8,7 @@ from typing import Protocol
 
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
-from ..ir.operations import OperationIR, OperationKind
+from ..ir.operations import OperationIR
 from ..ir.wires import WireIR
 from ..style import DrawStyle
 from ..style.defaults import replace_draw_style
@@ -179,7 +179,7 @@ def _build_operation_metrics_and_column_widths(
 ) -> tuple[dict[int, _OperationMetrics], tuple[float, ...]]:
     text_metrics = build_operation_text_metrics(layers, style)
     metrics: dict[int, _OperationMetrics] = {}
-    cached_widths: dict[tuple[OperationKind, str, str | None], float] = {}
+    cached_widths: dict[tuple[object, ...], float] = {}
     column_widths: list[float] = []
     for layer in layers:
         if not layer.operations:
@@ -192,6 +192,9 @@ def _build_operation_metrics_and_column_widths(
                 operation.kind,
                 operation_text.label,
                 operation_text.subtitle,
+                operation.metadata.get("compact_width"),
+                operation.metadata.get("compact_result_width"),
+                operation.metadata.get("pennylane_terminal_kind"),
             )
             width = cached_widths.get(width_key)
             if width is None:
