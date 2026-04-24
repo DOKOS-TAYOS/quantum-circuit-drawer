@@ -42,6 +42,7 @@ def render_managed_draw_pipeline(
     *,
     output: OutputPath | None,
     show: bool,
+    call_show: bool | None = None,
     figsize: tuple[float, float] | None,
     page_slider: bool,
     page_window: bool,
@@ -68,6 +69,7 @@ def render_managed_draw_pipeline(
     )
 
     if is_3d_scene(pipeline.paged_scene):
+        resolved_call_show = show if call_show is None else call_show
         scene_3d = pipeline.paged_scene
         figure_width, figure_height = figsize or (
             max(4.6, scene_3d.width * 0.95),
@@ -106,7 +108,7 @@ def render_managed_draw_pipeline(
             "Rendered managed 3D figure%s",
             " with page slider" if page_slider_state is not None else " without page slider",
         )
-        show_figure_if_supported(figure, show=show)
+        show_figure_if_supported(figure, show=resolved_call_show)
         return figure, axes
 
     if page_slider:
@@ -252,7 +254,8 @@ def render_managed_draw_pipeline(
         )
         logger.debug("Rendered managed figure without page slider")
 
-    show_figure_if_supported(figure, show=show)
+    resolved_call_show = show if call_show is None else call_show
+    show_figure_if_supported(figure, show=resolved_call_show)
     return figure, axes
 
 

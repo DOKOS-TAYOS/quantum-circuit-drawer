@@ -57,12 +57,12 @@ class _CircuitStats:
     swap_count: int
 
 
-_SUMMARY_CARD_BOUNDS = (0.3, 0.74, 0.4, 0.23)
+_SUMMARY_CARD_BOUNDS = (0.31, 0.58, 0.38, 0.34)
 _SUMMARY_FIGURE_CARD_BOUNDS = (0.06, 0.1, 0.88, 0.8)
-_SUMMARY_FIGURE_SIZE = (3.8, 2.3)
+_SUMMARY_FIGURE_SIZE = (3.8, 2.8)
 _SUMMARY_CARD_PADDING_X = 0.02
-_SUMMARY_CARD_HEADER_OFFSET = 0.04
-_SUMMARY_CARD_ROW_SPACING = 0.033
+_SUMMARY_CARD_HEADER_OFFSET = 0.065
+_SUMMARY_CARD_ROW_BOTTOM_PADDING = 0.12
 
 
 def compare_circuits(
@@ -88,16 +88,16 @@ def compare_circuits(
         side_label="right",
         auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
     )
-    uses_managed_compare = (
+    uses_non_full_compare_mode = (
         normalized_left_config.mode is not DrawMode.FULL
         or normalized_right_config.mode is not DrawMode.FULL
     )
-    if axes is not None and uses_managed_compare:
+    if axes is not None and uses_non_full_compare_mode:
         raise ValueError(
             "compare_circuits managed modes require separate Matplotlib-managed figures "
             "and cannot be used with axes"
         )
-    if uses_managed_compare:
+    if axes is None:
         return _compare_circuits_with_managed_side_figures(
             left_circuit,
             right_circuit,
@@ -222,8 +222,8 @@ def _compare_circuits_with_managed_side_figures(
         left_semantic=left_prepared.pipeline.semantic_ir,
         right_semantic=right_prepared.pipeline.semantic_ir,
     )
-    left_result = draw_result_from_prepared_call(left_prepared)
-    right_result = draw_result_from_prepared_call(right_prepared)
+    left_result = draw_result_from_prepared_call(left_prepared, defer_show=True)
+    right_result = draw_result_from_prepared_call(right_prepared, defer_show=True)
     left_text_color = left_prepared.pipeline.normalized_style.theme.text_color
     right_text_color = right_prepared.pipeline.normalized_style.theme.text_color
     _apply_title_to_draw_result(left_result, config.left_title, text_color=left_text_color)
@@ -241,8 +241,11 @@ def _compare_circuits_with_managed_side_figures(
     )
     if config.output_path is not None and config.show_summary:
         save_rendered_figure(summary_figure, config.output_path)
-    if config.show and config.show_summary:
-        show_figure_if_supported(summary_figure, show=True)
+    if config.show:
+        show_figure_if_supported(
+            summary_figure if config.show_summary else left_result.primary_figure,
+            show=True,
+        )
 
     return CircuitCompareResult(
         figure=summary_figure,
@@ -270,7 +273,7 @@ def _with_compare_side_output(
     return replace(
         config,
         output=OutputOptions(
-            show=compare_config.show,
+            show=compare_config.show or config.hover.enabled,
             output_path=None,
             figsize=compare_config.figsize,
         ),
@@ -734,9 +737,11 @@ def _add_compare_summary_card(
             metrics.measurement_delta,
         ),
     )
+    row_bottom_y = card_y + min(_SUMMARY_CARD_ROW_BOTTOM_PADDING, card_height * 0.22)
+    row_spacing = (header_y - row_bottom_y) / float(len(rows))
 
     for row_index, (label, left_value, right_value, delta_value) in enumerate(rows):
-        row_y = header_y - ((row_index + 1) * _SUMMARY_CARD_ROW_SPACING)
+        row_y = header_y - ((row_index + 1) * row_spacing)
         for text, x_position, alignment in (
             (label, metric_x, "left"),
             (str(left_value), left_x, "center"),

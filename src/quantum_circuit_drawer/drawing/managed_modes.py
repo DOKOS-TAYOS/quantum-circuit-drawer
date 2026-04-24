@@ -31,7 +31,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def draw_result_from_prepared_call(prepared: PreparedDrawCall) -> DrawResult:
+def draw_result_from_prepared_call(
+    prepared: PreparedDrawCall,
+    *,
+    defer_show: bool = False,
+) -> DrawResult:
     """Execute one prepared draw call and return the public result object."""
 
     resolved_config = prepared.resolved_config
@@ -44,6 +48,7 @@ def draw_result_from_prepared_call(prepared: PreparedDrawCall) -> DrawResult:
                 pipeline,
                 output=request.output,
                 show=request.show,
+                defer_show=defer_show,
                 figsize=request.figsize,
                 page_slider=request.page_slider,
                 page_window=request.page_window,
@@ -55,6 +60,7 @@ def draw_result_from_prepared_call(prepared: PreparedDrawCall) -> DrawResult:
                 pipeline,
                 output=request.output,
                 show=request.show,
+                defer_show=defer_show,
                 figsize=request.figsize,
                 mode=resolved_config.mode,
                 diagnostics=prepared.diagnostics,
@@ -67,6 +73,7 @@ def draw_result_from_prepared_call(prepared: PreparedDrawCall) -> DrawResult:
                 pipeline,
                 output=request.output,
                 show=request.show,
+                defer_show=defer_show,
                 figsize=request.figsize,
                 mode=resolved_config.mode,
                 diagnostics=prepared.diagnostics,
@@ -75,6 +82,7 @@ def draw_result_from_prepared_call(prepared: PreparedDrawCall) -> DrawResult:
             pipeline,
             output=request.output,
             show=request.show,
+            call_show=request.show and not defer_show,
             figsize=request.figsize,
             page_slider=request.page_slider,
             page_window=request.page_window,
@@ -132,6 +140,7 @@ def _render_managed_2d_pages_result(
     *,
     output: OutputPath | None,
     show: bool,
+    defer_show: bool,
     figsize: tuple[float, float] | None,
     page_slider: bool,
     page_window: bool,
@@ -167,6 +176,7 @@ def _render_managed_2d_pages_result(
             page_pipeline,
             output=None,
             show=show,
+            call_show=show and not defer_show,
             figsize=figsize,
             page_slider=False,
             page_window=False,
@@ -193,6 +203,7 @@ def _render_managed_3d_pages_result(
     *,
     output: OutputPath | None,
     show: bool,
+    defer_show: bool,
     figsize: tuple[float, float] | None,
     mode: DrawMode,
     diagnostics: tuple[RenderDiagnostic, ...],
@@ -215,6 +226,7 @@ def _render_managed_3d_pages_result(
             page_pipeline,
             output=None,
             show=show,
+            call_show=show and not defer_show,
             figsize=figsize,
             page_slider=False,
             page_window=False,
@@ -240,6 +252,7 @@ def _render_managed_3d_page_controls_result(
     *,
     output: OutputPath | None,
     show: bool,
+    defer_show: bool,
     figsize: tuple[float, float] | None,
     mode: DrawMode,
     diagnostics: tuple[RenderDiagnostic, ...],
@@ -285,7 +298,7 @@ def _render_managed_3d_page_controls_result(
     primary_axes = page_window.display_axes[0]
     if pipeline.draw_options.topology_menu and not use_agg_canvas:
         attach_topology_menu(figure=figure, axes=primary_axes, pipeline=pipeline)
-    show_figure_if_supported(figure, show=show)
+    show_figure_if_supported(figure, show=show and not defer_show)
     return build_draw_result(
         primary_figure=figure,
         primary_axes=primary_axes,

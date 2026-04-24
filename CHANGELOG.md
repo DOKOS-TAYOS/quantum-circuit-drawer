@@ -4,12 +4,12 @@
 
 ### Changed
 
-- Made `compare_circuits(...)` default `auto` mode open two normal managed circuit figures plus a compact summary table figure; caller-owned `axes` and explicit `mode="full"` still use the static side-by-side figure
+- Made owned `compare_circuits(...)` renders open two normal circuit figures plus a compact summary table figure for every circuit mode, including explicit `mode="full"`; caller-owned `axes` still use the provided side-by-side figure
 - Display Qiskit/CUDA-Q control-flow boxes as compact lowercase labels (`if`, `if/else`, `switch`, `for`, `while`, `loop`), shorten visible Cirq `CircuitOperation` boxes to `CircuitOp`, and keep numbered `Circuit - N` style labels compact as `circuit N`
 - Reworked the flexible `honeycomb` topology into a deterministic IBM-inspired hexagonal patch that closes compact cells early, keeps degree-three-compatible connectivity for larger chips, and reads less like a straight line in 3D demos
 - Gave long visible gate labels proportional column width instead of forcing names such as `switch`, `while`, `if/else`, and `circuit N` into a single shrunken column
 - Made flexible `grid` topologies keep a square core for small remainders, so counts such as 10 render as a compact `3 x 3` patch plus one centered extra node instead of widening to sparse rows
-- Made circuit-compare demos default to managed `pages_controls` mode and expose `--mode auto|pages|pages_controls|slider|full`, so circuit comparisons open as left circuit, right circuit, and summary windows unless `--mode full` is requested
+- Made circuit-compare demos default to managed `pages_controls` mode and expose `--mode auto|pages|pages_controls|slider|full`, with every circuit mode opening the left circuit, right circuit, and summary windows when the example owns the figures
 - Made PennyLane terminal result boxes more compact, with `EXPVAL` and `COUNTS` now displayed as `ExpVal` and `Counts` while preserving native uppercase names internally
 - Made circuit comparison summaries narrower and slightly taller, removed the diff-column count row, and allowed `compare_circuits(...)` to use managed `pages`, `pages_controls`, and `slider` modes by rendering each side as its own normal circuit figure plus a compact summary figure
 - Reworked 3D topology handling around typed static, functional, 1D periodic, and 2D periodic definitions; built-in `line`, `grid`, `star`, `star_tree`, and `honeycomb` topologies now resize through functional builders, and new render options control full-topology versus used-node display and resize-on-fit behavior
@@ -33,6 +33,7 @@
 - Fundamental two-qubit decomposition blocks such as repeated `RZZ` gates now start in the correct collapsed state for managed exploration, so expanding one block in 3D no longer expands every matching gate in the figure
 - Circuit-compare demos now enable hover explicitly, so interactive backends expose the same hover details there as the core `compare_circuits(...)` API
 - The circuit-compare summary card now uses a taller layout with larger row spacing so all metrics stay readable instead of overlapping vertically
+- Circuit comparison now defers the Matplotlib `show()` call until the left circuit, right circuit, and summary table figures have all been created, so demos open the three windows together
 - Managed 2D hovers now stay visually above the slider row, and the slider row no longer overlaps the lower managed buttons
 - Interactive histogram hovers now cover the uniform reference guide line with an explanation of the uniform baseline and how its value is derived
 - Quasi-probability histograms now keep a counts-like zero lower bound whenever all currently visible values are non-negative, while still preserving full support for genuinely negative quasi-distributions

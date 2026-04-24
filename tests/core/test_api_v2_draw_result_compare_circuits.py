@@ -352,6 +352,7 @@ def test_draw_result_warning_property_filters_warning_diagnostics() -> None:
 
 
 def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() -> None:
+    figure, axes = plt.subplots(1, 2)
     result = compare_circuits(
         build_reference_compare_ir(),
         build_candidate_compare_ir(),
@@ -363,6 +364,7 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
             ),
             output=OutputOptions(show=False),
         ),
+        axes=(axes[0], axes[1]),
     )
 
     assert isinstance(result, CircuitCompareResult)
@@ -411,7 +413,7 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
 
     assert_figure_has_visible_content(result.figure)
 
-    plt.close(result.figure)
+    plt.close(figure)
 
 
 def test_compare_circuits_keeps_hover_zoom_state_and_dark_titles_readable(
@@ -506,6 +508,33 @@ def test_compare_circuits_summary_card_is_narrower_taller_and_omits_diff_columns
         plt.close(figure)
 
 
+def test_compare_circuits_summary_figure_rows_have_readable_spacing() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
+    )
+
+    row_positions = sorted(
+        {
+            round(text.get_position()[1], 4)
+            for text in result.figure.texts
+            if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+        },
+        reverse=True,
+    )
+    row_gaps = [
+        upper_row - lower_row
+        for upper_row, lower_row in zip(row_positions, row_positions[1:], strict=False)
+    ]
+
+    assert len(row_positions) == 5
+    assert min(row_gaps) >= 0.075
+
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
 def test_compare_circuits_auto_mode_defaults_to_three_normal_figures() -> None:
     result = compare_circuits(
         build_reference_compare_ir(),
@@ -528,6 +557,78 @@ def test_compare_circuits_auto_mode_defaults_to_three_normal_figures() -> None:
 
     for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
         plt.close(figure)
+
+
+def test_compare_circuits_full_mode_without_axes_uses_three_normal_figures() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(
+            shared=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.FULL)),
+            output=OutputOptions(show=False),
+        ),
+    )
+
+    assert result.figure is not result.left_result.primary_figure
+    assert result.figure is not result.right_result.primary_figure
+    assert result.left_result.primary_figure is not result.right_result.primary_figure
+    assert result.left_result.mode is DrawMode.FULL
+    assert result.right_result.mode is DrawMode.FULL
+
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
+def test_compare_circuits_shows_three_owned_figures_together(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from quantum_circuit_drawer.drawing import compare as compare_module
+    from quantum_circuit_drawer.drawing.preparation import PreparedDrawCall
+
+    real_draw_result_from_prepared_call = compare_module.draw_result_from_prepared_call
+    side_show_values: list[bool] = []
+    side_defer_values: list[bool] = []
+    events: list[str] = []
+    show_calls: list[tuple[object, bool]] = []
+
+    def wrapped_draw_result_from_prepared_call(
+        prepared: PreparedDrawCall,
+        *,
+        defer_show: bool = False,
+    ) -> DrawResult:
+        side_show_values.append(prepared.request.show)
+        side_defer_values.append(defer_show)
+        result = real_draw_result_from_prepared_call(prepared, defer_show=defer_show)
+        events.append("side")
+        return result
+
+    def track_show(figure: object, *, show: bool) -> None:
+        show_calls.append((figure, show))
+        events.append("show")
+
+    monkeypatch.setattr(
+        compare_module,
+        "draw_result_from_prepared_call",
+        wrapped_draw_result_from_prepared_call,
+    )
+    monkeypatch.setattr(compare_module, "show_figure_if_supported", track_show)
+
+    plt.close("all")
+    try:
+        result = compare_circuits(
+            build_reference_compare_ir(),
+            build_candidate_compare_ir(),
+            config=CircuitCompareConfig(output=OutputOptions(show=True)),
+        )
+
+        assert side_show_values == [True, True]
+        assert side_defer_values == [True, True]
+        assert events == ["side", "side", "show"]
+        assert show_calls == [(result.figure, True)]
+        assert result.figure is not result.left_result.primary_figure
+        assert result.figure is not result.right_result.primary_figure
+    finally:
+        plt.close("all")
 
 
 @pytest.mark.parametrize("mode", [DrawMode.PAGES, DrawMode.SLIDER, DrawMode.PAGES_CONTROLS])
@@ -571,6 +672,14 @@ def test_compare_circuits_hover_shows_gate_details_when_enabled(
     monkeypatch.setattr(
         "quantum_circuit_drawer.drawing.request.figure_backend_name",
         lambda _figure: "qtagg",
+    )
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.renderers._render_support.pyplot_backend_supports_interaction",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.request.pyplot_backend_supports_interaction",
+        lambda: True,
     )
 
     result = compare_circuits(
