@@ -6,7 +6,8 @@
 
 - Made `compare_circuits(...)` default `auto` mode open two normal managed circuit figures plus a compact summary table figure; caller-owned `axes` and explicit `mode="full"` still use the static side-by-side figure
 - Display Qiskit/CUDA-Q control-flow boxes as compact lowercase labels (`if`, `if/else`, `switch`, `for`, `while`, `loop`), shorten visible Cirq `CircuitOperation` boxes to `CircuitOp`, and keep numbered `Circuit - N` style labels compact as `circuit N`
-- Reworked the flexible `honeycomb` topology into a deterministic IBM heavy-hex-style patch with alternating sparse connector rows and degree-three-compatible connectivity for larger chips
+- Reworked the flexible `honeycomb` topology into a deterministic IBM-inspired hexagonal patch that closes compact cells early, keeps degree-three-compatible connectivity for larger chips, and reads less like a straight line in 3D demos
+- Gave long visible gate labels proportional column width instead of forcing names such as `switch`, `while`, `if/else`, and `circuit N` into a single shrunken column
 - Made flexible `grid` topologies keep a square core for small remainders, so counts such as 10 render as a compact `3 x 3` patch plus one centered extra node instead of widening to sparse rows
 - Made circuit-compare demos default to managed `pages_controls` mode and expose `--mode auto|pages|pages_controls|slider|full`, so circuit comparisons open as left circuit, right circuit, and summary windows unless `--mode full` is requested
 - Made PennyLane terminal result boxes more compact, with `EXPVAL` and `COUNTS` now displayed as `ExpVal` and `Counts` while preserving native uppercase names internally

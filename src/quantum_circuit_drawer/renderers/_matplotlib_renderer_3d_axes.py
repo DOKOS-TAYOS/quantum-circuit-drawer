@@ -70,9 +70,9 @@ def prepare_axes_3d(
             )
         )
         try:
-            axes.view_init(elev=18.0, azim=-55.0, vertical_axis="y")
+            axes.view_init(elev=24.0, azim=-68.0, vertical_axis="y")
         except TypeError:
-            axes.view_init(elev=18.0, azim=-55.0)
+            axes.view_init(elev=24.0, azim=-68.0)
         return
     renderer._apply_fixed_view_state(axes, fixed_view_state)
 

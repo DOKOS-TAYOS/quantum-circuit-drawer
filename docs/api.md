@@ -149,7 +149,7 @@ Public topology helpers:
 - `star_tree_topology(qubit_count)`
 - `honeycomb_topology(qubit_count)`
 
-The built-in names are backed by the public functional builders and support any positive qubit count. The `"honeycomb"` builder creates an IBM heavy-hex-style footprint. For circuits that use fewer qubits than a topology contains, `topology_qubits="used"` keeps the view focused on the first allocated nodes, while `topology_qubits="all"` also shows inactive physical nodes using their topology ids as labels. If a circuit needs more nodes than the topology currently has, `topology_resize="fit"` can resize functional and periodic topologies; static `HardwareTopology` instances stay fixed.
+The built-in names are backed by the public functional builders and support any positive qubit count. The `"honeycomb"` builder creates an IBM-inspired compact hexagonal footprint. For circuits that use fewer qubits than a topology contains, `topology_qubits="used"` keeps the view focused on the first allocated nodes, while `topology_qubits="all"` also shows inactive physical nodes using their topology ids as labels. If a circuit needs more nodes than the topology currently has, `topology_resize="fit"` can resize functional and periodic topologies; static `HardwareTopology` instances stay fixed.
 
 ### `StylePreset`
 

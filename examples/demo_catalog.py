@@ -76,7 +76,7 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             module_name="examples.qiskit_3d_exploration_showcase",
             builder_name="build_circuit",
             framework="qiskit",
-            default_qubits=8,
+            default_qubits=25,
             default_columns=6,
             columns_help="Repeated composite motifs to place across the 3D exploration showcase",
             dependency_module="qiskit",
