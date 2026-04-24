@@ -10,6 +10,12 @@ from ..utils.formatting import format_gate_name, format_parameters
 _COMPACT_RESULT_DISPLAY_LABELS = frozenset({"Prob", "ExpVal", "Counts"})
 _COMPACT_RESULT_TERMINAL_KINDS = frozenset({"probs", "expval", "counts"})
 _COMPACT_RESULT_WIDTH_FACTOR = 0.78
+_COMPACT_NAMED_DISPLAY_LABELS = frozenset(
+    {"if", "if/else", "switch", "for", "while", "loop", "CircuitOp"}
+)
+_COMPACT_CIRCUIT_LABEL_PREFIX = "circuit "
+_COMPACT_LABEL_WIDTH_FONT_SCALE = 0.45
+_COMPACT_LABEL_WIDTH_CAP_FACTOR = 2.2
 
 
 def estimate_text_width(text: str, font_size: float) -> float:
@@ -58,7 +64,12 @@ def uses_compact_label_width(
         return False
     if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:
         return False
-    return len(label) <= 4
+    display_label = format_gate_name(label)
+    if display_label in _COMPACT_NAMED_DISPLAY_LABELS:
+        return True
+    if display_label.lower().startswith(_COMPACT_CIRCUIT_LABEL_PREFIX):
+        return True
+    return len(display_label) <= 4
 
 
 def uses_compact_result_width(
@@ -100,7 +111,21 @@ def operation_width_from_parts(
         return style.gate_width
     if uses_compact_label_width(operation, label, subtitle):
         return style.gate_width
-    width = max(style.gate_width, estimate_text_width(label, style.font_size) + 0.25)
+    display_label = format_gate_name(label)
+    label_width = (
+        estimate_text_width(
+            display_label,
+            style.font_size * _COMPACT_LABEL_WIDTH_FONT_SCALE,
+        )
+        + 0.18
+    )
+    if subtitle is None:
+        return min(
+            max(style.gate_width, label_width),
+            style.gate_width * _COMPACT_LABEL_WIDTH_CAP_FACTOR,
+        )
+
+    width = max(style.gate_width, label_width)
     if subtitle:
         width = max(width, estimate_text_width(subtitle, style.font_size * 0.8) + 0.25)
     return width

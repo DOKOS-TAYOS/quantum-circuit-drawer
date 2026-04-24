@@ -167,6 +167,31 @@ def test_builtin_topologies_accept_flexible_qubit_counts() -> None:
     assert len(quantum_circuit_drawer.honeycomb_topology(7).node_ids) == 7
 
 
+def test_honeycomb_topology_uses_ibm_heavy_hex_style_patch() -> None:
+    topology = quantum_circuit_drawer.honeycomb_topology(7)
+    assert topology.coordinates is not None
+    degree_by_node = {node_id: 0 for node_id in topology.node_ids}
+    for first, second in topology.edges:
+        degree_by_node[first] += 1
+        degree_by_node[second] += 1
+    row_sizes = sorted(
+        len([node_id for node_id, position in topology.coordinates.items() if position[1] == row_y])
+        for row_y in {position[1] for position in topology.coordinates.values()}
+    )
+
+    assert row_sizes == [1, 3, 3]
+    assert max(degree_by_node.values()) <= 3
+    assert topology.edges == ((0, 1), (1, 2), (4, 5), (5, 6), (2, 3), (3, 4))
+
+    larger_topology = quantum_circuit_drawer.honeycomb_topology(27)
+    larger_degree_by_node = {node_id: 0 for node_id in larger_topology.node_ids}
+    for first, second in larger_topology.edges:
+        larger_degree_by_node[first] += 1
+        larger_degree_by_node[second] += 1
+
+    assert max(larger_degree_by_node.values()) == 3
+
+
 def test_grid_topology_prefers_square_core_for_small_remainders() -> None:
     topology = quantum_circuit_drawer.grid_topology(10)
 

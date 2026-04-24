@@ -96,7 +96,7 @@ circuit.measure(1, 0)
 draw_quantum_circuit(circuit)
 ```
 
-Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions including modern Qiskit expression trees when they can be normalized safely, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements.
+Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions including modern Qiskit expression trees when they can be normalized safely, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements. Native control-flow boxes use compact lowercase visible labels such as `if/else`, `switch`, and `while`.
 
 For Qiskit control-flow, the drawer keeps the expanded behavior for simple `if_test(...)` blocks without an `else` when the condition can still be normalized into exact classical conditions. If a simple `if_test(...)` uses a modern condition shape that cannot be normalized safely, it falls back to a compact `IF` box with native hover details instead of failing.
 
