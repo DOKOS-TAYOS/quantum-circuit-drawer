@@ -18,9 +18,9 @@ from ..ir.lowering import lower_semantic_circuit
 from ..ir.operations import OperationKind
 from ..ir.semantic import (
     SemanticCircuitIR,
+    SemanticLayerIR,
     SemanticOperationIR,
     SemanticProvenanceIR,
-    pack_semantic_operations,
     semantic_operation_id,
     semantic_operation_id_from_location,
 )
@@ -185,6 +185,12 @@ class SceneClickTarget:
         return max(0.0, self.x_max - self.x_min) * max(0.0, self.y_max - self.y_min)
 
 
+@dataclass(frozen=True, slots=True)
+class _TopLevelOperationGroup:
+    operations: tuple[SemanticOperationIR, ...]
+    barrier_wire_ids: tuple[str, ...] = ()
+
+
 def build_exploration_catalog(
     current_semantic_ir: SemanticCircuitIR,
     expanded_semantic_ir: SemanticCircuitIR,
@@ -270,10 +276,16 @@ def transform_semantic_circuit(
         wire_filter_mode=wire_filter_mode,
         show_ancillas=show_ancillas,
     )
-    filtered_operations = tuple(
-        operation
-        for operation in _flatten_operations(collapsed_circuit)
-        if set(operation.occupied_wire_ids).issubset(visible_wire_ids)
+    filtered_layers = tuple(
+        SemanticLayerIR(operations=visible_operations, metadata=dict(layer.metadata))
+        for layer in collapsed_circuit.layers
+        if (
+            visible_operations := tuple(
+                operation
+                for operation in layer.operations
+                if set(operation.occupied_wire_ids).issubset(visible_wire_ids)
+            )
+        )
     )
     filtered_circuit = SemanticCircuitIR(
         quantum_wires=tuple(
@@ -282,7 +294,7 @@ def transform_semantic_circuit(
         classical_wires=tuple(
             wire for wire in collapsed_circuit.classical_wires if wire.id in visible_wire_ids
         ),
-        layers=pack_semantic_operations(filtered_operations),
+        layers=filtered_layers,
         name=collapsed_circuit.name,
         metadata=dict(collapsed_circuit.metadata),
         diagnostics=tuple(collapsed_circuit.diagnostics),
@@ -790,7 +802,7 @@ def _collapse_top_level_blocks(
     *,
     blocks: dict[str, ExplorationBlock],
     collapsed_block_ids: set[str] | frozenset[str],
-) -> tuple[SemanticOperationIR, ...]:
+) -> tuple[_TopLevelOperationGroup, ...]:
     wire_order = {wire.id: index for index, wire in enumerate(expanded_semantic_ir.all_wires)}
     grouped_operations = {
         semantic_operation_id_from_location(top_level_location): operations
@@ -798,48 +810,105 @@ def _collapse_top_level_blocks(
             expanded_semantic_ir
         )
     }
-    remaining_operations: list[tuple[int, SemanticOperationIR]] = []
-    pending_collapsed_operations: list[tuple[tuple[int, tuple[int, ...]], str, SemanticOperationIR]]
-    pending_collapsed_operations = []
-    emitted_collapsed_block_ids: set[str] = set()
-    for encounter_index, operation in enumerate(_flatten_operations(expanded_semantic_ir)):
-        block_id = semantic_operation_id_from_location(_top_level_location(operation))
+    terminal_barrier_wire_ids = tuple(wire.id for wire in expanded_semantic_ir.all_wires)
+    operation_groups: list[_TopLevelOperationGroup] = []
+    for top_level_location, operations in _top_level_operation_groups(expanded_semantic_ir):
+        block_id = semantic_operation_id_from_location(top_level_location)
         block = blocks.get(block_id)
         if block is None or block_id not in collapsed_block_ids:
-            remaining_operations.append((encounter_index, operation))
-            continue
-        if block_id in emitted_collapsed_block_ids:
-            continue
-        operations = grouped_operations[block_id]
-        pending_collapsed_operations.append(
-            (
-                _top_level_location_order_key(block.top_level_location, encounter_index),
-                block_id,
-                _collapsed_block_operation(
-                    block,
+            barrier_wire_ids: tuple[str, ...] = ()
+            if block is not None:
+                barrier_wire_ids = block.wire_ids
+            elif any(_is_terminal_output_operation(operation) for operation in operations):
+                barrier_wire_ids = terminal_barrier_wire_ids
+            operation_groups.append(
+                _TopLevelOperationGroup(
                     operations=operations,
-                    wire_order=wire_order,
+                    barrier_wire_ids=barrier_wire_ids,
+                )
+            )
+            continue
+
+        operation_groups.append(
+            _TopLevelOperationGroup(
+                operations=(
+                    _collapsed_block_operation(
+                        block,
+                        operations=grouped_operations[block_id],
+                        wire_order=wire_order,
+                    ),
                 ),
+                barrier_wire_ids=block.wire_ids,
             )
         )
-        emitted_collapsed_block_ids.add(block_id)
-    pending_collapsed_operations.sort(key=lambda entry: (entry[0], entry[1]))
+    return tuple(operation_groups)
 
-    collapsed_operations: list[SemanticOperationIR] = []
-    next_collapsed_index = 0
-    for encounter_index, operation in remaining_operations:
-        operation_order_key = _operation_top_level_order_key(operation, encounter_index)
-        while (
-            next_collapsed_index < len(pending_collapsed_operations)
-            and pending_collapsed_operations[next_collapsed_index][0] < operation_order_key
-        ):
-            collapsed_operations.append(pending_collapsed_operations[next_collapsed_index][2])
-            next_collapsed_index += 1
-        collapsed_operations.append(operation)
-    collapsed_operations.extend(
-        operation for _, _, operation in pending_collapsed_operations[next_collapsed_index:]
+
+def _pack_top_level_operation_groups(
+    circuit: SemanticCircuitIR,
+    operation_groups: Sequence[_TopLevelOperationGroup],
+) -> tuple[SemanticLayerIR, ...]:
+    wire_order = {wire.id: index for index, wire in enumerate(circuit.all_wires)}
+    layer_operations: list[list[SemanticOperationIR]] = []
+    latest_layer_by_slot: dict[int, int] = {}
+    for operation_group in operation_groups:
+        group_slots = _wire_span_slots(operation_group.barrier_wire_ids, wire_order)
+        group_floor = max(
+            (latest_layer_by_slot.get(slot, -1) for slot in group_slots),
+            default=-1,
+        )
+        group_layers: list[int] = []
+        for operation in operation_group.operations:
+            span_slots = _semantic_operation_draw_span_slots(operation, wire_order)
+            operation_floor = max(
+                (latest_layer_by_slot.get(slot, -1) for slot in span_slots),
+                default=-1,
+            )
+            target_layer = max(group_floor, operation_floor) + 1
+            while len(layer_operations) <= target_layer:
+                layer_operations.append([])
+            layer_operations[target_layer].append(operation)
+            group_layers.append(target_layer)
+            for slot in span_slots:
+                latest_layer_by_slot[slot] = target_layer
+
+        if group_slots and group_layers:
+            group_end = max(group_layers)
+            for slot in group_slots:
+                latest_layer_by_slot[slot] = max(
+                    latest_layer_by_slot.get(slot, -1),
+                    group_end,
+                )
+
+    return tuple(
+        SemanticLayerIR(operations=tuple(operations))
+        for operations in layer_operations
+        if operations
     )
-    return tuple(collapsed_operations)
+
+
+def _semantic_operation_draw_span_slots(
+    operation: SemanticOperationIR,
+    wire_order: dict[str, int],
+) -> tuple[int, ...]:
+    wire_ids: list[str] = []
+    wire_ids.extend(operation.control_wires)
+    wire_ids.extend(operation.target_wires)
+    for condition in operation.classical_conditions:
+        wire_ids.extend(condition.wire_ids)
+    if operation.classical_target is not None:
+        wire_ids.append(operation.classical_target)
+    return _wire_span_slots(tuple(wire_ids), wire_order)
+
+
+def _wire_span_slots(
+    wire_ids: Sequence[str],
+    wire_order: dict[str, int],
+) -> tuple[int, ...]:
+    slots = [wire_order[wire_id] for wire_id in wire_ids if wire_id in wire_order]
+    if not slots:
+        return ()
+    return tuple(range(min(slots), max(slots) + 1))
 
 
 def _collapsed_semantic_circuit(
@@ -847,15 +916,19 @@ def _collapsed_semantic_circuit(
     *,
     collapsed_block_ids: set[str] | frozenset[str],
 ) -> SemanticCircuitIR:
-    collapsed_operations = _collapse_top_level_blocks(
+    collapsed_operation_groups = _collapse_top_level_blocks(
         catalog.expanded_semantic_ir,
         blocks=catalog.blocks,
         collapsed_block_ids=collapsed_block_ids,
     )
+    collapsed_layers = _pack_top_level_operation_groups(
+        catalog.expanded_semantic_ir,
+        collapsed_operation_groups,
+    )
     return SemanticCircuitIR(
         quantum_wires=catalog.expanded_semantic_ir.quantum_wires,
         classical_wires=catalog.expanded_semantic_ir.classical_wires,
-        layers=pack_semantic_operations(collapsed_operations),
+        layers=collapsed_layers,
         name=catalog.expanded_semantic_ir.name,
         metadata=dict(catalog.expanded_semantic_ir.metadata),
         diagnostics=tuple(catalog.expanded_semantic_ir.diagnostics),
@@ -1191,6 +1264,33 @@ def _operations_by_top_level_location(
     )
 
 
+def _top_level_operation_groups(
+    circuit: SemanticCircuitIR,
+) -> tuple[tuple[tuple[int, ...], tuple[SemanticOperationIR, ...]], ...]:
+    grouped_operations: dict[
+        tuple[tuple[int, tuple[int, ...]], tuple[int, ...]],
+        list[tuple[int, SemanticOperationIR]],
+    ] = {}
+    for encounter_index, operation in enumerate(_flatten_operations(circuit)):
+        top_level_location = _top_level_location(operation)
+        order_key = _operation_top_level_order_key(operation, encounter_index)
+        grouped_operations.setdefault((order_key, top_level_location), []).append(
+            (encounter_index, operation)
+        )
+
+    return tuple(
+        (
+            top_level_location,
+            tuple(
+                operation for _, operation in sorted(operations, key=_grouped_operation_sort_key)
+            ),
+        )
+        for _, top_level_location, operations in (
+            (*group_key, grouped_operations[group_key]) for group_key in sorted(grouped_operations)
+        )
+    )
+
+
 def _top_level_location(operation: SemanticOperationIR) -> tuple[int, ...]:
     if not operation.provenance.location:
         return ()
@@ -1208,6 +1308,9 @@ def _operation_top_level_order_key(
     operation: SemanticOperationIR,
     encounter_index: int,
 ) -> tuple[int, tuple[int, ...]]:
+    if _is_terminal_output_operation(operation):
+        location = operation.provenance.location or (encounter_index,)
+        return (2, location)
     return _top_level_location_order_key(_top_level_location(operation), encounter_index)
 
 
@@ -1227,6 +1330,12 @@ def _grouped_operation_sort_key(
     if operation.provenance.location:
         return (0, operation.provenance.location)
     return (1, (encounter_index,))
+
+
+def _is_terminal_output_operation(operation: SemanticOperationIR) -> bool:
+    if operation.metadata.get("pennylane_terminal_kind") in {"probs", "expval", "counts"}:
+        return True
+    return operation.provenance.native_kind in {"probs", "expval", "counts"}
 
 
 def _collapse_label(operations: Sequence[SemanticOperationIR]) -> str | None:

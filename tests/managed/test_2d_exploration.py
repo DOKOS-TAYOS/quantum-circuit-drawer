@@ -21,6 +21,7 @@ from quantum_circuit_drawer.ir.semantic import (
     semantic_operation_id,
 )
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
+from quantum_circuit_drawer.layout._layering import normalized_draw_circuit
 from quantum_circuit_drawer.layout.engine import LayoutEngine
 from quantum_circuit_drawer.layout.scene import SceneVisualState
 from quantum_circuit_drawer.managed.exploration_2d import (
@@ -167,7 +168,7 @@ def test_fundamental_decomposition_blocks_start_collapsed_and_expand_independent
     assert {"op:0.0", "op:0.1", "op:0.2"}.issubset(transformed_operation_ids)
 
 
-def test_transform_semantic_circuit_preserves_interleaved_expansion_order() -> None:
+def test_transform_semantic_circuit_keeps_expanded_block_before_following_operation() -> None:
     current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
     catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
 
@@ -184,7 +185,68 @@ def test_transform_semantic_circuit_preserves_interleaved_expansion_order() -> N
     ]
 
     assert transformed_operation_ids.index("op:0.1") < transformed_operation_ids.index("op:1")
-    assert transformed_operation_ids.index("op:1") < transformed_operation_ids.index("op:0.2")
+    assert transformed_operation_ids.index("op:0.2") < transformed_operation_ids.index("op:1")
+
+
+def test_transform_semantic_circuit_expands_block_without_crossing_prior_operation() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_after_cnot_circuits()
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+
+    collapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:2"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    expanded = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=set(),
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+
+    collapsed_columns = _normalized_operation_columns(collapsed.semantic_ir)
+    expanded_columns = _normalized_operation_columns(expanded.semantic_ir)
+
+    assert collapsed_columns["op:1"] < collapsed_columns["op:2"]
+    assert expanded_columns["op:1"] < expanded_columns["op:2.0"]
+    assert expanded_columns["op:1"] < expanded_columns["op:2.1"]
+
+
+def test_transform_semantic_circuit_keeps_independent_late_wires_in_place_when_expanding() -> None:
+    current_semantic_ir, expanded_semantic_ir = (
+        _semantic_block_after_cnot_with_independent_late_wires()
+    )
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+
+    collapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:2"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    expanded = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=set(),
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    recollapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:2"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+
+    collapsed_columns = _normalized_operation_columns(collapsed.semantic_ir)
+    expanded_columns = _normalized_operation_columns(expanded.semantic_ir)
+    recollapsed_columns = _normalized_operation_columns(recollapsed.semantic_ir)
+
+    assert expanded_columns["op:1"] < expanded_columns["op:2.0"]
+    assert expanded_columns["op:1"] < expanded_columns["op:2.1"]
+    assert expanded_columns["op:5"] == collapsed_columns["op:5"] == recollapsed_columns["op:5"]
+    assert expanded_columns["op:6"] == collapsed_columns["op:6"] == recollapsed_columns["op:6"]
+    assert expanded_columns["op:7"] == collapsed_columns["op:7"] == recollapsed_columns["op:7"]
 
 
 def test_transform_semantic_circuit_keeps_terminal_outputs_after_expanded_blocks() -> None:
@@ -412,7 +474,11 @@ def test_slider_block_toggle_expands_and_recovers_semantic_block() -> None:
         assert page_slider.exploration is not None
         assert page_slider.exploration.selected_operation_id == "op:0.0"
         assert "QFT" not in {gate.label for gate in page_slider.scene.gates}
-        assert {"H", "X", "Z"}.issubset({gate.label for gate in page_slider.scene.gates})
+        assert {"H", "X"}.issubset({gate.label for gate in page_slider.scene.gates})
+        assert page_slider.exploration.transformed_semantic_ir is not None
+        assert {"H", "X", "Z"}.issubset(
+            set(_semantic_operation_names(page_slider.exploration.transformed_semantic_ir))
+        )
         assert any(
             getattr(patch, "get_gid", lambda: None)() == "decomposition-group-highlight"
             for patch in axes.patches
@@ -869,6 +935,300 @@ def _semantic_block_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:
                             native_kind="gate",
                             location=(3, 0),
                         ),
+                    ),
+                )
+            ),
+        ),
+    )
+    return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_block_after_cnot_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(3)
+    )
+    current_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(0,)),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(1,)),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Circuit - 42",
+                        label="circuit 42",
+                        target_wires=("q0", "q1", "q2"),
+                        provenance=SemanticProvenanceIR(
+                            native_kind="composite",
+                            composite_label="Circuit - 42",
+                            location=(2,),
+                        ),
+                        metadata={"collapsed_block": True},
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(location=(3,)),
+                    ),
+                )
+            ),
+        ),
+    )
+    expanded_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(0,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            decomposition_origin="Circuit - 42",
+                            composite_label="Circuit - 42",
+                            location=(2, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(1,)),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="P",
+                        target_wires=("q1",),
+                        control_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            decomposition_origin="Circuit - 42",
+                            composite_label="Circuit - 42",
+                            location=(2, 1),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(location=(3,)),
+                    ),
+                )
+            ),
+        ),
+    )
+    return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_block_after_cnot_with_independent_late_wires() -> tuple[
+    SemanticCircuitIR, SemanticCircuitIR
+]:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(5)
+    )
+    current_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(0,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q3",),
+                        provenance=SemanticProvenanceIR(location=(5,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q4",),
+                        provenance=SemanticProvenanceIR(location=(6,)),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(1,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="Z",
+                        target_wires=("q4",),
+                        control_wires=("q3",),
+                        provenance=SemanticProvenanceIR(location=(7,)),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Circuit - 42",
+                        label="circuit 42",
+                        target_wires=("q0", "q1", "q2"),
+                        provenance=SemanticProvenanceIR(
+                            native_kind="composite",
+                            composite_label="Circuit - 42",
+                            location=(2,),
+                        ),
+                        metadata={"collapsed_block": True},
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(location=(3,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(location=(4,)),
+                    ),
+                )
+            ),
+        ),
+    )
+    expanded_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(0,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            decomposition_origin="Circuit - 42",
+                            composite_label="Circuit - 42",
+                            location=(2, 0),
+                        ),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q3",),
+                        provenance=SemanticProvenanceIR(location=(5,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q4",),
+                        provenance=SemanticProvenanceIR(location=(6,)),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(1,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="Z",
+                        target_wires=("q4",),
+                        control_wires=("q3",),
+                        provenance=SemanticProvenanceIR(location=(7,)),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="P",
+                        target_wires=("q1",),
+                        control_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            decomposition_origin="Circuit - 42",
+                            composite_label="Circuit - 42",
+                            location=(2, 1),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(location=(3,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(location=(4,)),
                     ),
                 )
             ),
@@ -1826,3 +2186,12 @@ def _semantic_fundamental_rzz_circuits() -> tuple[SemanticCircuitIR, SemanticCir
 
 def _semantic_operation_names(circuit: SemanticCircuitIR) -> list[str]:
     return [operation.name for layer in circuit.layers for operation in layer.operations]
+
+
+def _normalized_operation_columns(circuit: SemanticCircuitIR) -> dict[str, int]:
+    normalized = normalized_draw_circuit(lower_semantic_circuit(circuit))
+    return {
+        semantic_operation_id(operation): layer_index
+        for layer_index, layer in enumerate(normalized.layers)
+        for operation in layer.operations
+    }
