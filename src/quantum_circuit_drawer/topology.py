@@ -282,7 +282,7 @@ def normalize_topology_qubits(value: object) -> TopologyQubitMode:
     """Validate how many topology qubits should be rendered."""
 
     if isinstance(value, str) and value in _TOPOLOGY_QUBIT_MODES:
-        return cast(TopologyQubitMode, value)
+        return value
     choices = ", ".join(_TOPOLOGY_QUBIT_MODES)
     raise ValueError(f"topology_qubits must be one of: {choices}")
 
@@ -291,7 +291,7 @@ def normalize_topology_resize(value: object) -> TopologyResizeMode:
     """Validate how non-static topologies should handle undersized layouts."""
 
     if isinstance(value, str) and value in _TOPOLOGY_RESIZE_MODES:
-        return cast(TopologyResizeMode, value)
+        return value
     choices = ", ".join(_TOPOLOGY_RESIZE_MODES)
     raise ValueError(f"topology_resize must be one of: {choices}")
 

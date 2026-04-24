@@ -652,9 +652,10 @@ def apply_compare_titles(
     summary_figure = cast("Figure", left_axes.figure)
     _set_figure_window_title(summary_figure, f"{config.left_title} vs {config.right_title}")
     _clear_compare_summary_artifacts(summary_figure)
-    if summary_figure._suptitle is not None:
-        summary_figure._suptitle.remove()
-        summary_figure._suptitle = None
+    suptitle = getattr(summary_figure, "_suptitle", None)
+    if suptitle is not None:
+        suptitle.remove()
+        setattr(summary_figure, "_suptitle", None)
     if not config.show_summary:
         return
 

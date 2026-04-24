@@ -393,7 +393,7 @@ def _attach_3d_slider_selection_clicks(state: Managed3DPageSliderState) -> None:
             > _CLICK_RELEASE_MAX_DRAG_PIXELS
         ):
             return
-        state.select_operation(clicked_artist_operation_id(state.axes, event))
+        state.select_operation(clicked_artist_operation_id(cast("Axes", state.axes), event))
 
     state.click_press_callback_id = int(canvas.mpl_connect("button_press_event", _handle_press))
     state.click_release_callback_id = int(

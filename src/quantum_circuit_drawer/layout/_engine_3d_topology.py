@@ -97,26 +97,26 @@ def build_wire_texts_3d(
         return []
 
     texts: list[SceneText3D] = []
-    for wire in topology.nodes:
-        position = quantum_wire_positions[wire.wire_id]
+    for topology_node in topology.nodes:
+        position = quantum_wire_positions[topology_node.wire_id]
         texts.append(
             SceneText3D(
                 position=Point3D(x=position.x, y=position.y + 0.24, z=position.z - 0.35),
-                text=wire.label or wire.wire_id,
+                text=topology_node.label or topology_node.wire_id,
                 font_size=draw_style.font_size * 0.88,
                 role="label",
-                wire_id=wire.wire_id,
+                wire_id=topology_node.wire_id,
             )
         )
-    for wire in circuit.classical_wires:
-        position = classical_wire_positions[wire.id]
+    for classical_wire in circuit.classical_wires:
+        position = classical_wire_positions[classical_wire.id]
         texts.append(
             SceneText3D(
                 position=Point3D(x=position.x, y=position.y - 0.28, z=position.z - 0.35),
-                text=wire.label or wire.id,
+                text=classical_wire.label or classical_wire.id,
                 font_size=draw_style.font_size * 0.82,
                 role="label",
-                wire_id=wire.id,
+                wire_id=classical_wire.id,
             )
         )
     return texts

@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Fixed strict `mypy` issues in topology options, 3D wire construction, managed 3D selection, and comparison summary cleanup so CI type checks pass cleanly.
 - Managed exploration now expands/collapses blocks with per-wire range scheduling, so expanded composites such as `circuit 42` cannot jump ahead of earlier CNOTs while independent wires keep their existing columns; terminal result boxes still stay at the logical end.
 - Managed exploration now preserves the expanded semantic encounter order when filtering wires, toggling ancillas, or expanding/collapsing blocks, so terminal outputs such as PennyLane `Prob` no longer jump ahead of the gates they summarize
 - Collapsing multi-wire measurement blocks now anchors the collapsed block at the original top-level operation position instead of the first packed measurement column, preventing myQLM measure collapses from permuting earlier gates on deeper wires

@@ -226,29 +226,29 @@ class LayoutEngine3D:
         z_end: float,
     ) -> tuple[SceneWire3D, ...]:
         wires: list[SceneWire3D] = []
-        for wire in topology.nodes:
-            start = quantum_wire_positions[wire.wire_id]
+        for topology_node in topology.nodes:
+            start = quantum_wire_positions[topology_node.wire_id]
             wires.append(
                 SceneWire3D(
-                    id=wire.wire_id,
-                    label=wire.label or wire.wire_id,
+                    id=topology_node.wire_id,
+                    label=topology_node.label or topology_node.wire_id,
                     kind=WireKind.QUANTUM,
                     start=start,
                     end=Point3D(x=start.x, y=start.y, z=z_end),
-                    hover_text=wire.label or wire.wire_id,
+                    hover_text=topology_node.label or topology_node.wire_id,
                 )
             )
-        for wire in circuit.classical_wires:
-            start = classical_wire_positions[wire.id]
+        for classical_wire in circuit.classical_wires:
+            start = classical_wire_positions[classical_wire.id]
             wires.append(
                 SceneWire3D(
-                    id=wire.id,
-                    label=wire.label or wire.id,
-                    kind=wire.kind,
+                    id=classical_wire.id,
+                    label=classical_wire.label or classical_wire.id,
+                    kind=classical_wire.kind,
                     start=start,
                     end=Point3D(x=start.x, y=start.y, z=z_end),
                     double_line=True,
-                    hover_text=wire.label or wire.id,
+                    hover_text=classical_wire.label or classical_wire.id,
                 )
             )
         return tuple(wires)
