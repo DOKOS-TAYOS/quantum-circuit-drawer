@@ -28,7 +28,11 @@ _LOCAL_MARKDOWN_DOC_PATHS: tuple[Path, ...] = (
     *tuple(sorted(Path("docs").glob("*.md"))),
 )
 _LOCAL_MARKDOWN_LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+_MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[[^\]]+\]\(([^)]+)\)")
 _MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+_RAW_GITHUB_IMAGE_PREFIX = (
+    "https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/"
+)
 
 
 def _markdown_heading_slug(value: str) -> str:
@@ -113,6 +117,40 @@ def test_public_markdown_links_reference_existing_local_anchors() -> None:
                 continue
             if anchor and anchor not in headings_by_path[normalized_target]:
                 failures.append(f"{source_path}: {raw_link} points to missing anchor #{anchor}")
+
+    assert failures == []
+
+
+def test_readme_gallery_images_use_raw_urls_for_github_and_pypi() -> None:
+    readme_text = Path("README.md").read_text(encoding="utf-8")
+    gallery_text = readme_text.split("## Visual Gallery", maxsplit=1)[1].split(
+        "## Install",
+        maxsplit=1,
+    )[0]
+    image_urls = _MARKDOWN_IMAGE_PATTERN.findall(gallery_text)
+
+    assert len(image_urls) >= 6
+    assert all(url.startswith(_RAW_GITHUB_IMAGE_PREFIX) for url in image_urls)
+
+    for image_url in image_urls:
+        image_path = Path("docs/images") / image_url.removeprefix(_RAW_GITHUB_IMAGE_PREFIX)
+        assert image_path.is_file(), f"{image_path} is missing"
+
+
+def test_local_markdown_image_links_reference_existing_assets() -> None:
+    failures: list[str] = []
+
+    for source_path in _LOCAL_MARKDOWN_DOC_PATHS:
+        source_text = source_path.read_text(encoding="utf-8")
+        for raw_link in _MARKDOWN_IMAGE_PATTERN.findall(source_text):
+            target, _, _anchor = raw_link.partition("#")
+            if "://" in target or target.startswith("data:"):
+                continue
+            target_path = source_path.parent / target
+            if target_path.suffix.lower() not in {".gif", ".jpg", ".jpeg", ".png", ".webp"}:
+                continue
+            if not target_path.is_file():
+                failures.append(f"{source_path}: {raw_link} points to a missing image")
 
     assert failures == []
 

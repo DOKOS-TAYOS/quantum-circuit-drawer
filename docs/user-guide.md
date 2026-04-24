@@ -48,6 +48,8 @@ Use this when you want explicit pages:
 
 In managed 2D mode, the library creates one figure per page. In managed 3D mode, it creates one figure per 3D page window.
 
+![Pages mode rendering three explicit circuit pages](images/guide_pages_mode.png)
+
 #### `pages_controls`
 
 Use this when you want a managed page browser:
@@ -56,6 +58,8 @@ Use this when you want a managed page browser:
 - 3D: `Page` and `Visible`, plus the same contextual `Wires`, `Ancillas`, and block controls when they can change the current view, with several visible 3D pages stacked vertically
 
 This is the best default for normal script execution.
+
+![Managed 2D page controls with an expanded FeatureMap block and selected gate](images/readme_managed_controls_2d.png)
 
 If you want a concrete showcase for those 2D controls, start with `qiskit-2d-exploration-showcase` from [Examples](../examples/README.md).
 
@@ -71,6 +75,8 @@ Use this when the circuit is wide and you want a viewport instead of separate pa
 Selection and wire filtering work for plain `CircuitIR` too. Block collapse/expand depends on semantic provenance from the current adapter path, so it may stay disabled for narrower legacy inputs that do not expose enough block structure.
 
 `qiskit-2d-exploration-showcase` is the clearest bundled demo for this path because it combines idle wires, ancillas, and reusable composite blocks in one workflow.
+
+![Managed 2D slider with a selected reusable block and horizontal navigation](images/readme_slider_2d.png)
 
 `qiskit-3d-exploration-showcase` is the clearest bundled demo for the 3D path because it combines topology-aware selection, expand/collapse, and persistent expanded-block highlighting in one managed scene.
 
@@ -201,6 +207,10 @@ What changes in 3D:
 - managed `pages_controls` preserves a shared camera while you navigate
 - managed 3D exploration keeps a selected operation active while you rotate, and only clears it on a clean background click
 
+| 3D topology layout | 3D selected gate hover |
+| --- | --- |
+| ![3D honeycomb topology without gate labels](images/readme_topology_3d.png) | ![3D pages-controls scene with selected gate hover](images/readme_3d_hover.png) |
+
 The built-in topology names are flexible: `"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"` can all be built for arbitrary positive qubit counts. The `"honeycomb"` builder uses an IBM-inspired compact hexagonal footprint. For a circuit that uses fewer qubits than the topology contains, `topology_qubits="used"` renders only the first allocated topology nodes, while `topology_qubits="all"` keeps the inactive physical nodes visible and labels them with their topology ids. For non-static topologies, `topology_resize="fit"` lets the renderer rebuild the topology when the circuit needs more nodes; static `HardwareTopology` inputs stay exact and raise an explicit size error instead.
 
 ## Presets, Style, And Hover
@@ -298,6 +308,8 @@ config = DrawConfig(
     output=OutputOptions(show=False),
 )
 ```
+
+![2D hover tooltip over a circuit gate](images/guide_hover_2d.png)
 
 Use `show_matrix="never"` when you want the lightest path, especially for frameworks that may be heavier on native Windows.
 

@@ -43,11 +43,13 @@ Each public config is now grouped into typed blocks ordered by responsibility:
 
 ## Visual Gallery
 
-The library renders normal static images, managed exploration views, and result distributions with the same public API shape.
+The library renders normal static images, managed exploration views, 3D topology scenes, and result distributions with the same public API shape. Gallery images use absolute raw GitHub URLs so they render from both GitHub Markdown and the PyPI project description.
 
-| Circuit render | 3D topology view | Histogram comparison |
+| Static 2D circuit | Managed 2D exploration | 3D topology view |
 | --- | --- | --- |
-| ![2D circuit render](docs/images/readme_circuit_2d.png) | ![3D topology render](docs/images/readme_topology_3d.png) | ![Histogram comparison render](docs/images/readme_histogram_compare.png) |
+| ![Static 2D circuit render](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_circuit_2d.png) | ![Managed 2D controls with a selected expanded block](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_managed_controls_2d.png) | ![3D honeycomb topology render without gate labels](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_topology_3d.png) |
+| Slider navigation | 3D selected gate hover | Histogram comparison |
+| ![Managed slider with selected block and horizontal slider](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_slider_2d.png) | ![3D managed scene with a selected gate hover](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_3d_hover.png) | ![Histogram comparison render](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_histogram_compare.png) |
 
 ## Install
 
