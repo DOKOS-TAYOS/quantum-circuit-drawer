@@ -798,25 +798,47 @@ def _collapse_top_level_blocks(
             expanded_semantic_ir
         )
     }
-    collapsed_operations: list[SemanticOperationIR] = []
+    remaining_operations: list[tuple[int, SemanticOperationIR]] = []
+    pending_collapsed_operations: list[tuple[tuple[int, tuple[int, ...]], str, SemanticOperationIR]]
+    pending_collapsed_operations = []
     emitted_collapsed_block_ids: set[str] = set()
-    for operation in _flatten_operations(expanded_semantic_ir):
+    for encounter_index, operation in enumerate(_flatten_operations(expanded_semantic_ir)):
         block_id = semantic_operation_id_from_location(_top_level_location(operation))
         block = blocks.get(block_id)
         if block is None or block_id not in collapsed_block_ids:
-            collapsed_operations.append(operation)
+            remaining_operations.append((encounter_index, operation))
             continue
         if block_id in emitted_collapsed_block_ids:
             continue
         operations = grouped_operations[block_id]
-        collapsed_operations.append(
-            _collapsed_block_operation(
-                block,
-                operations=operations,
-                wire_order=wire_order,
+        pending_collapsed_operations.append(
+            (
+                _top_level_location_order_key(block.top_level_location, encounter_index),
+                block_id,
+                _collapsed_block_operation(
+                    block,
+                    operations=operations,
+                    wire_order=wire_order,
+                ),
             )
         )
         emitted_collapsed_block_ids.add(block_id)
+    pending_collapsed_operations.sort(key=lambda entry: (entry[0], entry[1]))
+
+    collapsed_operations: list[SemanticOperationIR] = []
+    next_collapsed_index = 0
+    for encounter_index, operation in remaining_operations:
+        operation_order_key = _operation_top_level_order_key(operation, encounter_index)
+        while (
+            next_collapsed_index < len(pending_collapsed_operations)
+            and pending_collapsed_operations[next_collapsed_index][0] < operation_order_key
+        ):
+            collapsed_operations.append(pending_collapsed_operations[next_collapsed_index][2])
+            next_collapsed_index += 1
+        collapsed_operations.append(operation)
+    collapsed_operations.extend(
+        operation for _, _, operation in pending_collapsed_operations[next_collapsed_index:]
+    )
     return tuple(collapsed_operations)
 
 
@@ -1179,9 +1201,23 @@ def _top_level_location_sort_key(
     location: tuple[int, ...],
     operations: Sequence[tuple[int, SemanticOperationIR]],
 ) -> tuple[int, tuple[int, ...]]:
+    return _top_level_location_order_key(location, operations[0][0])
+
+
+def _operation_top_level_order_key(
+    operation: SemanticOperationIR,
+    encounter_index: int,
+) -> tuple[int, tuple[int, ...]]:
+    return _top_level_location_order_key(_top_level_location(operation), encounter_index)
+
+
+def _top_level_location_order_key(
+    location: tuple[int, ...],
+    fallback_index: int,
+) -> tuple[int, tuple[int, ...]]:
     if location:
         return (0, location)
-    return (1, (operations[0][0],))
+    return (1, (fallback_index,))
 
 
 def _grouped_operation_sort_key(

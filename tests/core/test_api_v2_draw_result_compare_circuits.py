@@ -416,7 +416,7 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
     plt.close(figure)
 
 
-def test_compare_circuits_keeps_hover_zoom_state_and_dark_titles_readable(
+def test_compare_circuits_keeps_hover_zoom_state_and_no_axes_titles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -447,8 +447,8 @@ def test_compare_circuits_keeps_hover_zoom_state_and_dark_titles_readable(
     assert get_hover_state(result.axes[1]) is not None
     assert get_text_scaling_state(result.axes[0]) is not None
     assert get_text_scaling_state(result.axes[1]) is not None
-    assert result.axes[0].title.get_color() == theme.text_color
-    assert result.axes[1].title.get_color() == theme.text_color
+    assert result.axes[0].get_title() == ""
+    assert result.axes[1].get_title() == ""
     assert figure._suptitle is None
     assert {"Metric", "Left", "Right", "Δ"}.issubset({text.get_text() for text in figure.texts})
     assert any(
@@ -574,6 +574,28 @@ def test_compare_circuits_full_mode_without_axes_uses_three_normal_figures() -> 
     assert result.left_result.primary_figure is not result.right_result.primary_figure
     assert result.left_result.mode is DrawMode.FULL
     assert result.right_result.mode is DrawMode.FULL
+
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
+def test_compare_circuits_owned_side_titles_use_window_labels_not_axes_titles() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(
+            compare=CircuitCompareOptions(
+                left_title="Before",
+                right_title="After",
+            ),
+            output=OutputOptions(show=False),
+        ),
+    )
+
+    assert result.left_result.primary_axes.get_title() == ""
+    assert result.right_result.primary_axes.get_title() == ""
+    assert result.left_result.primary_figure.get_label() == "Before"
+    assert result.right_result.primary_figure.get_label() == "After"
 
     for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
         plt.close(figure)

@@ -5,6 +5,8 @@
 ### Changed
 
 - Made owned `compare_circuits(...)` renders open two normal circuit figures plus a compact summary table figure for every circuit mode, including explicit `mode="full"`; caller-owned `axes` still use the provided side-by-side figure
+- Moved comparison side names out of the plotted axes and into figure/window labels where the Matplotlib backend supports them, keeping circuit plots untitled inside the graph area
+- Let collapsed composite labels and other named gates grow to the width their visible text needs, including `circuit N` labels in managed page windows, instead of shrinking text to fit a forced one-column box
 - Display Qiskit/CUDA-Q control-flow boxes as compact lowercase labels (`if`, `if/else`, `switch`, `for`, `while`, `loop`), shorten visible Cirq `CircuitOperation` boxes to `CircuitOp`, and keep numbered `Circuit - N` style labels compact as `circuit N`
 - Reworked the flexible `honeycomb` topology into a deterministic IBM-inspired hexagonal patch that closes compact cells early, keeps degree-three-compatible connectivity for larger chips, and reads less like a straight line in 3D demos
 - Gave long visible gate labels proportional column width instead of forcing names such as `switch`, `while`, `if/else`, and `circuit N` into a single shrunken column
@@ -14,7 +16,7 @@
 - Made circuit comparison summaries narrower and slightly taller, removed the diff-column count row, and allowed `compare_circuits(...)` to use managed `pages`, `pages_controls`, and `slider` modes by rendering each side as its own normal circuit figure plus a compact summary figure
 - Reworked 3D topology handling around typed static, functional, 1D periodic, and 2D periodic definitions; built-in `line`, `grid`, `star`, `star_tree`, and `honeycomb` topologies now resize through functional builders, and new render options control full-topology versus used-node display and resize-on-fit behavior
 - Polished managed 2D exploration controls so `Wires`, `Ancillas`, and block actions only appear when they can actually change the current view, and moved the horizontal slider onto its own row above the lower button strip
-- Made compare-mode difference bands subtler and theme-aware, kept hover and zoom-responsive text behavior on compare axes, and applied theme text colors to per-side titles and the shared summary for dark-mode readability
+- Made compare-mode difference bands subtler and theme-aware, kept hover and zoom-responsive text behavior on compare axes, and applied theme text colors to the shared summary for dark-mode readability
 - Tightened 2D exploration emphasis so the selected operation stands out more clearly than related neighbors, added low-alpha grouped highlight boxes around expanded decomposition members, and kept collapsed synthetic blocks compact even with long labels
 - Normalized probability-style visible gate labels such as `PROBABILITY`, `PROB`, and `PROBS` to `Prob` while preserving the native result kind in hover details
 - Shrunk the managed 3D topology selector panel slightly by reducing its bounds, marker size, and label size together
@@ -29,6 +31,7 @@
 ### Fixed
 
 - Managed exploration now preserves the expanded semantic encounter order when filtering wires, toggling ancillas, or expanding/collapsing blocks, so terminal outputs such as PennyLane `Prob` no longer jump ahead of the gates they summarize
+- Collapsing multi-wire measurement blocks now anchors the collapsed block at the original top-level operation position instead of the first packed measurement column, preventing myQLM measure collapses from permuting earlier gates on deeper wires
 - Synthetic collapsed block labels now round embedded numeric parameter text to three decimal places, keeping long parameterized names readable without changing hover details or native provenance
 - Fundamental two-qubit decomposition blocks such as repeated `RZZ` gates now start in the correct collapsed state for managed exploration, so expanding one block in 3D no longer expands every matching gate in the figure
 - Circuit-compare demos now enable hover explicitly, so interactive backends expose the same hover details there as the core `compare_circuits(...)` API

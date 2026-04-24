@@ -225,9 +225,8 @@ def _compare_circuits_with_managed_side_figures(
     left_result = draw_result_from_prepared_call(left_prepared, defer_show=True)
     right_result = draw_result_from_prepared_call(right_prepared, defer_show=True)
     left_text_color = left_prepared.pipeline.normalized_style.theme.text_color
-    right_text_color = right_prepared.pipeline.normalized_style.theme.text_color
-    _apply_title_to_draw_result(left_result, config.left_title, text_color=left_text_color)
-    _apply_title_to_draw_result(right_result, config.right_title, text_color=right_text_color)
+    _apply_window_titles_to_draw_result(left_result, config.left_title)
+    _apply_window_titles_to_draw_result(right_result, config.right_title)
 
     summary_figure = _build_compare_summary_figure(
         config=config,
@@ -280,14 +279,28 @@ def _with_compare_side_output(
     )
 
 
-def _apply_title_to_draw_result(
+def _apply_window_titles_to_draw_result(
     result: DrawResult,
     title: str,
-    *,
-    text_color: str,
 ) -> None:
-    for axes in result.axes:
-        axes.set_title(title, color=text_color)
+    total_figures = len(result.figures)
+    for figure_index, figure in enumerate(result.figures, start=1):
+        figure_title = (
+            title if total_figures == 1 else f"{title} - page {figure_index}/{total_figures}"
+        )
+        _set_figure_window_title(figure, figure_title)
+
+
+def _set_figure_window_title(figure: Figure, title: str) -> None:
+    set_label = getattr(figure, "set_label", None)
+    if callable(set_label):
+        set_label(title)
+
+    canvas = getattr(figure, "canvas", None)
+    manager = getattr(canvas, "manager", None)
+    set_window_title = getattr(manager, "set_window_title", None)
+    if callable(set_window_title):
+        set_window_title(title)
 
 
 def _build_compare_summary_figure(
@@ -635,9 +648,9 @@ def apply_compare_titles(
 ) -> None:
     """Apply per-side titles and the shared comparison summary card."""
 
-    left_axes.set_title(config.left_title, color=left_text_color)
-    right_axes.set_title(config.right_title, color=right_text_color)
+    del right_text_color
     summary_figure = cast("Figure", left_axes.figure)
+    _set_figure_window_title(summary_figure, f"{config.left_title} vs {config.right_title}")
     _clear_compare_summary_artifacts(summary_figure)
     if summary_figure._suptitle is not None:
         summary_figure._suptitle.remove()

@@ -83,7 +83,7 @@ def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
         pages=visible_pages,
         hover=state.scene.hover,
         wire_y_positions=dict(state.scene.wire_y_positions),
-        page_count_for_text_scale=state.total_pages,
+        page_count_for_text_scale=1,
         group_highlights=tuple(shifted_group_highlights),
     )
 

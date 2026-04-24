@@ -352,6 +352,59 @@ def test_draw_quantum_circuit_page_window_keeps_variable_width_gate_labels_insid
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_window_keeps_scaled_named_gate_font_at_style_size() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="Circuit - 42",
+                        target_wires=("q0",),
+                        metadata={"compact_width": True},
+                    )
+                ]
+            ),
+            *[
+                LayerIR(
+                    operations=[
+                        OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q0",))
+                    ]
+                )
+                for _ in range(8)
+            ],
+        ],
+    )
+    style = DrawStyle(max_page_width=4.0)
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style=style,
+        figsize=(10.0, 4.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = get_page_window(figure)
+        assert page_window is not None
+        assert page_window.page_box is not None
+        page_window.page_box.set_val("2")
+        rendered_label = next(
+            text_artist
+            for text_artist in axes.texts
+            if normalize_rendered_text(text_artist.get_text()) == "circuit 42"
+        )
+
+        assert page_window.total_pages > 1
+        assert rendered_label.get_fontsize() == pytest.approx(style.font_size)
+    finally:
+        plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_window_preserves_columns_from_expanded_raw_layers() -> None:
     raw_layer_count = 10
     figure, axes = draw_quantum_circuit(

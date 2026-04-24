@@ -201,6 +201,25 @@ def test_transform_semantic_circuit_keeps_terminal_outputs_after_expanded_blocks
     assert _semantic_operation_names(transformed.semantic_ir)[-1] == "PROBS"
 
 
+def test_transform_semantic_circuit_collapses_measure_block_after_prior_operations() -> None:
+    semantic_ir = _semantic_measure_block_with_late_visual_layers()
+    catalog = build_exploration_catalog(semantic_ir, semantic_ir)
+
+    transformed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:3"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+
+    assert _semantic_operation_names(transformed.semantic_ir) == [
+        "H",
+        "X",
+        "Y",
+        "MEASURE",
+    ]
+
+
 def test_block_actions_expand_and_recollapse_multiple_blocks_independently() -> None:
     current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
     catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
@@ -476,7 +495,7 @@ def test_initial_collapsed_long_label_block_restores_original_width() -> None:
     assert scene.gates[0].width > DrawStyle().gate_width
 
 
-def test_synthetic_collapsed_long_label_block_keeps_compact_single_column_width() -> None:
+def test_synthetic_collapsed_long_label_block_scales_to_visible_text() -> None:
     _, expanded_semantic_ir = _semantic_long_label_block_circuits()
     catalog = build_exploration_catalog(expanded_semantic_ir, expanded_semantic_ir)
 
@@ -489,7 +508,7 @@ def test_synthetic_collapsed_long_label_block_keeps_compact_single_column_width(
     scene = LayoutEngine().compute(lower_semantic_circuit(transformed.semantic_ir), DrawStyle())
 
     assert len(scene.gates) == 1
-    assert scene.gates[0].width == pytest.approx(DrawStyle().gate_width)
+    assert scene.gates[0].width > DrawStyle().gate_width
 
 
 def test_synthetic_collapsed_block_rounds_numeric_parameters_in_visible_label() -> None:
@@ -1320,6 +1339,116 @@ def _semantic_terminal_collision_circuits() -> tuple[SemanticCircuitIR, Semantic
         ),
     )
     return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_measure_block_with_late_visual_layers() -> SemanticCircuitIR:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(3)
+    )
+    classical_wires = tuple(
+        WireIR(id=f"c{index}", index=index, kind=WireKind.CLASSICAL, label=f"c[{index}]")
+        for index in range(3)
+    )
+    return SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        classical_wires=classical_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            location=(0,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="MEASURE",
+                            native_kind="measurement",
+                            location=(3, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="X",
+                            native_kind="gate",
+                            location=(1,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q1",),
+                        classical_target="c1",
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="MEASURE",
+                            native_kind="measurement",
+                            location=(3, 1),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Y",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Y",
+                            native_kind="gate",
+                            location=(2,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q2",),
+                        classical_target="c2",
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="MEASURE",
+                            native_kind="measurement",
+                            location=(3, 2),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
 
 
 def _semantic_controls_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:

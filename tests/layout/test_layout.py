@@ -591,7 +591,39 @@ def test_named_gate_widths_scale_with_visible_text_length() -> None:
     assert widths["while"] < widths["switch"] < widths["if/else"]
 
 
-def test_long_named_gate_without_parameters_uses_capped_compact_width() -> None:
+def test_compact_width_metadata_still_scales_named_gate_to_visible_text() -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="Circuit - 42",
+        target_wires=("q0",),
+        metadata={"compact_width": True},
+    )
+    label, subtitle = operation_label_parts(operation, style)
+    compact_operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="Circuit - 42",
+        target_wires=("q0",),
+    )
+    compact_label, compact_subtitle = operation_label_parts(compact_operation, style)
+
+    assert format_gate_name(label) == "circuit 42"
+    assert operation_width_from_parts(
+        operation=operation,
+        style=style,
+        label=label,
+        subtitle=subtitle,
+    ) == pytest.approx(
+        operation_width_from_parts(
+            operation=compact_operation,
+            style=style,
+            label=compact_label,
+            subtitle=compact_subtitle,
+        )
+    )
+
+
+def test_long_named_gate_without_parameters_expands_to_readable_width() -> None:
     style = DrawStyle()
     operation = OperationIR(
         kind=OperationKind.GATE,
@@ -606,7 +638,7 @@ def test_long_named_gate_without_parameters_uses_capped_compact_width() -> None:
         subtitle=subtitle,
     )
 
-    assert style.gate_width < width <= style.gate_width * 3.5
+    assert width > style.gate_width * 3.5
 
 
 def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() -> None:

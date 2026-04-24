@@ -11,7 +11,6 @@ _COMPACT_RESULT_DISPLAY_LABELS = frozenset({"Prob", "ExpVal", "Counts"})
 _COMPACT_RESULT_TERMINAL_KINDS = frozenset({"probs", "expval", "counts"})
 _COMPACT_RESULT_WIDTH_FACTOR = 0.78
 _COMPACT_LABEL_WIDTH_FONT_SCALE = 0.45
-_COMPACT_LABEL_WIDTH_CAP_FACTOR = 3.5
 
 
 def estimate_text_width(text: str, font_size: float) -> float:
@@ -54,8 +53,6 @@ def uses_compact_label_width(
 ) -> bool:
     """Return whether a short non-parametric gate should keep a square footprint."""
 
-    if operation.metadata.get("compact_width") is True:
-        return True
     if subtitle is not None:
         return False
     if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:
@@ -111,10 +108,7 @@ def operation_width_from_parts(
         + 0.18
     )
     if subtitle is None:
-        return min(
-            max(style.gate_width, label_width),
-            style.gate_width * _COMPACT_LABEL_WIDTH_CAP_FACTOR,
-        )
+        return max(style.gate_width, label_width)
 
     width = max(style.gate_width, label_width)
     if subtitle:
