@@ -143,6 +143,9 @@ def test_compare_examples_readme_mentions_histogram_legend_toggle() -> None:
 
 
 def test_compare_circuit_demo_builders_enable_hover() -> None:
+    if run_compare_demo_module.find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the compare circuit demo builder smoke test")
+
     transpile_module = importlib.import_module("examples.compare_circuits_qiskit_transpile")
     composite_module = importlib.import_module("examples.compare_circuits_composite_modes")
     request = CompareExampleRequest(

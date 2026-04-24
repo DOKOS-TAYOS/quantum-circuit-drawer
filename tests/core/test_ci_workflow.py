@@ -41,3 +41,12 @@ def test_ci_workflow_uses_current_core_coverage_threshold() -> None:
     workflow_text = workflow_path.read_text(encoding="utf-8")
 
     assert "python -m coverage report --show-missing --fail-under=87" in workflow_text
+
+
+def test_ci_workflow_measures_qiskit_helpers_with_optional_adapters() -> None:
+    workflow_path = Path(".github/workflows/ci.yml")
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+
+    assert "*/adapters/_qiskit_*.py" in workflow_text
+    assert '--omit="*/adapters/qiskit_adapter.py,*/adapters/_qiskit_*.py' in workflow_text
+    assert '--include="*/adapters/qiskit_adapter.py,*/adapters/_qiskit_*.py' in workflow_text

@@ -43,7 +43,7 @@ jobs:
       - name: Test core package with coverage
         shell: pwsh
         run: |
-          python -m coverage run --branch --source=quantum_circuit_drawer --omit="*/adapters/qiskit_adapter.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py,*/adapters/cudaq_adapter.py,*/adapters/_cudaq_quake_parser.py" -m pytest -m "not integration"
+          python -m coverage run --branch --source=quantum_circuit_drawer --omit="*/adapters/qiskit_adapter.py,*/adapters/_qiskit_*.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py,*/adapters/cudaq_adapter.py,*/adapters/_cudaq_quake_parser.py" -m pytest -m "not integration"
           python -m coverage report --show-missing --fail-under=87
 
   test-optional-linux:
@@ -65,7 +65,7 @@ jobs:
         run: |
           python -m coverage erase
           python -m coverage run --branch -m pytest tests/adapters/test_qiskit_adapter.py tests/adapters/test_cirq_adapter.py tests/adapters/test_pennylane_adapter.py tests/adapters/test_myqlm_adapter.py tests/examples/test_examples_runner.py
-          python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
+          python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/_qiskit_*.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
 
   test-optional-windows:
     runs-on: windows-latest
@@ -87,7 +87,7 @@ jobs:
         run: |
           python -m coverage erase
           python -m coverage run --branch -m pytest tests/adapters/test_qiskit_adapter.py tests/adapters/test_cirq_adapter_contract.py tests/adapters/test_pennylane_adapter_contract.py tests/adapters/test_myqlm_adapter.py tests/core/test_optional_imports.py tests/examples/test_examples_runner.py
-          python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
+          python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/_qiskit_*.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
 
   test-cudaq-parser:
     runs-on: ${{ matrix.os }}
