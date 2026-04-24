@@ -149,7 +149,7 @@ Public topology helpers:
 - `star_tree_topology(qubit_count)`
 - `honeycomb_topology(qubit_count)`
 
-The built-in names are backed by the public functional builders and support any positive qubit count. For circuits that use fewer qubits than a topology contains, `topology_qubits="used"` keeps the view focused on the first allocated nodes, while `topology_qubits="all"` also shows inactive physical nodes using their topology ids as labels. If a circuit needs more nodes than the topology currently has, `topology_resize="fit"` can resize functional and periodic topologies; static `HardwareTopology` instances stay fixed.
+The built-in names are backed by the public functional builders and support any positive qubit count. The `"honeycomb"` builder creates an IBM heavy-hex-style footprint. For circuits that use fewer qubits than a topology contains, `topology_qubits="used"` keeps the view focused on the first allocated nodes, while `topology_qubits="all"` also shows inactive physical nodes using their topology ids as labels. If a circuit needs more nodes than the topology currently has, `topology_resize="fit"` can resize functional and periodic topologies; static `HardwareTopology` instances stay fixed.
 
 ### `StylePreset`
 
@@ -216,16 +216,17 @@ Notes:
 - `shared` provides the baseline `DrawSideConfig` used on both sides
 - `left_render` / `right_render` override only the render block on one side
 - `left_appearance` / `right_appearance` override only the appearance block on one side
-- the default `auto` mode is normalized to a compact `full` side-by-side comparison
-- explicit circuit modes `pages`, `pages_controls`, and `slider` render the two circuits as normal managed circuit figures and use `result.figure` for the compact comparison summary
+- the default `auto` mode renders the two circuits as normal managed `pages_controls` figures and uses `result.figure` for the compact comparison summary
+- explicit circuit modes `pages`, `pages_controls`, and `slider` also render the two circuits as normal managed circuit figures
+- explicit `mode="full"` or caller-owned `axes` use the static side-by-side comparison path
 
 ### `CircuitCompareResult`
 
-`compare_circuits(...)` returns one side-by-side figure in the default/static path. When a managed circuit mode is requested, it returns two normal per-side circuit figures plus one compact summary figure.
+`compare_circuits(...)` returns two normal per-side circuit figures plus one compact summary figure by default. When `mode="full"` is requested, or when caller-owned axes are provided, it returns one static side-by-side figure.
 
 Fields:
 
-- `figure`: the side-by-side figure in static comparison, or the compact summary figure in managed-mode comparison
+- `figure`: the compact summary figure in managed comparison, or the side-by-side figure in static comparison
 - `axes`: the primary left and right circuit axes
 - `left_result`: nested `DrawResult` for the left circuit
 - `right_result`: nested `DrawResult` for the right circuit
@@ -498,7 +499,7 @@ For histograms:
 ### `axes` for `compare_circuits(...)`
 
 `compare_circuits(...)` accepts `axes=(left_axes, right_axes)` when you want to embed the comparison in your own Matplotlib figure.
-Caller-owned axes are only valid for the default/static comparison path. Managed compare modes such as `pages`, `pages_controls`, and `slider` create their own figures, just like `draw_quantum_circuit(...)`.
+Caller-owned axes are only valid for the static comparison path. With axes, `mode="auto"` is treated like `mode="full"`. Managed compare modes such as `pages`, `pages_controls`, and `slider` create their own figures, just like `draw_quantum_circuit(...)`.
 
 ## Style and theme
 

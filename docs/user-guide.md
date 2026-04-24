@@ -175,7 +175,7 @@ What changes in 3D:
 - managed `pages_controls` preserves a shared camera while you navigate
 - managed 3D exploration keeps a selected operation active while you rotate, and only clears it on a clean background click
 
-The built-in topology names are flexible: `"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"` can all be built for arbitrary positive qubit counts. For a circuit that uses fewer qubits than the topology contains, `topology_qubits="used"` renders only the first allocated topology nodes, while `topology_qubits="all"` keeps the inactive physical nodes visible and labels them with their topology ids. For non-static topologies, `topology_resize="fit"` lets the renderer rebuild the topology when the circuit needs more nodes; static `HardwareTopology` inputs stay exact and raise an explicit size error instead.
+The built-in topology names are flexible: `"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"` can all be built for arbitrary positive qubit counts. The `"honeycomb"` builder uses an IBM heavy-hex-style footprint. For a circuit that uses fewer qubits than the topology contains, `topology_qubits="used"` renders only the first allocated topology nodes, while `topology_qubits="all"` keeps the inactive physical nodes visible and labels them with their topology ids. For non-static topologies, `topology_resize="fit"` lets the renderer rebuild the topology when the circuit needs more nodes; static `HardwareTopology` inputs stay exact and raise an explicit size error instead.
 
 ## Presets, Style, And Hover
 
@@ -337,8 +337,8 @@ result = compare_circuits(
 
 What you get back:
 
-- one figure with two subplot axes in the default/static path
-- two normal per-side circuit figures plus one compact summary figure when you request `pages`, `pages_controls`, or `slider`
+- two normal per-side circuit figures plus one compact summary figure by default
+- one figure with two subplot axes when you request `mode="full"` or pass caller-owned axes
 - one nested `DrawResult` per side, so each side exposes its own figures, axes, mode, and page count
 - metrics such as layers, total operations, multi-qubit operations, swaps, and measurements
 - an optional compact summary card; the summary focuses on stable aggregate metrics and does not report diff-column counts

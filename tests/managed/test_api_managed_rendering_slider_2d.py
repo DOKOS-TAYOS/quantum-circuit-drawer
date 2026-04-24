@@ -167,7 +167,12 @@ def test_draw_quantum_circuit_page_slider_uses_width_budgeted_column_windows() -
     page_slider.horizontal_slider.set_val(2.0)
 
     moved_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
-    assert {label for label in moved_labels if label in {"H", "X", "Y", "Z"}} == {"X", "Y", "Z"}
+    assert {label for label in moved_labels if label in {"H", "X", "Y", "Z"}} == {"X", "Y"}
+
+    page_slider.horizontal_slider.set_val(3.0)
+
+    final_labels = {normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts}
+    assert {label for label in final_labels if label in {"H", "X", "Y", "Z"}} == {"Y", "Z"}
 
     plt.close(figure)
 

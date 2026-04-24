@@ -30,7 +30,8 @@ _BUILTIN_TOPOLOGY_NAMES: tuple[BuiltinTopologyName, ...] = (
 )
 _TOPOLOGY_QUBIT_MODES: tuple[TopologyQubitMode, ...] = ("used", "all")
 _TOPOLOGY_RESIZE_MODES: tuple[TopologyResizeMode, ...] = ("error", "fit")
-_BRICK_ROW_HEIGHT = math.sqrt(3.0) / 2.0
+_HEAVY_HEX_ROW_HEIGHT = math.sqrt(3.0) / 2.0
+_HEAVY_HEX_TARGET_ASPECT = 2.35
 
 
 @dataclass(frozen=True, slots=True)
@@ -426,34 +427,90 @@ def star_tree_topology(qubit_count: int) -> HardwareTopology:
 
 
 def honeycomb_topology(qubit_count: int) -> HardwareTopology:
-    """Build a compact deterministic honeycomb-like patch."""
+    """Build a compact deterministic IBM heavy-hex-style patch."""
 
     _validate_positive_qubit_count(qubit_count)
-    columns = max(1, math.ceil(math.sqrt(float(qubit_count) * 1.35)))
-    node_ids = tuple(range(qubit_count))
-    raw_coordinates: dict[int, tuple[float, float]] = {}
-    edges: list[tuple[int, int]] = []
-    for index in node_ids:
-        row = index // columns
-        column = index % columns
-        raw_coordinates[index] = (
-            float(column) + (0.5 if row % 2 else 0.0),
-            float(-row) * _BRICK_ROW_HEIGHT,
-        )
-        if column > 0:
-            edges.append((index - 1, index))
-        if row > 0:
-            diagonal_column = column if row % 2 else column - 1
-            if diagonal_column >= 0:
-                diagonal_index = (row - 1) * columns + diagonal_column
-                if diagonal_index < qubit_count:
-                    edges.append((diagonal_index, index))
+    cells_per_row = _heavy_hex_cells_per_row(qubit_count)
+    raw_coordinates, edges = _heavy_hex_patch(qubit_count, cells_per_row=cells_per_row)
     return HardwareTopology(
-        node_ids=node_ids,
+        node_ids=tuple(range(qubit_count)),
         edges=tuple(edges),
         coordinates=_centered_coordinates(raw_coordinates),
         name="honeycomb",
     )
+
+
+def _heavy_hex_cells_per_row(qubit_count: int) -> int:
+    max_cells = max(1, math.ceil(math.sqrt(float(qubit_count))))
+    candidates: list[tuple[float, int]] = []
+    for cells_per_row in range(1, max_cells + 1):
+        coordinates, _edges = _heavy_hex_patch(qubit_count, cells_per_row=cells_per_row)
+        width = max(position[0] for position in coordinates.values()) - min(
+            position[0] for position in coordinates.values()
+        )
+        height = max(position[1] for position in coordinates.values()) - min(
+            position[1] for position in coordinates.values()
+        )
+        aspect = width / max(height, 1.0)
+        row_count = len({position[1] for position in coordinates.values()})
+        score = abs(aspect - _HEAVY_HEX_TARGET_ASPECT) + (row_count * 0.12)
+        candidates.append((score, cells_per_row))
+    return min(candidates)[1]
+
+
+def _heavy_hex_patch(
+    qubit_count: int,
+    *,
+    cells_per_row: int,
+) -> tuple[dict[int, tuple[float, float]], tuple[tuple[int, int], ...]]:
+    coordinates: dict[int, tuple[float, float]] = {}
+    horizontal_rows: dict[int, list[int]] = {}
+    connector_nodes: list[tuple[int, float, int]] = []
+    vertex_by_row_and_x: dict[tuple[int, float], int] = {}
+
+    row = 0
+    while len(coordinates) < qubit_count:
+        y_position = float(-row) * _HEAVY_HEX_ROW_HEIGHT
+        if row % 2 == 0:
+            horizontal_row = row // 2
+            shift = 2.0 if horizontal_row % 2 else 0.0
+            row_width = max(3, (cells_per_row * 4) - 1)
+            row_nodes: list[int] = []
+            for column in range(row_width):
+                if len(coordinates) >= qubit_count:
+                    break
+                node_id = len(coordinates)
+                x_position = shift + float(column)
+                coordinates[node_id] = (x_position, y_position)
+                row_nodes.append(node_id)
+                vertex_by_row_and_x[(row, x_position)] = node_id
+            if row_nodes:
+                horizontal_rows[row] = row_nodes
+        else:
+            upper_horizontal_row = (row - 1) // 2
+            connector_shift = 2.0 if upper_horizontal_row % 2 == 0 else 4.0
+            connector_count = cells_per_row if connector_shift == 2.0 else max(1, cells_per_row - 1)
+            for cell in range(connector_count):
+                if len(coordinates) >= qubit_count:
+                    break
+                x_position = connector_shift + (4.0 * float(cell))
+                node_id = len(coordinates)
+                coordinates[node_id] = (x_position, y_position)
+                connector_nodes.append((row, x_position, node_id))
+        row += 1
+
+    edges: list[tuple[int, int]] = []
+    for row_nodes in horizontal_rows.values():
+        for first, second in zip(row_nodes, row_nodes[1:], strict=False):
+            edges.append((first, second))
+    for row, x_position, connector_node in connector_nodes:
+        upper_vertex = vertex_by_row_and_x.get((row - 1, x_position))
+        lower_vertex = vertex_by_row_and_x.get((row + 1, x_position))
+        if upper_vertex is not None:
+            edges.append((upper_vertex, connector_node))
+        if lower_vertex is not None:
+            edges.append((connector_node, lower_vertex))
+    return coordinates, tuple(edges)
 
 
 def materialize_topology(

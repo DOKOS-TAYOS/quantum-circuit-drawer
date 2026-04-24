@@ -884,10 +884,10 @@ def test_draw_quantum_circuit_renders_cudaq_controlled_swap_box(
 @pytest.mark.parametrize(
     ("builder", "expected_label", "expected_wires"),
     [
-        (build_cc_if_quake_mlir, "IF", {"q0", "q1"}),
-        (build_scf_if_else_quake_mlir, "IF/ELSE", {"q0", "q1"}),
-        (build_scf_for_quake_mlir, "FOR", {"q0", "q1"}),
-        (build_cc_loop_quake_mlir, "LOOP", {"q0", "q1"}),
+        (build_cc_if_quake_mlir, "if", {"q0", "q1"}),
+        (build_scf_if_else_quake_mlir, "if/else", {"q0", "q1"}),
+        (build_scf_for_quake_mlir, "for", {"q0", "q1"}),
+        (build_cc_loop_quake_mlir, "loop", {"q0", "q1"}),
     ],
 )
 def test_draw_quantum_circuit_renders_cudaq_control_flow_boxes(

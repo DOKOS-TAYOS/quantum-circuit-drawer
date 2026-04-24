@@ -737,7 +737,7 @@ def test_prepare_draw_pipeline_keeps_qiskit_control_flow_hover_details() -> None
     hover_details = next(
         gate.hover_data.details
         for gate in pipeline.paged_scene.gates
-        if gate.hover_data is not None and gate.hover_data.name == "IF/ELSE"
+        if gate.hover_data is not None and gate.hover_data.name == "if/else"
     )
 
     assert hover_details == (
@@ -773,7 +773,7 @@ def test_draw_quantum_circuit_renders_qiskit_compact_control_flow_boxes() -> Non
 
     assert_axes_contains_circuit_artists(
         axes,
-        expected_texts={"IF/ELSE", "SWITCH", "FOR", "WHILE"},
+        expected_texts={"if/else", "switch", "for", "while"},
     )
     figure.clear()
 

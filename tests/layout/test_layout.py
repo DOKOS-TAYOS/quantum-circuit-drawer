@@ -537,6 +537,58 @@ def test_terminal_result_gate_widths_are_compact(
     )
 
 
+@pytest.mark.parametrize(
+    ("name", "expected_label"),
+    [
+        ("SWITCH", "switch"),
+        ("WHILE", "while"),
+        ("IF/ELSE", "if/else"),
+        ("Circuit - 42", "circuit 42"),
+        ("CircuitOperation", "CircuitOp"),
+    ],
+)
+def test_named_control_and_circuit_labels_use_compact_width(
+    name: str,
+    expected_label: str,
+) -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name=name,
+        target_wires=("q0",),
+    )
+    label, subtitle = operation_label_parts(operation, style)
+
+    assert format_gate_name(label) == expected_label
+    assert (
+        operation_width_from_parts(
+            operation=operation,
+            style=style,
+            label=label,
+            subtitle=subtitle,
+        )
+        == style.gate_width
+    )
+
+
+def test_long_named_gate_without_parameters_uses_capped_compact_width() -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="ProbabilityFlowBlock",
+        target_wires=("q0",),
+    )
+    label, subtitle = operation_label_parts(operation, style)
+    width = operation_width_from_parts(
+        operation=operation,
+        style=style,
+        label=label,
+        subtitle=subtitle,
+    )
+
+    assert style.gate_width < width <= style.gate_width * 2.2
+
+
 def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() -> None:
     circuit = CircuitIR(
         quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],

@@ -48,13 +48,32 @@ _VISIBLE_LABEL_ESCAPES = str.maketrans(
         "^": r"\^",
     }
 )
+_CONTROL_FLOW_DISPLAY_NAMES: dict[str, str] = {
+    "IF": "if",
+    "IFELSE": "if/else",
+    "SWITCH": "switch",
+    "FOR": "for",
+    "WHILE": "while",
+    "LOOP": "loop",
+}
+_CIRCUIT_NUMBER_LABEL_PATTERN = re.compile(
+    r"^circuit\s*[-_:]?\s*(?P<number>\d+)$",
+    flags=re.IGNORECASE,
+)
 
 
 def format_gate_name(name: str) -> str:
     """Normalize a gate display name."""
 
-    compact = name.replace("_", "").replace("-", "")
+    compact = re.sub(r"[^0-9A-Za-z]+", "", name)
     uppercase = compact.upper()
+    if uppercase in _CONTROL_FLOW_DISPLAY_NAMES:
+        return _CONTROL_FLOW_DISPLAY_NAMES[uppercase]
+    circuit_number_match = _CIRCUIT_NUMBER_LABEL_PATTERN.match(name.strip())
+    if circuit_number_match is not None:
+        return f"circuit {circuit_number_match.group('number')}"
+    if uppercase == "CIRCUITOPERATION":
+        return "CircuitOp"
     if uppercase in {"PROB", "PROBS", "PROBABILITY"}:
         return "Prob"
     if uppercase == "EXPVAL":

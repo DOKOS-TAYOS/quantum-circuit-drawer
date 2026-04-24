@@ -81,10 +81,12 @@ def compare_circuits(
     normalized_left_config = normalize_compare_draw_config(
         merge_compare_side_config(resolved_compare_config, side_label="left"),
         side_label="left",
+        auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
     )
     normalized_right_config = normalize_compare_draw_config(
         merge_compare_side_config(resolved_compare_config, side_label="right"),
         side_label="right",
+        auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
     )
     uses_managed_compare = (
         normalized_left_config.mode is not DrawMode.FULL
@@ -312,6 +314,7 @@ def normalize_compare_draw_config(
     config: DrawConfig,
     *,
     side_label: str,
+    auto_mode: DrawMode = DrawMode.FULL,
 ) -> DrawConfig:
     """Normalize one per-side draw config for public circuit comparison."""
 
@@ -319,7 +322,7 @@ def normalize_compare_draw_config(
         raise ValueError(
             f"compare_circuits only supports 2D rendering; {side_label}_render.view must be '2d'"
         )
-    mode = DrawMode.FULL if config.mode is DrawMode.AUTO else config.mode
+    mode = auto_mode if config.mode is DrawMode.AUTO else config.mode
     return DrawConfig(
         side=DrawSideConfig(
             render=CircuitRenderOptions(

@@ -252,8 +252,8 @@ result = compare_circuits(
 
 `CircuitCompareResult` gives you:
 
-- one comparison figure in the default/static path, or a compact summary figure when you request managed modes
-- one `DrawResult` per side, including normal `pages`, `pages_controls`, and `slider` figures when those modes are requested
+- a compact summary figure by default
+- one `DrawResult` per side, with each circuit rendered in its own normal `pages_controls` figure unless you request `mode="full"` or pass caller-owned axes
 - structural metrics such as operation counts, measurement counts, swap counts, and differing layers
 
 ## Compare Two Histograms
@@ -376,7 +376,7 @@ result = draw_quantum_circuit(
 )
 ```
 
-The built-in 3D topologies (`"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"`) are flexible builders, so they can be used with arbitrary positive qubit counts. If a topology has more physical nodes than the circuit uses, `topology_qubits="used"` shows only the allocated nodes while `topology_qubits="all"` shows the full hardware footprint. If a functional or periodic topology is too small, `topology_resize="fit"` rebuilds it for the circuit size; static `HardwareTopology` instances stay fixed and raise a clear error when they are too small.
+The built-in 3D topologies (`"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"`) are flexible builders, so they can be used with arbitrary positive qubit counts. The `"honeycomb"` builder uses an IBM heavy-hex-style footprint. If a topology has more physical nodes than the circuit uses, `topology_qubits="used"` shows only the allocated nodes while `topology_qubits="all"` shows the full hardware footprint. If a functional or periodic topology is too small, `topology_resize="fit"` rebuilds it for the circuit size; static `HardwareTopology` instances stay fixed and raise a clear error when they are too small.
 
 If you want to see the managed 2D controls intentionally exercised instead of configuring them from scratch, start with `qiskit-2d-exploration-showcase`.
 

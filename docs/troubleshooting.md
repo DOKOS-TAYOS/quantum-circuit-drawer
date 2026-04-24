@@ -312,7 +312,7 @@ def bell_pair() -> None:
 draw_quantum_circuit(bell_pair)
 ```
 
-For supported closed kernels, CUDA-Q now supports `reset`, measurement basis preservation, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint`. Those control-flow boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
+For supported closed kernels, CUDA-Q now supports `reset`, measurement basis preservation, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint`. Structured control-flow boxes use compact lowercase visible labels such as `if/else`, `for`, and `loop`. Those boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
 
 Low-level CFG control flow and unresolved dynamic qvector sizes are still outside the supported subset.
 

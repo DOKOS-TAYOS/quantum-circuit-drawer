@@ -356,6 +356,7 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
         build_reference_compare_ir(),
         build_candidate_compare_ir(),
         config=CircuitCompareConfig(
+            shared=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.FULL)),
             compare=CircuitCompareOptions(
                 left_title="Before",
                 right_title="After",
@@ -495,12 +496,38 @@ def test_compare_circuits_summary_card_is_narrower_taller_and_omits_diff_columns
         in {"circuit-compare-summary-header", "circuit-compare-summary-row"}
     }
 
-    assert summary_card.get_width() <= 0.42
+    assert result.figure.get_size_inches()[0] <= 4.0
+    assert summary_card.get_width() >= 0.8
     assert summary_card.get_height() >= 0.2
-    assert summary_card.get_y() < 0.8
+    assert summary_card.get_y() < 0.2
     assert "Diff cols" not in summary_text
 
-    plt.close(result.figure)
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
+def test_compare_circuits_auto_mode_defaults_to_three_normal_figures() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
+    )
+
+    assert result.figure is not result.left_result.primary_figure
+    assert result.figure is not result.right_result.primary_figure
+    assert result.left_result.primary_figure is not result.right_result.primary_figure
+    assert result.left_result.mode is DrawMode.PAGES_CONTROLS
+    assert result.right_result.mode is DrawMode.PAGES_CONTROLS
+    assert result.axes == (result.left_result.primary_axes, result.right_result.primary_axes)
+    assert not [
+        patch
+        for axes in result.axes
+        for patch in axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "circuit-compare-diff-marker"
+    ]
+
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
 
 
 @pytest.mark.parametrize("mode", [DrawMode.PAGES, DrawMode.SLIDER, DrawMode.PAGES_CONTROLS])
@@ -551,9 +578,10 @@ def test_compare_circuits_hover_shows_gate_details_when_enabled(
         build_candidate_compare_ir(),
         config=CircuitCompareConfig(
             shared=DrawSideConfig(
+                render=CircuitRenderOptions(mode=DrawMode.FULL),
                 appearance=CircuitAppearanceOptions(
                     hover=True,
-                )
+                ),
             ),
             output=OutputOptions(show=False),
         ),
@@ -564,20 +592,21 @@ def test_compare_circuits_hover_shows_gate_details_when_enabled(
 
         assert hover_state is not None
 
-        result.figure.canvas.draw()
+        result.left_result.primary_figure.canvas.draw()
         gate_patch = next(
             patch
             for patch in result.axes[0].patches
             if isinstance(patch, matplotlib_patches.FancyBboxPatch)
         )
-        _dispatch_motion_event(result.figure, result.axes[0], gate_patch)
+        _dispatch_motion_event(result.left_result.primary_figure, result.axes[0], gate_patch)
 
         annotation = hover_state.annotation
 
         assert annotation.get_visible() is True
         assert annotation.get_text()
     finally:
-        plt.close(result.figure)
+        for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+            plt.close(figure)
 
 
 def test_compare_circuits_uses_caller_managed_axes_and_saves_single_output(
@@ -625,7 +654,8 @@ def test_compare_circuits_supports_mixed_qiskit_and_ir_inputs() -> None:
     assert result.left_result.detected_framework == "qiskit"
     assert result.right_result.detected_framework == "ir"
 
-    plt.close(result.figure)
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
 
 
 def test_compare_circuits_supports_mixed_cirq_and_ir_inputs_with_windows_safe_contract(
@@ -654,7 +684,8 @@ def test_compare_circuits_supports_mixed_cirq_and_ir_inputs_with_windows_safe_co
     assert result.right_result.detected_framework == "ir"
     assert_figure_has_visible_content(result.figure)
 
-    plt.close(result.figure)
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
 
 
 def test_compare_circuits_supports_mixed_pennylane_and_ir_inputs_with_windows_safe_contract(
@@ -691,7 +722,8 @@ def test_compare_circuits_supports_mixed_pennylane_and_ir_inputs_with_windows_sa
     assert result.right_result.detected_framework == "ir"
     assert_figure_has_visible_content(result.figure)
 
-    plt.close(result.figure)
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
 
 
 def test_compare_circuits_supports_mixed_myqlm_and_ir_inputs(
@@ -714,7 +746,8 @@ def test_compare_circuits_supports_mixed_myqlm_and_ir_inputs(
     assert result.metrics.differing_layer_count > 0
     assert_figure_has_visible_content(result.figure)
 
-    plt.close(result.figure)
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
 
 
 def test_compare_circuits_supports_mixed_cudaq_and_ir_inputs(
@@ -739,7 +772,8 @@ def test_compare_circuits_supports_mixed_cudaq_and_ir_inputs(
     assert result.metrics.differing_layer_count > 0
     assert_figure_has_visible_content(result.figure)
 
-    plt.close(result.figure)
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
 
 
 @pytest.mark.parametrize(
