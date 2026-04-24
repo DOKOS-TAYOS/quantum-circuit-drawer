@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal, TypeAlias, TypeGuard, cast
 
@@ -31,7 +31,17 @@ _BUILTIN_TOPOLOGY_NAMES: tuple[BuiltinTopologyName, ...] = (
 _TOPOLOGY_QUBIT_MODES: tuple[TopologyQubitMode, ...] = ("used", "all")
 _TOPOLOGY_RESIZE_MODES: tuple[TopologyResizeMode, ...] = ("error", "fit")
 _HEAVY_HEX_ROW_HEIGHT = math.sqrt(3.0) / 2.0
-_HEAVY_HEX_TARGET_ASPECT = 2.35
+_HEAVY_HEX_BALANCE_LIMIT = 1.55
+_HEAVY_HEX_SEARCH_SCALE = 4
+_HEAVY_HEX_VISUAL_ROTATION_RADIANS = math.radians(30.0)
+_HEAVY_HEX_SEED_CELL: tuple[tuple[int, int], ...] = (
+    (0, 0),
+    (0, 1),
+    (-1, 1),
+    (-1, 0),
+    (-1, -1),
+    (0, -1),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,90 +437,167 @@ def star_tree_topology(qubit_count: int) -> HardwareTopology:
 
 
 def honeycomb_topology(qubit_count: int) -> HardwareTopology:
-    """Build a compact deterministic IBM heavy-hex-style patch."""
+    """Build a compact deterministic IBM-inspired hexagonal chip patch."""
 
     _validate_positive_qubit_count(qubit_count)
-    cells_per_row = _heavy_hex_cells_per_row(qubit_count)
-    raw_coordinates, edges = _heavy_hex_patch(qubit_count, cells_per_row=cells_per_row)
+    raw_coordinates, edges = _compact_heavy_hex_patch(qubit_count)
     return HardwareTopology(
         node_ids=tuple(range(qubit_count)),
         edges=tuple(edges),
-        coordinates=_centered_coordinates(raw_coordinates),
+        coordinates=_centered_coordinates(_rotate_coordinates(raw_coordinates)),
         name="honeycomb",
     )
 
 
-def _heavy_hex_cells_per_row(qubit_count: int) -> int:
-    max_cells = max(1, math.ceil(math.sqrt(float(qubit_count))))
-    candidates: list[tuple[float, int]] = []
-    for cells_per_row in range(1, max_cells + 1):
-        coordinates, _edges = _heavy_hex_patch(qubit_count, cells_per_row=cells_per_row)
-        width = max(position[0] for position in coordinates.values()) - min(
-            position[0] for position in coordinates.values()
-        )
-        height = max(position[1] for position in coordinates.values()) - min(
-            position[1] for position in coordinates.values()
-        )
-        aspect = width / max(height, 1.0)
-        row_count = len({position[1] for position in coordinates.values()})
-        score = abs(aspect - _HEAVY_HEX_TARGET_ASPECT) + (row_count * 0.12)
-        candidates.append((score, cells_per_row))
-    return min(candidates)[1]
+_HeavyHexKey: TypeAlias = tuple[int, int]
 
 
-def _heavy_hex_patch(
+def _compact_heavy_hex_patch(
     qubit_count: int,
-    *,
-    cells_per_row: int,
 ) -> tuple[dict[int, tuple[float, float]], tuple[tuple[int, int], ...]]:
-    coordinates: dict[int, tuple[float, float]] = {}
-    horizontal_rows: dict[int, list[int]] = {}
-    connector_nodes: list[tuple[int, float, int]] = []
-    vertex_by_row_and_x: dict[tuple[int, float], int] = {}
+    search_limit = _heavy_hex_search_limit(qubit_count)
+    while True:
+        lattice = _heavy_hex_lattice(search_limit)
+        selected_keys = _select_compact_heavy_hex_keys(lattice, qubit_count)
+        if len(selected_keys) == qubit_count:
+            node_id_by_key = {key: node_id for node_id, key in enumerate(selected_keys)}
+            coordinates = {node_id_by_key[key]: lattice[key] for key in selected_keys}
+            edges = _heavy_hex_edges_for_selected_keys(
+                selected_keys,
+                node_id_by_key=node_id_by_key,
+            )
+            return coordinates, edges
+        search_limit *= 2
 
-    row = 0
-    while len(coordinates) < qubit_count:
-        y_position = float(-row) * _HEAVY_HEX_ROW_HEIGHT
-        if row % 2 == 0:
-            horizontal_row = row // 2
-            shift = 2.0 if horizontal_row % 2 else 0.0
-            row_width = max(3, (cells_per_row * 4) - 1)
-            row_nodes: list[int] = []
-            for column in range(row_width):
-                if len(coordinates) >= qubit_count:
-                    break
-                node_id = len(coordinates)
-                x_position = shift + float(column)
-                coordinates[node_id] = (x_position, y_position)
-                row_nodes.append(node_id)
-                vertex_by_row_and_x[(row, x_position)] = node_id
-            if row_nodes:
-                horizontal_rows[row] = row_nodes
-        else:
-            upper_horizontal_row = (row - 1) // 2
-            connector_shift = 2.0 if upper_horizontal_row % 2 == 0 else 4.0
-            connector_count = cells_per_row if connector_shift == 2.0 else max(1, cells_per_row - 1)
-            for cell in range(connector_count):
-                if len(coordinates) >= qubit_count:
-                    break
-                x_position = connector_shift + (4.0 * float(cell))
-                node_id = len(coordinates)
-                coordinates[node_id] = (x_position, y_position)
-                connector_nodes.append((row, x_position, node_id))
-        row += 1
 
+def _heavy_hex_search_limit(qubit_count: int) -> int:
+    return max(4, math.ceil(math.sqrt(float(qubit_count))) * _HEAVY_HEX_SEARCH_SCALE)
+
+
+def _heavy_hex_lattice(search_limit: int) -> dict[_HeavyHexKey, tuple[float, float]]:
+    lattice: dict[_HeavyHexKey, tuple[float, float]] = {}
+    for row in range(-search_limit, search_limit + 1):
+        y_position = float(row) * _HEAVY_HEX_ROW_HEIGHT
+        horizontal_shift = 0.5 if row % 2 else 0.0
+        for column in range(-search_limit, search_limit + 1):
+            lattice[(row, column)] = (float(column) + horizontal_shift, y_position)
+    return lattice
+
+
+def _select_compact_heavy_hex_keys(
+    lattice: Mapping[_HeavyHexKey, tuple[float, float]],
+    qubit_count: int,
+) -> tuple[_HeavyHexKey, ...]:
+    selected = [key for key in _HEAVY_HEX_SEED_CELL[:qubit_count] if key in lattice]
+    if not selected:
+        root = min(lattice, key=lambda key: _heavy_hex_key_priority(key, lattice[key]))
+        selected = [root]
+    visited: set[_HeavyHexKey] = set(selected)
+    frontier: set[_HeavyHexKey] = set()
+    for key in selected:
+        _add_heavy_hex_neighbors(key, lattice=lattice, visited=visited, frontier=frontier)
+
+    while frontier and len(selected) < qubit_count:
+        key = min(
+            frontier,
+            key=lambda candidate: _heavy_hex_expansion_priority(
+                candidate,
+                selected_keys=selected,
+                lattice=lattice,
+            ),
+        )
+        frontier.remove(key)
+        visited.add(key)
+        selected.append(key)
+        _add_heavy_hex_neighbors(key, lattice=lattice, visited=visited, frontier=frontier)
+    return tuple(selected)
+
+
+def _add_heavy_hex_neighbors(
+    key: _HeavyHexKey,
+    *,
+    lattice: Mapping[_HeavyHexKey, tuple[float, float]],
+    visited: set[_HeavyHexKey],
+    frontier: set[_HeavyHexKey],
+) -> None:
+    for neighbor in _heavy_hex_neighbor_keys(key):
+        if neighbor in visited or neighbor not in lattice:
+            continue
+        frontier.add(neighbor)
+
+
+def _heavy_hex_expansion_priority(
+    key: _HeavyHexKey,
+    *,
+    selected_keys: Sequence[_HeavyHexKey],
+    lattice: Mapping[_HeavyHexKey, tuple[float, float]],
+) -> tuple[float, float, float, int, int]:
+    positions = [lattice[selected_key] for selected_key in selected_keys]
+    positions.append(lattice[key])
+    x_values = [position[0] for position in positions]
+    y_values = [position[1] for position in positions]
+    width = max(x_values) - min(x_values)
+    height = max(y_values) - min(y_values)
+    effective_width = max(width, 1.0)
+    effective_height = max(height, _HEAVY_HEX_ROW_HEIGHT)
+    area = effective_width * effective_height
+    aspect = effective_width / effective_height
+    balance_ratio = max(aspect, 1.0 / aspect)
+    aspect_penalty = 1.0 + max(0.0, balance_ratio - _HEAVY_HEX_BALANCE_LIMIT) ** 2
+    distance, _center_bias, row_bias, x_bias = _heavy_hex_key_priority(key, lattice[key])
+    return (
+        area * aspect_penalty,
+        max(effective_width, effective_height),
+        distance,
+        row_bias,
+        x_bias,
+    )
+
+
+def _heavy_hex_key_priority(
+    key: _HeavyHexKey,
+    position: tuple[float, float],
+) -> tuple[float, float, int, int]:
+    row, x_position = key
+    x_value, y_value = position
+    return (
+        (x_value * x_value) + (y_value * y_value),
+        abs(y_value) + (abs(x_value) * 0.25),
+        abs(row),
+        x_position,
+    )
+
+
+def _heavy_hex_edges_for_selected_keys(
+    selected_keys: tuple[_HeavyHexKey, ...],
+    *,
+    node_id_by_key: Mapping[_HeavyHexKey, int],
+) -> tuple[tuple[int, int], ...]:
+    selected_set = set(selected_keys)
     edges: list[tuple[int, int]] = []
-    for row_nodes in horizontal_rows.values():
-        for first, second in zip(row_nodes, row_nodes[1:], strict=False):
-            edges.append((first, second))
-    for row, x_position, connector_node in connector_nodes:
-        upper_vertex = vertex_by_row_and_x.get((row - 1, x_position))
-        lower_vertex = vertex_by_row_and_x.get((row + 1, x_position))
-        if upper_vertex is not None:
-            edges.append((upper_vertex, connector_node))
-        if lower_vertex is not None:
-            edges.append((connector_node, lower_vertex))
-    return coordinates, tuple(edges)
+    seen_edges: set[tuple[int, int]] = set()
+    for key in selected_keys:
+        first_node = node_id_by_key[key]
+        for neighbor in _heavy_hex_neighbor_keys(key):
+            if neighbor not in selected_set:
+                continue
+            second_node = node_id_by_key[neighbor]
+            edge = (
+                (first_node, second_node) if first_node < second_node else (second_node, first_node)
+            )
+            if edge in seen_edges:
+                continue
+            seen_edges.add(edge)
+            edges.append(edge)
+    return tuple(edges)
+
+
+def _heavy_hex_neighbor_keys(key: _HeavyHexKey) -> tuple[_HeavyHexKey, ...]:
+    row, column = key
+    neighbors = [(row, column - 1), (row, column + 1)]
+    diagonal_row = row + 1 if (row + column) % 2 == 0 else row - 1
+    neighbors.append((diagonal_row, column))
+    return tuple(neighbors)
 
 
 def materialize_topology(
@@ -958,6 +1045,20 @@ def _centered_coordinates(
     mean_y = sum(position[1] for position in values.values()) / len(values)
     return {
         node_id: (round(position[0] - mean_x, 6), round(position[1] - mean_y, 6))
+        for node_id, position in values.items()
+    }
+
+
+def _rotate_coordinates(
+    values: Mapping[int, tuple[float, float]],
+) -> dict[int, tuple[float, float]]:
+    cos_angle = math.cos(_HEAVY_HEX_VISUAL_ROTATION_RADIANS)
+    sin_angle = math.sin(_HEAVY_HEX_VISUAL_ROTATION_RADIANS)
+    return {
+        node_id: (
+            (position[0] * cos_angle) - (position[1] * sin_angle),
+            (position[0] * sin_angle) + (position[1] * cos_angle),
+        )
         for node_id, position in values.items()
     }
 

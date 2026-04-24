@@ -567,8 +567,28 @@ def test_named_control_and_circuit_labels_use_compact_width(
             label=label,
             subtitle=subtitle,
         )
-        == style.gate_width
+        >= style.gate_width * 2.0
     )
+
+
+def test_named_gate_widths_scale_with_visible_text_length() -> None:
+    style = DrawStyle()
+    widths: dict[str, float] = {}
+    for name in ("WHILE", "SWITCH", "IF/ELSE"):
+        operation = OperationIR(
+            kind=OperationKind.GATE,
+            name=name,
+            target_wires=("q0",),
+        )
+        label, subtitle = operation_label_parts(operation, style)
+        widths[format_gate_name(label)] = operation_width_from_parts(
+            operation=operation,
+            style=style,
+            label=label,
+            subtitle=subtitle,
+        )
+
+    assert widths["while"] < widths["switch"] < widths["if/else"]
 
 
 def test_long_named_gate_without_parameters_uses_capped_compact_width() -> None:
@@ -586,7 +606,7 @@ def test_long_named_gate_without_parameters_uses_capped_compact_width() -> None:
         subtitle=subtitle,
     )
 
-    assert style.gate_width < width <= style.gate_width * 2.2
+    assert style.gate_width < width <= style.gate_width * 3.5
 
 
 def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() -> None:

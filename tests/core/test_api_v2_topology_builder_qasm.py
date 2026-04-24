@@ -167,21 +167,37 @@ def test_builtin_topologies_accept_flexible_qubit_counts() -> None:
     assert len(quantum_circuit_drawer.honeycomb_topology(7).node_ids) == 7
 
 
-def test_honeycomb_topology_uses_ibm_heavy_hex_style_patch() -> None:
+def test_honeycomb_topology_uses_compact_hexagonal_chip_patch() -> None:
+    seed_topology = quantum_circuit_drawer.honeycomb_topology(6)
+    assert set(seed_topology.edges) == {
+        (0, 1),
+        (0, 5),
+        (1, 2),
+        (2, 3),
+        (3, 4),
+        (4, 5),
+    }
+
     topology = quantum_circuit_drawer.honeycomb_topology(7)
     assert topology.coordinates is not None
     degree_by_node = {node_id: 0 for node_id in topology.node_ids}
     for first, second in topology.edges:
         degree_by_node[first] += 1
         degree_by_node[second] += 1
-    row_sizes = sorted(
-        len([node_id for node_id, position in topology.coordinates.items() if position[1] == row_y])
-        for row_y in {position[1] for position in topology.coordinates.values()}
-    )
 
-    assert row_sizes == [1, 3, 3]
+    assert len(topology.edges) >= len(topology.node_ids)
     assert max(degree_by_node.values()) <= 3
-    assert topology.edges == ((0, 1), (1, 2), (4, 5), (5, 6), (2, 3), (3, 4))
+
+    compact_topology = quantum_circuit_drawer.honeycomb_topology(10)
+    assert compact_topology.coordinates is not None
+    compact_width = max(position[0] for position in compact_topology.coordinates.values()) - min(
+        position[0] for position in compact_topology.coordinates.values()
+    )
+    compact_height = max(position[1] for position in compact_topology.coordinates.values()) - min(
+        position[1] for position in compact_topology.coordinates.values()
+    )
+    assert max(compact_width, compact_height) / min(compact_width, compact_height) <= 1.35
+    assert len({position[1] for position in compact_topology.coordinates.values()}) >= 6
 
     larger_topology = quantum_circuit_drawer.honeycomb_topology(27)
     larger_degree_by_node = {node_id: 0 for node_id in larger_topology.node_ids}

@@ -79,7 +79,7 @@ def main() -> None:
         ),
         framework="qiskit",
         saved_label="qiskit-3d-exploration-showcase",
-        default_qubits=8,
+        default_qubits=25,
         default_columns=6,
         columns_help="Repeated composite motifs to place across the 3D exploration showcase",
         default_mode="pages_controls",
