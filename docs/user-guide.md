@@ -78,6 +78,32 @@ Selection and wire filtering work for plain `CircuitIR` too. Block collapse/expa
 
 Use this when the whole circuit fits comfortably in one scene and you want the unpaged view directly.
 
+### OpenQASM 2 inputs
+
+`draw_quantum_circuit(...)` accepts OpenQASM 2 text and `.qasm` files. Both paths use Qiskit for parsing, so install `quantum-circuit-drawer[qiskit]` before using them.
+
+```python
+from pathlib import Path
+
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
+result = draw_quantum_circuit(
+    Path("bell.qasm"),
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
+        output=OutputOptions(show=False),
+    ),
+)
+```
+
+For text input, the string must start with `OPENQASM`. For file input, the path must end in `.qasm`, exist on disk, be readable as UTF-8, and contain OpenQASM 2 text starting with `OPENQASM`.
+
 ## Caller-Managed Axes
 
 Pass `ax=...` only for static rendering.

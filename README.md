@@ -22,7 +22,7 @@ The library is centered on four user workflows:
 
 | Workflow | Public API | Typical use |
 | --- | --- | --- |
-| Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, or IR circuit |
+| Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2, or IR circuit |
 | Compare two circuits | `compare_circuits(...)` | Show before/after structure, for example before and after transpilation |
 | Plot one result distribution | `plot_histogram(...)` | Plot counts, quasi-probabilities, marginals, or framework-native result objects |
 | Compare two result distributions | `compare_histograms(...)` | Overlay ideal vs sampled, baseline vs new run, or counts vs quasi |
@@ -40,6 +40,14 @@ Each public config is now grouped into typed blocks ordered by responsibility:
 - circuit comparison uses `CircuitCompareConfig(shared=..., compare=..., output=...)`
 - single histograms use `HistogramConfig(data=..., view=..., appearance=..., output=...)`
 - histogram comparison uses `HistogramCompareConfig(data=..., compare=..., output=...)`
+
+## Visual Gallery
+
+The library renders normal static images, managed exploration views, and result distributions with the same public API shape.
+
+| Circuit render | 3D topology view | Histogram comparison |
+| --- | --- | --- |
+| ![2D circuit render](docs/images/readme_circuit_2d.png) | ![3D topology render](docs/images/readme_topology_3d.png) | ![Histogram comparison render](docs/images/readme_histogram_compare.png) |
 
 ## Install
 
@@ -91,6 +99,7 @@ This is the production support contract for the current release.
 | --- | --- | --- |
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
+| OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
 | Cirq | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
@@ -101,6 +110,7 @@ This is the production support contract for the current release.
 | If you want to... | Start here |
 | --- | --- |
 | Draw a circuit from a supported framework | [Draw one circuit](#draw-one-circuit) |
+| Draw OpenQASM 2 text or a `.qasm` file | [Draw OpenQASM](#draw-openqasm) |
 | Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file) |
 | Plot counts or probabilities | [Plot one histogram](#plot-one-histogram) |
 | Compare two versions of a circuit | [Compare two circuits](#compare-two-circuits) |
@@ -130,6 +140,57 @@ axes = result.primary_axes
 ```
 
 This same shape works for the supported framework objects and for the public IR types.
+
+## Draw OpenQASM
+
+OpenQASM 2 input uses Qiskit as the parser, so install the Qiskit extra first:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
+```
+
+You can pass OpenQASM 2 text directly:
+
+```python
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+
+qasm = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[1];
+h q[0];
+cx q[0],q[1];
+measure q[1] -> c[0];
+"""
+
+result = draw_quantum_circuit(
+    qasm,
+    config=DrawConfig(output=OutputOptions(show=False)),
+)
+```
+
+Or draw a `.qasm` file directly. `framework="qasm"` is optional when the path ends in `.qasm`, but it is useful when you want to be explicit:
+
+```python
+from pathlib import Path
+
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
+result = draw_quantum_circuit(
+    Path("bell.qasm"),
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
+        output=OutputOptions(show=False),
+    ),
+)
+```
 
 ## Save Directly To A File
 

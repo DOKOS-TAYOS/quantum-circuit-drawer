@@ -41,6 +41,44 @@ What happens by default:
 
 If you want to see the managed 2D controls already set up around a circuit that makes them useful, run `qiskit-2d-exploration-showcase` from the bundled examples.
 
+## Draw OpenQASM 2 Text Or A `.qasm` File
+
+OpenQASM input is supported for OpenQASM 2 programs. The library delegates parsing to Qiskit, so install the extra first:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
+```
+
+Then pass either text that starts with `OPENQASM` or a `.qasm` file path:
+
+```python
+from pathlib import Path
+
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+
+qasm = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[1];
+h q[0];
+cx q[0],q[1];
+measure q[1] -> c[0];
+"""
+
+text_result = draw_quantum_circuit(
+    qasm,
+    config=DrawConfig(output=OutputOptions(show=False)),
+)
+
+file_result = draw_quantum_circuit(
+    Path("bell.qasm"),
+    config=DrawConfig(output=OutputOptions(show=False)),
+)
+```
+
+Use `CircuitRenderOptions(framework="qasm")` when you want the input path to be explicit in your config. A `.qasm` file is read as UTF-8 and must start with `OPENQASM`.
+
 ## Save Without Opening A Window
 
 This is the most common script workflow:

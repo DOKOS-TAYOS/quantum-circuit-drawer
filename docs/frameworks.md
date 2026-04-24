@@ -19,6 +19,7 @@ The current user-facing input paths are:
 | Input path | Typical object | Extra |
 | --- | --- | --- |
 | Qiskit | `qiskit.QuantumCircuit` | `qiskit` |
+| OpenQASM 2 | text starting with `OPENQASM`, `Path("circuit.qasm")`, or `"circuit.qasm"` | `qiskit` |
 | Cirq | `cirq.Circuit` | `cirq` |
 | PennyLane | `QuantumTape`, `QuantumScript`, or tape-like wrappers | `pennylane` |
 | MyQLM | `qat.core.Circuit` | `myqlm` |
@@ -37,6 +38,7 @@ Use this table as the release support contract when choosing a framework path.
 | --- | --- | --- |
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
+| OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
 | Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
@@ -111,6 +113,44 @@ Bundled demos:
 - `qiskit-random` and `qiskit-qaoa` are the broader stress-test demos once you want denser scenes or a heavier 3D workload.
 
 Histogram support also accepts direct Qiskit result payloads such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`.
+
+## OpenQASM 2
+
+OpenQASM 2 support is a convenience input path on top of the Qiskit parser. Install:
+
+```bash
+python -m pip install "quantum-circuit-drawer[qiskit]"
+```
+
+Typical input:
+
+- a `str` that starts with `OPENQASM`
+- a `pathlib.Path` ending in `.qasm`
+- a string file path ending in `.qasm`
+
+Example:
+
+```python
+from pathlib import Path
+
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
+draw_quantum_circuit(
+    Path("bell.qasm"),
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
+        output=OutputOptions(show=False),
+    ),
+)
+```
+
+The `.qasm` file is read as UTF-8 and must start with `OPENQASM`. Internally the file text is parsed with `qiskit.QuantumCircuit.from_qasm_str(...)`, then rendered through the normal Qiskit adapter path. OpenQASM 3 is not a separate supported parser path in this release.
 
 ## Cirq
 

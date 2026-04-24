@@ -6,6 +6,8 @@ The examples are organized around normal user workflows:
 - call the public API directly
 - use the shared runners only when you want discovery or a quick catalog launcher
 
+OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantum-circuit-drawer[qiskit]`, then pass text starting with `OPENQASM` or a `.qasm` path to `draw_quantum_circuit(...)`; use `framework="qasm"` when you want the parser path to be explicit.
+
 ## Start Here
 
 

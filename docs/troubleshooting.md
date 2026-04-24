@@ -25,6 +25,8 @@ Linux or WSL:
 
 Replace `qiskit` with `cirq`, `pennylane`, or `myqlm` as needed. Keep CUDA-Q installs on Linux or WSL2 only.
 
+OpenQASM 2 text and `.qasm` files also require the Qiskit extra because parsing uses Qiskit internally. If `draw_quantum_circuit(Path("bell.qasm"))` reports that Qiskit is missing, install `quantum-circuit-drawer[qiskit]`.
+
 Good first smoke demos after installing an extra:
 
 - `qiskit-control-flow-showcase`
@@ -41,12 +43,31 @@ Use this table to decide whether the issue is on the main support path or on a n
 | --- | --- | --- |
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
+| OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
 | Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
 At the moment, all built-in framework adapters use the richer semantic-adapter path internally. Legacy `to_ir(...)` adapters still work, but framework-native provenance and annotations now survive longer for the built-in adapters before lowering to the shared render IR.
+
+## OpenQASM Or `.qasm` Input Fails
+
+OpenQASM support is for OpenQASM 2 input. The accepted forms are:
+
+- a string that starts with `OPENQASM`
+- a `Path("circuit.qasm")`
+- a string path such as `"circuit.qasm"`
+
+Common fixes:
+
+- install `quantum-circuit-drawer[qiskit]`
+- make sure the file exists and ends in `.qasm`
+- save the `.qasm` file as UTF-8
+- make sure the file content starts with `OPENQASM`
+- use `CircuitRenderOptions(framework="qasm")` if you want to force the OpenQASM parser path
+
+Arbitrary strings are rejected unless they start with `OPENQASM`; non-`.qasm` path objects are rejected before framework autodetection so a text file path is not mistaken for a framework circuit object.
 
 ## Cirq Or PennyLane Demos Are Slow Or Unstable On Native Windows
 

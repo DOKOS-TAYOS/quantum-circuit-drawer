@@ -47,6 +47,8 @@ compare_histograms(
 
 ## Circuit drawing
 
+`draw_quantum_circuit(...)` accepts supported framework objects, public `CircuitIR` objects, OpenQASM 2 text, and `.qasm` files. OpenQASM paths use Qiskit for parsing, so they require the `quantum-circuit-drawer[qiskit]` extra.
+
 ### `DrawConfig`
 
 `DrawConfig` groups circuit options into one side block plus one output block:
@@ -102,6 +104,36 @@ Important fields:
 - `output.show`: whether the library should call `pyplot.show()` when appropriate
 - `output.output_path`: optional file path for saving
 - `output.figsize`: managed figure size in inches
+
+OpenQASM details:
+
+- pass a string that starts with `OPENQASM` for direct OpenQASM 2 text input
+- pass `Path("circuit.qasm")` or `"circuit.qasm"` for a UTF-8 `.qasm` file
+- use `CircuitRenderOptions(framework="qasm")` when you want to opt into the QASM parser explicitly
+- non-`.qasm` path objects are rejected before framework autodetection
+- parsing is delegated to `qiskit.QuantumCircuit.from_qasm_str(...)`
+
+OpenQASM example:
+
+```python
+from pathlib import Path
+
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
+result = draw_quantum_circuit(
+    Path("bell.qasm"),
+    config=DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
+        output=OutputOptions(show=False),
+    ),
+)
+```
 
 ### `DrawMode`
 
@@ -184,6 +216,10 @@ Convenience properties:
 - `resolved_mode`
 - `warnings`
 
+## Comparison APIs
+
+Circuit comparison and histogram comparison are the two public comparison APIs.
+
 ## Circuit comparison
 
 ### `CircuitCompareConfig`
@@ -245,6 +281,10 @@ Fields:
 - `differing_layer_count`
 - `left_only_layer_count`
 - `right_only_layer_count`
+
+## Histogram APIs
+
+Single and comparison histogram APIs share the same normalization path for counts, quasi-probabilities, selected marginals, and framework-native result payloads.
 
 ## Histograms
 

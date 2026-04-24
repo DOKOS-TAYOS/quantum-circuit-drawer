@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from os import PathLike
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
 from ..adapters.base import BaseAdapter
@@ -308,24 +310,60 @@ def _resolve_qasm_input(
     framework: str | None,
 ) -> tuple[object, str | None]:
     if framework == "qasm":
-        if not isinstance(circuit, str):
-            raise UnsupportedFrameworkError("framework='qasm' requires OpenQASM 2 text input")
-        if not _looks_like_openqasm(circuit):
-            raise UnsupportedFrameworkError(
-                "framework='qasm' requires OpenQASM 2 text starting with 'OPENQASM'"
-            )
-        return _parse_openqasm_with_qiskit(circuit), "qiskit"
+        return _parse_openqasm_with_qiskit(_coerce_openqasm_text(circuit, explicit=True)), "qiskit"
     if isinstance(circuit, str) and framework is None:
         if _looks_like_openqasm(circuit):
             return _parse_openqasm_with_qiskit(circuit), "qiskit"
+        if _looks_like_qasm_file_path(circuit):
+            return _parse_openqasm_with_qiskit(_read_openqasm_file(Path(circuit))), "qiskit"
         raise UnsupportedFrameworkError(
-            "string inputs are only supported for OpenQASM 2 text starting with 'OPENQASM'"
+            "string inputs are only supported for OpenQASM 2 text starting with 'OPENQASM' "
+            "or .qasm file paths"
         )
+    if isinstance(circuit, PathLike) and framework is None:
+        return _parse_openqasm_with_qiskit(_read_openqasm_file(Path(circuit))), "qiskit"
     return circuit, framework
+
+
+def _coerce_openqasm_text(circuit: object, *, explicit: bool) -> str:
+    if isinstance(circuit, str):
+        if _looks_like_openqasm(circuit):
+            return circuit
+        if _looks_like_qasm_file_path(circuit):
+            return _read_openqasm_file(Path(circuit))
+    if isinstance(circuit, PathLike):
+        return _read_openqasm_file(Path(circuit))
+    if explicit:
+        raise UnsupportedFrameworkError(
+            "framework='qasm' requires OpenQASM 2 text or a .qasm file path"
+        )
+    raise UnsupportedFrameworkError("OpenQASM input requires text or a .qasm file path")
 
 
 def _looks_like_openqasm(value: str) -> bool:
     return value.lstrip().upper().startswith("OPENQASM")
+
+
+def _looks_like_qasm_file_path(value: str) -> bool:
+    if "\n" in value or "\r" in value:
+        return False
+    return Path(value).suffix.lower() == ".qasm"
+
+
+def _read_openqasm_file(path: Path) -> str:
+    if path.suffix.lower() != ".qasm":
+        raise UnsupportedFrameworkError("OpenQASM file inputs must use the .qasm extension")
+    if not path.exists():
+        raise UnsupportedFrameworkError(f"OpenQASM file does not exist: {path}")
+    if not path.is_file():
+        raise UnsupportedFrameworkError(f"OpenQASM path is not a file: {path}")
+    try:
+        qasm_text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise UnsupportedFrameworkError(f"OpenQASM file could not be read: {path}") from exc
+    if not _looks_like_openqasm(qasm_text):
+        raise UnsupportedFrameworkError("OpenQASM file must start with 'OPENQASM'")
+    return qasm_text
 
 
 def _parse_openqasm_with_qiskit(qasm_text: str) -> object:

@@ -6,6 +6,8 @@
 
 - Added `saved_path` to `HistogramResult` and `HistogramCompareResult`, matching `DrawResult` for scripts that save figures through `OutputOptions(output_path=...)`.
 - Added the shared `accessible` style preset and `accessible` theme with high-contrast, colorblind-friendlier colors for circuit and histogram rendering.
+- Added direct OpenQASM 2 file input for `draw_quantum_circuit(...)`, accepting `Path("circuit.qasm")` and string `.qasm` paths through the existing Qiskit parser path.
+- Added README gallery screenshots and refreshed user documentation so OpenQASM 2 text, `.qasm` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
 
 ## [0.5.0] - 2026-04-24
 
