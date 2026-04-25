@@ -181,6 +181,36 @@ module {
 """.strip()
 
 
+def build_modern_dynamic_size_quake_mlir() -> str:
+    return """
+module attributes {quake.mangled_name_map = {}} {
+  func.func @__nvqpp__mlirgen__dynamic_qvec(%arg0: i64) attributes {"cudaq-entrypoint", "cudaq-kernel"} {
+    %0 = quake.alloca !quake.veq<?>[%arg0 : i64]
+    %1 = quake.extract_ref %0[0] : (!quake.veq<?>) -> !quake.ref
+    quake.h %1 : (!quake.ref) -> ()
+    %measOut = quake.mz %0 : (!quake.veq<?>) -> !cc.stdvec<!quake.measure>
+    quake.dealloc %0 : !quake.veq<?>
+    return
+  }
+}
+""".strip()
+
+
+def build_loaded_dynamic_size_quake_mlir() -> str:
+    return """
+module {
+  func.func @__nvqpp__mlirgen__loaded_dynamic_qvec(%arg0 : !cc.ptr<i64>) attributes {"cudaq-entrypoint"} {
+    %size = cc.load %arg0 : !cc.ptr<i64>
+    %q = quake.alloca(%size) : !quake.qvec<?>
+    %c0 = arith.constant 0 : index
+    %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<?>, index) -> !quake.qref
+    quake.x %q0 : (!quake.qref) -> ()
+    return
+  }
+}
+""".strip()
+
+
 def build_cc_if_quake_mlir() -> str:
     return """
 module {
@@ -321,6 +351,21 @@ module {
     %c0 = arith.constant 0 : index
     %q0 = quake.extract_ref %q[%c0] : (!quake.qvec<1>, index) -> !quake.qref
     quake.rx (%arg0) %q0 : (f64, !quake.qref) -> ()
+    return
+  }
+}
+""".strip()
+
+
+def build_mixed_parameterized_dynamic_quake_mlir() -> str:
+    return """
+module attributes {quake.mangled_name_map = {}} {
+  func.func @__nvqpp__mlirgen__mixed_parameterized(%arg0: i64, %arg1: f64) attributes {"cudaq-entrypoint", "cudaq-kernel"} {
+    %0 = quake.alloca !quake.veq<?>[%arg0 : i64]
+    %1 = quake.extract_ref %0[0] : (!quake.veq<?>) -> !quake.ref
+    quake.rx (%arg1) %1 : (f64, !quake.ref) -> ()
+    %measOut = quake.mz %0 : (!quake.veq<?>) -> !cc.stdvec<!quake.measure>
+    quake.dealloc %0 : !quake.veq<?>
     return
   }
 }
@@ -512,15 +557,99 @@ def test_cudaq_adapter_compiles_kernel_before_reading_mlir(
     assert kernel.compile_calls == 1
 
 
-def test_cudaq_adapter_rejects_parameterized_kernels(
+def test_cudaq_adapter_rejects_parameterized_kernels_without_runtime_args(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_cudaq(monkeypatch)
     adapter_type = load_cudaq_adapter_type()
     kernel = FakePyKernel(mlir=build_parameterized_quake_mlir(), required_args=1)
 
-    with pytest.raises(UnsupportedOperationError, match="closed kernels"):
+    with pytest.raises(UnsupportedOperationError, match="cudaq_args"):
         adapter_type().to_ir(kernel)
+
+
+def test_cudaq_adapter_uses_runtime_args_for_parameterized_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_parameterized_quake_mlir(), required_args=1)
+
+    semantic = adapter.to_semantic_ir(kernel, options={"cudaq_args": (0.25,)})
+
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+
+    assert operations[0].name == "RX"
+    assert operations[0].parameters == (0.25,)
+
+
+def test_cudaq_adapter_uses_runtime_args_for_modern_dynamic_qvectors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_modern_dynamic_size_quake_mlir(), required_args=1)
+
+    semantic = adapter.to_semantic_ir(kernel, options={"cudaq_args": (3,)})
+
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+
+    assert [wire.label for wire in semantic.quantum_wires] == ["q0", "q1", "q2"]
+    assert [operation.name for operation in operations] == ["H", "MZ", "MZ", "MZ"]
+
+
+def test_cudaq_adapter_uses_runtime_args_through_cc_load_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_loaded_dynamic_size_quake_mlir(), required_args=1)
+
+    semantic = adapter.to_semantic_ir(kernel, options={"cudaq_args": (2,)})
+
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+
+    assert [wire.label for wire in semantic.quantum_wires] == ["q0", "q1"]
+    assert [operation.name for operation in operations] == ["X"]
+
+
+def test_cudaq_adapter_uses_mixed_runtime_args_for_dynamic_size_and_gate_parameter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter = load_cudaq_adapter_type()()
+    kernel = FakePyKernel(mlir=build_mixed_parameterized_dynamic_quake_mlir(), required_args=2)
+
+    semantic = adapter.to_semantic_ir(kernel, options={"cudaq_args": (2, 0.5)})
+
+    operations = [operation for layer in semantic.layers for operation in layer.operations]
+
+    assert [wire.label for wire in semantic.quantum_wires] == ["q0", "q1"]
+    assert operations[0].name == "RX"
+    assert operations[0].parameters == (0.5,)
+    assert [operation.name for operation in operations[1:]] == ["MZ", "MZ"]
+
+
+def test_cudaq_adapter_rejects_wrong_runtime_arg_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir=build_parameterized_quake_mlir(), required_args=1)
+
+    with pytest.raises(UnsupportedOperationError, match="expected 1 CUDA-Q runtime argument"):
+        adapter_type().to_ir(kernel, options={"cudaq_args": (0.25, 3)})
+
+
+def test_cudaq_adapter_rejects_unsupported_runtime_arg_types(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    adapter_type = load_cudaq_adapter_type()
+    kernel = FakePyKernel(mlir=build_parameterized_quake_mlir(), required_args=1)
+
+    with pytest.raises(UnsupportedOperationError, match="only supports scalar"):
+        adapter_type().to_ir(kernel, options={"cudaq_args": ([0.25],)})
 
 
 def test_cudaq_adapter_rejects_non_cudaq_kernel_objects() -> None:
@@ -556,7 +685,7 @@ module {
 """.strip()
     )
 
-    with pytest.raises(UnsupportedOperationError, match="closed kernels"):
+    with pytest.raises(UnsupportedOperationError, match="cudaq_args"):
         adapter_type().to_ir(kernel)
 
 

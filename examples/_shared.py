@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import sys
 from argparse import ArgumentParser, Namespace
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
@@ -441,9 +441,13 @@ def build_draw_config(
     request: ExampleRequest,
     *,
     framework: str | None,
+    adapter_options: Mapping[str, object] | None = None,
 ) -> DrawConfig:
     """Build the public draw configuration for one example render."""
 
+    resolved_adapter_options: Mapping[str, object] = (
+        {} if adapter_options is None else adapter_options
+    )
     return DrawConfig(
         side=DrawSideConfig(
             render=CircuitRenderOptions(
@@ -455,6 +459,7 @@ def build_draw_config(
                 topology_menu=request.view == "3d" and request.mode in {"pages_controls", "slider"},
                 direct=False if request.view == "3d" else True,
                 unsupported_policy=request.unsupported_policy,
+                adapter_options=resolved_adapter_options,
             ),
             appearance=CircuitAppearanceOptions(
                 preset=request.preset,

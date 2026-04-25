@@ -108,7 +108,7 @@ This is the production support contract for the current release.
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; prefer Linux or WSL for the most reliable repeated runs |
 | PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args` for runtime-argument kernels; not intended for native Windows installs |
 
 ## Choose Your First Task
 
@@ -193,6 +193,40 @@ result = draw_quantum_circuit(
     Path("bell.qasm"),
     config=DrawConfig(
         side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
+        output=OutputOptions(show=False),
+    ),
+)
+```
+
+## Draw CUDA-Q With Runtime Arguments
+
+CUDA-Q is a Linux or WSL2 path. Closed kernels work directly; kernels that take scalar runtime arguments use `adapter_options={"cudaq_args": (...)}`:
+
+```python
+import cudaq
+
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
+kernel, size, theta = cudaq.make_kernel(int, float)
+qubits = kernel.qalloc(size)
+kernel.rx(theta, qubits[0])
+kernel.mz(qubits)
+
+result = draw_quantum_circuit(
+    kernel,
+    config=DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework="cudaq",
+                adapter_options={"cudaq_args": (3, 0.25)},
+            )
+        ),
         output=OutputOptions(show=False),
     ),
 )
@@ -463,7 +497,7 @@ The fastest way to see the current strengths of the library is to run one of the
 | `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and CircuitOperation provenance |
 | `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
 | `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
-| `cudaq-kernel-showcase` | The supported closed-kernel CUDA-Q subset with reset and basis measurements |
+| `cudaq-kernel-showcase` | The supported CUDA-Q subset with scalar runtime arguments, reset, and basis measurements |
 | `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend toggles on interactive backends |
 | `histogram-quasi-nonnegative` | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero |
 

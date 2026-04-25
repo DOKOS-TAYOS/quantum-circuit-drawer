@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 from ..exceptions import UnsupportedOperationError
@@ -23,11 +23,13 @@ _CAST_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*arith\.(?:extsi|index_cast|trunci|sitofp|fptosi|extf|truncf)\s+"
     r"(?P<source>%[\w$.]+)\s*:\s*.+$"
 )
+_LOAD_RE = re.compile(r"^(?P<result>%[\w$.]+)\s*=\s*cc\.load\s+(?P<source>%[\w$.]+)\s*:.*$")
 _VECTOR_ALLOCA_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*quake\.alloca"
     r"(?:\((?P<size_arg>[^)]*)\))?"
     r"(?:\s*:\s*|\s+)!"
-    r"quake\.(?:veq|qvec)<(?P<arity>[^>]+)>\s*$"
+    r"quake\.(?:veq|qvec)<(?P<arity>[^>]+)>"
+    r"(?:\[(?P<bracket_size_arg>[^\]]+)\])?\s*$"
 )
 _SCALAR_ALLOCA_RE = re.compile(
     r"^(?P<result>%[\w$.]+)\s*=\s*quake\.alloca(?:\([^)]*\))?"
@@ -57,6 +59,7 @@ _SCF_FOR_HEADER_RE = re.compile(r"^scf\.for\s+(?P<iteration>.+)\s*\{$")
 @dataclass(slots=True)
 class CudaqQuakeParser:
     mlir: str
+    initial_numeric_aliases: Mapping[str, int | float] = field(default_factory=dict)
     quantum_wires: list[WireIR] = field(default_factory=list)
     measurement_count: int = 0
     _next_wire_index: int = 0
@@ -64,6 +67,9 @@ class CudaqQuakeParser:
     _ref_aliases: dict[str, str] = field(default_factory=dict)
     _wire_aliases: dict[str, str] = field(default_factory=dict)
     _numeric_aliases: dict[str, int | float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self._numeric_aliases.update(self.initial_numeric_aliases)
 
     def parse(self) -> tuple[list[WireIR], list[OperationNode]]:
         quantum_wires, semantic_operations = self.parse_semantic()
@@ -380,6 +386,12 @@ class CudaqQuakeParser:
             if source in self._numeric_aliases:
                 self._numeric_aliases[cast_match.group("result")] = self._numeric_aliases[source]
             return True
+        load_match = _LOAD_RE.match(line)
+        if load_match is not None:
+            source = load_match.group("source")
+            if source in self._numeric_aliases:
+                self._numeric_aliases[load_match.group("result")] = self._numeric_aliases[source]
+            return True
         return False
 
     def _parse_vector_alloca(self, line: str) -> bool:
@@ -387,7 +399,8 @@ class CudaqQuakeParser:
         if match is None:
             return False
         arity_text = match.group("arity").strip()
-        vector_size = self._resolve_vector_size(arity_text, match.group("size_arg"))
+        size_arg = match.group("size_arg") or match.group("bracket_size_arg")
+        vector_size = self._resolve_vector_size(arity_text, size_arg)
         wire_ids = tuple(self._allocate_wire_id() for _ in range(vector_size))
         self._vector_aliases[match.group("result")] = wire_ids
         return True
@@ -744,6 +757,8 @@ class CudaqQuakeParser:
 
     def _resolve_int_token(self, token: str) -> int:
         cleaned = token.strip()
+        if ":" in cleaned:
+            cleaned = cleaned.split(":", 1)[0].strip()
         if cleaned.startswith("%"):
             value = self._numeric_aliases.get(cleaned)
             if isinstance(value, (int, float)):

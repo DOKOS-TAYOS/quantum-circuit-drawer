@@ -69,7 +69,7 @@ Rules the public API guarantees today:
 - `to_semantic_ir(..., options)` is optional and can preserve framework-native structure before lowering
 - `lower_semantic_circuit(...)` is the public lowerer from semantic IR back to `CircuitIR`
 - unknown option keys should be ignored for forward compatibility
-- the stable option keys guaranteed today are `composite_mode` and `explicit_matrices`
+- the stable option keys guaranteed today are `composite_mode`, `explicit_matrices`, and adapter-specific keys passed through `CircuitRenderOptions.adapter_options`
 
 Minimal adapter:
 

@@ -345,6 +345,7 @@ def normalize_compare_draw_config(
                 topology_menu=False,
                 direct=config.direct,
                 unsupported_policy=config.unsupported_policy,
+                adapter_options=config.adapter_options,
             ),
             appearance=CircuitAppearanceOptions(
                 preset=config.preset,

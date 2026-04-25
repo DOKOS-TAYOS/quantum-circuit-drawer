@@ -48,6 +48,29 @@ def test_preparation_module_builds_prepared_draw_call() -> None:
     assert prepared.pipeline.draw_options.view == "2d"
 
 
+def test_preparation_module_preserves_public_adapter_options() -> None:
+    from quantum_circuit_drawer.drawing.preparation import prepare_draw_call
+
+    prepared = prepare_draw_call(
+        build_sample_ir(),
+        config=DrawConfig(
+            side=DrawSideConfig(
+                render=CircuitRenderOptions(
+                    adapter_options={"cudaq_args": (3, 0.25)},
+                )
+            ),
+            output=OutputOptions(show=False),
+        ),
+        ax=None,
+    )
+
+    adapter_options = prepared.request.pipeline_options.adapter_options()
+
+    assert adapter_options["cudaq_args"] == (3, 0.25)
+    assert adapter_options["render_mode"] == DrawMode.PAGES_CONTROLS.value
+    assert adapter_options["explicit_matrices"] is False
+
+
 def test_results_module_builds_draw_result_with_normalized_saved_path(
     sandbox_tmp_path: Path,
 ) -> None:

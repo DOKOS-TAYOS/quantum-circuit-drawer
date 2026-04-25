@@ -69,6 +69,7 @@ DrawConfig(
             topology_menu=False,
             direct=True,
             unsupported_policy=UnsupportedPolicy.RAISE,
+            adapter_options={},
         ),
         appearance=CircuitAppearanceOptions(
             preset=None,
@@ -98,6 +99,7 @@ Important fields:
 - `side.render.topology_menu`: managed interactive 3D topology selector
 - `side.render.direct`: 3D layout flag for topology routing behavior
 - `side.render.unsupported_policy`: `UnsupportedPolicy.RAISE` or `UnsupportedPolicy.PLACEHOLDER`
+- `side.render.adapter_options`: optional adapter-specific mapping, such as `{"cudaq_args": (...)}`
 - `side.appearance.preset`: shared style preset baseline
 - `side.appearance.style`: `DrawStyle`, mapping, or `None`
 - `side.appearance.hover`: `bool`, `HoverOptions`, mapping, or `None`
@@ -113,6 +115,13 @@ OpenQASM details:
 - non-`.qasm` / `.qasm3` path objects are rejected before framework autodetection
 - OpenQASM 2 parsing is delegated to `qiskit.QuantumCircuit.from_qasm_str(...)`
 - OpenQASM 3 parsing is delegated to `qiskit.qasm3.loads(...)`
+
+CUDA-Q runtime arguments:
+
+- CUDA-Q remains Linux/WSL2-first
+- closed kernels do not need extra options
+- scalar runtime arguments use `CircuitRenderOptions(adapter_options={"cudaq_args": (...)})`
+- the first supported runtime values are `int`, `float`, and `bool`
 
 OpenQASM example:
 

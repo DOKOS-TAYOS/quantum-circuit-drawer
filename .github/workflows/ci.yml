@@ -116,7 +116,6 @@ jobs:
           python -m coverage report --include="*/adapters/cudaq_adapter.py,*/adapters/_cudaq_quake_parser.py" --show-missing --fail-under=80
 
   test-cudaq-linux:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
 
     steps:

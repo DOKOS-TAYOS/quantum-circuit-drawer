@@ -640,7 +640,7 @@ def test_showcase_catalog_and_examples_readme_use_current_compatibility_language
         "myQLM showcase for compact composite routines on the native adapter path"
     )
     assert showcase_specs["cudaq-kernel-showcase"].description == (
-        "CUDA-Q showcase for the supported closed-kernel subset with reset and basis measurements"
+        "CUDA-Q showcase for the supported subset with reset and basis measurements"
     )
     assert showcase_specs["ir-basic-workflow"].description == (
         "Framework-free workflow built directly from the public CircuitIR types"
@@ -648,7 +648,7 @@ def test_showcase_catalog_and_examples_readme_use_current_compatibility_language
 
     assert "qml.cond(...)" in examples_readme
     assert "native MyQLM adapter path" in examples_readme
-    assert "supported closed-kernel subset" in examples_readme
+    assert "Supported CUDA-Q subset" in examples_readme
     assert "CircuitOperation provenance" in examples_readme
     assert "compact versus expanded composite instructions" in examples_readme
     assert "CircuitIR" in examples_readme

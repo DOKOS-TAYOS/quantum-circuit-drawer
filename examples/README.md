@@ -21,7 +21,7 @@ OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantu
 | `cirq-native-controls-showcase`       | Native controls, classical control, and `CircuitOperation` provenance                                                      | Prefer Linux or WSL          |
 | `pennylane-terminal-outputs-showcase` | `qml.cond(...)`, mid-measurement, and terminal output boxes                                                                | Prefer Linux or WSL          |
 | `myqlm-structural-showcase`           | Native MyQLM adapter path with compact composite routines                                                                  | Windows and Linux with MyQLM |
-| `cudaq-kernel-showcase`               | Supported closed-kernel subset for CUDA-Q                                                                                  | Linux or WSL2                |
+| `cudaq-kernel-showcase`               | Supported CUDA-Q subset, including scalar runtime arguments in the direct script                                           | Linux or WSL2                |
 | `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend toggles on supported backends                        | Windows and Linux            |
 
 
@@ -145,7 +145,7 @@ This block includes the full curated catalog.
 | `pennylane-qaoa`                      | Dense structured ansatz                                                                                         | Good for workflow parity with Qiskit/Cirq                                                                                   |
 | `myqlm-structural-showcase`           | Native MyQLM adapter path, reusable routines                                                                    | Good for composite structure on the native MyQLM adapter path                                                               |
 | `myqlm-random`                        | Broad stress test                                                                                               | Good for coverage                                                                                                           |
-| `cudaq-kernel-showcase`               | Supported closed-kernel subset                                                                                  | Good for the supported closed-kernel subset, basis measurements, and reset                                                  |
+| `cudaq-kernel-showcase`               | Supported CUDA-Q subset                                                                                          | Good for scalar runtime arguments in the direct script, basis measurements, and reset                                       |
 | `cudaq-random`                        | Broad stress test                                                                                               | Linux/WSL2 only                                                                                                             |
 | `ir-basic-workflow`                   | Pure public `CircuitIR` workflow                                                                                | Best demo when you want zero framework dependency                                                                           |
 

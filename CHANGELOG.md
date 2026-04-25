@@ -12,10 +12,13 @@
 - Added direct Cirq `FrozenCircuit` input support and direct MyQLM `Program` and `QRoutine` inputs, reusing the existing Cirq and MyQLM semantic adapter paths without adding dependencies.
 - Added README gallery screenshots and refreshed user documentation so OpenQASM 2/3 text, `.qasm` / `.qasm3` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
 - Expanded the visual documentation gallery with pages, `pages_controls`, slider, hover, selected-gate, expanded-block, and no-label 3D screenshots, using README image URLs that render on both GitHub and PyPI.
+- Added `CircuitRenderOptions.adapter_options` so public draw configs can pass adapter-specific values such as CUDA-Q `cudaq_args`.
+- Added CUDA-Q support for scalar runtime arguments on Linux/WSL, including dynamic qvector sizes and parametrized gates resolved from `adapter_options={"cudaq_args": (...)}`.
 
 ### Changed
 
 - Removed unused private wrappers, unreachable compare-rendering code, and duplicated page-window clamping helpers while preserving public compatibility facades.
+- Made the real CUDA-Q Linux integration job run on normal CI events instead of only manual and scheduled runs.
 
 ## [0.5.0] - 2026-04-24
 

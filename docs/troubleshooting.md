@@ -49,7 +49,7 @@ Use this table to decide whether the issue is on the main support path or on a n
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; not intended for native Windows installs |
 
 At the moment, all built-in framework adapters use the richer semantic-adapter path internally. Legacy `to_ir(...)` adapters still work, but framework-native provenance and annotations now survive longer for the built-in adapters before lowering to the shared render IR.
 
@@ -316,30 +316,36 @@ draw_quantum_circuit(
 
 ## CUDA-Q Kernels With Arguments Do Not Draw
 
-CUDA-Q support currently targets closed kernels, meaning kernels that can be inspected without runtime arguments.
+Closed CUDA-Q kernels work directly. Kernels with scalar runtime arguments need explicit adapter options so the drawer knows which concrete values to use while reading Quake/MLIR.
 
-If your kernel needs arguments, create a closed wrapper or use a simpler example first:
+Use `adapter_options={"cudaq_args": (...)}`:
 
 ```python
 import cudaq
 
-from quantum_circuit_drawer import draw_quantum_circuit
+from quantum_circuit_drawer import CircuitRenderOptions, DrawConfig, DrawSideConfig, draw_quantum_circuit
 
+kernel, size, theta = cudaq.make_kernel(int, float)
+qubits = kernel.qalloc(size)
+kernel.rx(theta, qubits[0])
+kernel.mz(qubits)
 
-@cudaq.kernel
-def bell_pair() -> None:
-    qubits = cudaq.qvector(2)
-    h(qubits[0])
-    x.ctrl(qubits[0], qubits[1])
-    mz(qubits)
-
-
-draw_quantum_circuit(bell_pair)
+draw_quantum_circuit(
+    kernel,
+    config=DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework="cudaq",
+                adapter_options={"cudaq_args": (3, 0.25)},
+            )
+        )
+    ),
+)
 ```
 
-For supported closed kernels, CUDA-Q now supports `reset`, measurement basis preservation, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint`. Structured control-flow boxes use compact lowercase visible labels such as `if/else`, `for`, and `loop`. Those boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
+CUDA-Q now supports `reset`, closed kernels, scalar `int` / `float` / `bool` runtime arguments, dynamic qvector sizes resolved from `cudaq_args`, measurement basis preservation, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint`. Structured control-flow boxes use compact lowercase visible labels such as `if/else`, `for`, and `loop`. Those boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
 
-Low-level CFG control flow and unresolved dynamic qvector sizes are still outside the supported subset.
+Low-level CFG control flow, list/vector runtime arguments, and unresolved dynamic qvector sizes are still outside the supported subset.
 
 ## Style Validation Fails
 
@@ -400,4 +406,4 @@ Framework-specific notes:
 - Cirq classically controlled operations keep exact classical conditions only when every native condition can be normalized safely. Otherwise the drawer still renders the operation and keeps the native condition text in hover instead of failing.
 - Cirq also keeps non-trivial native `control_values` and operation tags in hover details so tagged or richer controls remain inspectable.
 - MyQLM now supports drawable classical formulas, compact `REMAP` boxes, compact ancilla-heavy composites with hover annotations, compact classical `BREAK` / `CLASSIC` boxes on the bundled classical register, and qubit-targeted `RESET` operations keep rendering as quantum resets even if MyQLM carries extra classical metadata. If a MyQLM classical formula cannot be normalized safely, the raw formula in hover instead of raising is preserved; classical-only reset metadata without qubit targets stays outside the supported subset.
-- CUDA-Q now supports `reset`, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap`, and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported closed-kernel subset. Those control-flow boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
+- CUDA-Q now supports scalar runtime arguments via `cudaq_args`, `reset`, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap`, and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported Linux/WSL subset. Those control-flow boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.

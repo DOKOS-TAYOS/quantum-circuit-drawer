@@ -75,6 +75,7 @@ class CircuitRenderOptions:
     topology_menu: bool = False
     direct: bool = True
     unsupported_policy: UnsupportedPolicy | str = UnsupportedPolicy.RAISE
+    adapter_options: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "mode", normalize_draw_mode(self.mode))
@@ -91,6 +92,8 @@ class CircuitRenderOptions:
             "unsupported_policy",
             normalize_unsupported_policy(self.unsupported_policy),
         )
+        _validate_mapping("adapter_options", self.adapter_options)
+        object.__setattr__(self, "adapter_options", dict(self.adapter_options))
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +187,10 @@ class DrawConfig:
         return cast("UnsupportedPolicy", self.side.render.unsupported_policy)
 
     @property
+    def adapter_options(self) -> Mapping[str, object]:
+        return self.side.render.adapter_options
+
+    @property
     def preset(self) -> StylePreset | None:
         return cast("StylePreset | None", self.side.appearance.preset)
 
@@ -269,6 +276,12 @@ def _validate_instance(name: str, value: object, expected_type: type[object]) ->
     if isinstance(value, expected_type):
         return
     raise TypeError(f"{name} must be a {expected_type.__name__}")
+
+
+def _validate_mapping(name: str, value: object) -> None:
+    if isinstance(value, Mapping):
+        return
+    raise TypeError(f"{name} must be a mapping")
 
 
 def _is_positive_dimension(value: object) -> bool:
