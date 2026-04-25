@@ -109,6 +109,20 @@ Linux or WSL:
 .venv/bin/python -m ruff format .
 ```
 
+To remove local caches and generated build artifacts without touching `.venv`, use:
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\clean.py
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python scripts/clean.py
+```
+
 ## Run Documentation-Sensitive Checks
 
 If you touched docs, these are the fastest focused checks:

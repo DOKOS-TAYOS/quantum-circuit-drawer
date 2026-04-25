@@ -59,12 +59,12 @@ jobs:
       - name: Install Linux optional adapters
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,qiskit,cirq,pennylane]"
+          python -m pip install -e ".[dev,qasm3,cirq,pennylane]"
 
       - name: Test real optional adapters with coverage
         run: |
           python -m coverage erase
-          python -m coverage run --branch -m pytest tests/adapters/test_qiskit_adapter.py tests/adapters/test_cirq_adapter.py tests/adapters/test_pennylane_adapter.py tests/adapters/test_myqlm_adapter.py tests/examples/test_examples_runner.py
+          python -m coverage run --branch -m pytest tests/adapters/test_qiskit_adapter.py tests/adapters/test_cirq_adapter.py tests/adapters/test_pennylane_adapter.py tests/adapters/test_myqlm_adapter.py tests/examples/test_examples_runner.py tests/core/test_api_v2_topology_builder_qasm.py::test_prepare_draw_pipeline_accepts_openqasm3_strings
           python -m coverage report --include="*/adapters/qiskit_adapter.py,*/adapters/_qiskit_*.py,*/adapters/cirq_adapter.py,*/adapters/pennylane_adapter.py,*/adapters/myqlm_adapter.py" --show-missing --fail-under=75
 
   test-optional-windows:
