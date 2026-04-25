@@ -8,6 +8,7 @@
 - Added the shared `accessible` style preset and `accessible` theme with high-contrast, colorblind-friendlier colors for circuit and histogram rendering.
 - Added direct OpenQASM 2 file input for `draw_quantum_circuit(...)`, accepting `Path("circuit.qasm")` and string `.qasm` paths through the existing Qiskit parser path.
 - Added OpenQASM 3 text and `.qasm3` file input through Qiskit's `qasm3.loads(...)` parser, plus a separate `qasm3` extra for `qiskit-qasm3-import`.
+- Added `scripts/clean.py` as a cross-platform cleanup command for Windows, Linux, and WSL development environments.
 - Added direct Cirq `FrozenCircuit` input support and direct MyQLM `Program` and `QRoutine` inputs, reusing the existing Cirq and MyQLM semantic adapter paths without adding dependencies.
 - Added README gallery screenshots and refreshed user documentation so OpenQASM 2/3 text, `.qasm` / `.qasm3` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
 - Expanded the visual documentation gallery with pages, `pages_controls`, slider, hover, selected-gate, expanded-block, and no-label 3D screenshots, using README image URLs that render on both GitHub and PyPI.
@@ -46,6 +47,7 @@
 
 ### Fixed
 
+- Fixed OpenQASM 3 parsing on Linux/WSL environments where `qiskit.qasm3` is available as a submodule but is not attached to the root `qiskit` module until explicitly imported.
 - Core CI now skips the Qiskit compare-demo builder smoke test when the optional Qiskit dependency is not installed, and measures Qiskit helper modules in the optional adapter jobs instead of the core job.
 - Fixed strict `mypy` issues in topology options, 3D wire construction, managed 3D selection, and comparison summary cleanup so CI type checks pass cleanly.
 - Managed exploration now expands/collapses blocks with per-wire range scheduling, so expanded composites such as `circuit 42` cannot jump ahead of earlier CNOTs while independent wires keep their existing columns; terminal result boxes still stay at the logical end.

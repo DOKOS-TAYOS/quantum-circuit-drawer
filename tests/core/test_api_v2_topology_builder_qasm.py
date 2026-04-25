@@ -134,12 +134,18 @@ def _install_fake_qiskit(
     monkeypatch: pytest.MonkeyPatch,
     *,
     qasm3_loads: object,
+    expose_qasm3_on_root: bool = True,
 ) -> None:
     fake_qiskit = ModuleType("qiskit")
+    fake_qiskit.__path__ = []
     fake_qiskit.QuantumCircuit = _FakeQiskitCircuit
     fake_qiskit.circuit = SimpleNamespace(QuantumCircuit=_FakeQiskitCircuit)
-    fake_qiskit.qasm3 = SimpleNamespace(loads=qasm3_loads)
+    fake_qasm3 = ModuleType("qiskit.qasm3")
+    fake_qasm3.loads = qasm3_loads
+    if expose_qasm3_on_root:
+        fake_qiskit.qasm3 = fake_qasm3
     monkeypatch.setitem(sys.modules, "qiskit", fake_qiskit)
+    monkeypatch.setitem(sys.modules, "qiskit.qasm3", fake_qasm3)
 
 
 def test_public_package_exports_builder_and_hardware_topology() -> None:
@@ -648,6 +654,24 @@ def test_resolve_qasm_input_accepts_openqasm3_strings(monkeypatch: pytest.Monkey
         return _FakeQiskitCircuit(("qasm3", qasm_text))
 
     _install_fake_qiskit(monkeypatch, qasm3_loads=fake_loads)
+
+    circuit, framework = _resolve_qasm_input(qasm, None)
+
+    assert framework == "qiskit"
+    assert isinstance(circuit, _FakeQiskitCircuit)
+    assert circuit.source == ("qasm3", qasm)
+    assert loaded_texts == [qasm]
+
+
+def test_resolve_qasm_input_imports_openqasm3_submodule(monkeypatch: pytest.MonkeyPatch) -> None:
+    qasm = "OPENQASM 3.0; qubit[1] q;"
+    loaded_texts: list[str] = []
+
+    def fake_loads(qasm_text: str) -> _FakeQiskitCircuit:
+        loaded_texts.append(qasm_text)
+        return _FakeQiskitCircuit(("qasm3", qasm_text))
+
+    _install_fake_qiskit(monkeypatch, qasm3_loads=fake_loads, expose_qasm3_on_root=False)
 
     circuit, framework = _resolve_qasm_input(qasm, None)
 

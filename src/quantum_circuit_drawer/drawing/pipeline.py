@@ -6,6 +6,7 @@ import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from importlib import import_module
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -418,8 +419,12 @@ def _parse_openqasm2_with_qiskit(qasm_text: str) -> object:
 
 
 def _parse_openqasm3_with_qiskit(qasm_text: str) -> object:
-    qiskit = _load_qiskit_for_openqasm()
-    qasm3_loads = getattr(getattr(qiskit, "qasm3", None), "loads", None)
+    _load_qiskit_for_openqasm()
+    try:
+        qasm3 = import_module("qiskit.qasm3")
+    except ModuleNotFoundError as exc:
+        raise _openqasm3_importer_error() from exc
+    qasm3_loads = getattr(qasm3, "loads", None)
     if not callable(qasm3_loads):
         raise _openqasm3_importer_error()
     try:
