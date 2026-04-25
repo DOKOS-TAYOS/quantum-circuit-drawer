@@ -41,15 +41,16 @@ What happens by default:
 
 If you want to see the managed 2D controls already set up around a circuit that makes them useful, run `qiskit-2d-exploration-showcase` from the bundled examples.
 
-## Draw OpenQASM 2 Text Or A `.qasm` File
+## Draw OpenQASM 2 Or 3 Text Or A `.qasm` / `.qasm3` File
 
-OpenQASM input is supported for OpenQASM 2 programs. The library delegates parsing to Qiskit, so install the extra first:
+OpenQASM input is supported for OpenQASM 2 and OpenQASM 3 programs. The library delegates parsing to Qiskit, so install `qiskit` for OpenQASM 2 and `qasm3` for OpenQASM 3:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qasm3]"
 ```
 
-Then pass either text that starts with `OPENQASM` or a `.qasm` file path:
+Then pass either text that starts with `OPENQASM`, a `.qasm` file path, or a `.qasm3` file path:
 
 ```python
 from pathlib import Path
@@ -77,7 +78,8 @@ file_result = draw_quantum_circuit(
 )
 ```
 
-Use `CircuitRenderOptions(framework="qasm")` when you want the input path to be explicit in your config. A `.qasm` file is read as UTF-8 and must start with `OPENQASM`.
+Use `CircuitRenderOptions(framework="qasm")` when you want the input path to be explicit in your config. A `.qasm` / `.qasm3` file is read as UTF-8 and must start with `OPENQASM`.
+The same `framework="qasm"` value is used for OpenQASM 3; only the header and file extension decide which Qiskit parser runs.
 
 ## Save Without Opening A Window
 

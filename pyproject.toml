@@ -41,6 +41,10 @@ Changelog = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/CHA
 qiskit = [
   "qiskit>=1.0",
 ]
+qasm3 = [
+  "qiskit>=1.0",
+  "qiskit-qasm3-import",
+]
 cirq = [
   "cirq-core>=1.3",
 ]

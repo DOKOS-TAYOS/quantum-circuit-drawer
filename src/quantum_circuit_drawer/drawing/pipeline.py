@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from ..adapters.base import BaseAdapter
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
@@ -47,6 +48,12 @@ class _SemanticIrLoader(Protocol):
 
 
 logger = logging.getLogger(__name__)
+
+_QASM_FILE_SUFFIXES = frozenset({".qasm", ".qasm3"})
+_OPENQASM_VERSION_PATTERN = re.compile(
+    r"^\s*OPENQASM\s+(?P<version>\d+(?:\.\d+)?)\s*;",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,8 +324,8 @@ def _resolve_qasm_input(
         if _looks_like_qasm_file_path(circuit):
             return _parse_openqasm_with_qiskit(_read_openqasm_file(Path(circuit))), "qiskit"
         raise UnsupportedFrameworkError(
-            "string inputs are only supported for OpenQASM 2 text starting with 'OPENQASM' "
-            "or .qasm file paths"
+            "string inputs are only supported for OpenQASM 2 or 3 text starting with "
+            "'OPENQASM' or .qasm/.qasm3 file paths"
         )
     if isinstance(circuit, PathLike) and framework is None:
         return _parse_openqasm_with_qiskit(_read_openqasm_file(Path(circuit))), "qiskit"
@@ -335,9 +342,9 @@ def _coerce_openqasm_text(circuit: object, *, explicit: bool) -> str:
         return _read_openqasm_file(Path(circuit))
     if explicit:
         raise UnsupportedFrameworkError(
-            "framework='qasm' requires OpenQASM 2 text or a .qasm file path"
+            "framework='qasm' requires OpenQASM 2 or 3 text or a .qasm/.qasm3 file path"
         )
-    raise UnsupportedFrameworkError("OpenQASM input requires text or a .qasm file path")
+    raise UnsupportedFrameworkError("OpenQASM input requires text or a .qasm/.qasm3 file path")
 
 
 def _looks_like_openqasm(value: str) -> bool:
@@ -347,12 +354,14 @@ def _looks_like_openqasm(value: str) -> bool:
 def _looks_like_qasm_file_path(value: str) -> bool:
     if "\n" in value or "\r" in value:
         return False
-    return Path(value).suffix.lower() == ".qasm"
+    return Path(value).suffix.lower() in _QASM_FILE_SUFFIXES
 
 
 def _read_openqasm_file(path: Path) -> str:
-    if path.suffix.lower() != ".qasm":
-        raise UnsupportedFrameworkError("OpenQASM file inputs must use the .qasm extension")
+    if path.suffix.lower() not in _QASM_FILE_SUFFIXES:
+        raise UnsupportedFrameworkError(
+            "OpenQASM file inputs must use the .qasm or .qasm3 extension"
+        )
     if not path.exists():
         raise UnsupportedFrameworkError(f"OpenQASM file does not exist: {path}")
     if not path.is_file():
@@ -367,6 +376,32 @@ def _read_openqasm_file(path: Path) -> str:
 
 
 def _parse_openqasm_with_qiskit(qasm_text: str) -> object:
+    major_version, raw_version = _openqasm_version(qasm_text)
+    if major_version == 2:
+        return _parse_openqasm2_with_qiskit(qasm_text)
+    if major_version == 3:
+        return _parse_openqasm3_with_qiskit(qasm_text)
+    raise UnsupportedFrameworkError(
+        f"unsupported OpenQASM version '{raw_version}'. Supported versions: 2.x and 3.x."
+    )
+
+
+def _openqasm_version(qasm_text: str) -> tuple[int, str]:
+    match = _OPENQASM_VERSION_PATTERN.match(qasm_text)
+    if match is None:
+        raise UnsupportedFrameworkError("OpenQASM input must declare version 2.x or 3.x.")
+
+    raw_version = match.group("version")
+    major_text = raw_version.split(".", maxsplit=1)[0]
+    major_version = int(major_text)
+    if major_version not in {2, 3}:
+        raise UnsupportedFrameworkError(
+            f"unsupported OpenQASM version '{raw_version}'. Supported versions: 2.x and 3.x."
+        )
+    return major_version, raw_version
+
+
+def _load_qiskit_for_openqasm() -> Any:
     try:
         import qiskit
     except ModuleNotFoundError as exc:
@@ -374,7 +409,38 @@ def _parse_openqasm_with_qiskit(qasm_text: str) -> object:
             "OpenQASM input requires the optional dependency 'qiskit'. "
             "Install it with 'pip install quantum-circuit-drawer[qiskit]' or 'pip install qiskit'."
         ) from exc
+    return qiskit
+
+
+def _parse_openqasm2_with_qiskit(qasm_text: str) -> object:
+    qiskit = _load_qiskit_for_openqasm()
     return qiskit.QuantumCircuit.from_qasm_str(qasm_text)
+
+
+def _parse_openqasm3_with_qiskit(qasm_text: str) -> object:
+    qiskit = _load_qiskit_for_openqasm()
+    qasm3_loads = getattr(getattr(qiskit, "qasm3", None), "loads", None)
+    if not callable(qasm3_loads):
+        raise _openqasm3_importer_error()
+    try:
+        return qasm3_loads(qasm_text)
+    except Exception as exc:
+        if _is_missing_openqasm3_importer_error(exc):
+            raise _openqasm3_importer_error() from exc
+        raise
+
+
+def _is_missing_openqasm3_importer_error(exc: Exception) -> bool:
+    message = str(exc)
+    return "qiskit_qasm3_import" in message or "qiskit-qasm3-import" in message
+
+
+def _openqasm3_importer_error() -> UnsupportedFrameworkError:
+    return UnsupportedFrameworkError(
+        "OpenQASM 3 input requires the optional dependency 'qiskit-qasm3-import'. "
+        "Install it with 'pip install quantum-circuit-drawer[qasm3]' or "
+        "'pip install qiskit-qasm3-import'."
+    )
 
 
 def _resolve_topology_menu_options(

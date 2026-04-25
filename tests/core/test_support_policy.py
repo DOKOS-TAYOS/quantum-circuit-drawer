@@ -78,6 +78,8 @@ def test_public_docs_describe_openqasm_text_and_file_support() -> None:
         path: path.read_text(encoding="utf-8")
         for path in (
             Path("README.md"),
+            Path("docs/installation.md"),
+            Path("docs/index.md"),
             Path("docs/getting-started.md"),
             Path("docs/user-guide.md"),
             Path("docs/api.md"),
@@ -87,14 +89,32 @@ def test_public_docs_describe_openqasm_text_and_file_support() -> None:
             Path("examples/README.md"),
         )
     }
+    openqasm3_docs_by_path = {
+        path: path.read_text(encoding="utf-8")
+        for path in (
+            Path("README.md"),
+            Path("docs/installation.md"),
+            Path("docs/index.md"),
+            Path("docs/getting-started.md"),
+            Path("docs/user-guide.md"),
+            Path("docs/api.md"),
+            Path("docs/frameworks.md"),
+            Path("docs/recipes.md"),
+            Path("docs/troubleshooting.md"),
+        )
+    }
 
     for path, text in docs_by_path.items():
         assert "OpenQASM" in text, f"{path} does not mention OpenQASM"
         assert ".qasm" in text, f"{path} does not mention .qasm files"
+    for path, text in openqasm3_docs_by_path.items():
+        assert "OpenQASM 3" in text, f"{path} does not mention OpenQASM 3"
+        assert ".qasm3" in text, f"{path} does not mention .qasm3 files"
 
-    combined_text = "\n".join(docs_by_path.values())
+    combined_text = "\n".join((*docs_by_path.values(), *openqasm3_docs_by_path.values()))
     assert 'framework="qasm"' in combined_text
     assert "quantum-circuit-drawer[qiskit]" in combined_text
+    assert "quantum-circuit-drawer[qasm3]" in combined_text
     assert "OPENQASM" in combined_text
 
 
@@ -274,6 +294,19 @@ def test_myqlm_docs_describe_quantum_reset_metadata_and_classical_only_limit() -
     )
     assert "classical-only reset" in troubleshooting_reference
     assert "transversal compatibility polish" in changelog_reference
+
+
+def test_framework_docs_describe_cirq_frozen_and_myqlm_language_inputs() -> None:
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
+    installation_reference = Path("docs/installation.md").read_text(encoding="utf-8")
+    changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "`cirq.FrozenCircuit`" in frameworks_reference
+    assert "`cirq.FrozenCircuit`" in installation_reference
+    assert "`Program` and `QRoutine` directly" in frameworks_reference
+    assert "`Program` / `QRoutine`" in troubleshooting_reference
+    assert "`Program` and `QRoutine` inputs" in changelog_reference
 
 
 def test_cudaq_docs_describe_controlled_swap_support() -> None:

@@ -22,7 +22,7 @@ The library is centered on four user workflows:
 
 | Workflow | Public API | Typical use |
 | --- | --- | --- |
-| Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2, or IR circuit |
+| Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2/3, or IR circuit |
 | Compare two circuits | `compare_circuits(...)` | Show before/after structure, for example before and after transpilation |
 | Plot one result distribution | `plot_histogram(...)` | Plot counts, quasi-probabilities, marginals, or framework-native result objects |
 | Compare two result distributions | `compare_histograms(...)` | Overlay ideal vs sampled, baseline vs new run, or counts vs quasi |
@@ -73,6 +73,7 @@ Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qasm3]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
@@ -82,6 +83,7 @@ Linux or WSL:
 
 ```bash
 .venv/bin/python -m pip install "quantum-circuit-drawer[qiskit]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[qasm3]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[cirq]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
@@ -102,9 +104,10 @@ This is the production support contract for the current release.
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
 | OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
-| Cirq | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
+| OpenQASM 3 text and `.qasm3` files | Strong support through Qiskit plus `qiskit-qasm3-import` | Install `quantum-circuit-drawer[qasm3]`; works on Windows and Linux when Qiskit's importer is available |
+| Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; prefer Linux or WSL for the most reliable repeated runs |
 | PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
-| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
 ## Choose Your First Task
@@ -112,7 +115,7 @@ This is the production support contract for the current release.
 | If you want to... | Start here |
 | --- | --- |
 | Draw a circuit from a supported framework | [Draw one circuit](#draw-one-circuit) |
-| Draw OpenQASM 2 text or a `.qasm` file | [Draw OpenQASM](#draw-openqasm) |
+| Draw OpenQASM 2/3 text or a `.qasm` / `.qasm3` file | [Draw OpenQASM](#draw-openqasm) |
 | Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file) |
 | Plot counts or probabilities | [Plot one histogram](#plot-one-histogram) |
 | Compare two versions of a circuit | [Compare two circuits](#compare-two-circuits) |
@@ -145,13 +148,14 @@ This same shape works for the supported framework objects and for the public IR 
 
 ## Draw OpenQASM
 
-OpenQASM 2 input uses Qiskit as the parser, so install the Qiskit extra first:
+OpenQASM input uses Qiskit as the parser. Install the Qiskit extra for OpenQASM 2, and install the `qasm3` extra when you want OpenQASM 3 support:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qasm3]"
 ```
 
-You can pass OpenQASM 2 text directly:
+You can pass OpenQASM 2 or OpenQASM 3 text directly:
 
 ```python
 from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
@@ -172,7 +176,7 @@ result = draw_quantum_circuit(
 )
 ```
 
-Or draw a `.qasm` file directly. `framework="qasm"` is optional when the path ends in `.qasm`, but it is useful when you want to be explicit:
+Or draw a `.qasm` / `.qasm3` file directly. `framework="qasm"` is optional when the path ends in `.qasm` or `.qasm3`, but it is useful when you want to be explicit:
 
 ```python
 from pathlib import Path

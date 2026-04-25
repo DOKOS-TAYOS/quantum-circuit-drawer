@@ -63,15 +63,17 @@ Install only the extras you need.
 | Extra | Package spec | Typical use |
 | --- | --- | --- |
 | `qiskit` | `quantum-circuit-drawer[qiskit]` | Draw `qiskit.QuantumCircuit` objects and parse OpenQASM 2 text or `.qasm` files |
-| `cirq` | `quantum-circuit-drawer[cirq]` | Draw `cirq.Circuit` objects |
+| `qasm3` | `quantum-circuit-drawer[qasm3]` | Parse OpenQASM 3 text or `.qasm3` files through Qiskit and `qiskit-qasm3-import` |
+| `cirq` | `quantum-circuit-drawer[cirq]` | Draw `cirq.Circuit` and `cirq.FrozenCircuit` objects |
 | `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tapes, scripts, and wrappers with a materialized tape |
-| `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit` objects |
+| `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit`, `Program`, and `QRoutine` objects |
 | `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported closed CUDA-Q kernels on Linux or WSL2 |
 
 Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qiskit]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[qasm3]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
@@ -81,6 +83,7 @@ Linux or WSL:
 
 ```bash
 .venv/bin/python -m pip install "quantum-circuit-drawer[qiskit]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[qasm3]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[cirq]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
@@ -103,9 +106,10 @@ Use this table as the release support contract when choosing an install path.
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
 | OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
-| Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| OpenQASM 3 text and `.qasm3` files | Strong support through Qiskit plus `qiskit-qasm3-import` | Install `quantum-circuit-drawer[qasm3]`; works on Windows and Linux when Qiskit's importer is available |
+| Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
-| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
 ## Jupyter Setup
@@ -174,13 +178,13 @@ Install development tools and extras the same way:
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,qasm3,cirq,pennylane,myqlm]"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
+.venv/bin/python -m pip install -e ".[dev,qiskit,qasm3,cirq,pennylane,myqlm]"
 ```
 
 For CUDA-Q development, use Linux or WSL2:

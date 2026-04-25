@@ -7,7 +7,9 @@
 - Added `saved_path` to `HistogramResult` and `HistogramCompareResult`, matching `DrawResult` for scripts that save figures through `OutputOptions(output_path=...)`.
 - Added the shared `accessible` style preset and `accessible` theme with high-contrast, colorblind-friendlier colors for circuit and histogram rendering.
 - Added direct OpenQASM 2 file input for `draw_quantum_circuit(...)`, accepting `Path("circuit.qasm")` and string `.qasm` paths through the existing Qiskit parser path.
-- Added README gallery screenshots and refreshed user documentation so OpenQASM 2 text, `.qasm` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
+- Added OpenQASM 3 text and `.qasm3` file input through Qiskit's `qasm3.loads(...)` parser, plus a separate `qasm3` extra for `qiskit-qasm3-import`.
+- Added direct Cirq `FrozenCircuit` input support and direct MyQLM `Program` and `QRoutine` inputs, reusing the existing Cirq and MyQLM semantic adapter paths without adding dependencies.
+- Added README gallery screenshots and refreshed user documentation so OpenQASM 2/3 text, `.qasm` / `.qasm3` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
 - Expanded the visual documentation gallery with pages, `pages_controls`, slider, hover, selected-gate, expanded-block, and no-label 3D screenshots, using README image URLs that render on both GitHub and PyPI.
 
 ### Changed

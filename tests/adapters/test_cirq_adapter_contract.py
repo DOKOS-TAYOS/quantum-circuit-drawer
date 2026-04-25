@@ -46,6 +46,22 @@ class FakeCircuit:
         return iter(self._moments)
 
 
+class FakeFrozenCircuit:
+    def __init__(self, *moments: FakeMoment) -> None:
+        self._moments = moments
+
+    def all_qubits(self) -> set[FakeQubit]:
+        return {
+            qubit
+            for moment in self._moments
+            for operation in moment.operations
+            for qubit in operation.qubits
+        }
+
+    def __iter__(self) -> Iterator[FakeMoment]:
+        return iter(self._moments)
+
+
 class MeasurementGate:
     def __init__(self, key: str) -> None:
         self.key = key
@@ -141,6 +157,7 @@ def install_fake_cirq(
 ) -> None:
     fake_module = ModuleType("cirq")
     fake_module.Circuit = FakeCircuit
+    fake_module.FrozenCircuit = FakeFrozenCircuit
     fake_module.ClassicallyControlledOperation = FakeClassicallyControlledOperation
     fake_module.CircuitOperation = CircuitOperation
     fake_module.ControlledOperation = FakeControlledOperation
@@ -172,6 +189,26 @@ def test_cirq_adapter_contract_converts_basic_stubbed_circuit(
         OperationKind.CONTROLLED_GATE,
         OperationKind.MEASUREMENT,
     ]
+
+
+def test_cirq_adapter_contract_accepts_stubbed_frozen_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    circuit = FakeFrozenCircuit(
+        FakeMoment(FakeOperation(HPowGate(), (q0,))),
+        FakeMoment(FakeOperation(CNotPowGate(), (q0, q1))),
+    )
+
+    assert CirqAdapter.can_handle(circuit) is True
+
+    ir = CirqAdapter().to_ir(circuit, options={"explicit_matrices": False})
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [wire.label for wire in ir.quantum_wires] == ["q(0)", "q(1)"]
+    assert [operation.name for operation in operations] == ["H", "X"]
 
 
 def test_cirq_adapter_contract_converts_stubbed_classical_controls(

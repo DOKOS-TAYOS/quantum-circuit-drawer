@@ -47,7 +47,7 @@ compare_histograms(
 
 ## Circuit drawing
 
-`draw_quantum_circuit(...)` accepts supported framework objects, public `CircuitIR` objects, OpenQASM 2 text, and `.qasm` files. OpenQASM paths use Qiskit for parsing, so they require the `quantum-circuit-drawer[qiskit]` extra.
+`draw_quantum_circuit(...)` accepts supported framework objects, public `CircuitIR` objects, OpenQASM 2/3 text, `.qasm` files, and `.qasm3` files. OpenQASM paths use Qiskit for parsing: OpenQASM 2 requires `quantum-circuit-drawer[qiskit]`, and OpenQASM 3 requires `quantum-circuit-drawer[qasm3]`.
 
 ### `DrawConfig`
 
@@ -107,11 +107,12 @@ Important fields:
 
 OpenQASM details:
 
-- pass a string that starts with `OPENQASM` for direct OpenQASM 2 text input
-- pass `Path("circuit.qasm")` or `"circuit.qasm"` for a UTF-8 `.qasm` file
+- pass a string that starts with `OPENQASM` for direct OpenQASM 2 or OpenQASM 3 text input
+- pass `Path("circuit.qasm")`, `"circuit.qasm"`, `Path("circuit.qasm3")`, or `"circuit.qasm3"` for UTF-8 file input
 - use `CircuitRenderOptions(framework="qasm")` when you want to opt into the QASM parser explicitly
-- non-`.qasm` path objects are rejected before framework autodetection
-- parsing is delegated to `qiskit.QuantumCircuit.from_qasm_str(...)`
+- non-`.qasm` / `.qasm3` path objects are rejected before framework autodetection
+- OpenQASM 2 parsing is delegated to `qiskit.QuantumCircuit.from_qasm_str(...)`
+- OpenQASM 3 parsing is delegated to `qiskit.qasm3.loads(...)`
 
 OpenQASM example:
 

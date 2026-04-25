@@ -84,9 +84,9 @@ Selection and wire filtering work for plain `CircuitIR` too. Block collapse/expa
 
 Use this when the whole circuit fits comfortably in one scene and you want the unpaged view directly.
 
-### OpenQASM 2 inputs
+### OpenQASM 2 and 3 inputs
 
-`draw_quantum_circuit(...)` accepts OpenQASM 2 text and `.qasm` files. Both paths use Qiskit for parsing, so install `quantum-circuit-drawer[qiskit]` before using them.
+`draw_quantum_circuit(...)` accepts OpenQASM 2 text, OpenQASM 3 text, `.qasm` files, and `.qasm3` files. OpenQASM 2 uses the `quantum-circuit-drawer[qiskit]` extra; OpenQASM 3 uses `quantum-circuit-drawer[qasm3]`, which adds `qiskit-qasm3-import`.
 
 ```python
 from pathlib import Path
@@ -108,7 +108,7 @@ result = draw_quantum_circuit(
 )
 ```
 
-For text input, the string must start with `OPENQASM`. For file input, the path must end in `.qasm`, exist on disk, be readable as UTF-8, and contain OpenQASM 2 text starting with `OPENQASM`.
+For text input, the string must start with `OPENQASM`. For file input, the path must end in `.qasm` or `.qasm3`, exist on disk, be readable as UTF-8, and contain OpenQASM 2 or OpenQASM 3 text starting with `OPENQASM`. Use `CircuitRenderOptions(framework="qasm")` when you want the parser path to be explicit for either version.
 
 ## Caller-Managed Axes
 

@@ -68,9 +68,9 @@ draw_quantum_circuit(
 )
 ```
 
-### Draw OpenQASM 2 text or a `.qasm` file
+### Draw OpenQASM 2 Or 3 Text Or A `.qasm` / `.qasm3` File
 
-Install `quantum-circuit-drawer[qiskit]` first because OpenQASM parsing is delegated to Qiskit.
+Install `quantum-circuit-drawer[qiskit]` for OpenQASM 2 input. Install `quantum-circuit-drawer[qasm3]` when you want OpenQASM 3 text or `.qasm3` files, because that extra includes Qiskit's OpenQASM 3 importer.
 
 ```python
 from pathlib import Path
@@ -106,6 +106,8 @@ file_result = draw_quantum_circuit(
     ),
 )
 ```
+
+Use the same `framework="qasm"` value for OpenQASM 3; pass text with an `OPENQASM 3.x` header or a path ending in `.qasm3`.
 
 ### Draw inside your own Matplotlib axes
 

@@ -54,7 +54,7 @@ class CirqAdapter(BaseAdapter):
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
-        circuit_types = extract_dependency_types("cirq", ("Circuit",))
+        circuit_types = extract_dependency_types("cirq", ("Circuit", "FrozenCircuit"))
         return bool(circuit_types) and isinstance(circuit, circuit_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:

@@ -4,11 +4,11 @@ import builtins
 import importlib
 import sys
 from dataclasses import dataclass
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from quantum_circuit_drawer.exceptions import UnsupportedOperationError
+from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError, UnsupportedOperationError
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 from tests.support import (
@@ -59,6 +59,41 @@ def build_common_myqlm_circuit() -> FakeMyQLMCircuit:
         nbqbits=2,
         nbcbits=2,
         name="myqlm_common_demo",
+    )
+
+
+class FakeMyQLMProgram:
+    def __init__(self, circuit: FakeMyQLMCircuit) -> None:
+        self._circuit = circuit
+
+    def to_circ(self) -> FakeMyQLMCircuit:
+        return self._circuit
+
+
+class FakeMyQLMQRoutine:
+    def __init__(self, circuit: FakeMyQLMCircuit) -> None:
+        self._circuit = circuit
+
+    def to_circ(self) -> FakeMyQLMCircuit:
+        return self._circuit
+
+
+class BrokenMyQLMProgram(FakeMyQLMProgram):
+    def __init__(self) -> None:
+        pass
+
+    def to_circ(self) -> object:
+        return object()
+
+
+def install_fake_myqlm_with_language_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_myqlm(monkeypatch)
+    fake_qat = sys.modules["qat"]
+    fake_qat.lang = SimpleNamespace(
+        AQASM=SimpleNamespace(
+            Program=FakeMyQLMProgram,
+            QRoutine=FakeMyQLMQRoutine,
+        )
     )
 
 
@@ -382,6 +417,37 @@ def test_myqlm_adapter_converts_common_operations(
     assert operations[1].control_wires == ("q0",)
     assert operations[1].target_wires == ("q1",)
     assert operations[2].metadata["classical_bit_label"] == "c[0]"
+
+
+@pytest.mark.parametrize("wrapper_type", [FakeMyQLMProgram, FakeMyQLMQRoutine])
+def test_myqlm_adapter_accepts_to_circ_language_inputs(
+    wrapper_type: type[FakeMyQLMProgram] | type[FakeMyQLMQRoutine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm_with_language_inputs(monkeypatch)
+    adapter_type = load_myqlm_adapter_type()
+    circuit = wrapper_type(build_common_myqlm_circuit())
+
+    assert adapter_type.can_handle(circuit) is True
+
+    ir = adapter_type().to_ir(circuit)
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert ir.metadata["framework"] == "myqlm"
+    assert [operation.name for operation in operations] == ["H", "X", "M"]
+
+
+def test_myqlm_adapter_rejects_invalid_to_circ_language_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm_with_language_inputs(monkeypatch)
+    adapter = load_myqlm_adapter_type()()
+
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"myQLM .*to_circ\(\).*qat\.core\.Circuit",
+    ):
+        adapter.to_ir(BrokenMyQLMProgram())
 
 
 def test_myqlm_adapter_maps_additional_canonical_gate_families(
@@ -796,6 +862,22 @@ def test_draw_quantum_circuit_accepts_myqlm_framework_override(
 
     figure, axes = draw_quantum_circuit(
         build_common_myqlm_circuit(),
+        framework="myqlm",
+        show=False,
+    )
+
+    assert axes.figure is figure
+    assert_axes_contains_circuit_artists(axes, expected_texts={"H", "M", "q0", "q1", "c"})
+    assert_figure_has_visible_content(figure)
+
+
+def test_draw_quantum_circuit_accepts_myqlm_program_framework_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_myqlm_with_language_inputs(monkeypatch)
+
+    figure, axes = draw_quantum_circuit(
+        FakeMyQLMProgram(build_common_myqlm_circuit()),
         framework="myqlm",
         show=False,
     )

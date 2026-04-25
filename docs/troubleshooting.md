@@ -26,6 +26,7 @@ Linux or WSL:
 Replace `qiskit` with `cirq`, `pennylane`, or `myqlm` as needed. Keep CUDA-Q installs on Linux or WSL2 only.
 
 OpenQASM 2 text and `.qasm` files also require the Qiskit extra because parsing uses Qiskit internally. If `draw_quantum_circuit(Path("bell.qasm"))` reports that Qiskit is missing, install `quantum-circuit-drawer[qiskit]`.
+OpenQASM 3 text and `.qasm3` files require `quantum-circuit-drawer[qasm3]`, which installs Qiskit plus `qiskit-qasm3-import`.
 
 Good first smoke demos after installing an extra:
 
@@ -44,30 +45,34 @@ Use this table to decide whether the issue is on the main support path or on a n
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
 | OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
-| Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| OpenQASM 3 text and `.qasm3` files | Strong support through Qiskit plus `qiskit-qasm3-import` | Install `quantum-circuit-drawer[qasm3]`; works on Windows and Linux when Qiskit's importer is available |
+| Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
-| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
 At the moment, all built-in framework adapters use the richer semantic-adapter path internally. Legacy `to_ir(...)` adapters still work, but framework-native provenance and annotations now survive longer for the built-in adapters before lowering to the shared render IR.
 
-## OpenQASM Or `.qasm` Input Fails
+## OpenQASM Or `.qasm` / `.qasm3` Input Fails
 
-OpenQASM support is for OpenQASM 2 input. The accepted forms are:
+OpenQASM support covers OpenQASM 2 and OpenQASM 3 input. The accepted forms are:
 
 - a string that starts with `OPENQASM`
 - a `Path("circuit.qasm")`
 - a string path such as `"circuit.qasm"`
+- a `Path("circuit.qasm3")`
+- a string path such as `"circuit.qasm3"`
 
 Common fixes:
 
-- install `quantum-circuit-drawer[qiskit]`
-- make sure the file exists and ends in `.qasm`
-- save the `.qasm` file as UTF-8
+- install `quantum-circuit-drawer[qiskit]` for OpenQASM 2
+- install `quantum-circuit-drawer[qasm3]` for OpenQASM 3 or if the error mentions `qiskit-qasm3-import`
+- make sure the file exists and ends in `.qasm` or `.qasm3`
+- save the `.qasm` / `.qasm3` file as UTF-8
 - make sure the file content starts with `OPENQASM`
 - use `CircuitRenderOptions(framework="qasm")` if you want to force the OpenQASM parser path
 
-Arbitrary strings are rejected unless they start with `OPENQASM`; non-`.qasm` path objects are rejected before framework autodetection so a text file path is not mistaken for a framework circuit object.
+Arbitrary strings are rejected unless they start with `OPENQASM`; non-`.qasm` / `.qasm3` path objects are rejected before framework autodetection so a text file path is not mistaken for a framework circuit object.
 
 ## Cirq Or PennyLane Demos Are Slow Or Unstable On Native Windows
 
@@ -279,11 +284,11 @@ draw_quantum_circuit(
 
 Static `HardwareTopology` inputs never resize. If you want to keep the static topology but the circuit has fewer qubits, use `topology_qubits="used"` to show only allocated nodes or `topology_qubits="all"` to show the full topology footprint with inactive physical-node labels.
 
-## MyQLM `Program` Objects Do Not Draw Directly
+## MyQLM `Program` / `QRoutine` Input Fails
 
-The MyQLM adapter targets `qat.core.Circuit` inputs.
+The MyQLM adapter accepts `qat.core.Circuit`, `Program`, and `QRoutine` inputs. For `Program` and `QRoutine`, it calls `to_circ()` internally and then draws the resulting `qat.core.Circuit`.
 
-Use the usual MyQLM flow:
+If a MyQLM language object fails, make sure its `to_circ()` method can return a normal `qat.core.Circuit`.
 
 ```python
 from qat.lang.AQASM import CNOT, H, Program
@@ -301,9 +306,8 @@ qbits = program.qalloc(2)
 H(qbits[0])
 CNOT(qbits[0], qbits[1])
 
-circuit = program.to_circ()
 draw_quantum_circuit(
-    circuit,
+    program,
     config=DrawConfig(
         side=DrawSideConfig(render=CircuitRenderOptions(framework="myqlm")),
     ),

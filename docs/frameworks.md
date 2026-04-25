@@ -19,10 +19,10 @@ The current user-facing input paths are:
 | Input path | Typical object | Extra |
 | --- | --- | --- |
 | Qiskit | `qiskit.QuantumCircuit` | `qiskit` |
-| OpenQASM 2 | text starting with `OPENQASM`, `Path("circuit.qasm")`, or `"circuit.qasm"` | `qiskit` |
-| Cirq | `cirq.Circuit` | `cirq` |
+| OpenQASM 2/3 | text starting with `OPENQASM`, `.qasm` files, or `.qasm3` files | `qiskit` for OpenQASM 2, `qasm3` for OpenQASM 3 |
+| Cirq | `cirq.Circuit` or `cirq.FrozenCircuit` | `cirq` |
 | PennyLane | `QuantumTape`, `QuantumScript`, or tape-like wrappers | `pennylane` |
-| MyQLM | `qat.core.Circuit` | `myqlm` |
+| MyQLM | `qat.core.Circuit`, `Program`, or `QRoutine` | `myqlm` |
 | CUDA-Q | closed CUDA-Q kernels | `cudaq` |
 | Internal IR | `CircuitIR` | none |
 
@@ -39,9 +39,10 @@ Use this table as the release support contract when choosing a framework path.
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
 | OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
-| Cirq | Best-effort on native Windows | Linux or WSL remains the safer production path |
+| OpenQASM 3 text and `.qasm3` files | Strong support through Qiskit plus `qiskit-qasm3-import` | Install `quantum-circuit-drawer[qasm3]`; works on Windows and Linux when Qiskit's importer is available |
+| Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
-| MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
 | CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
 
 `plot_histogram(...)` also accepts several framework-native result payloads directly:
@@ -114,12 +115,13 @@ Bundled demos:
 
 Histogram support also accepts direct Qiskit result payloads such as `Counts`, `QuasiDistribution`, `SamplerResult`, `PrimitiveResult`, `SamplerPubResult`, `BitArray`, and `DataBin`.
 
-## OpenQASM 2
+## OpenQASM 2 And 3
 
-OpenQASM 2 support is a convenience input path on top of the Qiskit parser. Install:
+OpenQASM support is a convenience input path on top of Qiskit parsers. OpenQASM 2 uses Qiskit's built-in `from_qasm_str(...)`; OpenQASM 3 uses Qiskit's `qasm3.loads(...)` path and therefore needs the `qiskit-qasm3-import` package.
 
 ```bash
 python -m pip install "quantum-circuit-drawer[qiskit]"
+python -m pip install "quantum-circuit-drawer[qasm3]"
 ```
 
 Typical input:
@@ -127,6 +129,7 @@ Typical input:
 - a `str` that starts with `OPENQASM`
 - a `pathlib.Path` ending in `.qasm`
 - a string file path ending in `.qasm`
+- a `pathlib.Path` or string file path ending in `.qasm3`
 
 Example:
 
@@ -150,7 +153,7 @@ draw_quantum_circuit(
 )
 ```
 
-The `.qasm` file is read as UTF-8 and must start with `OPENQASM`. Internally the file text is parsed with `qiskit.QuantumCircuit.from_qasm_str(...)`, then rendered through the normal Qiskit adapter path. OpenQASM 3 is not a separate supported parser path in this release.
+The `.qasm` / `.qasm3` file is read as UTF-8 and must start with `OPENQASM`. Internally OpenQASM 2 text is parsed with `qiskit.QuantumCircuit.from_qasm_str(...)`, OpenQASM 3 text is parsed with `qiskit.qasm3.loads(...)`, and both continue through the normal Qiskit adapter path. Use `CircuitRenderOptions(framework="qasm")` when you want to force this parser path explicitly for either version.
 
 ## Cirq
 
@@ -163,6 +166,7 @@ python -m pip install "quantum-circuit-drawer[cirq]"
 Typical input:
 
 - `cirq.Circuit`
+- `cirq.FrozenCircuit`
 
 Example:
 
@@ -274,15 +278,17 @@ Install:
 python -m pip install "quantum-circuit-drawer[myqlm]"
 ```
 
-Typical input:
+Typical inputs:
 
 - `qat.core.Circuit`
+- `qat.lang.AQASM.Program`
+- `qat.lang.AQASM.QRoutine`
 
 Recommended workflow:
 
-1. Build with `Program()`.
-2. Export with `to_circ()`.
-3. Draw the resulting circuit.
+1. Build with `Program()` or `QRoutine()`.
+2. Pass `Program` and `QRoutine` directly, or pass a `qat.core.Circuit` if you already exported one.
+3. The adapter calls `to_circ()` internally for `Program` and `QRoutine` inputs.
 
 Example:
 
@@ -302,16 +308,15 @@ qbits = program.qalloc(2)
 H(qbits[0])
 CNOT(qbits[0], qbits[1])
 
-circuit = program.to_circ()
 draw_quantum_circuit(
-    circuit,
+    program,
     config=DrawConfig(
         side=DrawSideConfig(render=CircuitRenderOptions(framework="myqlm")),
     ),
 )
 ```
 
-Current support includes common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, drawable `BREAK` / `CLASSIC` classical boxes on the bundled classical register, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas. Qubit-targeted quantum resets keep drawing even when MyQLM attaches extra classical metadata, with those raw classical details preserved in hover instead of raising.
+Current support includes direct `Program` and `QRoutine` inputs, common gates, controlled gates backed by gate definitions, measurements, quantum resets, compact or expanded composite gates backed by `gateDic`, compact `REMAP` boxes, compact composites that use ancillas, drawable `BREAK` / `CLASSIC` classical boxes on the bundled classical register, and classical-control conditions that can be expressed cleanly from MyQLM control bits or formulas. Qubit-targeted quantum resets keep drawing even when MyQLM attaches extra classical metadata, with those raw classical details preserved in hover instead of raising.
 
 Support note:
 
@@ -325,7 +330,7 @@ Bundled demos:
 
 Current limits:
 
-- `Program` and `QRoutine` objects are not the main adapter input; convert with `to_circ()` first.
+- `Program` and `QRoutine` inputs must expose `to_circ()` and return a `qat.core.Circuit`.
 - `BREAK` and `CLASSIC` now render as compact classical boxes on the classical register, keeping formulas and native details in hover; when a formula cannot be normalized safely, the raw native formula is preserved instead of raising.
 - `REMAP` and ancilla-using composites are rendered as compact annotated boxes rather than expanded internal structure.
 - classical-only resets without qubit targets still remain outside the supported subset.

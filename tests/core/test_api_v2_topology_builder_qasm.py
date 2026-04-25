@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import builtins
+import sys
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import matplotlib.pyplot as plt
 import pytest
@@ -13,7 +15,11 @@ from quantum_circuit_drawer import (
     draw_quantum_circuit,
 )
 from quantum_circuit_drawer.adapters.qiskit_adapter import QiskitAdapter
-from quantum_circuit_drawer.drawing.pipeline import PreparedDrawPipeline, prepare_draw_pipeline
+from quantum_circuit_drawer.drawing.pipeline import (
+    PreparedDrawPipeline,
+    _resolve_qasm_input,
+    prepare_draw_pipeline,
+)
 from quantum_circuit_drawer.drawing.request import DrawRequest, build_draw_request
 from quantum_circuit_drawer.exceptions import UnsupportedFrameworkError
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
@@ -109,6 +115,31 @@ def _prepare_request(
         framework=framework,
         show=False,
     )
+
+
+class _FakeQiskitCircuit:
+    def __init__(self, source: tuple[str, str]) -> None:
+        self.source = source
+
+    @classmethod
+    def from_qasm_str(cls, qasm_text: str) -> _FakeQiskitCircuit:
+        return cls(("qasm2", qasm_text))
+
+
+class _FakeQiskitMissingOptionalLibraryError(Exception):
+    pass
+
+
+def _install_fake_qiskit(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    qasm3_loads: object,
+) -> None:
+    fake_qiskit = ModuleType("qiskit")
+    fake_qiskit.QuantumCircuit = _FakeQiskitCircuit
+    fake_qiskit.circuit = SimpleNamespace(QuantumCircuit=_FakeQiskitCircuit)
+    fake_qiskit.qasm3 = SimpleNamespace(loads=qasm3_loads)
+    monkeypatch.setitem(sys.modules, "qiskit", fake_qiskit)
 
 
 def test_public_package_exports_builder_and_hardware_topology() -> None:
@@ -608,6 +639,125 @@ def test_prepare_draw_pipeline_accepts_openqasm_strings() -> None:
     )
 
 
+def test_resolve_qasm_input_accepts_openqasm3_strings(monkeypatch: pytest.MonkeyPatch) -> None:
+    qasm = "OPENQASM 3.0; qubit[1] q;"
+    loaded_texts: list[str] = []
+
+    def fake_loads(qasm_text: str) -> _FakeQiskitCircuit:
+        loaded_texts.append(qasm_text)
+        return _FakeQiskitCircuit(("qasm3", qasm_text))
+
+    _install_fake_qiskit(monkeypatch, qasm3_loads=fake_loads)
+
+    circuit, framework = _resolve_qasm_input(qasm, None)
+
+    assert framework == "qiskit"
+    assert isinstance(circuit, _FakeQiskitCircuit)
+    assert circuit.source == ("qasm3", qasm)
+    assert loaded_texts == [qasm]
+
+
+def test_resolve_qasm_input_accepts_openqasm3_path(
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_tmp_path: Path,
+) -> None:
+    qasm_path = sandbox_tmp_path / "bell.qasm3"
+    qasm_path.write_text("OPENQASM 3.0; qubit[1] q;", encoding="utf-8")
+
+    def fake_loads(qasm_text: str) -> _FakeQiskitCircuit:
+        return _FakeQiskitCircuit(("qasm3", qasm_text))
+
+    _install_fake_qiskit(monkeypatch, qasm3_loads=fake_loads)
+
+    circuit, framework = _resolve_qasm_input(qasm_path, None)
+
+    assert framework == "qiskit"
+    assert isinstance(circuit, _FakeQiskitCircuit)
+    assert circuit.source == ("qasm3", "OPENQASM 3.0; qubit[1] q;")
+
+
+def test_resolve_qasm_input_accepts_explicit_qasm_framework_for_openqasm3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    qasm = "OPENQASM 3.0; qubit[1] q;"
+
+    def fake_loads(qasm_text: str) -> _FakeQiskitCircuit:
+        return _FakeQiskitCircuit(("qasm3", qasm_text))
+
+    _install_fake_qiskit(monkeypatch, qasm3_loads=fake_loads)
+
+    circuit, framework = _resolve_qasm_input(qasm, "qasm")
+
+    assert framework == "qiskit"
+    assert isinstance(circuit, _FakeQiskitCircuit)
+    assert circuit.source == ("qasm3", qasm)
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_prepare_draw_pipeline_accepts_openqasm3_strings() -> None:
+    qiskit = pytest.importorskip("qiskit")
+    pytest.importorskip("qiskit_qasm3_import")
+    qasm = """
+        OPENQASM 3.0;
+        include "stdgates.inc";
+        qubit[2] q;
+        bit[1] c;
+        h q[0];
+        cx q[0], q[1];
+        c[0] = measure q[1];
+    """
+
+    request = _prepare_request(qasm)
+    pipeline = prepare_draw_pipeline(
+        circuit=request.circuit,
+        framework=request.framework,
+        style=request.style,
+        layout=request.layout,
+        options=request.pipeline_options,
+    )
+    expected_ir = QiskitAdapter().to_ir(qiskit.qasm3.loads(qasm))
+
+    assert_quantum_wire_labels(pipeline.ir, ["q0", "q1"])
+    assert_classical_wire_bundles(pipeline.ir, [("c", 1)])
+    assert_operation_signatures(
+        pipeline.ir,
+        [
+            OperationSignature(OperationKind.GATE, CanonicalGateFamily.H, "H", (), ("q0",)),
+            OperationSignature(
+                OperationKind.CONTROLLED_GATE,
+                CanonicalGateFamily.X,
+                "X",
+                (),
+                ("q1",),
+                ("q0",),
+            ),
+            OperationSignature(
+                OperationKind.MEASUREMENT,
+                CanonicalGateFamily.CUSTOM,
+                "M",
+                (),
+                ("q1",),
+            ),
+        ],
+    )
+    assert_operation_signatures(
+        pipeline.ir,
+        [
+            OperationSignature(
+                operation.kind,
+                operation.canonical_family,
+                operation.name,
+                tuple(operation.parameters),
+                tuple(operation.target_wires),
+                tuple(operation.control_wires),
+            )
+            for layer in expected_ir.layers
+            for operation in layer.operations
+        ],
+    )
+
+
 @pytest.mark.optional
 @pytest.mark.integration
 def test_prepare_draw_pipeline_accepts_explicit_qasm_framework() -> None:
@@ -745,11 +895,38 @@ def test_draw_quantum_circuit_explicit_qasm_requires_text_or_qasm_path(
     text_path = sandbox_tmp_path / "circuit.txt"
     text_path.write_text("OPENQASM 2.0;", encoding="utf-8")
 
-    with pytest.raises(UnsupportedFrameworkError, match=r"\.qasm extension"):
+    with pytest.raises(UnsupportedFrameworkError, match=r"\.qasm or \.qasm3 extension"):
         draw_quantum_circuit(
             text_path,
             config=build_public_draw_config(framework="qasm", show=False),
         )
+
+
+def test_draw_quantum_circuit_qasm3_requires_importer_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    qasm = "OPENQASM 3.0; qubit[1] q;"
+
+    def fake_loads(qasm_text: str) -> _FakeQiskitCircuit:
+        raise _FakeQiskitMissingOptionalLibraryError(
+            "The 'qiskit_qasm3_import' library is required"
+        )
+
+    _install_fake_qiskit(monkeypatch, qasm3_loads=fake_loads)
+
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"OpenQASM 3 input requires .*qiskit-qasm3-import.*qasm3",
+    ):
+        draw_quantum_circuit(qasm, config=build_public_draw_config(show=False))
+
+
+def test_draw_quantum_circuit_rejects_unsupported_openqasm_version() -> None:
+    with pytest.raises(
+        UnsupportedFrameworkError,
+        match=r"unsupported OpenQASM version '4\.0'",
+    ):
+        draw_quantum_circuit("OPENQASM 4.0;", config=build_public_draw_config(show=False))
 
 
 def test_draw_quantum_circuit_qasm_requires_qiskit_when_missing(

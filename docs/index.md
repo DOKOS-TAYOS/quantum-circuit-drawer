@@ -11,7 +11,7 @@ This documentation is organized around what a user normally wants to do first: i
 | Understand the normal day-to-day workflows | [User guide](user-guide.md) |
 | See exact public types, fields, and return values | [API reference](api.md) |
 | Check framework support and differences | [Frameworks](frameworks.md) |
-| Draw OpenQASM 2 text or `.qasm` files | [Recipes](recipes.md#draw-openqasm-2-text-or-a-qasm-file) and [Frameworks](frameworks.md#openqasm-2) |
+| Draw OpenQASM 2/3 text or `.qasm` / `.qasm3` files | [Recipes](recipes.md#draw-openqasm-2-or-3-text-or-a-qasm-qasm3-file) and [Frameworks](frameworks.md#openqasm-2-and-3) |
 | Copy-paste common tasks | [Recipes](recipes.md) |
 | Diagnose a failure quickly | [Troubleshooting](troubleshooting.md) |
 | Run or copy example scripts | [Examples](../examples/README.md) with `qiskit-2d-exploration-showcase` for managed 2D and `qiskit-3d-exploration-showcase` for managed 3D |
@@ -33,11 +33,11 @@ This documentation is organized around what a user normally wants to do first: i
 2. [Frameworks](frameworks.md)
 3. [API reference](api.md)
 
-### I have OpenQASM 2 text or a `.qasm` file
+### I have OpenQASM 2 or 3 text or a `.qasm` / `.qasm3` file
 
-1. Install the Qiskit extra from [Installation](installation.md#install-optional-framework-extras)
-2. Use [Getting started](getting-started.md#draw-openqasm-2-text-or-a-qasm-file) for the smallest example
-3. Copy the [OpenQASM recipe](recipes.md#draw-openqasm-2-text-or-a-qasm-file)
+1. Install the Qiskit or `qasm3` extra from [Installation](installation.md#install-optional-framework-extras)
+2. Use [Getting started](getting-started.md#draw-openqasm-2-or-3-text-or-a-qasm-qasm3-file) for the smallest example
+3. Copy the [OpenQASM recipe](recipes.md#draw-openqasm-2-or-3-text-or-a-qasm-qasm3-file)
 
 ### I want to explore wide circuits interactively
 
@@ -89,6 +89,7 @@ This is the release support contract repeated here so it stays easy to find.
 | Internal IR | Strong support | Core built-in path on Windows and Linux |
 | Qiskit | Strong support | Primary external backend on Windows and Linux |
 | OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
+| OpenQASM 3 text and `.qasm3` files | Strong support through Qiskit plus `qiskit-qasm3-import` | Install `quantum-circuit-drawer[qasm3]`; works on Windows and Linux when Qiskit's importer is available |
 | Cirq | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
