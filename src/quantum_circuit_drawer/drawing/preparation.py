@@ -51,6 +51,7 @@ def prepare_draw_call(
             "and cannot be used with ax"
         )
 
+    adapter_options = _adapter_options_for_draw_call(resolved_config)
     request = build_draw_request(
         circuit=circuit,
         framework=resolved_config.config.framework,
@@ -73,8 +74,7 @@ def prepare_draw_call(
         topology_menu=resolved_config.config.topology_menu,
         direct=resolved_config.config.direct,
         hover=resolved_config.config.hover,
-        render_mode=resolved_config.mode.value,
-        unsupported_policy=resolved_config.config.unsupported_policy,
+        **adapter_options,
     )
     validate_draw_request(request)
     pipeline = prepare_draw_pipeline(
@@ -96,6 +96,15 @@ def prepare_draw_call(
         pipeline=pipeline,
         diagnostics=diagnostics,
     )
+
+
+def _adapter_options_for_draw_call(resolved_config: ResolvedDrawConfig) -> dict[str, object]:
+    """Return adapter options plus internal draw policies for one call."""
+
+    adapter_options = dict(resolved_config.config.adapter_options)
+    adapter_options["render_mode"] = resolved_config.mode.value
+    adapter_options["unsupported_policy"] = resolved_config.config.unsupported_policy
+    return adapter_options
 
 
 def pipeline_for_resolved_mode(

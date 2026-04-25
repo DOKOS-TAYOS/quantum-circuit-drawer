@@ -68,6 +68,43 @@ def test_cudaq_adapter_converts_decorated_kernel_on_linux() -> None:
     assert [operation.name for operation in operations[-2:]] == ["MZ", "MZ"]
 
 
+def test_cudaq_adapter_converts_parameterized_make_kernel_on_linux() -> None:
+    cudaq = pytest.importorskip("cudaq")
+
+    kernel, size, theta = cudaq.make_kernel(int, float)
+    qubits = kernel.qalloc(size)
+    kernel.rx(theta, qubits[0])
+    kernel.mz(qubits)
+
+    ir = CudaqAdapter().to_ir(kernel, options={"cudaq_args": (3, 0.25)})
+
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [wire.label for wire in ir.quantum_wires] == ["q0", "q1", "q2"]
+    assert operations[0].name == "RX"
+    assert operations[0].parameters == (0.25,)
+    assert [operation.name for operation in operations[1:]] == ["MZ", "MZ", "MZ"]
+
+
+def test_cudaq_adapter_converts_parameterized_decorated_kernel_on_linux() -> None:
+    cudaq = pytest.importorskip("cudaq")
+
+    @cudaq.kernel
+    def parameterized_kernel(size: int, theta: float) -> None:
+        qubits = cudaq.qvector(size)
+        rx(theta, qubits[0])
+        mz(qubits)
+
+    ir = CudaqAdapter().to_ir(parameterized_kernel, options={"cudaq_args": (2, 0.125)})
+
+    operations = [operation for layer in ir.layers for operation in layer.operations]
+
+    assert [wire.label for wire in ir.quantum_wires] == ["q0", "q1"]
+    assert operations[0].name == "RX"
+    assert operations[0].parameters == (0.125,)
+    assert [operation.name for operation in operations[1:]] == ["MZ", "MZ"]
+
+
 def test_cudaq_example_smoke_render_on_linux(sandbox_tmp_path: Path) -> None:
     pytest.importorskip("cudaq")
     from examples._shared import ExampleRequest

@@ -23,7 +23,7 @@ The current user-facing input paths are:
 | Cirq | `cirq.Circuit` or `cirq.FrozenCircuit` | `cirq` |
 | PennyLane | `QuantumTape`, `QuantumScript`, or tape-like wrappers | `pennylane` |
 | MyQLM | `qat.core.Circuit`, `Program`, or `QRoutine` | `myqlm` |
-| CUDA-Q | closed CUDA-Q kernels | `cudaq` |
+| CUDA-Q | closed CUDA-Q kernels or scalar-argument kernels with `cudaq_args` | `cudaq` |
 | Internal IR | `CircuitIR` | none |
 
 Across those paths, the drawer now uses a shared internal flow that can host both adapter styles: framework object -> semantic IR -> render IR for richer adapters, or framework object -> `CircuitIR` for legacy adapters. That lets comparison, diagnostics, hover, and annotations preserve framework-native details longer where native adapters exist, without breaking narrower legacy adapters that still emit `CircuitIR` directly.
@@ -43,7 +43,7 @@ Use this table as the release support contract when choosing a framework path.
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; not intended for native Windows installs |
 
 `plot_histogram(...)` also accepts several framework-native result payloads directly:
 
@@ -347,6 +347,7 @@ python -m pip install "quantum-circuit-drawer[cudaq]"
 Typical input:
 
 - a closed CUDA-Q kernel
+- a CUDA-Q kernel with scalar runtime arguments supplied through `cudaq_args`
 
 Example:
 
@@ -367,25 +368,53 @@ def bell_pair() -> None:
 draw_quantum_circuit(bell_pair)
 ```
 
-Here, "closed" means the kernel can be inspected without additional runtime arguments.
+Here, "closed" means the kernel can be inspected without additional runtime arguments. For kernels with scalar runtime arguments, pass the values through adapter options:
+
+```python
+import cudaq
+
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    draw_quantum_circuit,
+)
+
+kernel, size, theta = cudaq.make_kernel(int, float)
+qubits = kernel.qalloc(size)
+kernel.rx(theta, qubits[0])
+kernel.mz(qubits)
+
+draw_quantum_circuit(
+    kernel,
+    config=DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework="cudaq",
+                adapter_options={"cudaq_args": (3, 0.25)},
+            )
+        )
+    ),
+)
+```
 
 Support note:
 
-- Supported closed-kernel parsing now preserves Quake provenance, measurement basis, reset operations, structured control-flow boxes, value-form wire flow, and compact callable blocks for `apply`, `adjoint`, and `compute_action` through the shared semantic adapter pipeline.
+- Supported parsing now preserves Quake provenance, measurement basis, reset operations, structured control-flow boxes, value-form wire flow, scalar runtime parameters, dynamic qvector sizes resolved through `cudaq_args`, and compact callable blocks for `apply`, `adjoint`, and `compute_action` through the shared semantic adapter pipeline.
 
 Bundled demos:
 
-- `cudaq-kernel-showcase` is the best first demo for the currently supported closed-kernel subset.
+- `cudaq-kernel-showcase` is the best first demo for the currently supported CUDA-Q subset, including the direct script path for `cudaq_args`.
 - `cudaq-random` remains the broader stress-test demo on Linux or WSL2.
 
 Current limits:
 
 - CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
-- Kernels that still require runtime arguments are not supported.
+- Runtime arguments must be supplied as `adapter_options={"cudaq_args": (...)}` and currently support scalar `int`, `float`, and `bool` values.
 - Structured `cc.if`, `scf.if`, `scf.for`, and `cc.loop` now render as compact descriptive boxes with hover details instead of being expanded.
 - Low-level CFG control flow such as `cf.cond_br` and broader advanced constructs are still outside the supported subset.
 - `apply`, `compute_action`, and `adjoint` are currently rendered as compact callable boxes with hover details rather than expanded internal structure.
-- Controlled `swap` now renders as a compact controlled `SWAP` box, while unresolved dynamic qvector sizes are still rejected because they do not map cleanly into the current shared IR.
+- Controlled `swap` now renders as a compact controlled `SWAP` box, while unresolved dynamic qvector sizes are still rejected unless they can be resolved from `cudaq_args`.
 
 Histogram support also accepts CUDA-Q `SampleResult`-style objects that expose count pairs through `items()`, so `cudaq.sample(...)` outputs can be passed straight into `plot_histogram(...)`.
 

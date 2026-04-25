@@ -204,13 +204,13 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
         ),
         DemoSpec(
             demo_id="cudaq-kernel-showcase",
-            description="CUDA-Q showcase for the supported closed-kernel subset with reset and basis measurements",
+            description="CUDA-Q showcase for the supported subset with reset and basis measurements",
             module_name="examples.cudaq_kernel_showcase",
             builder_name="build_kernel",
             framework="cudaq",
             default_qubits=3,
             default_columns=4,
-            columns_help="Extra phased steps to append inside the closed CUDA-Q kernel",
+            columns_help="Extra phased steps to append inside the CUDA-Q kernel",
             dependency_module="cudaq",
         ),
         DemoSpec(

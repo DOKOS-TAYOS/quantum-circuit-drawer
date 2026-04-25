@@ -93,4 +93,4 @@ This is the release support contract repeated here so it stays easy to find.
 | Cirq | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | MyQLM | Scoped adapter + contract support | Adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; not intended for native Windows installs |

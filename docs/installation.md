@@ -67,7 +67,7 @@ Install only the extras you need.
 | `cirq` | `quantum-circuit-drawer[cirq]` | Draw `cirq.Circuit` and `cirq.FrozenCircuit` objects |
 | `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tapes, scripts, and wrappers with a materialized tape |
 | `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit`, `Program`, and `QRoutine` objects |
-| `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported closed CUDA-Q kernels on Linux or WSL2 |
+| `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported CUDA-Q kernels on Linux or WSL2, including scalar runtime arguments through `cudaq_args` |
 
 Windows PowerShell:
 
@@ -110,7 +110,7 @@ Use this table as the release support contract when choosing an install path.
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; not intended for native Windows installs |
 
 ## Jupyter Setup
 
