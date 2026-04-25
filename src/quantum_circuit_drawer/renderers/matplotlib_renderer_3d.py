@@ -46,8 +46,6 @@ from ._matplotlib_renderer_3d_gates import (
     cuboid_faces_3d,
     display_compensated_gate_3d,
     draw_gates_3d,
-    draw_gates_batched_3d,
-    draw_gates_with_hover_3d,
     draw_x_target_3d,
     draw_x_target_segment_collections_3d,
     draw_x_targets_batched_3d,
@@ -61,18 +59,13 @@ from ._matplotlib_renderer_3d_geometry import (
     Segment3D,
     _PreparedBatchedGateGeometry3D,
     _RenderContext3D,
-    point_array_3d,
 )
 from ._matplotlib_renderer_3d_markers import (
     attach_hover_targets_3d,
     clear_batched_text_artists_3d,
     draw_markers_3d,
-    draw_markers_batched_3d,
-    draw_markers_with_hover_3d,
     draw_measurement_symbols_batched_3d,
     draw_texts_3d,
-    draw_texts_batched_offscreen_3d,
-    draw_texts_standard_3d,
     marker_geometry_points_3d,
     should_batch_offscreen_texts_3d,
     text_geometry_points_3d,
@@ -91,8 +84,6 @@ from ._matplotlib_renderer_3d_wires import (
     connection_segments_3d,
     draw_connection_label_3d,
     draw_connections_3d,
-    draw_connections_batched_3d,
-    draw_connections_with_hover_3d,
     draw_wires_3d,
     offset_segments_along_x_3d,
     wire_geometry_points_3d,
@@ -336,9 +327,6 @@ class MatplotlibRenderer3D(BaseRenderer):
     def _text_geometry_points(self, scene: LayoutScene3D) -> np.ndarray:
         return text_geometry_points_3d(scene)
 
-    def _point_array(self, points: list[tuple[float, float, float]]) -> np.ndarray:
-        return point_array_3d(points)
-
     def _create_render_context(self, axes: Axes3D) -> _RenderContext3D:
         return create_render_context_3d(
             axes,
@@ -355,16 +343,6 @@ class MatplotlibRenderer3D(BaseRenderer):
     ) -> list[tuple[Artist, str]]:
         return draw_connections_3d(self, axes, scene)
 
-    def _draw_connections_with_hover(
-        self,
-        axes: Axes3D,
-        scene: LayoutScene3D,
-    ) -> list[tuple[Artist, str]]:
-        return draw_connections_with_hover_3d(self, axes, scene)
-
-    def _draw_connections_batched(self, axes: Axes3D, scene: LayoutScene3D) -> None:
-        draw_connections_batched_3d(self, axes, scene)
-
     def _draw_gates(
         self,
         axes: Axes3D,
@@ -372,22 +350,6 @@ class MatplotlibRenderer3D(BaseRenderer):
         render_context: _RenderContext3D,
     ) -> list[tuple[Artist, str]]:
         return draw_gates_3d(self, axes, scene, render_context)
-
-    def _draw_gates_with_hover(
-        self,
-        axes: Axes3D,
-        scene: LayoutScene3D,
-        render_context: _RenderContext3D,
-    ) -> list[tuple[Artist, str]]:
-        return draw_gates_with_hover_3d(self, axes, scene, render_context)
-
-    def _draw_gates_batched(
-        self,
-        axes: Axes3D,
-        scene: LayoutScene3D,
-        render_context: _RenderContext3D,
-    ) -> None:
-        draw_gates_batched_3d(self, axes, scene, render_context)
 
     def _draw_topology_planes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
         draw_topology_planes_3d(axes, scene)
@@ -422,16 +384,6 @@ class MatplotlibRenderer3D(BaseRenderer):
     def _draw_markers(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
         return draw_markers_3d(self, axes, scene)
 
-    def _draw_markers_with_hover(
-        self,
-        axes: Axes3D,
-        scene: LayoutScene3D,
-    ) -> list[tuple[Artist, str]]:
-        return draw_markers_with_hover_3d(self, axes, scene)
-
-    def _draw_markers_batched(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
-        return draw_markers_batched_3d(axes, scene)
-
     def _draw_measurement_symbols_batched(
         self,
         axes: Axes3D,
@@ -454,26 +406,6 @@ class MatplotlibRenderer3D(BaseRenderer):
             scene,
             render_context=render_context,
             managed_render=managed_render,
-            batched_artists_attr=_BATCHED_3D_TEXT_ARTISTS_ATTR,
-            batched_artist_gid=_BATCHED_3D_TEXT_ARTIST_GID,
-            text_layer_zorder=_TEXT_LAYER_ZORDER,
-        )
-
-    def _draw_texts_standard(self, axes: Axes3D, scene: LayoutScene3D) -> None:
-        draw_texts_standard_3d(axes, scene)
-
-    def _draw_texts_batched_offscreen(
-        self,
-        axes: Axes3D,
-        scene: LayoutScene3D,
-        *,
-        render_context: _RenderContext3D,
-    ) -> None:
-        draw_texts_batched_offscreen_3d(
-            self,
-            axes,
-            scene,
-            render_context=render_context,
             batched_artists_attr=_BATCHED_3D_TEXT_ARTISTS_ATTR,
             batched_artist_gid=_BATCHED_3D_TEXT_ARTIST_GID,
             text_layer_zorder=_TEXT_LAYER_ZORDER,

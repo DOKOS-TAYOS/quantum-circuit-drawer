@@ -17,9 +17,8 @@ from ..config import (
     DrawSideConfig,
     OutputOptions,
 )
-from ..ir.circuit import CircuitIR, LayerIR
-from ..ir.measurements import MeasurementIR
-from ..ir.operations import OperationIR, OperationKind
+from ..ir.circuit import CircuitIR
+from ..ir.operations import OperationKind
 from ..ir.semantic import (
     SemanticCircuitIR,
     SemanticLayerIR,
@@ -106,16 +105,8 @@ def compare_circuits(
             right_config=normalized_right_config,
         )
 
-    left_axes: Axes
-    right_axes: Axes
-    if axes is None:
-        import matplotlib.pyplot as plt
-
-        figure, created_axes = plt.subplots(1, 2, figsize=resolved_compare_config.figsize)
-        left_axes, right_axes = tuple(created_axes)
-    else:
-        left_axes, right_axes = axes
-        figure = shared_figure_for_compare_axes(left_axes, right_axes)
+    left_axes, right_axes = axes
+    figure = shared_figure_for_compare_axes(left_axes, right_axes)
 
     left_prepared = prepare_draw_call(left_circuit, config=normalized_left_config, ax=left_axes)
     right_prepared = prepare_draw_call(
@@ -454,21 +445,6 @@ def circuit_compare_metrics(
     )
 
 
-def circuit_stats(circuit: CircuitIR) -> _CircuitStats:
-    """Compute aggregate circuit statistics for comparison output."""
-
-    operations = tuple(operation for layer in circuit.layers for operation in layer.operations)
-    return _CircuitStats(
-        layer_count=len(circuit.layers),
-        operation_count=len(operations),
-        multi_qubit_count=sum(1 for operation in operations if is_multi_qubit_operation(operation)),
-        measurement_count=sum(
-            1 for operation in operations if operation.kind is OperationKind.MEASUREMENT
-        ),
-        swap_count=sum(1 for operation in operations if operation.kind is OperationKind.SWAP),
-    )
-
-
 def semantic_circuit_stats(circuit: SemanticCircuitIR) -> _CircuitStats:
     """Compute aggregate statistics for semantic-circuit comparison output."""
 
@@ -486,17 +462,6 @@ def semantic_circuit_stats(circuit: SemanticCircuitIR) -> _CircuitStats:
     )
 
 
-def is_multi_qubit_operation(operation: OperationIR | MeasurementIR) -> bool:
-    """Return whether one operation spans multiple quantum wires."""
-
-    quantum_wire_ids = tuple(dict.fromkeys((*operation.control_wires, *operation.target_wires)))
-    if operation.kind is OperationKind.MEASUREMENT:
-        return len(tuple(operation.target_wires)) > 1
-    if operation.kind is OperationKind.BARRIER:
-        return False
-    return len(quantum_wire_ids) > 1
-
-
 def is_multi_qubit_semantic_operation(operation: SemanticOperationIR) -> bool:
     """Return whether one semantic operation spans multiple quantum wires."""
 
@@ -508,16 +473,6 @@ def is_multi_qubit_semantic_operation(operation: SemanticOperationIR) -> bool:
     return len(quantum_wire_ids) > 1
 
 
-def layer_signature(
-    circuit: CircuitIR,
-    layer: LayerIR,
-) -> tuple[tuple[object, ...], ...]:
-    """Build a stable signature for one layer of IR operations."""
-
-    wire_indices = {wire.id: wire.index for wire in circuit.all_wires}
-    return tuple(operation_signature(operation, wire_indices) for operation in layer.operations)
-
-
 def semantic_layer_signature(
     circuit: SemanticCircuitIR,
     layer: SemanticLayerIR,
@@ -527,33 +482,6 @@ def semantic_layer_signature(
     wire_indices = {wire.id: wire.index for wire in circuit.all_wires}
     return tuple(
         semantic_operation_signature(operation, wire_indices) for operation in layer.operations
-    )
-
-
-def operation_signature(
-    operation: OperationIR | MeasurementIR,
-    wire_indices: dict[str, int],
-) -> tuple[object, ...]:
-    """Build a stable signature for one operation."""
-
-    measurement_target: int | str | None
-    if isinstance(operation, MeasurementIR):
-        classical_target = operation.classical_target
-        if classical_target is None:
-            measurement_target = None
-        else:
-            measurement_target = wire_indices.get(classical_target, classical_target)
-    else:
-        measurement_target = None
-    return (
-        operation.kind,
-        operation.canonical_family,
-        operation.name,
-        tuple(operation.parameters),
-        tuple(wire_indices[wire_id] for wire_id in operation.target_wires),
-        tuple(wire_indices[wire_id] for wire_id in operation.control_wires),
-        tuple(tuple(int(value) for value in entry) for entry in operation.control_values),
-        measurement_target,
     )
 
 
