@@ -9,6 +9,7 @@ from .exploration_2d import (
     exploration_control_availability,
     selected_block_action,
 )
+from .page_window_windowing import _clamp_page_index, _clamp_visible_page_count
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 
 if TYPE_CHECKING:
@@ -336,20 +337,6 @@ def _sync_inputs(state: Managed3DPageWindowState) -> None:
     _ensure_exploration_controls(state)
     _sync_navigation_button_states(state)
     _sync_exploration_buttons(state)
-
-
-def _clamp_page_index(requested_page: int, total_pages: int) -> int:
-    return min(max(1, requested_page), total_pages) - 1
-
-
-def _clamp_visible_page_count(
-    requested_visible_pages: int,
-    *,
-    total_pages: int,
-    start_page: int,
-) -> int:
-    max_visible_pages = max(1, total_pages - start_page)
-    return min(max(1, requested_visible_pages), max_visible_pages)
 
 
 def _sync_total_page_texts(state: Managed3DPageWindowState) -> None:

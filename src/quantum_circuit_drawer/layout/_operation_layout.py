@@ -12,15 +12,8 @@ from ..ir.wires import WireIR
 from ..utils import matrix_support as _matrix_support_module
 from ._layout_scaffold import _LayoutScaffold, _OperationMetrics
 from ._operation_layout_builder import build_scene_collections_impl
-from ._operation_layout_collections import wire_labels
 from ._operation_layout_emitters import (
     append_classical_condition_connections,
-    append_gate_annotations,
-    layout_barrier,
-    layout_controlled_gate,
-    layout_controlled_x,
-    layout_controlled_z,
-    layout_gate,
     layout_measurement,
     layout_operation,
     layout_swap,
@@ -28,10 +21,7 @@ from ._operation_layout_emitters import (
     uses_canonical_controlled_z,
 )
 from ._operation_layout_hover import (
-    build_hover_data,
     cache_token,
-    hover_matrix_and_dimension,
-    hover_matrix_cache_key,
     hover_name,
     maybe_hover_data,
 )
@@ -91,40 +81,6 @@ class _OperationSceneBuilder:
 
     def build(self) -> _SceneCollections:
         return build_scene_collections_impl(self)
-
-    def _wire_labels(self) -> tuple[SceneText, ...]:
-        return wire_labels(self)
-
-    def _hover_data(
-        self,
-        *,
-        operation: OperationIR,
-        column: int,
-        name: str,
-        gate_x: float,
-        gate_y: float,
-        gate_width: float,
-        gate_height: float,
-    ) -> SceneHoverData:
-        return build_hover_data(
-            self,
-            operation=operation,
-            column=column,
-            name=name,
-            gate_x=gate_x,
-            gate_y=gate_y,
-            gate_width=gate_width,
-            gate_height=gate_height,
-        )
-
-    def _hover_matrix_and_dimension(
-        self,
-        operation: OperationIR,
-    ) -> tuple[object | None, int | None]:
-        return hover_matrix_and_dimension(self, operation)
-
-    def _hover_matrix_cache_key(self, operation: OperationIR) -> tuple[object, ...]:
-        return hover_matrix_cache_key(self, operation)
 
     def _cache_token(self, value: object) -> object:
         return cache_token(self, value)
@@ -192,61 +148,14 @@ class _OperationSceneBuilder:
     ) -> None:
         layout_measurement(self, operation=operation, metrics=metrics, column=column, x=x)
 
-    def _layout_barrier(self, *, operation: OperationIR, column: int, x: float) -> None:
-        layout_barrier(self, operation=operation, column=column, x=x)
-
     def _layout_swap(self, *, operation: OperationIR, column: int, x: float) -> None:
         layout_swap(self, operation=operation, column=column, x=x)
-
-    def _layout_controlled_gate(
-        self,
-        *,
-        operation: OperationIR,
-        metrics: _OperationMetrics,
-        column: int,
-        x: float,
-    ) -> None:
-        layout_controlled_gate(self, operation=operation, metrics=metrics, column=column, x=x)
-
-    def _layout_controlled_z(self, *, operation: OperationIR, column: int, x: float) -> None:
-        layout_controlled_z(self, operation=operation, column=column, x=x)
-
-    def _layout_controlled_x(self, *, operation: OperationIR, column: int, x: float) -> None:
-        layout_controlled_x(self, operation=operation, column=column, x=x)
-
-    def _layout_gate(
-        self,
-        *,
-        operation: OperationIR,
-        metrics: _OperationMetrics,
-        column: int,
-        x: float,
-    ) -> None:
-        layout_gate(self, operation=operation, metrics=metrics, column=column, x=x)
 
     def _uses_canonical_controlled_x_target(self, operation: OperationIR) -> bool:
         return uses_canonical_controlled_x_target(self, operation)
 
     def _uses_canonical_controlled_z(self, operation: OperationIR) -> bool:
         return uses_canonical_controlled_z(self, operation)
-
-    def _append_gate_annotations(
-        self,
-        *,
-        column: int,
-        x: float,
-        width: float,
-        target_wires: tuple[str, ...],
-        operation_id: str | None = None,
-    ) -> None:
-        append_gate_annotations(
-            self,
-            column=column,
-            x=x,
-            width=width,
-            target_wires=target_wires,
-            operation_id=operation_id,
-        )
 
 
 def build_scene_collections(

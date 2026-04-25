@@ -1048,37 +1048,6 @@ def _hidden_wire_ranges(
     return tuple(ranges)
 
 
-def _group_highlight_operation_ids(
-    circuit: SemanticCircuitIR,
-    *,
-    selected_operation_id: str | None,
-) -> frozenset[str]:
-    if selected_operation_id is None:
-        return frozenset()
-
-    operations = _flatten_operations(circuit)
-    selected_operation = next(
-        (
-            operation
-            for operation in operations
-            if semantic_operation_id(operation) == selected_operation_id
-        ),
-        None,
-    )
-    if selected_operation is None:
-        return frozenset()
-
-    selected_group_key = _decomposition_group_key(selected_operation)
-    if selected_group_key is None:
-        return frozenset()
-
-    return frozenset(
-        semantic_operation_id(operation)
-        for operation in operations
-        if _decomposition_group_key(operation) == selected_group_key
-    )
-
-
 def _expanded_group_operation_ids(
     circuit: SemanticCircuitIR,
 ) -> frozenset[str]:

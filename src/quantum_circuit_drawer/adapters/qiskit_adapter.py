@@ -41,25 +41,10 @@ class _QiskitCircuitLike(Protocol):
     name: str | None
 
 
-_RenderedQiskitClassicalExpression = qiskit_classical_helpers.RenderedQiskitClassicalExpression
-
-
 class QiskitAdapter(BaseAdapter):
     """Convert qiskit.QuantumCircuit objects into CircuitIR."""
 
     framework_name = "qiskit"
-    _QISKIT_EXPR_SENTINEL = qiskit_classical_helpers.QISKIT_EXPR_SENTINEL
-    _QISKIT_EXPR_PRECEDENCE_ATOM = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_ATOM
-    _QISKIT_EXPR_PRECEDENCE_UNARY = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_UNARY
-    _QISKIT_EXPR_PRECEDENCE_MULTIPLICATIVE = (
-        qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_MULTIPLICATIVE
-    )
-    _QISKIT_EXPR_PRECEDENCE_ADDITIVE = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_ADDITIVE
-    _QISKIT_EXPR_PRECEDENCE_SHIFT = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_SHIFT
-    _QISKIT_EXPR_PRECEDENCE_BITWISE = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_BITWISE
-    _QISKIT_EXPR_PRECEDENCE_COMPARISON = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_COMPARISON
-    _QISKIT_EXPR_PRECEDENCE_LOGICAL = qiskit_classical_helpers.QISKIT_EXPR_PRECEDENCE_LOGICAL
-    _CONTROL_FLOW_LABELS: dict[str, str] = qiskit_control_flow_helpers.CONTROL_FLOW_LABELS
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
@@ -454,36 +439,6 @@ class QiskitAdapter(BaseAdapter):
             native_text=self._native_text,
         )
 
-    def _switch_case_summary(self, operation: object) -> str | None:
-        return qiskit_control_flow_helpers.switch_case_summary(
-            operation,
-            native_text=self._native_text,
-        )
-
-    def _switch_case_values(self, operation: object) -> tuple[object, ...]:
-        return qiskit_control_flow_helpers.switch_case_values(operation)
-
-    def _if_else_block_sizes(self, operation: object) -> tuple[int, int | None]:
-        return qiskit_control_flow_helpers.if_else_block_sizes(operation)
-
-    def _control_flow_body_size(self, operation: object) -> int:
-        return qiskit_control_flow_helpers.control_flow_body_size(operation)
-
-    def _operation_block_size(self, block: object | None) -> int:
-        return qiskit_control_flow_helpers.operation_block_size(block)
-
-    def _switch_case_value_text(self, value: object) -> str:
-        return qiskit_control_flow_helpers.switch_case_value_text(
-            value,
-            native_text=self._native_text,
-        )
-
-    def _for_loop_iteration_summary(self, operation: object) -> str | None:
-        return qiskit_control_flow_helpers.for_loop_iteration_summary(
-            operation,
-            native_text=self._native_text,
-        )
-
     def _switch_target_from_qiskit(
         self,
         target: object,
@@ -507,88 +462,6 @@ class QiskitAdapter(BaseAdapter):
             classical_targets,
             register_targets,
         )
-
-    def _render_qiskit_classical_expression(
-        self,
-        value: object,
-        classical_targets: Mapping[object, tuple[str, str]],
-        register_targets: Mapping[object, tuple[str, str]],
-    ) -> _RenderedQiskitClassicalExpression:
-        return qiskit_classical_helpers.render_qiskit_classical_expression(
-            value,
-            classical_targets,
-            register_targets,
-        )
-
-    def _render_qiskit_unary_expression(
-        self,
-        *,
-        op: object,
-        operand: object,
-        classical_targets: Mapping[object, tuple[str, str]],
-        register_targets: Mapping[object, tuple[str, str]],
-    ) -> _RenderedQiskitClassicalExpression:
-        return qiskit_classical_helpers.render_qiskit_unary_expression(
-            op=op,
-            operand=operand,
-            classical_targets=classical_targets,
-            register_targets=register_targets,
-        )
-
-    def _render_qiskit_binary_expression(
-        self,
-        *,
-        op: object,
-        left: object,
-        right: object,
-        classical_targets: Mapping[object, tuple[str, str]],
-        register_targets: Mapping[object, tuple[str, str]],
-    ) -> _RenderedQiskitClassicalExpression:
-        return qiskit_classical_helpers.render_qiskit_binary_expression(
-            op=op,
-            left=left,
-            right=right,
-            classical_targets=classical_targets,
-            register_targets=register_targets,
-        )
-
-    def _wrap_qiskit_expression(
-        self,
-        rendered: _RenderedQiskitClassicalExpression,
-        *,
-        parent_precedence: int,
-        wrap_non_atomic: bool = False,
-    ) -> str:
-        return qiskit_classical_helpers.wrap_qiskit_expression(
-            rendered,
-            parent_precedence=parent_precedence,
-            wrap_non_atomic=wrap_non_atomic,
-        )
-
-    def _qiskit_operator_name(self, op: object) -> str | None:
-        return qiskit_classical_helpers.qiskit_operator_name(op)
-
-    def _render_qiskit_classical_literal(self, value: object) -> str:
-        return qiskit_classical_helpers.render_qiskit_classical_literal(value)
-
-    def _coercible_qiskit_literal(
-        self,
-        value: object,
-    ) -> str | bytes | bytearray | object:
-        return qiskit_classical_helpers.coercible_qiskit_literal(value)
-
-    def _merge_qiskit_expression_wire_ids(
-        self,
-        *groups: Sequence[str],
-    ) -> tuple[str, ...]:
-        return qiskit_classical_helpers.merge_qiskit_expression_wire_ids(*groups)
-
-    def _is_known_classical_target(
-        self,
-        value: object,
-        targets: Mapping[object, tuple[str, str]],
-    ) -> bool:
-        return qiskit_classical_helpers.is_known_classical_target(value, targets)
 
     def _native_text(self, value: object) -> str:
         return qiskit_classical_helpers.native_text(value)

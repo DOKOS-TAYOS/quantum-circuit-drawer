@@ -271,12 +271,6 @@ def marginal_text(qubits: tuple[int, ...] | None) -> str:
     return ",".join(str(qubit) for qubit in qubits)
 
 
-def qubit_status_label(qubits: tuple[int, ...]) -> str:
-    """Format one concise visible label for selected qubits."""
-
-    return ",".join(f"q{qubit}" for qubit in qubits)
-
-
 def parse_marginal_qubits(text: str) -> tuple[int, ...] | None:
     """Parse one text-box value into a validated tuple of qubit indices."""
 

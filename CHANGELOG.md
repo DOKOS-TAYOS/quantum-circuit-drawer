@@ -10,6 +10,10 @@
 - Added README gallery screenshots and refreshed user documentation so OpenQASM 2 text, `.qasm` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
 - Expanded the visual documentation gallery with pages, `pages_controls`, slider, hover, selected-gate, expanded-block, and no-label 3D screenshots, using README image URLs that render on both GitHub and PyPI.
 
+### Changed
+
+- Removed unused private wrappers, unreachable compare-rendering code, and duplicated page-window clamping helpers while preserving public compatibility facades.
+
 ## [0.5.0] - 2026-04-24
 
 ### Changed
