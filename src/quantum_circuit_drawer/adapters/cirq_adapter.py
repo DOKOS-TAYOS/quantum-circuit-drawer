@@ -423,7 +423,6 @@ class CirqAdapter(BaseAdapter):
                             name=operation.__class__.__name__,
                             label=operation.__class__.__name__,
                             target_wires=tuple(qubit_ids[qubit] for qubit in operation.qubits),
-                            annotations=("CircuitOperation",),
                             hover_details=normalized_detail_lines(
                                 f"group: {grouping}",
                                 "native: CircuitOperation",

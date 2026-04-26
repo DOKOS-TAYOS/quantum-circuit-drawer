@@ -201,10 +201,13 @@ def build_exploration_catalog(
     block_id_by_operation_id: dict[str, str] = {}
     grouped_operations = _operations_by_top_level_location(expanded_semantic_ir)
     wire_order = {wire.id: index for index, wire in enumerate(expanded_semantic_ir.all_wires)}
+    current_operations = _flatten_operations(current_semantic_ir)
     current_operations_by_id = {
-        semantic_operation_id(operation): operation
-        for operation in _flatten_operations(current_semantic_ir)
+        semantic_operation_id(operation): operation for operation in current_operations
     }
+    current_operations_by_top_level_block_id = _current_operations_by_top_level_block_id(
+        current_operations
+    )
 
     for top_level_location, operations in grouped_operations:
         label = _collapse_label(operations)
@@ -212,6 +215,12 @@ def build_exploration_catalog(
             continue
 
         block_id = semantic_operation_id_from_location(top_level_location)
+        original_collapsed_operation = _original_collapsed_operation_for_block(
+            block_id=block_id,
+            label=label,
+            current_operations_by_id=current_operations_by_id,
+            current_operations_by_top_level_block_id=current_operations_by_top_level_block_id,
+        )
         wire_ids = tuple(
             sorted(
                 {wire_id for operation in operations for wire_id in operation.occupied_wire_ids},
@@ -226,9 +235,11 @@ def build_exploration_catalog(
             operation_ids=operation_ids,
             wire_ids=wire_ids,
             operation_count=len(operations),
-            original_collapsed_operation=current_operations_by_id.get(block_id),
+            original_collapsed_operation=original_collapsed_operation,
         )
         block_id_by_operation_id[block_id] = block_id
+        if original_collapsed_operation is not None:
+            block_id_by_operation_id[semantic_operation_id(original_collapsed_operation)] = block_id
         for operation_id in operation_ids:
             block_id_by_operation_id[operation_id] = block_id
 
@@ -238,7 +249,6 @@ def build_exploration_catalog(
         blocks=blocks,
         block_id_by_operation_id=block_id_by_operation_id,
         initial_collapsed_block_ids=_initial_collapsed_block_ids(
-            current_semantic_ir=current_semantic_ir,
             blocks=blocks,
         ),
     )
@@ -254,6 +264,50 @@ def managed_exploration_state(
     return Managed2DExplorationState(
         catalog=catalog,
         collapsed_block_ids=set(catalog.initial_collapsed_block_ids),
+    )
+
+
+def _current_operations_by_top_level_block_id(
+    current_operations: Sequence[SemanticOperationIR],
+) -> dict[str, tuple[SemanticOperationIR, ...]]:
+    grouped_operations: dict[str, list[SemanticOperationIR]] = {}
+    for operation in current_operations:
+        block_id = semantic_operation_id_from_location(_top_level_location(operation))
+        grouped_operations.setdefault(block_id, []).append(operation)
+    return {block_id: tuple(operations) for block_id, operations in grouped_operations.items()}
+
+
+def _original_collapsed_operation_for_block(
+    *,
+    block_id: str,
+    label: str,
+    current_operations_by_id: dict[str, SemanticOperationIR],
+    current_operations_by_top_level_block_id: dict[str, tuple[SemanticOperationIR, ...]],
+) -> SemanticOperationIR | None:
+    exact_operation = current_operations_by_id.get(block_id)
+    if exact_operation is not None:
+        return exact_operation
+
+    matching_operations = tuple(
+        operation
+        for operation in current_operations_by_top_level_block_id.get(block_id, ())
+        if _operation_matches_block_label(operation, label)
+    )
+    if len(matching_operations) == 1:
+        return matching_operations[0]
+    return None
+
+
+def _operation_matches_block_label(operation: SemanticOperationIR, label: str) -> bool:
+    return any(
+        candidate == label
+        for candidate in (
+            operation.provenance.composite_label,
+            operation.provenance.decomposition_origin,
+            operation.provenance.native_name,
+            operation.name,
+            operation.label,
+        )
     )
 
 
@@ -429,16 +483,17 @@ def selected_block_action(
     if block is None:
         return None
 
+    visible_label = _rounded_collapsed_block_label(block.label)
     if block_id in collapsed_block_ids:
         return ExplorationBlockAction(
             action="expand",
             block_id=block_id,
-            label=f"Expand {block.label}",
+            label=f"Expand {visible_label}",
         )
     return ExplorationBlockAction(
         action="collapse",
         block_id=block_id,
-        label=f"Collapse {block.label}",
+        label=f"Collapse {visible_label}",
     )
 
 
@@ -451,6 +506,9 @@ def next_selected_operation_id_for_block_action(
     if action.action == "expand":
         block = catalog.blocks[action.block_id]
         return block.operation_ids[0]
+    block = catalog.blocks[action.block_id]
+    if block.original_collapsed_operation is not None:
+        return semantic_operation_id(block.original_collapsed_operation)
     return action.block_id
 
 
@@ -1191,13 +1249,12 @@ def _extend_group_bounds(
 
 def _initial_collapsed_block_ids(
     *,
-    current_semantic_ir: SemanticCircuitIR,
     blocks: dict[str, ExplorationBlock],
 ) -> frozenset[str]:
     collapsed_ids = {
-        semantic_operation_id(operation)
-        for operation in _flatten_operations(current_semantic_ir)
-        if semantic_operation_id(operation) in blocks
+        block_id
+        for block_id, block in blocks.items()
+        if block.original_collapsed_operation is not None
     }
     return frozenset(collapsed_ids)
 

@@ -86,6 +86,98 @@ def test_transform_semantic_circuit_respects_initial_collapsed_blocks() -> None:
     )
 
 
+def test_nested_location_compact_block_can_be_expanded_from_selected_operation() -> None:
+    quantum_wires = (
+        WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+        WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+    )
+    current_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="CircuitOperation",
+                        label="CircuitOp",
+                        target_wires=("q0", "q1"),
+                        provenance=SemanticProvenanceIR(
+                            framework="cirq",
+                            native_name="CircuitOperation",
+                            native_kind="composite",
+                            composite_label="CircuitOperation",
+                            location=(5, 0),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
+    expanded_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="cirq",
+                            native_name="H",
+                            native_kind="gate",
+                            decomposition_origin="CircuitOperation",
+                            composite_label="CircuitOperation",
+                            location=(5, 0, 0, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="cirq",
+                            native_name="CX",
+                            native_kind="gate",
+                            decomposition_origin="CircuitOperation",
+                            composite_label="CircuitOperation",
+                            location=(5, 0, 1, 0),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
+
+    catalog = build_exploration_catalog(current_semantic_ir, expanded_semantic_ir)
+
+    assert catalog.initial_collapsed_block_ids == frozenset({"op:5"})
+    assert catalog.blocks["op:5"].original_collapsed_operation is not None
+
+    expand_action = selected_block_action(
+        catalog,
+        selected_operation_id="op:5.0",
+        collapsed_block_ids=set(catalog.initial_collapsed_block_ids),
+    )
+    assert expand_action is not None
+    assert expand_action.action == "expand"
+    assert next_selected_operation_id_for_block_action(catalog, expand_action) == "op:5.0.0.0"
+
+    collapse_action = selected_block_action(
+        catalog,
+        selected_operation_id="op:5.0.0.0",
+        collapsed_block_ids=set(),
+    )
+    assert collapse_action is not None
+    assert collapse_action.action == "collapse"
+    assert next_selected_operation_id_for_block_action(catalog, collapse_action) == "op:5.0"
+
+
 def test_transform_semantic_circuit_filters_active_wires_and_tracks_hidden_ranges() -> None:
     semantic_ir = _semantic_filter_circuit()
     catalog = build_exploration_catalog(semantic_ir, semantic_ir)
@@ -591,6 +683,27 @@ def test_synthetic_collapsed_block_rounds_numeric_parameters_in_visible_label() 
 
     assert len(scene.gates) == 1
     assert scene.gates[0].label == "LongRotation(theta=3.142, beta=-0.123)"
+
+
+def test_block_action_labels_round_numeric_parameters_like_collapsed_blocks() -> None:
+    expanded_semantic_ir = _semantic_parameterized_long_label_block_circuit()
+    catalog = build_exploration_catalog(expanded_semantic_ir, expanded_semantic_ir)
+
+    expand_action = selected_block_action(
+        catalog,
+        selected_operation_id="op:0",
+        collapsed_block_ids={"op:0"},
+    )
+    collapse_action = selected_block_action(
+        catalog,
+        selected_operation_id="op:0.0",
+        collapsed_block_ids=set(),
+    )
+
+    assert expand_action is not None
+    assert expand_action.label == "Expand LongRotation(theta=3.142, beta=-0.123)"
+    assert collapse_action is not None
+    assert collapse_action.label == "Collapse LongRotation(theta=3.142, beta=-0.123)"
 
 
 def test_slider_optional_buttons_place_block_before_wire_and_ancilla_controls() -> None:

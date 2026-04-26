@@ -20,6 +20,11 @@
 - Removed unused private wrappers, unreachable compare-rendering code, and duplicated page-window clamping helpers while preserving public compatibility facades.
 - Made the real CUDA-Q Linux integration job run on normal CI events instead of only manual and scheduled runs.
 
+### Fixed
+
+- Fixed compact Cirq `CircuitOperation` demos so the visible `CircuitOp` box no longer shows a redundant tiny native annotation and can be expanded/collapsed from managed 2D controls.
+- Fixed managed exploration expand/collapse button labels so parameter-heavy block names use the same rounded numeric text as their collapsed circuit boxes.
+
 ## [0.5.0] - 2026-04-24
 
 ### Changed

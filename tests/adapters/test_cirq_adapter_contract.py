@@ -490,6 +490,31 @@ def test_cirq_adapter_contract_keeps_stubbed_circuit_operation_compact_by_defaul
     assert [operation.name for operation in operations] == ["CircuitOperation"]
 
 
+def test_cirq_adapter_contract_keeps_compact_circuit_operation_annotation_free(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cirq(monkeypatch)
+    q0 = FakeQubit("q(0)")
+    q1 = FakeQubit("q(1)")
+    nested = FakeCircuit(
+        FakeMoment(FakeOperation(HPowGate(), (q0,))),
+        FakeMoment(FakeOperation(CNotPowGate(), (q0, q1))),
+    )
+    circuit = FakeCircuit(
+        FakeMoment(CircuitOperation(nested, (q0, q1))),
+    )
+
+    semantic_ir = CirqAdapter().to_semantic_ir(
+        circuit,
+        options={"explicit_matrices": False},
+    )
+    operation = semantic_ir.layers[0].operations[0]
+
+    assert operation.annotations == ()
+    assert "native: CircuitOperation" in operation.hover_details
+    assert operation.provenance.composite_label == "CircuitOperation"
+
+
 def test_cirq_adapter_contract_expands_stubbed_circuit_operation_when_requested(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
