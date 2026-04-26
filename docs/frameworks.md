@@ -125,6 +125,8 @@ draw_quantum_circuit(circuit)
 
 Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions including modern Qiskit expression trees when they can be normalized safely, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements. Native control-flow boxes use compact lowercase visible labels such as `if/else`, `switch`, and `while`.
 
+For real-device 3D layouts, `HardwareTopology.from_qiskit_backend(backend)` builds a static topology from BackendV2 `coupling_map`, `target.build_coupling_map(...)`, or legacy `configuration().coupling_map` data. Pass that topology through `CircuitRenderOptions(view="3d", topology=topology)` when comparing an original circuit with a transpiled circuit on the backend footprint.
+
 For Qiskit control-flow, the drawer keeps the expanded behavior for simple `if_test(...)` blocks without an `else` when the condition can still be normalized into exact classical conditions. If a simple `if_test(...)` uses a modern condition shape that cannot be normalized safely, it falls back to a compact `IF` box with native hover details instead of failing.
 
 Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled.

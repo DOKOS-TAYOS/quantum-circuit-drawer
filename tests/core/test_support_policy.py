@@ -100,6 +100,31 @@ def test_public_docs_describe_analysis_and_result_exports() -> None:
     assert "framework capability support tables" in changelog_reference
 
 
+def test_public_docs_describe_cli_and_qiskit_backend_topologies() -> None:
+    readme_reference = Path("README.md").read_text(encoding="utf-8")
+    api_reference = Path("docs/api.md").read_text(encoding="utf-8")
+    recipes_reference = Path("docs/recipes.md").read_text(encoding="utf-8")
+    getting_started_reference = Path("docs/getting-started.md").read_text(encoding="utf-8")
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+    changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+    combined_docs = "\n".join(
+        (
+            readme_reference,
+            api_reference,
+            recipes_reference,
+            getting_started_reference,
+            frameworks_reference,
+        )
+    )
+
+    assert "qcd draw" in combined_docs
+    assert "qcd histogram" in combined_docs
+    assert "from_qiskit_backend" in combined_docs
+    assert "command-line interface" in changelog_reference
+    assert "Qiskit backend topologies" in changelog_reference
+
+
 def test_public_docs_describe_openqasm_text_and_file_support() -> None:
     docs_by_path = {
         path: path.read_text(encoding="utf-8")

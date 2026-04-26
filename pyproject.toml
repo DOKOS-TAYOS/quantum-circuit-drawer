@@ -38,6 +38,9 @@ Repository = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer"
 Issues = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/issues"
 Changelog = "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/blob/main/CHANGELOG.md"
 
+[project.scripts]
+qcd = "quantum_circuit_drawer.cli:main"
+
 [project.optional-dependencies]
 qiskit = [
   "qiskit>=1.0",

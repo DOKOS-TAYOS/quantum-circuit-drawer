@@ -81,6 +81,17 @@ file_result = draw_quantum_circuit(
 Use `CircuitRenderOptions(framework="qasm")` when you want the input path to be explicit in your config. A `.qasm` / `.qasm3` file is read as UTF-8 and must start with `OPENQASM`.
 The same `framework="qasm"` value is used for OpenQASM 3; only the header and file extension decide which Qiskit parser runs.
 
+## Use The CLI For Quick Images
+
+After installation, `qcd` is available inside the same environment as the package. It is the shortest path when you already have a circuit file or a JSON counts file:
+
+```powershell
+qcd draw bell.qasm --output bell.png --view 3d
+qcd histogram counts.json --output counts.png
+```
+
+The CLI saves without opening a window by default. Add `--show` if you also want Matplotlib to display the figure. For nested result payloads, use `qcd histogram result.json --data-key counts --output counts.png`.
+
 ## Save Without Opening A Window
 
 This is the most common script workflow:

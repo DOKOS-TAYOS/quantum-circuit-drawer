@@ -12,6 +12,15 @@ The public entry points stay intentionally small:
 - `plot_histogram(...)`
 - `compare_histograms(...)`
 
+The package also installs the `qcd` command-line interface for direct image exports:
+
+```bash
+qcd draw bell.qasm --output bell.png --view 3d
+qcd histogram counts.json --output counts.png
+```
+
+`qcd` uses the same public API underneath, writes files without opening windows by default, and accepts `--show` when you want Matplotlib to display the figure too.
+
 ## Main functions
 
 ```python
@@ -192,6 +201,7 @@ Public topology helpers:
 
 - `HardwareTopology`
   - static topology with explicit node ids, edges, optional coordinates, and a name
+  - `HardwareTopology.from_qiskit_backend(backend, two_q_gate=None, filter_idle_qubits=False)` builds a static topology from BackendV2 `coupling_map`, `target.build_coupling_map(...)`, or legacy `configuration().coupling_map` data without importing Qiskit
 - `FunctionalTopology`
   - wraps a `Callable[[int], HardwareTopology]`
 - `PeriodicTopology1D`
@@ -205,6 +215,14 @@ Public topology helpers:
 - `honeycomb_topology(qubit_count)`
 
 The built-in names are backed by the public functional builders and support any positive qubit count. The `"honeycomb"` builder creates an IBM-inspired compact hexagonal footprint. For circuits that use fewer qubits than a topology contains, `topology_qubits="used"` keeps the view focused on the first allocated nodes, while `topology_qubits="all"` also shows inactive physical nodes using their topology ids as labels. If a circuit needs more nodes than the topology currently has, `topology_resize="fit"` can resize functional and periodic topologies; static `HardwareTopology` instances stay fixed.
+
+Qiskit backend topology example:
+
+```python
+from quantum_circuit_drawer import HardwareTopology
+
+topology = HardwareTopology.from_qiskit_backend(backend, two_q_gate="cx")
+```
 
 ### `StylePreset`
 

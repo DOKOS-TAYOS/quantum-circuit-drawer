@@ -104,6 +104,44 @@ class HardwareTopology:
         )
 
     @classmethod
+    def from_qiskit_backend(
+        cls,
+        backend: object,
+        *,
+        name: str | None = None,
+        coordinates: HardwareCoordinates | None = None,
+        two_q_gate: str | None = None,
+        filter_idle_qubits: bool = False,
+    ) -> HardwareTopology:
+        """Build a topology from a Qiskit BackendV1/BackendV2-like object.
+
+        The helper intentionally avoids importing Qiskit. It reads the stable
+        backend, target, and coupling-map attributes by duck typing so tests and
+        optional dependency users can pass real or lightweight backend objects.
+        """
+
+        coupling_map = _qiskit_backend_coupling_map(
+            backend,
+            two_q_gate=two_q_gate,
+            filter_idle_qubits=filter_idle_qubits,
+        )
+        edges = _qiskit_coupling_map_edges(coupling_map)
+        node_ids = _qiskit_backend_node_ids(backend, coupling_map=coupling_map, edges=edges)
+        if not node_ids:
+            raise ValueError("could not infer Qiskit backend qubits")
+        if not edges and len(node_ids) > 1:
+            raise ValueError(
+                "could not infer a finite Qiskit backend coupling map; "
+                "the backend may be unconstrained or simulator-only"
+            )
+        return cls(
+            node_ids=node_ids,
+            edges=edges,
+            coordinates=None if coordinates is None else dict(coordinates),
+            name=name or _qiskit_backend_name(backend),
+        )
+
+    @classmethod
     def from_graph(
         cls,
         graph: Mapping[HardwareNodeId, Iterable[HardwareNodeId]]
@@ -963,6 +1001,143 @@ def _validate_topology_cell(name: str, value: object) -> None:
 def _validate_positive_qubit_count(value: object) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError("qubit_count must be a positive integer")
+
+
+def _qiskit_backend_coupling_map(
+    backend: object,
+    *,
+    two_q_gate: str | None,
+    filter_idle_qubits: bool,
+) -> object | None:
+    coupling_map = _safe_attr(backend, "coupling_map")
+    if coupling_map is not None:
+        return coupling_map
+
+    target = _safe_attr(backend, "target")
+    build_coupling_map = _safe_attr(target, "build_coupling_map")
+    if callable(build_coupling_map):
+        try:
+            coupling_map = build_coupling_map(
+                two_q_gate,
+                filter_idle_qubits=filter_idle_qubits,
+            )
+        except TypeError:
+            coupling_map = build_coupling_map(two_q_gate)
+        if coupling_map is not None:
+            return coupling_map
+
+    configuration = _qiskit_backend_configuration(backend)
+    return _safe_attr(configuration, "coupling_map")
+
+
+def _qiskit_backend_node_ids(
+    backend: object,
+    *,
+    coupling_map: object | None,
+    edges: tuple[tuple[HardwareNodeId, HardwareNodeId], ...],
+) -> tuple[HardwareNodeId, ...]:
+    backend_qubit_count = _qiskit_backend_qubit_count(backend)
+    if backend_qubit_count is not None:
+        return tuple(range(backend_qubit_count))
+
+    physical_qubits = _safe_attr(coupling_map, "physical_qubits")
+    if physical_qubits is not None:
+        return _normalize_node_id_sequence(physical_qubits)
+
+    coupling_size = _safe_attr(coupling_map, "size")
+    if callable(coupling_size):
+        raw_size = coupling_size()
+        if isinstance(raw_size, int) and not isinstance(raw_size, bool) and raw_size > 0:
+            return tuple(range(raw_size))
+
+    return _ordered_nodes_from_edges(edges)
+
+
+def _qiskit_backend_qubit_count(backend: object) -> int | None:
+    for source in (backend, _qiskit_backend_configuration(backend)):
+        raw_count = _safe_attr(source, "num_qubits")
+        if raw_count is None:
+            raw_count = _safe_attr(source, "n_qubits")
+        if isinstance(raw_count, int) and not isinstance(raw_count, bool) and raw_count > 0:
+            return raw_count
+    return None
+
+
+def _qiskit_backend_name(backend: object) -> str:
+    for raw_name in (
+        _safe_attr(backend, "name"),
+        _safe_attr(_qiskit_backend_configuration(backend), "backend_name"),
+    ):
+        if callable(raw_name):
+            raw_name = raw_name()
+        if isinstance(raw_name, str) and raw_name.strip():
+            return raw_name.strip()
+    return "qiskit_backend"
+
+
+def _qiskit_backend_configuration(backend: object) -> object | None:
+    configuration = _safe_attr(backend, "configuration")
+    if not callable(configuration):
+        return None
+    try:
+        return configuration()
+    except (AttributeError, NotImplementedError, TypeError):
+        return None
+
+
+def _qiskit_coupling_map_edges(
+    coupling_map: object | None,
+) -> tuple[tuple[HardwareNodeId, HardwareNodeId], ...]:
+    if coupling_map is None:
+        return ()
+
+    get_edges = _safe_attr(coupling_map, "get_edges")
+    raw_edges = get_edges() if callable(get_edges) else coupling_map
+    try:
+        return tuple(_qiskit_coupling_edge(edge) for edge in cast("Iterable[object]", raw_edges))
+    except TypeError as exc:
+        raise ValueError("Qiskit backend coupling map must be an iterable of 2-item edges") from exc
+
+
+def _qiskit_coupling_edge(edge: object) -> tuple[HardwareNodeId, HardwareNodeId]:
+    try:
+        first, second = cast("Iterable[object]", edge)
+    except ValueError as exc:
+        raise ValueError(
+            "Qiskit backend coupling map edges must contain exactly two nodes"
+        ) from exc
+    return (
+        _normalize_node_id(cast("HardwareNodeId", first)),
+        _normalize_node_id(cast("HardwareNodeId", second)),
+    )
+
+
+def _normalize_node_id_sequence(values: object) -> tuple[HardwareNodeId, ...]:
+    return tuple(
+        _normalize_node_id(cast("HardwareNodeId", value))
+        for value in cast("Iterable[object]", values)
+    )
+
+
+def _ordered_nodes_from_edges(
+    edges: tuple[tuple[HardwareNodeId, HardwareNodeId], ...],
+) -> tuple[HardwareNodeId, ...]:
+    ordered_nodes: list[HardwareNodeId] = []
+    for first, second in edges:
+        if first not in ordered_nodes:
+            ordered_nodes.append(first)
+        if second not in ordered_nodes:
+            ordered_nodes.append(second)
+    return tuple(ordered_nodes)
+
+
+def _safe_attr(value: object | None, name: str) -> object | None:
+    if value is None:
+        return None
+    try:
+        return getattr(value, name)
+    except (AttributeError, NotImplementedError):
+        return None
 
 
 def _normalize_node_id(value: HardwareNodeId) -> HardwareNodeId:

@@ -121,12 +121,33 @@ This is the production support contract for the current release.
 | Inspect a circuit before rendering | [Analyze a circuit](#analyze-a-circuit-without-rendering) |
 | Draw a circuit from a supported framework | [Draw one circuit](#draw-one-circuit) |
 | Draw OpenQASM 2/3 text or a `.qasm` / `.qasm3` file | [Draw OpenQASM](#draw-openqasm) |
+| Generate images from your terminal | [Command line](#command-line) |
 | Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file) |
 | Plot counts or probabilities | [Plot one histogram](#plot-one-histogram) |
 | Compare two versions of a circuit | [Compare two circuits](#compare-two-circuits) |
 | Compare two distributions | [Compare two histograms](#compare-two-histograms) |
 | Build a circuit without a framework dependency | [Build with public IR tools](#build-with-public-ir-tools) |
 | Explore framework-specific demos | [Recommended demos](#recommended-demos) |
+
+## Command Line
+
+The package installs a small `qcd` command for the common "make me an image" workflow. It saves files without opening Matplotlib windows by default; add `--show` when you also want a window.
+
+Windows PowerShell:
+
+```powershell
+qcd draw bell.qasm --output bell.png --view 3d
+qcd histogram counts.json --output counts.png
+```
+
+Linux or WSL:
+
+```bash
+qcd draw bell.qasm --output bell.png --view 3d
+qcd histogram counts.json --output counts.png
+```
+
+`qcd draw` accepts OpenQASM text or `.qasm` / `.qasm3` files. `qcd histogram` accepts JSON mappings such as `{"00": 10, "11": 6}` and can select nested payloads with `--data-key counts`.
 
 ## Draw One Circuit
 
@@ -501,7 +522,7 @@ result = draw_quantum_circuit(
 )
 ```
 
-The built-in 3D topologies (`"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"`) are flexible builders, so they can be used with arbitrary positive qubit counts. The `"honeycomb"` builder uses an IBM-inspired compact hexagonal footprint. If a topology has more physical nodes than the circuit uses, `topology_qubits="used"` shows only the allocated nodes while `topology_qubits="all"` shows the full hardware footprint. If a functional or periodic topology is too small, `topology_resize="fit"` rebuilds it for the circuit size; static `HardwareTopology` instances stay fixed and raise a clear error when they are too small.
+The built-in 3D topologies (`"line"`, `"grid"`, `"star"`, `"star_tree"`, and `"honeycomb"`) are flexible builders, so they can be used with arbitrary positive qubit counts. The `"honeycomb"` builder uses an IBM-inspired compact hexagonal footprint. For real Qiskit devices, build a static topology with `HardwareTopology.from_qiskit_backend(backend)`. If a topology has more physical nodes than the circuit uses, `topology_qubits="used"` shows only the allocated nodes while `topology_qubits="all"` shows the full hardware footprint. If a functional or periodic topology is too small, `topology_resize="fit"` rebuilds it for the circuit size; static `HardwareTopology` instances stay fixed and raise a clear error when they are too small.
 
 If you want to see the managed 2D controls intentionally exercised instead of configuring them from scratch, start with `qiskit-2d-exploration-showcase`.
 

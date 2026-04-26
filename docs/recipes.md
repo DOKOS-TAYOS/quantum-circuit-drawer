@@ -68,6 +68,23 @@ draw_quantum_circuit(
 )
 ```
 
+### CLI: export without writing a script
+
+Use `qcd draw` when the input is an OpenQASM file and you only need an image:
+
+```powershell
+qcd draw bell.qasm --output bell.png --view 3d
+```
+
+Use `qcd histogram` for JSON counts or quasi-probabilities:
+
+```powershell
+qcd histogram counts.json --output counts.png
+qcd histogram result.json --data-key counts --output counts.png
+```
+
+Both commands save without opening a window by default. Add `--show` if you want the Matplotlib window too.
+
 ### Analyze before rendering
 
 ```python
@@ -296,6 +313,38 @@ draw_quantum_circuit(
                 direct=False,
             ),
         ),
+    ),
+)
+```
+
+### 3D topology from a Qiskit backend
+
+Use `HardwareTopology.from_qiskit_backend(...)` when you want the 3D view to follow a real Qiskit backend coupling map:
+
+```python
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    HardwareTopology,
+    OutputOptions,
+    draw_quantum_circuit,
+)
+
+topology = HardwareTopology.from_qiskit_backend(backend)
+
+draw_quantum_circuit(
+    transpiled_circuit,
+    config=DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                view="3d",
+                topology=topology,
+                topology_qubits="all",
+                direct=False,
+            ),
+        ),
+        output=OutputOptions(show=False),
     ),
 )
 ```
