@@ -32,6 +32,25 @@ skip_real_pennylane_on_windows = pytest.mark.skipif(
 )
 
 
+def real_pennylane_runtime() -> SimpleNamespace:
+    tape_module = pytest.importorskip("pennylane.tape")
+    ops_module = pytest.importorskip("pennylane.ops")
+    measurements_module = pytest.importorskip("pennylane.measurements")
+    condition_module = pytest.importorskip("pennylane.ops.op_math.condition")
+
+    return SimpleNamespace(
+        CNOT=ops_module.CNOT,
+        Hadamard=ops_module.Hadamard,
+        PauliZ=ops_module.PauliZ,
+        QuantumTape=tape_module.QuantumTape,
+        X=ops_module.X,
+        cond=condition_module.cond,
+        expval=measurements_module.expval,
+        measure=measurements_module.measure,
+        probs=measurements_module.probs,
+    )
+
+
 class FakeQuantumTape:
     def __init__(
         self,
@@ -782,13 +801,13 @@ def test_pennylane_adapter_rejects_mid_measure_without_wire(
 @skip_real_pennylane_on_windows
 @pytest.mark.integration
 def test_pennylane_adapter_converts_mid_measure_and_conditional_operations() -> None:
-    qml = pytest.importorskip("pennylane")
+    qml = real_pennylane_runtime()
 
-    with qml.tape.QuantumTape() as tape:
+    with qml.QuantumTape() as tape:
         measured_bit = qml.measure(0)
         qml.cond(measured_bit, qml.X)(1)
 
-    ir = PennyLaneAdapter().to_ir(tape)
+    ir = PennyLaneAdapter().to_ir(tape, options={"explicit_matrices": False})
     operations = [operation for layer in ir.layers for operation in layer.operations]
 
     assert operations[0].kind is OperationKind.MEASUREMENT
@@ -857,14 +876,14 @@ def test_pennylane_adapter_expands_fundamental_rzz_operation_when_requested() ->
 @skip_real_pennylane_on_windows
 @pytest.mark.integration
 def test_pennylane_adapter_converts_multi_wire_terminal_measurements() -> None:
-    qml = pytest.importorskip("pennylane")
+    qml = real_pennylane_runtime()
 
-    with qml.tape.QuantumTape() as tape:
+    with qml.QuantumTape() as tape:
         qml.Hadamard(0)
         qml.CNOT(wires=[0, 1])
         qml.probs(wires=[0, 1])
 
-    ir = PennyLaneAdapter().to_ir(tape)
+    ir = PennyLaneAdapter().to_ir(tape, options={"explicit_matrices": False})
     terminal_outputs = [
         operation
         for layer in ir.layers
@@ -886,13 +905,13 @@ def test_pennylane_adapter_converts_multi_wire_terminal_measurements() -> None:
 @skip_real_pennylane_on_windows
 @pytest.mark.integration
 def test_pennylane_adapter_converts_observable_terminal_outputs() -> None:
-    qml = pytest.importorskip("pennylane")
+    qml = real_pennylane_runtime()
 
-    with qml.tape.QuantumTape() as tape:
+    with qml.QuantumTape() as tape:
         qml.Hadamard(0)
         qml.expval(qml.PauliZ(0))
 
-    ir = PennyLaneAdapter().to_ir(tape)
+    ir = PennyLaneAdapter().to_ir(tape, options={"explicit_matrices": False})
     terminal_output = [operation for layer in ir.layers for operation in layer.operations][-1]
 
     assert ir.classical_wires == ()

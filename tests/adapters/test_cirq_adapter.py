@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -10,7 +11,37 @@ pytestmark = [pytest.mark.optional, pytest.mark.integration]
 if sys.platform.startswith("win"):
     pytest.skip("Cirq collection is not reliable on native Windows", allow_module_level=True)
 
-cirq = pytest.importorskip("cirq")
+cirq_circuits = pytest.importorskip("cirq.circuits")
+cirq_devices = pytest.importorskip("cirq.devices")
+cirq_ops = pytest.importorskip("cirq.ops")
+cirq_value = pytest.importorskip("cirq.value")
+
+cirq = SimpleNamespace(
+    BitMaskKeyCondition=cirq_value.BitMaskKeyCondition,
+    Circuit=cirq_circuits.Circuit,
+    CircuitOperation=cirq_circuits.CircuitOperation,
+    CNOT=cirq_ops.CNOT,
+    CZ=cirq_ops.CZ,
+    FSimGate=cirq_ops.FSimGate,
+    FrozenCircuit=cirq_circuits.FrozenCircuit,
+    H=cirq_ops.H,
+    I=cirq_ops.I,
+    ISWAP=cirq_ops.ISWAP,
+    LineQubit=cirq_devices.LineQubit,
+    MeasurementKey=cirq_value.MeasurementKey,
+    Moment=cirq_circuits.Moment,
+    S=cirq_ops.S,
+    SWAP=cirq_ops.SWAP,
+    T=cirq_ops.T,
+    X=cirq_ops.X,
+    XXPowGate=cirq_ops.XXPowGate,
+    YYPowGate=cirq_ops.YYPowGate,
+    Z=cirq_ops.Z,
+    ZZPowGate=cirq_ops.ZZPowGate,
+    measure=cirq_ops.measure,
+    reset=cirq_ops.reset,
+    rz=cirq_ops.rz,
+)
 
 from quantum_circuit_drawer.adapters.cirq_adapter import CirqAdapter
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind

@@ -118,7 +118,7 @@ OpenQASM details:
 
 CUDA-Q runtime arguments:
 
-- CUDA-Q remains Linux/WSL2-first
+- CUDA-Q remains Linux/WSL2-only because upstream CUDA-Q is not available for native Windows
 - closed kernels do not need extra options
 - scalar runtime arguments use `CircuitRenderOptions(adapter_options={"cudaq_args": (...)})`
 - the first supported runtime values are `int`, `float`, and `bool`

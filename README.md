@@ -55,6 +55,9 @@ The library renders normal static images, managed exploration views, 3D topology
 
 Inside your local `.venv`:
 
+The core package supports Python 3.11, 3.12, and 3.13. Optional framework extras
+can have narrower platform support depending on their upstream packages.
+
 Windows PowerShell:
 
 ```powershell
@@ -89,7 +92,7 @@ Linux or WSL:
 .venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
 ```
 
-CUDA-Q remains a Linux or WSL2 path:
+CUDA-Q is Linux/WSL2-only because the upstream package is not available for native Windows:
 
 ```bash
 .venv/bin/python -m pip install "quantum-circuit-drawer[cudaq]"
@@ -108,7 +111,7 @@ This is the production support contract for the current release.
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; prefer Linux or WSL for the most reliable repeated runs |
 | PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args` for runtime-argument kernels; not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args` for runtime-argument kernels; upstream CUDA-Q is not available for native Windows |
 
 ## Choose Your First Task
 
@@ -200,7 +203,7 @@ result = draw_quantum_circuit(
 
 ## Draw CUDA-Q With Runtime Arguments
 
-CUDA-Q is a Linux or WSL2 path. Closed kernels work directly; kernels that take scalar runtime arguments use `adapter_options={"cudaq_args": (...)}`:
+CUDA-Q is Linux/WSL2-only because the upstream package is not available for native Windows. Closed kernels work directly; kernels that take scalar runtime arguments use `adapter_options={"cudaq_args": (...)}`:
 
 ```python
 import cudaq

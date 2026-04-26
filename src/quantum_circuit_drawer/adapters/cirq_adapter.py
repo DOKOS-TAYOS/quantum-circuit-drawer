@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import replace
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass, replace
 from math import isclose
 from typing import Any, Protocol, cast
 
@@ -47,6 +47,28 @@ class _CirqCircuitLike(Protocol):
     def __iter__(self) -> Iterator[_CirqMomentLike]: ...
 
 
+@dataclass(frozen=True, slots=True)
+class _CirqRuntime:
+    ClassicallyControlledOperation: type[Any]
+    CircuitOperation: type[Any]
+    ControlledOperation: type[Any]
+    unitary: Callable[..., object]
+
+
+def _load_cirq_runtime() -> _CirqRuntime:
+    from cirq.circuits import CircuitOperation
+    from cirq.ops.classically_controlled_operation import ClassicallyControlledOperation
+    from cirq.ops.controlled_operation import ControlledOperation
+    from cirq.protocols import unitary
+
+    return _CirqRuntime(
+        ClassicallyControlledOperation=ClassicallyControlledOperation,
+        CircuitOperation=CircuitOperation,
+        ControlledOperation=ControlledOperation,
+        unitary=unitary,
+    )
+
+
 class CirqAdapter(BaseAdapter):
     """Convert cirq.Circuit objects into CircuitIR."""
 
@@ -54,7 +76,7 @@ class CirqAdapter(BaseAdapter):
 
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
-        circuit_types = extract_dependency_types("cirq", ("Circuit", "FrozenCircuit"))
+        circuit_types = extract_dependency_types("cirq.circuits", ("Circuit", "FrozenCircuit"))
         return bool(circuit_types) and isinstance(circuit, circuit_types)
 
     def to_ir(self, circuit: object, options: Mapping[str, object] | None = None) -> CircuitIR:
@@ -70,8 +92,7 @@ class CirqAdapter(BaseAdapter):
         if not self.can_handle(circuit):
             raise TypeError("CirqAdapter received a non-Cirq circuit")
 
-        import cirq
-
+        cirq = _load_cirq_runtime()
         typed_circuit = cast(_CirqCircuitLike, circuit)
         composite_mode = resolve_composite_mode(options)
         explicit_matrices = resolve_explicit_matrices(options)

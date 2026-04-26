@@ -49,7 +49,7 @@ Use this table to decide whether the issue is on the main support path or on a n
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; upstream CUDA-Q is not available for native Windows |
 
 At the moment, all built-in framework adapters use the richer semantic-adapter path internally. Legacy `to_ir(...)` adapters still work, but framework-native provenance and annotations now survive longer for the built-in adapters before lowering to the shared render IR.
 
@@ -97,7 +97,7 @@ If you just want to sanity-check the current support quickly, start with `cirq-n
 
 ## CUDA-Q Does Not Install On Windows
 
-CUDA-Q support is Linux/WSL2-first in this project. On native Windows, the optional dependency is not expected to install.
+CUDA-Q support is Linux/WSL2-only in this project because upstream CUDA-Q is not available for native Windows. On native Windows, the optional dependency is not expected to install.
 
 Recommended options:
 

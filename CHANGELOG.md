@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added Python 3.13 as a declared and core-CI-tested runtime alongside Python 3.11 and 3.12.
 - Added `saved_path` to `HistogramResult` and `HistogramCompareResult`, matching `DrawResult` for scripts that save figures through `OutputOptions(output_path=...)`.
 - Added the shared `accessible` style preset and `accessible` theme with high-contrast, colorblind-friendlier colors for circuit and histogram rendering.
 - Added direct OpenQASM 2 file input for `draw_quantum_circuit(...)`, accepting `Path("circuit.qasm")` and string `.qasm` paths through the existing Qiskit parser path.
@@ -17,6 +18,7 @@
 
 ### Changed
 
+- Made Cirq and PennyLane adapter autodetection use narrow optional imports (`cirq.circuits` and `pennylane.tape`) so native Windows users avoid loading the heavier top-level packages during framework detection.
 - Removed unused private wrappers, unreachable compare-rendering code, and duplicated page-window clamping helpers while preserving public compatibility facades.
 - Made the real CUDA-Q Linux integration job run on normal CI events instead of only manual and scheduled runs.
 

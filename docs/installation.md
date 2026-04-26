@@ -6,7 +6,7 @@ All commands assume you are working inside a local `.venv`, because that is the 
 
 ## Requirements
 
-- Python `3.11+`
+- Python `3.11+`; the core package is tested on Python 3.11, 3.12, and 3.13
 - A virtual environment such as `.venv`
 - Optional extras only for the frameworks you actually want to draw directly
 
@@ -89,7 +89,7 @@ Linux or WSL:
 .venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
 ```
 
-CUDA-Q is currently Linux/WSL2-first:
+CUDA-Q is currently Linux/WSL2-only; the upstream package does not support native Windows:
 
 ```bash
 .venv/bin/python -m pip install "quantum-circuit-drawer[cudaq]"
@@ -110,7 +110,7 @@ Use this table as the release support contract when choosing an install path.
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; upstream CUDA-Q is not available for native Windows |
 
 ## Jupyter Setup
 

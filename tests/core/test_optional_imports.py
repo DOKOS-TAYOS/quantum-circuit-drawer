@@ -143,6 +143,42 @@ def test_pennylane_adapter_can_handle_rejects_invalid_wrapper_payloads(
     assert PennyLaneAdapter.can_handle(SimpleNamespace(tape=object())) is False
 
 
+def test_pennylane_adapter_can_handle_uses_narrow_tape_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeQuantumTape:
+        pass
+
+    class FakeQuantumScript:
+        pass
+
+    fake_pennylane = ModuleType("pennylane")
+    fake_pennylane.__path__ = []
+    fake_tape = ModuleType("pennylane.tape")
+    fake_tape.QuantumTape = FakeQuantumTape
+    fake_tape.QuantumScript = FakeQuantumScript
+    monkeypatch.setitem(sys.modules, "pennylane", fake_pennylane)
+    monkeypatch.setitem(sys.modules, "pennylane.tape", fake_tape)
+
+    original_import = builtins.__import__
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "pennylane":
+            raise RuntimeError("top-level pennylane import should not run")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert PennyLaneAdapter.can_handle(FakeQuantumTape()) is True
+    assert PennyLaneAdapter.can_handle(FakeQuantumScript()) is True
+
+
 def test_qiskit_adapter_matrix_metadata_does_not_swallow_unexpected_errors() -> None:
     class _BrokenMatrixOperation:
         def to_matrix(self) -> object:
@@ -186,6 +222,42 @@ def test_cirq_adapter_matrix_metadata_skips_framework_lookup_when_disabled() -> 
         )
         == {}
     )
+
+
+def test_cirq_adapter_can_handle_uses_narrow_cirq_circuits_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeCircuit:
+        pass
+
+    class FakeFrozenCircuit:
+        pass
+
+    fake_cirq = ModuleType("cirq")
+    fake_cirq.__path__ = []
+    fake_circuits = ModuleType("cirq.circuits")
+    fake_circuits.Circuit = FakeCircuit
+    fake_circuits.FrozenCircuit = FakeFrozenCircuit
+    monkeypatch.setitem(sys.modules, "cirq", fake_cirq)
+    monkeypatch.setitem(sys.modules, "cirq.circuits", fake_circuits)
+
+    original_import = builtins.__import__
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "cirq":
+            raise RuntimeError("top-level cirq import should not run")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert CirqAdapter.can_handle(FakeCircuit()) is True
+    assert CirqAdapter.can_handle(FakeFrozenCircuit()) is True
 
 
 def test_pennylane_adapter_matrix_metadata_does_not_swallow_unexpected_errors(

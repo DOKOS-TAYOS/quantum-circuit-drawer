@@ -43,7 +43,7 @@ Use this table as the release support contract when choosing a framework path.
 | Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; Linux or WSL remains the safer production path |
 | PennyLane | Best-effort on native Windows | Linux or WSL remains the safer production path |
 | MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; not intended for native Windows installs |
+| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args`; upstream CUDA-Q is not available for native Windows |
 
 `plot_histogram(...)` also accepts several framework-native result payloads directly:
 
@@ -409,7 +409,7 @@ Bundled demos:
 
 Current limits:
 
-- CUDA-Q support is Linux/WSL2-first and is not intended for native Windows installs.
+- CUDA-Q support is Linux/WSL2-only because upstream CUDA-Q is not available for native Windows.
 - Runtime arguments must be supplied as `adapter_options={"cudaq_args": (...)}` and currently support scalar `int`, `float`, and `bool` values.
 - Structured `cc.if`, `scf.if`, `scf.for`, and `cc.loop` now render as compact descriptive boxes with hover details instead of being expanded.
 - Low-level CFG control flow such as `cf.cond_br` and broader advanced constructs are still outside the supported subset.

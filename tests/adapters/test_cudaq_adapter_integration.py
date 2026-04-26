@@ -20,7 +20,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
         not sys.platform.startswith("linux"),
-        reason="CUDA-Q integration coverage is Linux/WSL-first in v0.1",
+        reason="CUDA-Q integration coverage is Linux/WSL-only in v0.1",
     ),
 ]
 

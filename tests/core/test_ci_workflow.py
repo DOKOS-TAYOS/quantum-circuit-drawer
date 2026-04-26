@@ -36,6 +36,16 @@ def test_ci_workflow_runs_pyright() -> None:
     assert "python -m pyright -p ." in workflow_text
 
 
+def test_package_metadata_and_ci_include_python_313() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    classifiers = pyproject["project"]["classifiers"]
+
+    assert "Programming Language :: Python :: 3.13" in classifiers
+    assert 'python-version: ["3.11", "3.12", "3.13"]' in workflow_text
+
+
 def test_ci_workflow_uses_current_core_coverage_threshold() -> None:
     workflow_path = Path(".github/workflows/ci.yml")
     workflow_text = workflow_path.read_text(encoding="utf-8")

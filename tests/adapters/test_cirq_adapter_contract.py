@@ -156,13 +156,45 @@ def install_fake_cirq(
     unitary: object | None = None,
 ) -> None:
     fake_module = ModuleType("cirq")
+    fake_module.__path__ = []
     fake_module.Circuit = FakeCircuit
     fake_module.FrozenCircuit = FakeFrozenCircuit
     fake_module.ClassicallyControlledOperation = FakeClassicallyControlledOperation
     fake_module.CircuitOperation = CircuitOperation
     fake_module.ControlledOperation = FakeControlledOperation
     fake_module.unitary = unitary or (lambda operation, default=None: default)
+    fake_circuits = ModuleType("cirq.circuits")
+    fake_circuits.Circuit = FakeCircuit
+    fake_circuits.FrozenCircuit = FakeFrozenCircuit
+    fake_circuits.CircuitOperation = CircuitOperation
+    fake_ops = ModuleType("cirq.ops")
+    fake_classically_controlled_operation = ModuleType("cirq.ops.classically_controlled_operation")
+    fake_classically_controlled_operation.ClassicallyControlledOperation = (
+        FakeClassicallyControlledOperation
+    )
+    fake_controlled_operation = ModuleType("cirq.ops.controlled_operation")
+    fake_controlled_operation.ControlledOperation = FakeControlledOperation
+    fake_protocols = ModuleType("cirq.protocols")
+    fake_protocols.unitary = fake_module.unitary
+    fake_ops.classically_controlled_operation = fake_classically_controlled_operation
+    fake_ops.controlled_operation = fake_controlled_operation
+    fake_module.circuits = fake_circuits
+    fake_module.ops = fake_ops
+    fake_module.protocols = fake_protocols
     monkeypatch.setitem(sys.modules, "cirq", fake_module)
+    monkeypatch.setitem(sys.modules, "cirq.circuits", fake_circuits)
+    monkeypatch.setitem(sys.modules, "cirq.ops", fake_ops)
+    monkeypatch.setitem(
+        sys.modules,
+        "cirq.ops.classically_controlled_operation",
+        fake_classically_controlled_operation,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "cirq.ops.controlled_operation",
+        fake_controlled_operation,
+    )
+    monkeypatch.setitem(sys.modules, "cirq.protocols", fake_protocols)
 
 
 def test_cirq_adapter_contract_converts_basic_stubbed_circuit(

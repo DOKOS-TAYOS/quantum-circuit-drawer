@@ -81,8 +81,8 @@ class PennyLaneAdapter(BaseAdapter):
     @classmethod
     def can_handle(cls, circuit: object) -> bool:
         tape_types = extract_dependency_types(
-            "pennylane",
-            ("tape.QuantumTape", "tape.QuantumScript"),
+            "pennylane.tape",
+            ("QuantumTape", "QuantumScript"),
         )
         if tape_types and isinstance(circuit, tape_types):
             return True
