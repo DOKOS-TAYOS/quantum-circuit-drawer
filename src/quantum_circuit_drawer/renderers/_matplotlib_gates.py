@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from matplotlib.axes import Axes
 from matplotlib.collections import EllipseCollection, LineCollection
@@ -56,6 +57,33 @@ from ._matplotlib_visual_state import (
     line_width_scale_for_visual_state,
     measurement_facecolor_for_visual_state,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedGateText:
+    text: str
+    height_fraction: float
+    is_stacked: bool
+
+
+def _prepared_gate_text(gate: SceneGate, *, use_mathtext: bool) -> _PreparedGateText | None:
+    if gate.render_style is GateRenderStyle.X_TARGET:
+        return None
+    if gate.subtitle:
+        return _PreparedGateText(
+            text=format_gate_text_block(
+                gate.label,
+                gate.subtitle,
+                use_mathtext=use_mathtext,
+            ),
+            height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
+            is_stacked=True,
+        )
+    return _PreparedGateText(
+        text=format_visible_label(gate.label, use_mathtext=use_mathtext),
+        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+        is_stacked=False,
+    )
 
 
 def draw_group_highlights(
@@ -228,6 +256,7 @@ def draw_gate_label(
     scene: LayoutScene,
     *,
     label_font_size: float | None = None,
+    prepared_text: _PreparedGateText | None = None,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
     text_fit_context: _GateTextFittingContext | None = None,
@@ -236,20 +265,22 @@ def draw_gate_label(
     if gate.render_style is GateRenderStyle.X_TARGET:
         return None
 
-    if gate.subtitle:
-        visible_text = format_gate_text_block(
-            gate.label,
-            gate.subtitle,
-            use_mathtext=scene.style.use_mathtext,
-        )
+    resolved_text = prepared_text or _prepared_gate_text(
+        gate,
+        use_mathtext=scene.style.use_mathtext,
+    )
+    if resolved_text is None:
+        return None
+
+    if resolved_text.is_stacked:
         resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
             ax=ax,
             scene=scene,
             width=gate.width,
             height=gate.height,
-            text=visible_text,
+            text=resolved_text.text,
             default_font_size=scene.style.font_size,
-            height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
+            height_fraction=resolved_text.height_fraction,
             context=text_fit_context,
             cache=text_fit_cache,
         )
@@ -257,7 +288,7 @@ def draw_gate_label(
             ax,
             gate.x + x_offset,
             gate.y + y_offset,
-            visible_text,
+            resolved_text.text,
             ha="center",
             va="center",
             multialignment="center",
@@ -276,19 +307,18 @@ def draw_gate_label(
             role="gate_label",
             gate_width=gate.width,
             gate_height=gate.height,
-            height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
+            height_fraction=resolved_text.height_fraction,
         )
         return label_artist, None
 
-    visible_label = format_visible_label(gate.label, use_mathtext=scene.style.use_mathtext)
     resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
         ax=ax,
         scene=scene,
         width=gate.width,
         height=gate.height,
-        text=visible_label,
+        text=resolved_text.text,
         default_font_size=scene.style.font_size,
-        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+        height_fraction=resolved_text.height_fraction,
         context=text_fit_context,
         cache=text_fit_cache,
     )
@@ -296,7 +326,7 @@ def draw_gate_label(
         ax,
         gate.x + x_offset,
         gate.y + y_offset,
-        visible_label,
+        resolved_text.text,
         ha="center",
         va="center",
         fontsize=resolved_label_font_size,
@@ -313,7 +343,7 @@ def draw_gate_label(
         role="gate_label",
         gate_width=gate.width,
         gate_height=gate.height,
-        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+        height_fraction=resolved_text.height_fraction,
     )
     return label_artist, None
 

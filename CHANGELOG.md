@@ -18,6 +18,7 @@
 
 ### Changed
 
+- Reused prepared 2D gate label text during Matplotlib rendering, reducing repeated label formatting and text-fit work without changing the rendered appearance.
 - Made Cirq and PennyLane adapter autodetection use narrow optional imports (`cirq.circuits` and `pennylane.tape`) so native Windows users avoid loading the heavier top-level packages during framework detection.
 - Removed unused private wrappers, unreachable compare-rendering code, and duplicated page-window clamping helpers while preserving public compatibility facades.
 - Made the real CUDA-Q Linux integration job run on normal CI events instead of only manual and scheduled runs.

@@ -25,7 +25,6 @@ from ..layout.scene import (
 from ..layout.scene_3d import LayoutScene3D
 from ..style import resolved_connection_line_width
 from ..typing import OutputPath, RenderResult
-from ..utils.formatting import format_gate_text_block, format_visible_label
 from ._matplotlib_figure import clear_hover_state, create_managed_figure
 from ._matplotlib_hover import _HoverTarget2D, add_hover_target, attach_hover
 from ._matplotlib_page_projection import (
@@ -38,11 +37,11 @@ from ._matplotlib_page_projection import (
 from ._render_support import save_rendered_figure
 from .base import BaseRenderer
 from .matplotlib_primitives import (
-    _SINGLE_LINE_HEIGHT_FRACTION,
-    _STACKED_TEXT_USABLE_HEIGHT_FRACTION,
     _build_gate_text_fitting_context,
     _fit_gate_text_font_size_with_context,
     _GateTextCache,
+    _prepared_gate_text,
+    _PreparedGateText,
     draw_barriers,
     draw_connections,
     draw_controls,
@@ -71,6 +70,7 @@ _PROJECTED_PAGES_CACHE_SIZE = 8
 _CONNECTION_HOVER_LINE_WIDTH_MULTIPLIER = 1.5
 _CONNECTION_HOVER_MIN_HALF_WIDTH_PIXELS = 4.0
 _CONNECTION_HOVER_MIN_HALF_WIDTH_DATA = 1e-6
+_PreparedGateTextCacheKey = tuple[object, str, str | None, bool]
 
 _SceneColumnItem = TypeVar(
     "_SceneColumnItem",
@@ -138,6 +138,10 @@ class MatplotlibRenderer(BaseRenderer):
         prepare_axes(axes, scene)
         projected_pages = self._project_pages(scene)
         gate_text_context = _build_gate_text_fitting_context(axes, scene)
+        prepared_gate_text_cache: dict[
+            _PreparedGateTextCacheKey,
+            _PreparedGateText | None,
+        ] = {}
         hover_targets: list[_HoverTarget2D] = []
         clear_hover_state(axes)
 
@@ -149,6 +153,7 @@ class MatplotlibRenderer(BaseRenderer):
                 projected_page,
                 gate_text_context=gate_text_context,
                 gate_text_cache=gate_text_cache,
+                prepared_gate_text_cache=prepared_gate_text_cache,
                 hover_targets=hover_targets,
             )
 
@@ -172,11 +177,17 @@ class MatplotlibRenderer(BaseRenderer):
         gate_text_context: Any,
         gate_text_cache: _GateTextCache,
         hover_targets: list[_HoverTarget2D],
+        prepared_gate_text_cache: (
+            dict[_PreparedGateTextCacheKey, _PreparedGateText | None] | None
+        ) = None,
     ) -> None:
         x_offset = self._page_x_offset(page, scene)
         y_offset = self._page_y_offset(page)
         hover_enabled = scene.hover.enabled
         wire_x_start, wire_x_end = self._page_wire_span(page, scene)
+        resolved_prepared_gate_text_cache = (
+            {} if prepared_gate_text_cache is None else prepared_gate_text_cache
+        )
 
         draw_wires(
             axes,
@@ -253,45 +264,32 @@ class MatplotlibRenderer(BaseRenderer):
 
         for gate in projected_page.gates:
             if gate.render_style.value != "x_target":
-                if gate.subtitle:
-                    visible_label = format_gate_text_block(
-                        gate.label,
-                        gate.subtitle,
-                        use_mathtext=scene.style.use_mathtext,
-                    )
-                    label_font_size = _fit_gate_text_font_size_with_context(
-                        context=gate_text_context,
-                        width=gate.width,
-                        height=gate.height,
-                        text=visible_label,
-                        default_font_size=scene.style.font_size,
-                        height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
-                        cache=gate_text_cache,
-                    )
-                else:
-                    visible_label = format_visible_label(
-                        gate.label,
-                        use_mathtext=scene.style.use_mathtext,
-                    )
-                    label_font_size = _fit_gate_text_font_size_with_context(
-                        context=gate_text_context,
-                        width=gate.width,
-                        height=gate.height,
-                        text=visible_label,
-                        default_font_size=scene.style.font_size,
-                        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
-                        cache=gate_text_cache,
-                    )
-                draw_gate_label(
-                    axes,
+                prepared_text = self._prepared_gate_text_for_render(
                     gate,
-                    scene,
-                    label_font_size=label_font_size,
-                    x_offset=x_offset,
-                    y_offset=y_offset,
-                    text_fit_context=gate_text_context,
-                    text_fit_cache=gate_text_cache,
+                    scene=scene,
+                    cache=resolved_prepared_gate_text_cache,
                 )
+                if prepared_text is not None:
+                    label_font_size = _fit_gate_text_font_size_with_context(
+                        context=gate_text_context,
+                        width=gate.width,
+                        height=gate.height,
+                        text=prepared_text.text,
+                        default_font_size=scene.style.font_size,
+                        height_fraction=prepared_text.height_fraction,
+                        cache=gate_text_cache,
+                    )
+                    draw_gate_label(
+                        axes,
+                        gate,
+                        scene,
+                        label_font_size=label_font_size,
+                        prepared_text=prepared_text,
+                        x_offset=x_offset,
+                        y_offset=y_offset,
+                        text_fit_context=gate_text_context,
+                        text_fit_cache=gate_text_cache,
+                    )
                 continue
             draw_gate_label(
                 axes,
@@ -388,6 +386,30 @@ class MatplotlibRenderer(BaseRenderer):
             text_fit_context=gate_text_context,
             text_fit_cache=gate_text_cache,
         )
+
+    def _prepared_gate_text_for_render(
+        self,
+        gate: SceneGate,
+        *,
+        scene: LayoutScene,
+        cache: dict[_PreparedGateTextCacheKey, _PreparedGateText | None],
+    ) -> _PreparedGateText | None:
+        cache_key = (
+            gate.render_style,
+            gate.label,
+            gate.subtitle,
+            scene.style.use_mathtext,
+        )
+        cached_text = cache.get(cache_key)
+        if cached_text is not None or cache_key in cache:
+            return cached_text
+
+        prepared_text = _prepared_gate_text(
+            gate,
+            use_mathtext=scene.style.use_mathtext,
+        )
+        cache[cache_key] = prepared_text
+        return prepared_text
 
     def _project_pages(self, scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
         cache_key = projection_cache_key(scene)
