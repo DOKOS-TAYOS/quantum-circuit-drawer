@@ -30,6 +30,8 @@ from ._matplotlib_connections import (
     draw_wires,
 )
 from ._matplotlib_gates import (
+    _prepared_gate_text,
+    _PreparedGateText,
     draw_controls,
     draw_gate_annotation,
     draw_gate_box,
@@ -109,6 +111,8 @@ __all__ = [
     "_measurement_half_gate_box",
     "_multiline_text_line_spacing",
     "_page_wrapped_font_scale",
+    "_PreparedGateText",
+    "_prepared_gate_text",
     "_resolved_multiline_text_line_spacing",
     "_set_artist_data_extent",
     "_supports_fast_patch_artist_path",

@@ -1,5 +1,6 @@
 # ruff: noqa: F403, F405
 import quantum_circuit_drawer.renderers._matplotlib_axes as matplotlib_axes_module
+import quantum_circuit_drawer.renderers._matplotlib_gates as matplotlib_gates_module
 import quantum_circuit_drawer.renderers._matplotlib_text as matplotlib_text_module
 from tests._matplotlib_renderer_support import *
 
@@ -514,6 +515,74 @@ def test_matplotlib_renderer_reuses_text_fit_cache_across_repeated_renders(
 
     assert len(cache_ids) == 1
     plt.close(figure)
+
+
+def test_matplotlib_renderer_reuses_prepared_gate_text_for_repeated_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=("q1",),
+                        parameters=(0.5,),
+                    ),
+                ]
+            )
+            for _ in range(12)
+        ],
+    )
+    scene = LayoutEngine().compute(
+        circuit,
+        DrawStyle(show_params=True, show_wire_labels=False),
+    )
+    figure, axes = plt.subplots(figsize=(4.0, 8.0))
+    visible_label_calls = 0
+    gate_text_block_calls = 0
+    original_visible_label = matplotlib_gates_module.format_visible_label
+    original_gate_text_block = matplotlib_gates_module.format_gate_text_block
+
+    def count_visible_label(text: str, *, use_mathtext: bool) -> str:
+        nonlocal visible_label_calls
+        visible_label_calls += 1
+        return original_visible_label(text, use_mathtext=use_mathtext)
+
+    def count_gate_text_block(label: str, subtitle: str, *, use_mathtext: bool) -> str:
+        nonlocal gate_text_block_calls
+        gate_text_block_calls += 1
+        return original_gate_text_block(label, subtitle, use_mathtext=use_mathtext)
+
+    monkeypatch.setattr(
+        matplotlib_renderer_module,
+        "format_visible_label",
+        count_visible_label,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        matplotlib_renderer_module,
+        "format_gate_text_block",
+        count_gate_text_block,
+        raising=False,
+    )
+    monkeypatch.setattr(matplotlib_gates_module, "format_visible_label", count_visible_label)
+    monkeypatch.setattr(matplotlib_gates_module, "format_gate_text_block", count_gate_text_block)
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    axis_texts = [normalize_rendered_text(text.get_text()) for text in axes.texts]
+
+    assert axis_texts.count("H") == 12
+    assert axis_texts.count("RX\n0.5") == 12
+    assert visible_label_calls == 1
+    assert gate_text_block_calls == 1
 
 
 def test_draw_gate_label_centers_label_and_subtitle_block() -> None:

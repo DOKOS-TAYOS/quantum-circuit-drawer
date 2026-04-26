@@ -26,7 +26,10 @@ from .page_window_windowing import (
 from .zoom import configure_zoom_text_scaling
 
 if TYPE_CHECKING:
+    from ..renderers.matplotlib_primitives import _PreparedGateText
     from .page_window import Managed2DPageWindowState
+
+_PreparedGateTextCacheKey = tuple[object, str, str | None, bool]
 
 
 def _render_current_window(state: Managed2DPageWindowState) -> None:
@@ -40,6 +43,10 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
     prepare_axes(state.axes, window_scene)
     gate_text_context = _build_gate_text_fitting_context(state.axes, window_scene)
     hover_targets: list[_HoverTarget2D] = []
+    prepared_gate_text_cache: dict[
+        _PreparedGateTextCacheKey,
+        _PreparedGateText | None,
+    ] = {}
 
     for window_index, page_index in enumerate(_visible_page_indexes(state)):
         projected_page = _projected_page_for_index(state, page_index)
@@ -52,6 +59,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
             gate_text_context=gate_text_context,
             gate_text_cache=state.text_fit_cache,
             hover_targets=hover_targets,
+            prepared_gate_text_cache=prepared_gate_text_cache,
         )
 
     if window_scene.hover.enabled and hover_targets:
