@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Fixed obsolete CLI `type: ignore` comments so strict `mypy` checks stay clean.
 - Fixed compact Cirq `CircuitOperation` demos so the visible `CircuitOp` box no longer shows a redundant tiny native annotation and can be expanded/collapsed from managed 2D controls.
 - Fixed managed exploration expand/collapse button labels so parameter-heavy block names use the same rounded numeric text as their collapsed circuit boxes.
 

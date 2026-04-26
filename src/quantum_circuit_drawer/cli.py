@@ -183,11 +183,11 @@ def _draw_config_from_args(args: Namespace) -> DrawConfig:
                 view=view,  # type: ignore[arg-type]
                 mode=DrawMode(cast(str, args.mode)),
                 composite_mode=cast(str, args.composite_mode),
-                topology=args.topology,  # type: ignore[arg-type]
-                topology_qubits=args.topology_qubits,  # type: ignore[arg-type]
-                topology_resize=args.topology_resize,  # type: ignore[arg-type]
+                topology=args.topology,
+                topology_qubits=args.topology_qubits,
+                topology_resize=args.topology_resize,
                 direct=False if view == "3d" else True,
-                unsupported_policy=args.unsupported_policy,  # type: ignore[arg-type]
+                unsupported_policy=args.unsupported_policy,
             ),
             appearance=CircuitAppearanceOptions(preset=args.preset),
         ),
