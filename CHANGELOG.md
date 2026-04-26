@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added `analyze_quantum_circuit(...)` and `CircuitAnalysisResult` for non-rendering circuit analysis before opening windows or saving figures.
+- Added result export helpers: `save(...)`, `to_dict()`, circuit `save_all_pages(...)`, and histogram `to_csv(...)` methods on public result objects.
+- Added internally generated framework capability support tables to keep framework documentation aligned with the release support contract.
 - Added Python 3.13 as a declared and core-CI-tested runtime alongside Python 3.11 and 3.12.
 - Added `saved_path` to `HistogramResult` and `HistogramCompareResult`, matching `DrawResult` for scripts that save figures through `OutputOptions(output_path=...)`.
 - Added the shared `accessible` style preset and `accessible` theme with high-contrast, colorblind-friendlier colors for circuit and histogram rendering.

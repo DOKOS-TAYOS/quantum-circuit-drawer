@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._version import __version__
+from .analysis import CircuitAnalysisResult
 from .builder import CircuitBuilder
 from .circuit_compare import (
     CircuitCompareConfig,
@@ -90,6 +91,21 @@ def draw_quantum_circuit(
     )
 
 
+def analyze_quantum_circuit(
+    circuit: object,
+    *,
+    config: DrawConfig | None = None,
+) -> CircuitAnalysisResult:
+    """Analyze a supported circuit without rendering figures."""
+
+    from .api import analyze_quantum_circuit as _analyze_quantum_circuit
+
+    return _analyze_quantum_circuit(
+        circuit,
+        config=config,
+    )
+
+
 def plot_histogram(
     data: object,
     *,
@@ -148,6 +164,7 @@ def compare_circuits(
 __all__ = [
     "CircuitBuilder",
     "CircuitAppearanceOptions",
+    "CircuitAnalysisResult",
     "CircuitCompareConfig",
     "CircuitCompareMetrics",
     "CircuitCompareOptions",
@@ -192,6 +209,7 @@ __all__ = [
     "UnsupportedOperationError",
     "UnsupportedPolicy",
     "__version__",
+    "analyze_quantum_circuit",
     "compare_circuits",
     "compare_histograms",
     "draw_quantum_circuit",

@@ -6,6 +6,7 @@ For task-oriented guidance, prefer [Getting started](getting-started.md), [User 
 
 The public entry points stay intentionally small:
 
+- `analyze_quantum_circuit(...)`
 - `draw_quantum_circuit(...)`
 - `compare_circuits(...)`
 - `plot_histogram(...)`
@@ -14,6 +15,12 @@ The public entry points stay intentionally small:
 ## Main functions
 
 ```python
+analyze_quantum_circuit(
+    circuit: object,
+    *,
+    config: DrawConfig | None = None,
+) -> CircuitAnalysisResult
+
 draw_quantum_circuit(
     circuit: object,
     *,
@@ -44,6 +51,12 @@ compare_histograms(
     ax: Axes | None = None,
 ) -> HistogramCompareResult
 ```
+
+## Circuit analysis
+
+`analyze_quantum_circuit(...)` prepares the same normalized circuit pipeline as drawing, but it does not render figures, call `show()`, or save `OutputOptions.output_path`.
+
+`CircuitAnalysisResult` includes framework, mode, view, page count, wire counts, operation counts, diagnostics, `warnings`, and `to_dict()`.
 
 ## Circuit drawing
 
@@ -226,6 +239,14 @@ Convenience properties:
 - `resolved_mode`
 - `warnings`
 
+Export helpers:
+
+- `save(path)`
+- `save_all_pages(output_dir, filename_prefix="page", extension=".png")`
+- `to_dict()`
+
+Example: `result.save(path)`, `result.save_all_pages(output_dir)`, and `result.to_dict()`.
+
 ## Comparison APIs
 
 Circuit comparison and histogram comparison are the two public comparison APIs.
@@ -291,6 +312,11 @@ Fields:
 - `differing_layer_count`
 - `left_only_layer_count`
 - `right_only_layer_count`
+
+Export helpers:
+
+- `save(path)`
+- `to_dict()`
 
 ## Histogram APIs
 
@@ -471,6 +497,12 @@ Notes:
 - when `qubits` is provided, the function returns one joint marginal and preserves the exact qubit order you passed
 - in interactive mode, `state_labels` and `values` still describe the full ordered histogram distribution, not just the visible slider window
 
+Export helpers:
+
+- `save(path)`
+- `to_dict()`
+- `to_csv(path)`
+
 ### `HistogramCompareResult`
 
 Fields:
@@ -491,6 +523,12 @@ Fields:
 
 - `total_variation_distance`
 - `max_absolute_delta`
+
+Export helpers:
+
+- `save(path)`
+- `to_dict()`
+- `to_csv(path)`
 
 ## Builder and IR APIs
 

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from ..config import OutputOptions, validate_output_options
+from ..export.figures import save_matplotlib_figure
 from ..presets import (
     StylePreset,
     histogram_draw_style_for_preset,
@@ -14,7 +17,9 @@ from ..presets import (
     histogram_theme_for_preset,
     normalize_style_preset,
 )
+from ..result import diagnostics_to_dicts
 from ..style.theme import resolve_theme
+from ..typing import OutputPath
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -22,7 +27,6 @@ if TYPE_CHECKING:
 
     from ..diagnostics import RenderDiagnostic
     from ..style.theme import DrawTheme
-    from ..typing import OutputPath
 
 
 class HistogramKind(StrEnum):
@@ -255,6 +259,35 @@ class HistogramResult:
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
 
+    def save(self, path: OutputPath) -> str:
+        """Save the histogram figure and return the absolute saved path."""
+
+        save_matplotlib_figure(self.figure, path)
+        return _resolved_output_path(path)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return histogram values and metadata without Matplotlib objects."""
+
+        return {
+            "kind": self.kind.value,
+            "state_labels": self.state_labels,
+            "values": self.values,
+            "qubits": self.qubits,
+            "saved_path": self.saved_path,
+            "diagnostics": diagnostics_to_dicts(self.diagnostics),
+        }
+
+    def to_csv(self, path: OutputPath) -> str:
+        """Write state/value rows to CSV and return the absolute path."""
+
+        output_path = Path(path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(("state", "value"))
+            writer.writerows(zip(self.state_labels, self.values, strict=True))
+        return _resolved_output_path(path)
+
 
 @dataclass(frozen=True, slots=True)
 class HistogramCompareConfig:
@@ -354,6 +387,53 @@ class HistogramCompareResult:
     qubits: tuple[int, ...] | None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
+
+    def save(self, path: OutputPath) -> str:
+        """Save the comparison figure and return the absolute saved path."""
+
+        save_matplotlib_figure(self.figure, path)
+        return _resolved_output_path(path)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return comparison values and metadata without Matplotlib objects."""
+
+        return {
+            "kind": self.kind.value,
+            "state_labels": self.state_labels,
+            "left_values": self.left_values,
+            "right_values": self.right_values,
+            "delta_values": self.delta_values,
+            "metrics": {
+                "total_variation_distance": self.metrics.total_variation_distance,
+                "max_absolute_delta": self.metrics.max_absolute_delta,
+            },
+            "qubits": self.qubits,
+            "saved_path": self.saved_path,
+            "diagnostics": diagnostics_to_dicts(self.diagnostics),
+        }
+
+    def to_csv(self, path: OutputPath) -> str:
+        """Write aligned comparison rows to CSV and return the absolute path."""
+
+        output_path = Path(path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(("state", "left", "right", "delta"))
+            writer.writerows(
+                zip(
+                    self.state_labels,
+                    self.left_values,
+                    self.right_values,
+                    self.delta_values,
+                    strict=True,
+                )
+            )
+        return _resolved_output_path(path)
+
+
+def _resolved_output_path(path: OutputPath) -> str:
+    return str(Path(path).resolve())
 
 
 def _normalize_kind(value: HistogramKind | str) -> HistogramKind:

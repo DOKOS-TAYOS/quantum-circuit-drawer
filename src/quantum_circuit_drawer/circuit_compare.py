@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .config import (
@@ -12,14 +13,15 @@ from .config import (
     OutputOptions,
     validate_output_options,
 )
-from .result import DrawResult
+from .export.figures import save_matplotlib_figure
+from .result import DrawResult, diagnostics_to_dicts
+from .typing import OutputPath
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
     from .diagnostics import RenderDiagnostic
-    from .typing import OutputPath
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +135,23 @@ class CircuitCompareResult:
     metrics: CircuitCompareMetrics
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
+
+    def save(self, path: OutputPath) -> str:
+        """Save the comparison figure and return the absolute saved path."""
+
+        save_matplotlib_figure(self.figure, path)
+        return str(Path(path).resolve())
+
+    def to_dict(self) -> dict[str, object]:
+        """Return comparison metadata without Matplotlib figure or axes objects."""
+
+        return {
+            "left_result": self.left_result.to_dict(),
+            "right_result": self.right_result.to_dict(),
+            "metrics": asdict(self.metrics),
+            "diagnostics": diagnostics_to_dicts(self.diagnostics),
+            "saved_path": self.saved_path,
+        }
 
 
 def compare_circuits(

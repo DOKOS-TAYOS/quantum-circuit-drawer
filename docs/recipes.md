@@ -68,6 +68,47 @@ draw_quantum_circuit(
 )
 ```
 
+### Analyze before rendering
+
+```python
+from quantum_circuit_drawer import DrawConfig, OutputOptions, analyze_quantum_circuit
+
+analysis = analyze_quantum_circuit(
+    circuit,
+    config=DrawConfig(output=OutputOptions(show=True, output_path="ignored.png")),
+)
+
+summary = analysis.to_dict()
+```
+
+### Export after rendering
+
+```python
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+
+result = draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(output=OutputOptions(show=False)),
+)
+
+image_path = result.save("circuit.png")
+page_paths = result.save_all_pages("circuit_pages")
+summary = result.to_dict()
+```
+
+Histogram results also support CSV export:
+
+```python
+from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+
+result = plot_histogram(
+    {"00": 5, "11": 3},
+    config=HistogramConfig(output=OutputOptions(show=False)),
+)
+
+csv_path = result.to_csv("histogram.csv")
+```
+
 ### Draw OpenQASM 2 Or 3 Text Or A `.qasm` / `.qasm3` File
 
 Install `quantum-circuit-drawer[qiskit]` for OpenQASM 2 input. Install `quantum-circuit-drawer[qasm3]` when you want OpenQASM 3 text or `.qasm3` files, because that extra includes Qiskit's OpenQASM 3 importer.

@@ -22,6 +22,7 @@ The library is centered on four user workflows:
 
 | Workflow | Public API | Typical use |
 | --- | --- | --- |
+| Analyze one circuit | `analyze_quantum_circuit(...)` | Inspect framework, size, mode, pages, operations, and diagnostics without rendering |
 | Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2/3, or IR circuit |
 | Compare two circuits | `compare_circuits(...)` | Show before/after structure, for example before and after transpilation |
 | Plot one result distribution | `plot_histogram(...)` | Plot counts, quasi-probabilities, marginals, or framework-native result objects |
@@ -117,6 +118,7 @@ This is the production support contract for the current release.
 
 | If you want to... | Start here |
 | --- | --- |
+| Inspect a circuit before rendering | [Analyze a circuit](#analyze-a-circuit-without-rendering) |
 | Draw a circuit from a supported framework | [Draw one circuit](#draw-one-circuit) |
 | Draw OpenQASM 2/3 text or a `.qasm` / `.qasm3` file | [Draw OpenQASM](#draw-openqasm) |
 | Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file) |
@@ -148,6 +150,25 @@ axes = result.primary_axes
 ```
 
 This same shape works for the supported framework objects and for the public IR types.
+
+## Analyze A Circuit Without Rendering
+
+Use `analyze_quantum_circuit(...)` when you want a quick summary before opening windows or saving images:
+
+```python
+from quantum_circuit_drawer import DrawConfig, OutputOptions, analyze_quantum_circuit
+
+analysis = analyze_quantum_circuit(
+    circuit,
+    config=DrawConfig(output=OutputOptions(show=True, output_path="ignored.png")),
+)
+
+summary = analysis.to_dict()
+```
+
+The analysis path prepares the same normalized circuit pipeline as drawing, but it does not render, call `show()`, or save `output_path`.
+
+All public result objects also support post-render export helpers. Circuit results can call `result.save("circuit.png")`, `result.save_all_pages("pages")`, and `result.to_dict()`. Histogram results can also call `result.to_csv("histogram.csv")`.
 
 ## Draw OpenQASM
 

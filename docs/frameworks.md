@@ -55,6 +55,30 @@ Use this table as the release support contract when choosing a framework path.
 
 When a framework returns several measurement outputs at once, pass the tuple or list directly and select one entry with `HistogramConfig(data=HistogramDataOptions(result_index=...))`.
 
+## Detailed Support Tables
+
+These tables are generated from the package's internal support data so the documentation stays aligned with the release contract.
+
+| Input path | Circuit inputs | Result inputs | Support level | Platform notes |
+| --- | --- | --- | --- | --- |
+| Internal IR | `CircuitIR` | Mappings for histograms | Strong support | Core built-in path on Windows and Linux |
+| Qiskit | `QuantumCircuit` | Counts, quasi distributions, sampler containers, `BitArray`, `DataBin` | Strong support | Primary external backend on Windows and Linux |
+| OpenQASM 2/3 | Text, `.qasm`, and `.qasm3` files | Use normal histogram inputs after execution | Strong support through Qiskit parsers | OpenQASM 3 requires the `qasm3` extra |
+| Cirq | `Circuit` and `FrozenCircuit` | `Result` / `ResultDict` measurements | Best-effort on native Windows | Prefer Linux or WSL for repeated demos |
+| PennyLane | `QuantumTape`, `QuantumScript`, materialized tape wrappers | `counts`, `probs`, and `sample` outputs | Best-effort on native Windows | Prefer Linux or WSL for repeated demos |
+| MyQLM | `Circuit`, `Program`, `QRoutine` | `qat.core.Result.raw_data` | Scoped adapter + contract support | Not a first-class multiplatform CI backend |
+| CUDA-Q | Closed kernels and scalar-argument kernels with `cudaq_args` | `SampleResult`-style count containers | Linux/WSL2 only | Upstream CUDA-Q is not available for native Windows |
+
+| Input path | Basic gates | Measurements | Open controls | Classical/control flow | Composites | Resets/barriers | Terminal outputs | Histograms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Internal IR | Exact through public IR | Exact | Exact when encoded | Classical conditions only | Caller-defined | Supported | Use explicit IR boxes | Mappings and framework-neutral data |
+| Qiskit | Common gates plus canonical families | Supported | `ctrl_state` supported | Simple `if_test` can expand; richer flow is compact | Compact or expanded instructions | Supported | Not applicable | Counts, quasi, sampler, primitive, bit-array payloads |
+| OpenQASM 2/3 | Whatever Qiskit parser accepts | Supported after parsing | Through parsed Qiskit circuit | Through parsed Qiskit circuit | Through parsed Qiskit circuit | Through parsed Qiskit circuit | Not applicable | Use normal histogram inputs after execution |
+| Cirq | Common gates | Supported | Singleton binary `control_values` supported | Normalized conditions or hover fallback | `CircuitOperation` compact or expanded | Swap and measurements supported | Not applicable | Measurement dictionaries from Cirq results |
+| PennyLane | Common operations | Mid-circuit `qml.measure` supported | Binary `control_values` supported when exposed | `qml.cond` conditions when normalizable | Decomposable operations such as `QFT` can expand | Supported when present in tape | Compact output boxes for expval, var, probs, sample, counts, state | Direct counts, probabilities, and sample arrays |
+| MyQLM | Common gates and gate definitions | Supported | Controlled gates from definitions | Drawable formulas or hover-preserved fallback | `gateDic`, remap, and ancilla-heavy composites compactly | Qubit resets supported; classical-only reset metadata is limited | Not applicable | `raw_data` probabilities |
+| CUDA-Q | Supported Quake/MLIR gate subset | Basis-preserving measurements | Supported controlled operations in parser subset | Structured flow compact; low-level CFG outside subset | Compact callable boxes for apply/compute/adjoint | Reset supported | Not applicable | Sample-result count containers |
+
 ## Choosing Between Native Frameworks And IR
 
 Use a native adapter when:

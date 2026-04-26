@@ -73,6 +73,33 @@ def test_support_matrix_docs_publish_the_release_support_levels(path: Path) -> N
     assert "Linux/WSL2 only" in text
 
 
+def test_framework_support_tables_match_internal_support_source() -> None:
+    from quantum_circuit_drawer._support_matrix import render_support_tables_markdown
+
+    frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
+
+    assert render_support_tables_markdown() in frameworks_reference
+
+
+def test_public_docs_describe_analysis_and_result_exports() -> None:
+    readme_reference = Path("README.md").read_text(encoding="utf-8")
+    api_reference = Path("docs/api.md").read_text(encoding="utf-8")
+    recipes_reference = Path("docs/recipes.md").read_text(encoding="utf-8")
+    changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+    combined_docs = "\n".join((readme_reference, api_reference, recipes_reference))
+
+    assert "analyze_quantum_circuit" in combined_docs
+    assert "CircuitAnalysisResult" in api_reference
+    assert ".save(" in combined_docs
+    assert ".save_all_pages(" in api_reference
+    assert ".to_dict(" in combined_docs
+    assert ".to_csv(" in combined_docs
+    assert "non-rendering circuit analysis" in changelog_reference
+    assert "result export helpers" in changelog_reference
+    assert "framework capability support tables" in changelog_reference
+
+
 def test_public_docs_describe_openqasm_text_and_file_support() -> None:
     docs_by_path = {
         path: path.read_text(encoding="utf-8")
