@@ -504,6 +504,15 @@ In interactive mode, the managed figure can add:
 - a slider button when hidden bins exist
 - a marginal-qubits text box
 
+Interactive histograms also support keyboard shortcuts:
+
+- `Left` / `Right`: move the visible slider window one step
+- `s`: cycle the ordering mode
+- `b`: toggle binary or decimal state labels
+- `q`: switch between counts and quasi view when both exist
+- `m`: focus the marginal-qubits text box
+- `0`: restore the original interactive histogram view
+
 Set `HistogramAppearanceOptions(hover=False)` if you want the interactive controls without hover labels.
 
 ## Framework-Native Result Inputs

@@ -20,6 +20,7 @@ from .exploration_2d import (
     apply_scene_visual_state_3d,
     managed_exploration_state,
     next_selected_operation_id_for_block_action,
+    reset_exploration_state,
     selected_block_action,
     toggle_wire_filter_mode,
     transform_semantic_circuit,
@@ -35,6 +36,7 @@ from .interaction import (
     is_page_up_key,
     is_plus_key,
     is_previous_selection_key,
+    is_reset_view_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
     next_visible_operation_selection,
@@ -206,6 +208,16 @@ class Managed3DPageWindowState:
         """Clear the current contextual selection."""
 
         self.select_operation(None)
+
+    def reset_exploration_view(self) -> None:
+        """Restore the managed exploration state to its original defaults."""
+
+        if self.exploration is None:
+            return
+        reset_exploration_state(self.exploration)
+        _refresh_3d_page_window_exploration_context(self)
+        _render_current_window(self)
+        _sync_inputs(self)
 
     def step_page(self, delta: int) -> None:
         """Move the visible page window backward or forward."""
@@ -475,6 +487,9 @@ def _attach_3d_window_key_shortcuts(state: Managed3DPageWindowState) -> None:
             return
         if is_clear_selection_key(event):
             state.clear_selection()
+            return
+        if is_reset_view_key(event):
+            state.reset_exploration_view()
             return
         if key_name == "left":
             state.step_page(-1)

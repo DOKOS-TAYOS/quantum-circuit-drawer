@@ -37,6 +37,7 @@ from .exploration_2d import (
     exploration_control_availability,
     managed_exploration_state,
     next_selected_operation_id_for_block_action,
+    reset_exploration_state,
     selected_block_action,
     toggle_wire_filter_mode,
     transform_semantic_circuit,
@@ -50,6 +51,7 @@ from .interaction import (
     is_page_down_key,
     is_page_up_key,
     is_previous_selection_key,
+    is_reset_view_key,
     managed_key_name,
     next_visible_operation_selection,
     toggle_operation_with_selection,
@@ -198,6 +200,15 @@ class Managed3DPageSliderState:
         """Clear the current contextual selection."""
 
         self.select_operation(None)
+
+    def reset_exploration_view(self) -> None:
+        """Restore the managed exploration state to its original defaults."""
+
+        if self.exploration is None:
+            return
+        reset_exploration_state(self.exploration)
+        _refresh_3d_slider_exploration_context(self)
+        self.show_start_column(self.start_column)
 
     def step_start_column(self, delta: int) -> None:
         """Move the managed 3D window by one column step."""
@@ -502,6 +513,9 @@ def _attach_3d_slider_key_shortcuts(state: Managed3DPageSliderState) -> None:
             return
         if is_clear_selection_key(event):
             state.clear_selection()
+            return
+        if is_reset_view_key(event):
+            state.reset_exploration_view()
             return
         if key_name == "left":
             state.step_start_column(-1)

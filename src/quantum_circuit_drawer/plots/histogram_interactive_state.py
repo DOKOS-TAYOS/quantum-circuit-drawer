@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from matplotlib.backend_bases import KeyEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
@@ -78,6 +79,11 @@ class HistogramInteractiveState:
     label_mode: HistogramStateLabelMode
     top_k: int | None
     current_sort: HistogramSort
+    initial_sort: HistogramSort
+    initial_label_mode: HistogramStateLabelMode
+    initial_kind: HistogramKind
+    initial_active_qubits: tuple[int, ...] | None
+    initial_slider_enabled: bool
     active_qubits: tuple[int, ...] | None
     slider_enabled: bool
     message_text: Text
@@ -103,6 +109,7 @@ class HistogramInteractiveState:
     window_start: int = 0
     max_window_start: int = 0
     resize_callback_id: int | None = None
+    key_callback_id: int | None = None
     is_syncing_marginal_text: bool = False
 
     def cycle_sort(self) -> None:
@@ -315,6 +322,35 @@ class HistogramInteractiveState:
         )
         save_histogram_if_requested(snapshot_figure, output_path=output_path)
 
+    def focus_marginal_text_input(self) -> None:
+        """Focus the marginal-qubits text box for keyboard entry."""
+
+        if self.marginal_text_box is None:
+            return
+        if bool(getattr(self.marginal_text_box, "capturekeystrokes", False)):
+            return
+        self.marginal_text_box.set_active(True)
+        self.marginal_text_box.begin_typing()
+        canvas = getattr(self.figure, "canvas", None)
+        if canvas is not None:
+            canvas.draw_idle()
+
+    def restore_initial_view(self) -> None:
+        """Restore the interactive histogram state to its original defaults."""
+
+        if self.marginal_text_box is not None and bool(
+            getattr(self.marginal_text_box, "capturekeystrokes", False)
+        ):
+            self.marginal_text_box.stop_typing()
+        self.current_sort = self.initial_sort
+        self.label_mode = self.initial_label_mode
+        self.kind = self.initial_kind
+        self.active_qubits = self.initial_active_qubits
+        self.slider_enabled = self.initial_slider_enabled
+        self.window_start = 0
+        self._set_message("")
+        self.redraw()
+
     def remove(self) -> None:
         """Disconnect callbacks and remove interactive artists."""
 
@@ -332,6 +368,8 @@ class HistogramInteractiveState:
                 widget.disconnect_events()
         if self.horizontal_slider is not None:
             self.horizontal_slider.disconnect_events()
+        if self.key_callback_id is not None and self.figure.canvas is not None:
+            self.figure.canvas.mpl_disconnect(self.key_callback_id)
         for control_axes in (
             self.order_axes,
             self.label_mode_axes,
@@ -433,6 +471,11 @@ def attach_histogram_interactivity(
         label_mode=config.state_label_mode,
         top_k=config.top_k,
         current_sort=config.sort,
+        initial_sort=config.sort,
+        initial_label_mode=config.state_label_mode,
+        initial_kind=kind,
+        initial_active_qubits=config.qubits,
+        initial_slider_enabled=True,
         active_qubits=config.qubits,
         slider_enabled=True,
         message_text=message_text,
@@ -444,6 +487,7 @@ def attach_histogram_interactivity(
             "resize_event",
             lambda _event: state.redraw(),
         )
+        _attach_histogram_key_shortcuts(state)
 
     set_histogram_state(figure, state)
     state.redraw()
@@ -463,6 +507,49 @@ def _normalize_counts_to_quasi_distribution(
     return {
         state_label: float(value) / total_count for state_label, value in values_by_state.items()
     }
+
+
+def _attach_histogram_key_shortcuts(state: HistogramInteractiveState) -> None:
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is None:
+        return
+    if state.key_callback_id is not None:
+        canvas.mpl_disconnect(state.key_callback_id)
+
+    def _handle_key(event: KeyEvent) -> None:
+        if state.marginal_text_box is not None and bool(
+            getattr(state.marginal_text_box, "capturekeystrokes", False)
+        ):
+            return
+        key_name = _histogram_key_name(event)
+        if key_name == "left":
+            state.set_window_start(state.window_start - 1)
+            return
+        if key_name == "right":
+            state.set_window_start(state.window_start + 1)
+            return
+        if key_name == "s":
+            state.cycle_sort()
+            return
+        if key_name == "b":
+            state.toggle_label_mode()
+            return
+        if key_name == "q":
+            state.toggle_kind()
+            return
+        if key_name == "m":
+            state.focus_marginal_text_input()
+            return
+        if key_name == "0":
+            state.restore_initial_view()
+
+    state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))
+
+
+def _histogram_key_name(event: KeyEvent) -> str:
+    """Return one normalized interactive histogram key name."""
+
+    return "" if event.key is None else str(event.key).lower()
 
 
 __all__ = ["HistogramInteractiveState", "attach_histogram_interactivity"]

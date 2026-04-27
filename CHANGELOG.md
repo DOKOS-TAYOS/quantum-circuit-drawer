@@ -25,6 +25,7 @@
 - Expanded the visual documentation gallery with pages, `pages_controls`, slider, hover, selected-gate, expanded-block, and no-label 3D screenshots, using README image URLs that render on both GitHub and PyPI.
 - Added `CircuitRenderOptions.adapter_options` so public draw configs can pass adapter-specific values such as CUDA-Q `cudaq_args`.
 - Added CUDA-Q support for scalar runtime arguments on Linux/WSL, including dynamic qvector sizes and parametrized gates resolved from `adapter_options={"cudaq_args": (...)}`.
+- Added interactive histogram keyboard shortcuts for `Left` / `Right`, `s`, `b`, `q`, `m`, and `0`, plus managed circuit-view `0` resets that restore the original exploration state in 2D and 3D `pages_controls` and `slider` modes.
 
 ### Changed
 

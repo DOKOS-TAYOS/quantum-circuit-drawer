@@ -470,7 +470,7 @@ The most common choices are:
 - `DrawMode.SLIDER`: best when you want a viewport through a wide circuit
 - `DrawMode.FULL`: best when the circuit fits comfortably in one scene
 
-Managed `pages_controls` and `slider` figures now enable keyboard navigation and block toggling by default. That includes arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, and `+/-` where the mode supports them. Use `CircuitRenderOptions(keyboard_shortcuts=False, double_click_toggle=False)` if you want to turn those interactions off.
+Managed `pages_controls` and `slider` figures now enable keyboard navigation and block toggling by default. That includes arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, `0`, and `+/-` where the mode supports them. Use `CircuitRenderOptions(keyboard_shortcuts=False, double_click_toggle=False)` if you want to turn those interactions off.
 
 Example:
 

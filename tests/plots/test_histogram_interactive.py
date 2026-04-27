@@ -4,7 +4,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 from matplotlib.text import Annotation
 
@@ -92,6 +92,15 @@ def _dispatch_motion_event_at_data(figure: Figure, axes: object, *, x: float, y:
         float(display_y),
     )
     figure.canvas.callbacks.process("motion_notify_event", event)
+
+
+def _dispatch_key_press(figure: Figure, key: str) -> None:
+    event = KeyEvent(
+        "key_press_event",
+        figure.canvas,
+        key=key,
+    )
+    figure.canvas.callbacks.process("key_press_event", event)
 
 
 def test_plot_histogram_interactive_mode_attaches_controls_and_windowed_view() -> None:
@@ -315,6 +324,56 @@ def test_histogram_interactive_slider_toggle_expands_to_full_distribution() -> N
     assert len(result.axes.patches) == len(state.current_labels)
     assert state.slider_toggle_button is not None
     assert state.slider_toggle_button.label.get_text() == "Slider Off"
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_keyboard_shortcuts_update_and_reset_view() -> None:
+    result = plot_histogram(
+        _dense_histogram_counts(),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.horizontal_slider is not None
+    assert state.marginal_text_box is not None
+
+    state.set_window_start(1)
+    _dispatch_key_press(result.figure, "right")
+    assert state.window_start == 2
+
+    _dispatch_key_press(result.figure, "left")
+    assert state.window_start == 1
+
+    _dispatch_key_press(result.figure, "s")
+    assert state.current_sort is HistogramSort.STATE_DESC
+
+    _dispatch_key_press(result.figure, "b")
+    assert state.label_mode is HistogramStateLabelMode.DECIMAL
+
+    _dispatch_key_press(result.figure, "q")
+    assert state.kind is HistogramKind.QUASI
+
+    _dispatch_key_press(result.figure, "m")
+    assert state.marginal_text_box.capturekeystrokes is True
+
+    state.marginal_text_box.stop_typing()
+    state.submit_marginal_text("0,2,5")
+    assert state.active_qubits == (0, 2, 5)
+
+    _dispatch_key_press(result.figure, "0")
+    assert state.window_start == 0
+    assert state.current_sort is HistogramSort.STATE
+    assert state.label_mode is HistogramStateLabelMode.BINARY
+    assert state.kind is HistogramKind.COUNTS
+    assert state.active_qubits is None
+    assert state.slider_enabled is True
 
     plt.close(result.figure)
 

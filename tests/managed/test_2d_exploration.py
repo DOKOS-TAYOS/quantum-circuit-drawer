@@ -970,6 +970,63 @@ def test_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> None:
         plt.close(figure)
 
 
+def test_page_window_zero_shortcut_resets_exploration_state() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=3.0)
+    scene = managed_module.compute_paged_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=3.2,
+        figure_height=3.0,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            scene=scene,
+            effective_page_width=style.max_page_width,
+            set_page_window=set_page_window,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+        )
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+
+        page_window.select_operation("op:0")
+        page_window.toggle_selected_block()
+        page_window.toggle_wire_filter()
+        page_window.toggle_ancillas()
+
+        assert page_window.exploration.selected_operation_id is not None
+        assert page_window.exploration.collapsed_block_ids == set()
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+        assert page_window.exploration.show_ancillas is False
+
+        _dispatch_key_press(figure, "0")
+
+        assert page_window.exploration.selected_operation_id is None
+        assert page_window.exploration.collapsed_block_ids == set(
+            page_window.exploration.catalog.initial_collapsed_block_ids
+        )
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ALL
+        assert page_window.exploration.show_ancillas is True
+    finally:
+        plt.close(figure)
+
+
 def test_slider_arrow_keys_move_horizontal_and_vertical_windows() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24, wire_count=24),
@@ -1076,6 +1133,64 @@ def test_slider_tab_shortcuts_traverse_visible_expandable_blocks_and_clear_selec
 
         _dispatch_key_press(figure, "escape")
         assert page_slider.exploration.selected_operation_id is None
+    finally:
+        plt.close(figure)
+
+
+def test_slider_zero_shortcut_resets_exploration_state() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=3.0)
+    scene = managed_module.build_continuous_slider_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=2.6,
+        figure_height=2.8,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_slider(
+            figure=figure,
+            axes=axes,
+            scene=scene,
+            viewport_width=scene.width,
+            set_page_slider=set_page_slider,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            normalized_style=style,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+        )
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.exploration is not None
+
+        page_slider.select_operation("op:0")
+        page_slider.toggle_selected_block()
+        page_slider.toggle_wire_filter()
+        page_slider.toggle_ancillas()
+
+        assert page_slider.exploration.selected_operation_id is not None
+        assert page_slider.exploration.collapsed_block_ids == set()
+        assert page_slider.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+        assert page_slider.exploration.show_ancillas is False
+
+        _dispatch_key_press(figure, "0")
+
+        assert page_slider.exploration.selected_operation_id is None
+        assert page_slider.exploration.collapsed_block_ids == set(
+            page_slider.exploration.catalog.initial_collapsed_block_ids
+        )
+        assert page_slider.exploration.wire_filter_mode is WireFilterMode.ALL
+        assert page_slider.exploration.show_ancillas is True
     finally:
         plt.close(figure)
 

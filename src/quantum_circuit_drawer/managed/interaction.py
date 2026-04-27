@@ -48,6 +48,12 @@ def is_previous_selection_key(event: KeyEvent) -> bool:
     return managed_key_name(event) == "shift+tab"
 
 
+def is_reset_view_key(event: KeyEvent) -> bool:
+    """Return whether the key event should restore the original managed view."""
+
+    return managed_key_name(event) == "0"
+
+
 def is_home_key(event: KeyEvent) -> bool:
     """Return whether the key event should jump to the absolute start."""
 
@@ -156,6 +162,7 @@ __all__ = [
     "is_page_up_key",
     "is_plus_key",
     "is_previous_selection_key",
+    "is_reset_view_key",
     "managed_key_name",
     "managed_text_boxes_capture_keys",
     "next_visible_operation_selection",

@@ -267,6 +267,16 @@ def managed_exploration_state(
     )
 
 
+def reset_exploration_state(exploration: Managed2DExplorationState) -> None:
+    """Restore one managed exploration state to its original defaults."""
+
+    exploration.collapsed_block_ids.clear()
+    exploration.collapsed_block_ids.update(exploration.catalog.initial_collapsed_block_ids)
+    exploration.wire_filter_mode = WireFilterMode.ALL
+    exploration.show_ancillas = True
+    exploration.selected_operation_id = None
+
+
 def _current_operations_by_top_level_block_id(
     current_operations: Sequence[SemanticOperationIR],
 ) -> dict[str, tuple[SemanticOperationIR, ...]]:

@@ -330,7 +330,7 @@ Managed 2D can include:
 - keyboard shortcuts for navigation and selected-block toggling
 - click-based operation selection
 - double-click block expand/collapse when semantic provenance is available
-- keyboard shortcuts for arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, and `+/-` where the mode supports them
+- keyboard shortcuts for arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, `0`, and `+/-` where the mode supports them
 - `Wires: All/Active`
 - `Ancillas: Show/Hide`
 - contextual `Collapse` / `Expand` when semantic provenance is available
@@ -436,7 +436,7 @@ result = draw_quantum_circuit(
 - `full`
 - shared camera state in managed page controls
 - topology-aware selection
-- keyboard shortcuts in managed `pages_controls` and `slider`, including arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, and `+/-` where supported
+- keyboard shortcuts in managed `pages_controls` and `slider`, including arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, `0`, and `+/-` where supported
 - double-click block expand/collapse in managed `pages_controls` and `slider`
 - hover over selected operations when the backend supports interaction
 - optional topology menu in managed 3D views
