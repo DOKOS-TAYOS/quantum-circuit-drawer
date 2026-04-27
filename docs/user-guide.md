@@ -350,7 +350,7 @@ This can be useful when you are inspecting larger circuits and want to keep visu
 
 ## Comparison Workflows
 
-### Compare two circuits
+### Compare two or more circuits
 
 `compare_circuits(...)` is the quickest way to inspect structural change.
 
@@ -377,11 +377,13 @@ result = compare_circuits(
 
 What you get back:
 
-- two normal per-side circuit figures plus one compact summary figure by default
-- one figure with two subplot axes when you request `mode="full"` or pass caller-owned axes
-- one nested `DrawResult` per side, so each side exposes its own figures, axes, mode, and page count
+- one normal per-circuit figure plus one compact summary figure by default
+- one figure with one axes per circuit when you request `mode="full"` or pass caller-owned axes
+- one nested `DrawResult` per circuit, so each circuit exposes its own figures, axes, mode, and page count
 - metrics such as layers, total operations, multi-qubit operations, swaps, and measurements
 - an optional compact summary card; the summary focuses on stable aggregate metrics and does not report diff-column counts
+
+Pass extra circuits as additional positional arguments when you want to compare 3+ variants. In that case, set `CircuitCompareOptions(titles=(...))` with one title per circuit. The summary table uses one column per circuit instead of a delta column; lower aggregate values are shown in green and higher aggregate values in red for each row.
 
 Use this for:
 
@@ -389,9 +391,9 @@ Use this for:
 - compact vs expanded composite comparison
 - version-to-version circuit regressions
 
-### Compare two histograms
+### Compare two or more histograms
 
-Use `compare_histograms(...)` when you want two aligned distributions on the same state space.
+Use `compare_histograms(...)` when you want aligned distributions on the same state space.
 
 ```python
 from quantum_circuit_drawer import (
@@ -422,6 +424,8 @@ This is especially useful for:
 - comparing two result objects with the same logical meaning but different noise levels
 
 On interactive Matplotlib backends, the compare legend is clickable so you can focus one selected series at a time without rebuilding the figure.
+
+For 3+ distributions, pass more data objects after the first two and provide `HistogramCompareOptions(series_labels=(...))`. The returned `series_values` field contains every aligned series; the older `left_values`, `right_values`, and `delta_values` fields remain as the first-two compatibility view.
 
 ## Histogram Workflows
 

@@ -32,10 +32,13 @@ class CircuitCompareOptions:
     right_title: str = "Right"
     highlight_differences: bool = True
     show_summary: bool = True
+    titles: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         _validate_bool("highlight_differences", self.highlight_differences)
         _validate_bool("show_summary", self.show_summary)
+        if self.titles is not None:
+            _validate_str_tuple("titles", self.titles)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +91,10 @@ class CircuitCompareConfig:
         return self.compare.show_summary
 
     @property
+    def titles(self) -> tuple[str, ...] | None:
+        return self.compare.titles
+
+    @property
     def show(self) -> bool:
         return self.output.show
 
@@ -125,14 +132,29 @@ class CircuitCompareMetrics:
 
 
 @dataclass(frozen=True, slots=True)
+class CircuitCompareSideMetrics:
+    """Per-circuit metrics used by multi-circuit comparison summaries."""
+
+    title: str
+    layer_count: int
+    operation_count: int
+    multi_qubit_count: int
+    measurement_count: int
+    swap_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class CircuitCompareResult:
     """Returned comparison figure plus nested per-side draw results."""
 
     figure: Figure
-    axes: tuple[Axes, Axes]
+    axes: tuple[Axes, ...]
     left_result: DrawResult
     right_result: DrawResult
     metrics: CircuitCompareMetrics
+    side_results: tuple[DrawResult, ...] = ()
+    side_metrics: tuple[CircuitCompareSideMetrics, ...] = ()
+    titles: tuple[str, ...] = ()
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
 
@@ -148,26 +170,40 @@ class CircuitCompareResult:
         return {
             "left_result": self.left_result.to_dict(),
             "right_result": self.right_result.to_dict(),
+            "side_results": tuple(result.to_dict() for result in self._resolved_side_results()),
             "metrics": asdict(self.metrics),
+            "side_metrics": tuple(asdict(metrics) for metrics in self.side_metrics),
+            "titles": self._resolved_titles(),
             "diagnostics": diagnostics_to_dicts(self.diagnostics),
             "saved_path": self.saved_path,
         }
+
+    def _resolved_side_results(self) -> tuple[DrawResult, ...]:
+        return self.side_results or (self.left_result, self.right_result)
+
+    def _resolved_titles(self) -> tuple[str, ...]:
+        if self.titles:
+            return self.titles
+        if self.side_metrics:
+            return tuple(metrics.title for metrics in self.side_metrics)
+        return ()
 
 
 def compare_circuits(
     left_circuit: object,
     right_circuit: object,
-    *,
+    *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
-    axes: tuple[Axes, Axes] | None = None,
+    axes: tuple[Axes, ...] | None = None,
 ) -> CircuitCompareResult:
-    """Render two circuits side by side and return structural comparison data."""
+    """Render two or more circuits side by side and return structural comparison data."""
 
     from .drawing.api import compare_circuits as _compare_circuits
 
     return _compare_circuits(
         left_circuit,
         right_circuit,
+        *additional_circuits,
         config=config,
         axes=axes,
     )
@@ -185,10 +221,17 @@ def _validate_instance(name: str, value: object, expected_type: type[object]) ->
     raise TypeError(f"{name} must be a {expected_type.__name__}")
 
 
+def _validate_str_tuple(name: str, value: object) -> None:
+    if isinstance(value, tuple) and all(isinstance(item, str) for item in value):
+        return
+    raise ValueError(f"{name} must be a tuple of strings")
+
+
 __all__ = [
     "CircuitCompareConfig",
     "CircuitCompareMetrics",
     "CircuitCompareOptions",
     "CircuitCompareResult",
+    "CircuitCompareSideMetrics",
     "compare_circuits",
 ]

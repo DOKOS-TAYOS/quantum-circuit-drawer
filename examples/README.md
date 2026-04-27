@@ -10,6 +10,8 @@ If you want the longer explanation of what each mode, config block, managed cont
 
 OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantum-circuit-drawer[qiskit]`, then pass text starting with `OPENQASM` or a `.qasm` path to `draw_quantum_circuit(...)`; use `framework="qasm"` when you want the parser path to be explicit.
 
+The direct utility demos are the best copy-paste examples when you want to use result helpers, caller-managed axes, accessible styling, diagnostics, CLI exports, or Qiskit backend topology objects from normal scripts.
+
 ## Start Here
 
 
@@ -19,12 +21,20 @@ OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantu
 | `qiskit-3d-exploration-showcase`      | Managed 3D exploration with topology-aware selection, persistent block highlights, and contextual block controls           | Windows and Linux            |
 | `qiskit-control-flow-showcase`        | Native Qiskit control-flow boxes and open controls                                                                         | Windows and Linux            |
 | `qiskit-composite-modes-showcase`     | Compact versus expanded composite instructions                                                                             | Windows and Linux            |
+| `openqasm-showcase`                   | OpenQASM text input through the Qiskit parser path                                                                          | Windows and Linux            |
 | `ir-basic-workflow`                   | Framework-free example built directly from `CircuitIR`                                                                     | Windows and Linux            |
+| `public-api-utilities-showcase`       | `analyze_quantum_circuit`, result metadata, page exports, histogram CSV export                                              | Windows and Linux            |
+| `caller-managed-axes-showcase`        | Caller-managed axes for circuit, histogram, and circuit comparison panels                                                   | Windows and Linux            |
+| `style-accessible-showcase`           | The shared `accessible` preset on circuit and histogram output                                                              | Windows and Linux            |
+| `diagnostics-showcase`                | Diagnostics, warnings, `to_dict()`, and non-rendering analysis                                                              | Windows and Linux            |
+| `cli-export-showcase`                 | The installed `qcd` CLI path for JSON histogram exports                                                                     | Windows and Linux            |
+| `qiskit-backend-topology-showcase`    | Qiskit backend topology conversion into a 3D hardware view                                                                  | Windows and Linux            |
 | `cirq-native-controls-showcase`       | Native controls, classical control, and `CircuitOperation` provenance                                                      | Prefer Linux or WSL          |
 | `pennylane-terminal-outputs-showcase` | `qml.cond(...)`, mid-measurement, and terminal output boxes                                                                | Prefer Linux or WSL          |
 | `myqlm-structural-showcase`           | Native MyQLM adapter path with compact composite routines                                                                  | Windows and Linux with MyQLM |
 | `cudaq-kernel-showcase`               | Supported CUDA-Q subset, including scalar runtime arguments in the direct script                                           | Linux or WSL2                |
 | `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend selection on supported backends                      | Windows and Linux            |
+| `compare-histograms-multi-series`     | Multi-series comparison with ideal, noisy, raw hardware, and mitigated distributions                                       | Windows and Linux            |
 
 
 ## Discovery
@@ -59,12 +69,20 @@ This block avoids CUDA-Q and the Cirq/PennyLane demos that are documented as les
 .\.venv\Scripts\python.exe examples\qiskit_2d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
+.\.venv\Scripts\python.exe examples\public_api_utilities_showcase.py
+.\.venv\Scripts\python.exe examples\caller_managed_axes_showcase.py
+.\.venv\Scripts\python.exe examples\style_accessible_showcase.py
+.\.venv\Scripts\python.exe examples\diagnostics_showcase.py
+.\.venv\Scripts\python.exe examples\cli_export_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
+.\.venv\Scripts\python.exe examples\openqasm_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_backend_topology_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_random.py --mode pages_controls
 .\.venv\Scripts\python.exe examples\qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
 .\.venv\Scripts\python.exe examples\compare_circuits_qiskit_transpile.py
 .\.venv\Scripts\python.exe examples\compare_circuits_composite_modes.py
+.\.venv\Scripts\python.exe examples\compare_circuits_multi_transpile.py
 .\.venv\Scripts\python.exe examples\histogram_binary_order.py
 .\.venv\Scripts\python.exe examples\histogram_count_order.py
 .\.venv\Scripts\python.exe examples\histogram_interactive_large.py
@@ -75,6 +93,7 @@ This block avoids CUDA-Q and the Cirq/PennyLane demos that are documented as les
 .\.venv\Scripts\python.exe examples\histogram_top_k.py
 .\.venv\Scripts\python.exe examples\histogram_result_index.py
 .\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
+.\.venv\Scripts\python.exe examples\compare_histograms_multi_series.py
 ```
 
 If you also have MyQLM installed, you can append:
@@ -93,8 +112,15 @@ This block includes the full curated catalog.
 .venv/bin/python examples/qiskit_2d_exploration_showcase.py
 .venv/bin/python examples/qiskit_3d_exploration_showcase.py
 .venv/bin/python examples/ir_basic_workflow.py
+.venv/bin/python examples/public_api_utilities_showcase.py
+.venv/bin/python examples/caller_managed_axes_showcase.py
+.venv/bin/python examples/style_accessible_showcase.py
+.venv/bin/python examples/diagnostics_showcase.py
+.venv/bin/python examples/cli_export_showcase.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py
+.venv/bin/python examples/openqasm_showcase.py
+.venv/bin/python examples/qiskit_backend_topology_showcase.py
 .venv/bin/python examples/qiskit_random.py --mode pages_controls
 .venv/bin/python examples/qiskit_qaoa.py --view 3d --topology grid --mode pages_controls
 .venv/bin/python examples/cirq_native_controls_showcase.py
@@ -109,6 +135,7 @@ This block includes the full curated catalog.
 .venv/bin/python examples/cudaq_random.py
 .venv/bin/python examples/compare_circuits_qiskit_transpile.py
 .venv/bin/python examples/compare_circuits_composite_modes.py
+.venv/bin/python examples/compare_circuits_multi_transpile.py
 .venv/bin/python examples/histogram_binary_order.py
 .venv/bin/python examples/histogram_count_order.py
 .venv/bin/python examples/histogram_interactive_large.py
@@ -124,6 +151,7 @@ This block includes the full curated catalog.
 .venv/bin/python examples/histogram_myqlm_result.py
 .venv/bin/python examples/histogram_cudaq_sample.py
 .venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
+.venv/bin/python examples/compare_histograms_multi_series.py
 ```
 
 ## Circuit Workflows
@@ -137,6 +165,7 @@ This block includes the full curated catalog.
 | `qiskit-3d-exploration-showcase`      | Managed 3D exploration, topology-aware selection, and contextual block controls                                 | Best first demo for managed 3D exploration, selection, expand/collapse, and topology switching on the shared semantic path  |
 | `qiskit-control-flow-showcase`        | Native `if_else`, `switch_case`, loops, open controls                                                           | Best first Qiskit demo                                                                                                      |
 | `qiskit-composite-modes-showcase`     | Composite instructions that are useful with `--composite-mode compact\|expand`                                  | Shows compact versus expanded composite instructions on the same workflow                                                   |
+| `openqasm-showcase`                   | OpenQASM text input                                                                                             | Catalog demo for the Qiskit parser path                                                                                    |
 | `qiskit-random`                       | Broad stress test                                                                                               | Good for modes, hover, presets, and large layouts                                                                           |
 | `qiskit-qaoa`                         | Dense structured ansatz                                                                                         | Good as a secondary 3D stress test after the managed 3D exploration showcase                                                |
 | `cirq-native-controls-showcase`       | Open controls, classical control, `CircuitOperation` provenance                                                 | Native Cirq semantics with rich CircuitOperation provenance                                                                 |
@@ -161,6 +190,8 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py
+.\.venv\Scripts\python.exe examples\openqasm_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_backend_topology_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_random.py
 .\.venv\Scripts\python.exe examples\qiskit_qaoa.py
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
@@ -181,6 +212,8 @@ Linux or WSL:
 .venv/bin/python examples/qiskit_3d_exploration_showcase.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py
+.venv/bin/python examples/openqasm_showcase.py
+.venv/bin/python examples/qiskit_backend_topology_showcase.py
 .venv/bin/python examples/qiskit_random.py
 .venv/bin/python examples/qiskit_qaoa.py
 .venv/bin/python examples/ir_basic_workflow.py
@@ -247,6 +280,41 @@ Useful circuit flags:
 - `--hover-matrix never|auto|always`
 
 The built-in 3D topologies are flexible, so demo qubit counts are chosen for the circuit you want to inspect rather than for old topology limits.
+
+## I Want To See Public Utilities
+
+These direct scripts are intentionally small and copyable. They cover the practical APIs that do not fit neatly into a single framework catalog demo.
+
+| Demo | Focus |
+| --- | --- |
+| `public-api-utilities-showcase` | `analyze_quantum_circuit`, `DrawResult.to_dict()`, `save_all_pages(...)`, `HistogramResult.to_csv(...)`, and companion exports |
+| `caller-managed-axes-showcase` | caller-managed axes with `draw_quantum_circuit(...)`, `plot_histogram(...)`, and `compare_circuits(...)` on one Matplotlib figure |
+| `style-accessible-showcase` | accessible circuit and histogram styling with the shared `accessible` preset |
+| `diagnostics-showcase` | diagnostics, warnings, resolved modes, page counts, and analysis summaries |
+| `cli-export-showcase` | `qcd histogram` from a JSON file with `--data-key`, sorting, top-k filtering, and export |
+| `qiskit-backend-topology-showcase` | Qiskit backend topology conversion with `HardwareTopology.from_qiskit_backend(...)` and a 3D hardware view |
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe examples\public_api_utilities_showcase.py --no-show --output public-api.png
+.\.venv\Scripts\python.exe examples\caller_managed_axes_showcase.py --no-show --output caller-axes.png
+.\.venv\Scripts\python.exe examples\style_accessible_showcase.py --no-show --output accessible.png
+.\.venv\Scripts\python.exe examples\diagnostics_showcase.py --no-show --output diagnostics.png
+.\.venv\Scripts\python.exe examples\cli_export_showcase.py --no-show --output cli-export.png
+.\.venv\Scripts\python.exe examples\qiskit_backend_topology_showcase.py --no-show --output backend-topology.png
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python examples/public_api_utilities_showcase.py --no-show --output public-api.png
+.venv/bin/python examples/caller_managed_axes_showcase.py --no-show --output caller-axes.png
+.venv/bin/python examples/style_accessible_showcase.py --no-show --output accessible.png
+.venv/bin/python examples/diagnostics_showcase.py --no-show --output diagnostics.png
+.venv/bin/python examples/cli_export_showcase.py --no-show --output cli-export.png
+.venv/bin/python examples/qiskit_backend_topology_showcase.py --no-show --output backend-topology.png
+```
 
 ## I Want To See Histogram Workflows
 
@@ -331,7 +399,9 @@ Useful histogram flags:
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------- |
 | `compare-circuits-qiskit-transpile`   | Before/after transpilation                                                                                  | qiskit     |
 | `compare-circuits-composite-modes`    | Compact versus expanded composite views                                                                     | qiskit     |
+| `compare-circuits-multi-transpile`    | Source circuit versus several Qiskit transpilation optimization levels                                       | qiskit     |
 | `compare-histograms-ideal-vs-sampled` | Ideal versus sampled distribution on one state space, with clickable legend selection on interactive backends | none       |
+| `compare-histograms-multi-series`     | Ideal, noisy, raw hardware, and mitigated distributions in one selectable overlay                            | none       |
 
 
 ### Commands
@@ -341,7 +411,9 @@ Windows PowerShell:
 ```powershell
 .\.venv\Scripts\python.exe examples\compare_circuits_qiskit_transpile.py
 .\.venv\Scripts\python.exe examples\compare_circuits_composite_modes.py
+.\.venv\Scripts\python.exe examples\compare_circuits_multi_transpile.py
 .\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
+.\.venv\Scripts\python.exe examples\compare_histograms_multi_series.py
 ```
 
 Linux or WSL:
@@ -349,12 +421,14 @@ Linux or WSL:
 ```bash
 .venv/bin/python examples/compare_circuits_qiskit_transpile.py
 .venv/bin/python examples/compare_circuits_composite_modes.py
+.venv/bin/python examples/compare_circuits_multi_transpile.py
 .venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
+.venv/bin/python examples/compare_histograms_multi_series.py
 ```
 
-Circuit-compare demos default to `--mode pages_controls`, and every circuit-compare mode opens the left circuit, right circuit, and summary table as three normal Matplotlib windows when the example owns the figures.
+Circuit-compare demos default to `--mode pages_controls`, and every circuit-compare mode opens one normal Matplotlib window per circuit plus the summary table when the example owns the figures.
 
-On interactive Matplotlib backends, `compare-histograms-ideal-vs-sampled` lets you click either the legend swatch or the legend label to focus that series. Clicking the other legend entry switches the focused series.
+On interactive Matplotlib backends, compare-histogram demos let you click either a legend swatch or legend label to focus that series. Clicking another legend entry switches the focused series.
 
 Useful compare flags:
 

@@ -27,9 +27,9 @@ The main entry points are:
 | --- | --- | --- | --- |
 | Analyze one circuit without rendering | `analyze_quantum_circuit(...)` | `DrawConfig` | `CircuitAnalysisResult` |
 | Draw one circuit | `draw_quantum_circuit(...)` | `DrawConfig` | `DrawResult` |
-| Compare two circuits | `compare_circuits(...)` | `CircuitCompareConfig` | `CircuitCompareResult` |
+| Compare circuits | `compare_circuits(...)` | `CircuitCompareConfig` | `CircuitCompareResult` |
 | Plot one distribution | `plot_histogram(...)` | `HistogramConfig` | `HistogramResult` |
-| Compare two distributions | `compare_histograms(...)` | `HistogramCompareConfig` | `HistogramCompareResult` |
+| Compare distributions | `compare_histograms(...)` | `HistogramCompareConfig` | `HistogramCompareResult` |
 
 The package also installs the `qcd` command for quick image exports from the terminal.
 
@@ -986,7 +986,7 @@ Interactive histograms require a library-managed figure. Do not combine interact
 
 ## Comparing Circuits
 
-Use `compare_circuits(...)` to inspect structural differences, for example before and after transpilation.
+Use `compare_circuits(...)` to inspect structural differences, for example before and after transpilation or across several transpilation levels.
 
 ```python
 from qiskit import QuantumCircuit, transpile
@@ -1021,8 +1021,7 @@ result = compare_circuits(
 
 By default, circuit comparison returns:
 
-- one normal `DrawResult` for the left circuit
-- one normal `DrawResult` for the right circuit
+- one normal `DrawResult` for each compared circuit
 - one compact summary figure
 - structural metrics
 
@@ -1036,11 +1035,35 @@ Metrics include:
 - differing layer count
 - left-only and right-only layer counts
 
-Use explicit `mode="full"` or caller-owned `axes=(left_axes, right_axes)` when you want one static side-by-side figure.
+Use explicit `mode="full"` or caller-owned axes when you want one static side-by-side figure. Provide one axes object per circuit.
+
+For 3+ circuits:
+
+- pass extra circuits as additional positional arguments
+- set `CircuitCompareOptions(titles=(...))` with one title per circuit
+- read all per-circuit `DrawResult` objects from `result.side_results`
+- read all aggregate values from `result.side_metrics`
+- the summary table uses one column per circuit and no delta column
+- lower aggregate values are highlighted in green and higher aggregate values in red on each row
+
+```python
+result = compare_circuits(
+    source,
+    transpiled_level_0,
+    transpiled_level_1,
+    transpiled_level_3,
+    config=CircuitCompareConfig(
+        compare=CircuitCompareOptions(
+            titles=("Source", "Opt 0", "Opt 1", "Opt 3"),
+        ),
+        output=OutputOptions(show=False),
+    ),
+)
+```
 
 ## Comparing Histograms
 
-Use `compare_histograms(...)` to align two distributions on the same state space.
+Use `compare_histograms(...)` to align two or more distributions on the same state space.
 
 ```python
 from quantum_circuit_drawer import (
@@ -1073,6 +1096,8 @@ result = compare_histograms(
 - `left_values`
 - `right_values`
 - `delta_values`
+- `series_labels`
+- `series_values`
 - `metrics`
 - `qubits`
 - diagnostics
@@ -1084,6 +1109,30 @@ Metrics include:
 - maximum absolute delta
 
 On interactive Matplotlib backends, the legend is clickable. Clicking a legend entry focuses that selected series; clicking another entry switches the focused series.
+
+For 3+ histogram series:
+
+- pass extra distributions as additional positional arguments
+- set `HistogramCompareOptions(series_labels=(...))` with one label per distribution
+- use `result.series_values` for all aligned values
+- `left_values`, `right_values`, `delta_values`, and `metrics` remain the first-two compatibility view
+- `sort="delta_desc"` orders by largest spread across all series
+
+```python
+result = compare_histograms(
+    ideal,
+    noisy_simulator,
+    hardware_raw,
+    mitigated,
+    config=HistogramCompareConfig(
+        compare=HistogramCompareOptions(
+            series_labels=("Ideal", "Noisy sim", "Hardware raw", "Mitigated"),
+            sort="delta_desc",
+        ),
+        output=OutputOptions(show=False),
+    ),
+)
+```
 
 ## Framework Notes
 
@@ -1130,7 +1179,10 @@ Recommended demos:
 - `qiskit-3d-exploration-showcase`
 - `qiskit-control-flow-showcase`
 - `qiskit-composite-modes-showcase`
+- `openqasm-showcase`
+- `qiskit-backend-topology-showcase`
 - `compare-circuits-qiskit-transpile`
+- `compare-circuits-multi-transpile`
 
 ### Cirq
 
@@ -1401,12 +1453,21 @@ Start with these demos:
 | `qiskit-3d-exploration-showcase` | Managed 3D exploration, topology-aware selection, topology switching |
 | `qiskit-control-flow-showcase` | Qiskit control-flow boxes and open controls |
 | `qiskit-composite-modes-showcase` | Compact vs expanded composite instructions |
+| `openqasm-showcase` | OpenQASM text input through the Qiskit parser path |
 | `ir-basic-workflow` | Framework-free public IR workflow |
+| `public-api-utilities-showcase` | Analysis, result helpers, page exports, and histogram CSV export |
+| `caller-managed-axes-showcase` | Caller-managed axes for circuit, histogram, and comparison panels |
+| `style-accessible-showcase` | Accessible circuit and histogram styling |
+| `diagnostics-showcase` | Diagnostics, warnings, and resolved-mode metadata |
+| `cli-export-showcase` | `qcd` CLI histogram export from JSON |
+| `qiskit-backend-topology-showcase` | Qiskit backend topology conversion into a 3D hardware view |
 | `cirq-native-controls-showcase` | Cirq controls, classical control, and `CircuitOperation` provenance |
 | `pennylane-terminal-outputs-showcase` | PennyLane terminal outputs and mid-circuit measurement |
 | `myqlm-structural-showcase` | MyQLM compact composite routines |
 | `cudaq-kernel-showcase` | CUDA-Q supported subset and scalar runtime arguments |
+| `compare-circuits-multi-transpile` | One Qiskit source circuit compared with several transpilation levels |
 | `compare-histograms-ideal-vs-sampled` | Histogram comparison with clickable legend selection |
+| `compare-histograms-multi-series` | Multi-series histogram comparison with clickable legend selection |
 
 List available demos:
 

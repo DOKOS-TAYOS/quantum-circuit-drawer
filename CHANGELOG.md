@@ -4,7 +4,9 @@
 
 ### Added
 
+- Added multi-input `compare_circuits(...)` and `compare_histograms(...)` support, including multi-circuit summary columns, multi-series histogram overlays, and new multi-compare demos.
 - Added `docs/extended_guide.md` as a long-form user manual covering install choices, public configs, draw modes, managed controls, 3D topology workflows, CLI usage, framework notes, histograms, comparisons, examples, and troubleshooting paths.
+- Added focused user demos for OpenQASM, public API utilities, caller-managed axes, accessible styling, diagnostics, CLI exports, and Qiskit backend topology workflows.
 - Added `analyze_quantum_circuit(...)` and `CircuitAnalysisResult` for non-rendering circuit analysis before opening windows or saving figures.
 - Added result export helpers: `save(...)`, `to_dict()`, circuit `save_all_pages(...)`, and histogram `to_csv(...)` methods on public result objects.
 - Added internally generated framework capability support tables to keep framework documentation aligned with the release support contract.

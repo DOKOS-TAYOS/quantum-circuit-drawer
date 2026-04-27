@@ -131,7 +131,9 @@ def test_compare_demo_catalog_exposes_expected_demo_ids() -> None:
     assert demo_ids == {
         "compare-circuits-qiskit-transpile",
         "compare-circuits-composite-modes",
+        "compare-circuits-multi-transpile",
         "compare-histograms-ideal-vs-sampled",
+        "compare-histograms-multi-series",
     }
 
 

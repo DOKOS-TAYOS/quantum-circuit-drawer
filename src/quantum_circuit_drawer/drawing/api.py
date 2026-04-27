@@ -34,17 +34,18 @@ def draw_quantum_circuit(
 def compare_circuits(
     left_circuit: object,
     right_circuit: object,
-    *,
+    *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
-    axes: tuple[Axes, Axes] | None = None,
+    axes: tuple[Axes, ...] | None = None,
 ) -> CircuitCompareResult:
-    """Render two circuits side by side and return structural comparison data."""
+    """Render two or more circuits side by side and return structural comparison data."""
 
     from .compare import compare_circuits as _compare_circuits
 
     return _compare_circuits(
         left_circuit,
         right_circuit,
+        *additional_circuits,
         config=config,
         axes=axes,
     )

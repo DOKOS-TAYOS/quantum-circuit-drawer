@@ -19,6 +19,7 @@ from quantum_circuit_drawer import (
     CircuitCompareMetrics,
     CircuitCompareOptions,
     CircuitCompareResult,
+    CircuitCompareSideMetrics,
     CircuitRenderOptions,
     DiagnosticSeverity,
     DrawConfig,
@@ -215,6 +216,7 @@ def test_public_package_exports_compare_circuit_types() -> None:
     assert quantum_circuit_drawer.compare_circuits is compare_circuits
     assert quantum_circuit_drawer.CircuitCompareConfig is CircuitCompareConfig
     assert quantum_circuit_drawer.CircuitCompareMetrics is CircuitCompareMetrics
+    assert quantum_circuit_drawer.CircuitCompareSideMetrics is CircuitCompareSideMetrics
     assert quantum_circuit_drawer.CircuitCompareResult is CircuitCompareResult
 
 
@@ -590,6 +592,79 @@ def test_compare_circuits_auto_mode_defaults_to_three_normal_figures() -> None:
     ]
 
     for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
+def test_compare_circuits_accepts_multiple_circuits_with_summary_columns() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        build_single_qubit_reference_ir(),
+        config=CircuitCompareConfig(
+            compare=CircuitCompareOptions(
+                left_title="Reference",
+                right_title="Candidate",
+                titles=("Reference", "Candidate", "Compact"),
+            ),
+            output=OutputOptions(show=False),
+        ),
+    )
+
+    assert result.titles == ("Reference", "Candidate", "Compact")
+    assert len(result.axes) == 3
+    assert len(result.side_results) == 3
+    assert result.left_result is result.side_results[0]
+    assert result.right_result is result.side_results[1]
+    assert result.side_metrics == (
+        CircuitCompareSideMetrics(
+            title="Reference",
+            layer_count=3,
+            operation_count=3,
+            multi_qubit_count=1,
+            measurement_count=1,
+            swap_count=0,
+        ),
+        CircuitCompareSideMetrics(
+            title="Candidate",
+            layer_count=4,
+            operation_count=5,
+            multi_qubit_count=2,
+            measurement_count=1,
+            swap_count=1,
+        ),
+        CircuitCompareSideMetrics(
+            title="Compact",
+            layer_count=2,
+            operation_count=2,
+            multi_qubit_count=0,
+            measurement_count=1,
+            swap_count=0,
+        ),
+    )
+
+    summary_text = {
+        text.get_text()
+        for text in result.figure.texts
+        if getattr(text, "get_gid", lambda: None)()
+        in {"circuit-compare-summary-header", "circuit-compare-summary-row"}
+    }
+    summary_colors = {
+        text.get_color()
+        for text in result.figure.texts
+        if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+    }
+
+    assert {"Metric", "Reference", "Candidate", "Compact"}.issubset(summary_text)
+    assert "\u0394" not in summary_text
+    assert "#16a34a" in summary_colors
+    assert "#dc2626" in summary_colors
+
+    for figure in (
+        *result.side_results[0].figures,
+        *result.side_results[1].figures,
+        *result.side_results[2].figures,
+        result.figure,
+    ):
         plt.close(figure)
 
 

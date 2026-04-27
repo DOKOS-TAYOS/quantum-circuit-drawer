@@ -40,9 +40,9 @@ draw_quantum_circuit(
 compare_circuits(
     left_circuit: object,
     right_circuit: object,
-    *,
+    *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
-    axes: tuple[Axes, Axes] | None = None,
+    axes: tuple[Axes, ...] | None = None,
 ) -> CircuitCompareResult
 
 plot_histogram(
@@ -55,7 +55,7 @@ plot_histogram(
 compare_histograms(
     left_data: object,
     right_data: object,
-    *,
+    *additional_data: object,
     config: HistogramCompareConfig | None = None,
     ax: Axes | None = None,
 ) -> HistogramCompareResult
@@ -287,6 +287,7 @@ CircuitCompareConfig(
         right_title="Right",
         highlight_differences=True,
         show_summary=True,
+        titles=None,
     ),
     output=OutputOptions(
         show=True,
@@ -302,21 +303,27 @@ Notes:
 - `shared` provides the baseline `DrawSideConfig` used on both sides
 - `left_render` / `right_render` override only the render block on one side
 - `left_appearance` / `right_appearance` override only the appearance block on one side
-- the default `auto` mode renders the two circuits as normal managed `pages_controls` figures and uses `result.figure` for the compact comparison summary
-- explicit circuit modes `pages`, `pages_controls`, and `slider` also render the two circuits as normal managed circuit figures
+- pass extra circuits as positional arguments for 3+ comparison; extra circuits use `shared`
+- `compare.titles` can provide one title per circuit for 3+ comparisons
+- the default `auto` mode renders compared circuits as normal managed `pages_controls` figures and uses `result.figure` for the compact comparison summary
+- explicit circuit modes `pages`, `pages_controls`, and `slider` also render compared circuits as normal managed circuit figures
 - explicit `mode="full"` or caller-owned `axes` use the static side-by-side comparison path
+- for 3+ circuits, the summary table has one column per circuit and highlights the lowest aggregate value in green and the highest in red on each row
 
 ### `CircuitCompareResult`
 
-`compare_circuits(...)` returns two normal per-side circuit figures plus one compact summary figure by default. When `mode="full"` is requested, or when caller-owned axes are provided, it returns one static side-by-side figure.
+`compare_circuits(...)` returns one normal per-circuit figure plus one compact summary figure by default. When `mode="full"` is requested, or when caller-owned axes are provided, it returns one static side-by-side figure.
 
 Fields:
 
 - `figure`: the compact summary figure in managed comparison, or the side-by-side figure in static comparison
-- `axes`: the primary left and right circuit axes
+- `axes`: the primary circuit axes, one per compared circuit
 - `left_result`: nested `DrawResult` for the left circuit
 - `right_result`: nested `DrawResult` for the right circuit
+- `side_results`: nested `DrawResult` values for all compared circuits
 - `metrics`
+- `side_metrics`: aggregate per-circuit metrics used by multi-circuit summaries
+- `titles`: resolved circuit titles
 - `diagnostics`
 - `saved_path`
 
@@ -467,6 +474,7 @@ HistogramCompareConfig(
         hover=True,
         preset=None,
         theme=None,
+        series_labels=None,
     ),
     output=OutputOptions(
         show=True,
@@ -487,6 +495,7 @@ Important fields:
 - `compare.preset`: shared preset baseline
 - `compare.theme`: histogram theme override
 - `compare.left_label` and `compare.right_label`: legend labels
+- `compare.series_labels`: optional labels for every series when comparing 3+ distributions
 
 ### `HistogramResult`
 
@@ -532,6 +541,8 @@ Fields:
 - `left_values`
 - `right_values`
 - `delta_values`
+- `series_labels`
+- `series_values`
 - `metrics`
 - `qubits`
 - `diagnostics`
@@ -541,6 +552,8 @@ Fields:
 
 - `total_variation_distance`
 - `max_absolute_delta`
+
+For 3+ histogram series, `left_values`, `right_values`, `delta_values`, and `metrics` remain the first-two compatibility view. Use `series_labels` and `series_values` for all compared distributions.
 
 Export helpers:
 

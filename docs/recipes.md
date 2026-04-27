@@ -371,7 +371,7 @@ result = draw_quantum_circuit(
 )
 ```
 
-### Compare an original circuit with an optimized one
+### Compare original and optimized circuits
 
 ```python
 from quantum_circuit_drawer import (
@@ -393,6 +393,8 @@ result = compare_circuits(
     ),
 )
 ```
+
+Pass more circuits as additional positional arguments when you want to inspect several variants at once. For 3+ variants, set `CircuitCompareOptions(titles=(...))`; the summary table uses one column per circuit.
 
 ### Build a simple framework-free circuit
 
@@ -564,7 +566,7 @@ result = plot_histogram(
 )
 ```
 
-### Compare two histograms
+### Compare histograms
 
 ```python
 from quantum_circuit_drawer import (
@@ -587,3 +589,5 @@ result = compare_histograms(
     ),
 )
 ```
+
+Pass more distributions after the first two and set `HistogramCompareOptions(series_labels=(...))` to compare 3+ result series in the same overlay.

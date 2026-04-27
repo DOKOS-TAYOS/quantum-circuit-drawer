@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, cast
 from matplotlib.patches import FancyBboxPatch, Rectangle
 from matplotlib.transforms import blended_transform_factory
 
-from ..circuit_compare import CircuitCompareConfig, CircuitCompareMetrics, CircuitCompareResult
+from ..circuit_compare import (
+    CircuitCompareConfig,
+    CircuitCompareMetrics,
+    CircuitCompareResult,
+    CircuitCompareSideMetrics,
+)
 from ..config import (
     CircuitAppearanceOptions,
     CircuitRenderOptions,
@@ -62,34 +67,41 @@ _SUMMARY_FIGURE_SIZE = (3.8, 2.8)
 _SUMMARY_CARD_PADDING_X = 0.02
 _SUMMARY_CARD_HEADER_OFFSET = 0.065
 _SUMMARY_CARD_ROW_BOTTOM_PADDING = 0.12
+_SUMMARY_BEST_COLOR = "#16a34a"
+_SUMMARY_WORST_COLOR = "#dc2626"
 
 
 def compare_circuits(
     left_circuit: object,
     right_circuit: object,
-    *,
+    *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
-    axes: tuple[Axes, Axes] | None = None,
+    axes: tuple[Axes, ...] | None = None,
 ) -> CircuitCompareResult:
-    """Render two circuits side by side and return structural comparison data."""
+    """Render two or more circuits side by side and return structural comparison data."""
 
     resolved_compare_config = config or CircuitCompareConfig()
     if axes is not None and resolved_compare_config.figsize is not None:
         raise ValueError("figsize cannot be used with axes in compare_circuits")
 
-    normalized_left_config = normalize_compare_draw_config(
-        merge_compare_side_config(resolved_compare_config, side_label="left"),
-        side_label="left",
-        auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
+    circuits = (left_circuit, right_circuit, *additional_circuits)
+    titles = resolve_compare_titles(resolved_compare_config, circuit_count=len(circuits))
+    if axes is not None and len(axes) != len(circuits):
+        raise ValueError(
+            "compare_circuits requires one axes object for each circuit when axes are provided"
+        )
+
+    normalized_side_configs = tuple(
+        normalize_compare_draw_config(
+            merge_compare_side_config(resolved_compare_config, side_label=_side_label(index)),
+            side_label=_side_label(index),
+            auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
+        )
+        for index in range(len(circuits))
     )
-    normalized_right_config = normalize_compare_draw_config(
-        merge_compare_side_config(resolved_compare_config, side_label="right"),
-        side_label="right",
-        auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
-    )
-    uses_non_full_compare_mode = (
-        normalized_left_config.mode is not DrawMode.FULL
-        or normalized_right_config.mode is not DrawMode.FULL
+    uses_non_full_compare_mode = any(
+        normalized_side_config.mode is not DrawMode.FULL
+        for normalized_side_config in normalized_side_configs
     )
     if axes is not None and uses_non_full_compare_mode:
         raise ValueError(
@@ -98,154 +110,169 @@ def compare_circuits(
         )
     if axes is None:
         return _compare_circuits_with_managed_side_figures(
-            left_circuit,
-            right_circuit,
+            circuits,
             config=resolved_compare_config,
-            left_config=normalized_left_config,
-            right_config=normalized_right_config,
+            side_configs=normalized_side_configs,
+            titles=titles,
         )
 
-    left_axes, right_axes = axes
-    figure = shared_figure_for_compare_axes(left_axes, right_axes)
-
-    left_prepared = prepare_draw_call(left_circuit, config=normalized_left_config, ax=left_axes)
-    right_prepared = prepare_draw_call(
-        right_circuit,
-        config=normalized_right_config,
-        ax=right_axes,
+    figure = shared_figure_for_compare_axes(*axes)
+    prepared_calls = tuple(
+        prepare_draw_call(circuit, config=side_config, ax=side_axes)
+        for circuit, side_config, side_axes in zip(
+            circuits,
+            normalized_side_configs,
+            axes,
+            strict=True,
+        )
     )
-
-    rendered_left_axes = render_draw_pipeline_on_axes(
-        left_prepared.pipeline,
-        axes=left_axes,
-        output=None,
-        respect_precomputed_scene=True,
-    )
-    rendered_right_axes = render_draw_pipeline_on_axes(
-        right_prepared.pipeline,
-        axes=right_axes,
-        output=None,
-        respect_precomputed_scene=True,
+    rendered_axes = tuple(
+        render_draw_pipeline_on_axes(
+            prepared.pipeline,
+            axes=side_axes,
+            output=None,
+            respect_precomputed_scene=True,
+        )
+        for prepared, side_axes in zip(prepared_calls, axes, strict=True)
     )
     metrics, diff_summary = circuit_compare_metrics(
-        left_prepared.pipeline.ir,
-        right_prepared.pipeline.ir,
-        left_semantic=left_prepared.pipeline.semantic_ir,
-        right_semantic=right_prepared.pipeline.semantic_ir,
+        prepared_calls[0].pipeline.ir,
+        prepared_calls[1].pipeline.ir,
+        left_semantic=prepared_calls[0].pipeline.semantic_ir,
+        right_semantic=prepared_calls[1].pipeline.semantic_ir,
     )
-    if resolved_compare_config.highlight_differences:
+    if resolved_compare_config.highlight_differences and len(circuits) == 2:
         highlight_compare_columns(
-            rendered_left_axes,
-            cast("LayoutScene", left_prepared.pipeline.paged_scene),
+            rendered_axes[0],
+            cast("LayoutScene", prepared_calls[0].pipeline.paged_scene),
             diff_summary.left_columns,
         )
         highlight_compare_columns(
-            rendered_right_axes,
-            cast("LayoutScene", right_prepared.pipeline.paged_scene),
+            rendered_axes[1],
+            cast("LayoutScene", prepared_calls[1].pipeline.paged_scene),
             diff_summary.right_columns,
         )
+    side_metrics = tuple(
+        circuit_compare_side_metrics(
+            title=title,
+            circuit=prepared.pipeline.semantic_ir,
+        )
+        for title, prepared in zip(titles, prepared_calls, strict=True)
+    )
 
     apply_compare_titles(
-        left_axes=rendered_left_axes,
-        right_axes=rendered_right_axes,
+        axes=rendered_axes,
         config=resolved_compare_config,
         metrics=metrics,
-        left_text_color=left_prepared.pipeline.normalized_style.theme.text_color,
-        right_text_color=right_prepared.pipeline.normalized_style.theme.text_color,
-        summary_facecolor=left_prepared.pipeline.normalized_style.theme.ui_surface_facecolor
-        or left_prepared.pipeline.normalized_style.theme.axes_facecolor,
+        side_metrics=side_metrics,
+        titles=titles,
+        text_color=prepared_calls[0].pipeline.normalized_style.theme.text_color,
+        summary_facecolor=(
+            prepared_calls[0].pipeline.normalized_style.theme.ui_surface_facecolor
+            or prepared_calls[0].pipeline.normalized_style.theme.axes_facecolor
+        ),
     )
     if resolved_compare_config.output_path is not None:
         save_rendered_figure(figure, resolved_compare_config.output_path)
     if resolved_compare_config.show:
         show_figure_if_supported(figure, show=True)
 
-    left_result = build_draw_result(
-        primary_figure=figure,
-        primary_axes=rendered_left_axes,
-        figures=(figure,),
-        axes=(rendered_left_axes,),
-        mode=left_prepared.resolved_config.mode,
-        page_count=1,
-        diagnostics=left_prepared.diagnostics,
-        pipeline=left_prepared.pipeline,
-        output=None,
-    )
-    right_result = build_draw_result(
-        primary_figure=figure,
-        primary_axes=rendered_right_axes,
-        figures=(figure,),
-        axes=(rendered_right_axes,),
-        mode=right_prepared.resolved_config.mode,
-        page_count=1,
-        diagnostics=right_prepared.diagnostics,
-        pipeline=right_prepared.pipeline,
-        output=None,
+    side_results = tuple(
+        build_draw_result(
+            primary_figure=figure,
+            primary_axes=rendered_axis,
+            figures=(figure,),
+            axes=(rendered_axis,),
+            mode=prepared.resolved_config.mode,
+            page_count=1,
+            diagnostics=prepared.diagnostics,
+            pipeline=prepared.pipeline,
+            output=None,
+        )
+        for prepared, rendered_axis in zip(prepared_calls, rendered_axes, strict=True)
     )
     return CircuitCompareResult(
         figure=figure,
-        axes=(rendered_left_axes, rendered_right_axes),
-        left_result=left_result,
-        right_result=right_result,
+        axes=rendered_axes,
+        left_result=side_results[0],
+        right_result=side_results[1],
         metrics=metrics,
+        side_results=side_results,
+        side_metrics=side_metrics,
+        titles=titles,
         diagnostics=(),
         saved_path=normalized_saved_path(resolved_compare_config.output_path),
     )
 
 
 def _compare_circuits_with_managed_side_figures(
-    left_circuit: object,
-    right_circuit: object,
+    circuits: tuple[object, ...],
     *,
     config: CircuitCompareConfig,
-    left_config: DrawConfig,
-    right_config: DrawConfig,
+    side_configs: tuple[DrawConfig, ...],
+    titles: tuple[str, ...],
 ) -> CircuitCompareResult:
-    """Render managed compare modes as two normal side figures plus one summary figure."""
+    """Render managed compare modes as normal side figures plus one summary figure."""
 
-    left_config = _with_compare_side_output(left_config, compare_config=config)
-    right_config = _with_compare_side_output(right_config, compare_config=config)
-    left_prepared = prepare_draw_call(left_circuit, config=left_config, ax=None)
-    right_prepared = prepare_draw_call(right_circuit, config=right_config, ax=None)
-    metrics, _diff_summary = circuit_compare_metrics(
-        left_prepared.pipeline.ir,
-        right_prepared.pipeline.ir,
-        left_semantic=left_prepared.pipeline.semantic_ir,
-        right_semantic=right_prepared.pipeline.semantic_ir,
+    configured_sides = tuple(
+        _with_compare_side_output(side_config, compare_config=config)
+        for side_config in side_configs
     )
-    left_result = draw_result_from_prepared_call(left_prepared, defer_show=True)
-    right_result = draw_result_from_prepared_call(right_prepared, defer_show=True)
-    left_text_color = left_prepared.pipeline.normalized_style.theme.text_color
-    _apply_window_titles_to_draw_result(left_result, config.left_title)
-    _apply_window_titles_to_draw_result(right_result, config.right_title)
+    prepared_calls = tuple(
+        prepare_draw_call(circuit, config=side_config, ax=None)
+        for circuit, side_config in zip(circuits, configured_sides, strict=True)
+    )
+    metrics, _diff_summary = circuit_compare_metrics(
+        prepared_calls[0].pipeline.ir,
+        prepared_calls[1].pipeline.ir,
+        left_semantic=prepared_calls[0].pipeline.semantic_ir,
+        right_semantic=prepared_calls[1].pipeline.semantic_ir,
+    )
+    side_metrics = tuple(
+        circuit_compare_side_metrics(
+            title=title,
+            circuit=prepared.pipeline.semantic_ir,
+        )
+        for title, prepared in zip(titles, prepared_calls, strict=True)
+    )
+    side_results = tuple(
+        draw_result_from_prepared_call(prepared, defer_show=True) for prepared in prepared_calls
+    )
+    left_text_color = prepared_calls[0].pipeline.normalized_style.theme.text_color
+    for side_result, title in zip(side_results, titles, strict=True):
+        _apply_window_titles_to_draw_result(side_result, title)
 
     summary_figure = _build_compare_summary_figure(
         config=config,
         metrics=metrics,
+        side_metrics=side_metrics,
+        titles=titles,
         text_color=left_text_color,
         card_facecolor=(
-            left_prepared.pipeline.normalized_style.theme.ui_surface_facecolor
-            or left_prepared.pipeline.normalized_style.theme.axes_facecolor
+            prepared_calls[0].pipeline.normalized_style.theme.ui_surface_facecolor
+            or prepared_calls[0].pipeline.normalized_style.theme.axes_facecolor
         ),
-        figure_facecolor=left_prepared.pipeline.normalized_style.theme.figure_facecolor,
+        figure_facecolor=prepared_calls[0].pipeline.normalized_style.theme.figure_facecolor,
     )
     if config.output_path is not None and config.show_summary:
         save_rendered_figure(summary_figure, config.output_path)
     if config.show:
         show_figure_if_supported(
-            summary_figure if config.show_summary else left_result.primary_figure,
+            summary_figure if config.show_summary else side_results[0].primary_figure,
             show=True,
         )
 
     return CircuitCompareResult(
         figure=summary_figure,
-        axes=(left_result.primary_axes, right_result.primary_axes),
-        left_result=left_result,
-        right_result=right_result,
+        axes=tuple(side_result.primary_axes for side_result in side_results),
+        left_result=side_results[0],
+        right_result=side_results[1],
         metrics=metrics,
+        side_results=side_results,
+        side_metrics=side_metrics,
+        titles=titles,
         diagnostics=combined_draw_diagnostics(
-            left_prepared.diagnostics,
-            right_prepared.diagnostics,
+            *(prepared.diagnostics for prepared in prepared_calls),
         ),
         saved_path=(
             normalized_saved_path(config.output_path)
@@ -298,23 +325,33 @@ def _build_compare_summary_figure(
     *,
     config: CircuitCompareConfig,
     metrics: CircuitCompareMetrics,
+    side_metrics: tuple[CircuitCompareSideMetrics, ...],
+    titles: tuple[str, ...],
     text_color: str,
     card_facecolor: str,
     figure_facecolor: str,
 ) -> Figure:
     import matplotlib.pyplot as plt
 
-    figure = plt.figure(figsize=_SUMMARY_FIGURE_SIZE)
+    figure = plt.figure(figsize=_summary_figure_size(len(side_metrics)))
     figure.patch.set_facecolor(figure_facecolor)
     if config.show_summary:
         _add_compare_summary_card(
             figure=figure,
             metrics=metrics,
+            side_metrics=side_metrics,
+            titles=titles,
             text_color=text_color,
             card_facecolor=card_facecolor,
             bounds=_SUMMARY_FIGURE_CARD_BOUNDS,
         )
     return figure
+
+
+def _summary_figure_size(side_count: int) -> tuple[float, float]:
+    if side_count <= 2:
+        return _SUMMARY_FIGURE_SIZE
+    return (max(_SUMMARY_FIGURE_SIZE[0], 2.1 + (side_count * 1.15)), _SUMMARY_FIGURE_SIZE[1])
 
 
 def normalize_compare_draw_config(
@@ -357,6 +394,34 @@ def normalize_compare_draw_config(
     )
 
 
+def resolve_compare_titles(
+    config: CircuitCompareConfig,
+    *,
+    circuit_count: int,
+) -> tuple[str, ...]:
+    """Resolve user-facing titles for every compared circuit."""
+
+    if circuit_count < 2:
+        raise ValueError("compare_circuits requires at least two circuits")
+    if config.titles is not None:
+        if len(config.titles) != circuit_count:
+            raise ValueError("compare.titles must contain one title for each compared circuit")
+        return config.titles
+    return (
+        config.left_title,
+        config.right_title,
+        *(f"Circuit {index}" for index in range(3, circuit_count + 1)),
+    )
+
+
+def _side_label(index: int) -> str:
+    if index == 0:
+        return "left"
+    if index == 1:
+        return "right"
+    return f"circuit {index + 1}"
+
+
 def merge_compare_side_config(
     config: CircuitCompareConfig,
     *,
@@ -364,10 +429,14 @@ def merge_compare_side_config(
 ) -> DrawConfig:
     """Build one per-side draw config from shared options and block overrides."""
 
-    render_override = config.left_render if side_label == "left" else config.right_render
-    appearance_override = (
-        config.left_appearance if side_label == "left" else config.right_appearance
-    )
+    render_override = None
+    appearance_override = None
+    if side_label == "left":
+        render_override = config.left_render
+        appearance_override = config.left_appearance
+    elif side_label == "right":
+        render_override = config.right_render
+        appearance_override = config.right_appearance
     resolved_render = config.shared.render if render_override is None else render_override
     resolved_appearance = (
         config.shared.appearance if appearance_override is None else appearance_override
@@ -381,14 +450,15 @@ def merge_compare_side_config(
     )
 
 
-def shared_figure_for_compare_axes(left_axes: Axes, right_axes: Axes) -> Figure:
+def shared_figure_for_compare_axes(*axes: Axes) -> Figure:
     """Return the shared figure for caller-managed compare axes."""
 
-    left_figure = cast("Figure", left_axes.figure)
-    right_figure = cast("Figure", right_axes.figure)
-    if left_figure is not right_figure:
-        raise ValueError("compare_circuits requires both axes to belong to the same figure")
-    return left_figure
+    if not axes:
+        raise ValueError("compare_circuits requires at least one axes object")
+    first_figure = cast("Figure", axes[0].figure)
+    if any(cast("Figure", side_axes.figure) is not first_figure for side_axes in axes[1:]):
+        raise ValueError("compare_circuits requires all axes to belong to the same figure")
+    return first_figure
 
 
 def circuit_compare_metrics(
@@ -460,6 +530,24 @@ def semantic_circuit_stats(circuit: SemanticCircuitIR) -> _CircuitStats:
             1 for operation in operations if operation.kind is OperationKind.MEASUREMENT
         ),
         swap_count=sum(1 for operation in operations if operation.kind is OperationKind.SWAP),
+    )
+
+
+def circuit_compare_side_metrics(
+    *,
+    title: str,
+    circuit: SemanticCircuitIR,
+) -> CircuitCompareSideMetrics:
+    """Build public per-circuit metrics for summary tables."""
+
+    stats = semantic_circuit_stats(circuit)
+    return CircuitCompareSideMetrics(
+        title=title,
+        layer_count=stats.layer_count,
+        operation_count=stats.operation_count,
+        multi_qubit_count=stats.multi_qubit_count,
+        measurement_count=stats.measurement_count,
+        swap_count=stats.swap_count,
     )
 
 
@@ -567,19 +655,18 @@ def scene_column_spans(scene: LayoutScene) -> dict[int, tuple[float, float]]:
 
 def apply_compare_titles(
     *,
-    left_axes: Axes,
-    right_axes: Axes,
+    axes: tuple[Axes, ...],
     config: CircuitCompareConfig,
     metrics: CircuitCompareMetrics,
-    left_text_color: str,
-    right_text_color: str,
+    side_metrics: tuple[CircuitCompareSideMetrics, ...],
+    titles: tuple[str, ...],
+    text_color: str,
     summary_facecolor: str,
 ) -> None:
     """Apply per-side titles and the shared comparison summary card."""
 
-    del right_text_color
-    summary_figure = cast("Figure", left_axes.figure)
-    _set_figure_window_title(summary_figure, f"{config.left_title} vs {config.right_title}")
+    summary_figure = cast("Figure", axes[0].figure)
+    _set_figure_window_title(summary_figure, " vs ".join(titles))
     _clear_compare_summary_artifacts(summary_figure)
     suptitle = getattr(summary_figure, "_suptitle", None)
     if suptitle is not None:
@@ -591,7 +678,9 @@ def apply_compare_titles(
     _add_compare_summary_card(
         figure=summary_figure,
         metrics=metrics,
-        text_color=left_text_color,
+        side_metrics=side_metrics,
+        titles=titles,
+        text_color=text_color,
         card_facecolor=summary_facecolor,
     )
 
@@ -615,6 +704,8 @@ def _add_compare_summary_card(
     *,
     figure: Figure,
     metrics: CircuitCompareMetrics,
+    side_metrics: tuple[CircuitCompareSideMetrics, ...],
+    titles: tuple[str, ...],
     text_color: str,
     card_facecolor: str,
     bounds: tuple[float, float, float, float] = _SUMMARY_CARD_BOUNDS,
@@ -634,6 +725,32 @@ def _add_compare_summary_card(
     card.set_gid("circuit-compare-summary-card")
     figure.patches.append(card)
 
+    if len(side_metrics) > 2:
+        _add_multi_compare_summary_rows(
+            figure=figure,
+            side_metrics=side_metrics,
+            titles=titles,
+            text_color=text_color,
+            bounds=bounds,
+        )
+        return
+
+    _add_two_compare_summary_rows(
+        figure=figure,
+        metrics=metrics,
+        text_color=text_color,
+        bounds=bounds,
+    )
+
+
+def _add_two_compare_summary_rows(
+    *,
+    figure: Figure,
+    metrics: CircuitCompareMetrics,
+    text_color: str,
+    bounds: tuple[float, float, float, float],
+) -> None:
+    card_x, card_y, card_width, card_height = bounds
     header_y = card_y + card_height - _SUMMARY_CARD_HEADER_OFFSET
     metric_x = card_x + _SUMMARY_CARD_PADDING_X
     left_x = card_x + (card_width * 0.56)
@@ -701,3 +818,110 @@ def _add_compare_summary_card(
                 fontsize=10.0,
             )
             artist.set_gid("circuit-compare-summary-row")
+
+
+def _add_multi_compare_summary_rows(
+    *,
+    figure: Figure,
+    side_metrics: tuple[CircuitCompareSideMetrics, ...],
+    titles: tuple[str, ...],
+    text_color: str,
+    bounds: tuple[float, float, float, float],
+) -> None:
+    card_x, card_y, card_width, card_height = bounds
+    header_y = card_y + card_height - _SUMMARY_CARD_HEADER_OFFSET
+    metric_x = card_x + _SUMMARY_CARD_PADDING_X
+    data_left_x = card_x + (card_width * 0.42)
+    data_right_x = card_x + card_width - _SUMMARY_CARD_PADDING_X
+    if len(side_metrics) == 1:
+        value_x_positions = ((data_left_x + data_right_x) / 2.0,)
+    else:
+        step = (data_right_x - data_left_x) / float(len(side_metrics) - 1)
+        value_x_positions = tuple(
+            data_left_x + (index * step) for index in range(len(side_metrics))
+        )
+
+    header_specs = (
+        ("Metric", metric_x, "left", 10.5),
+        *(
+            (_short_summary_title(title), x_position, "center", 9.0)
+            for title, x_position in zip(titles, value_x_positions, strict=True)
+        ),
+    )
+    for text, x_position, alignment, fontsize in header_specs:
+        artist = figure.text(
+            x_position,
+            header_y,
+            text,
+            color=text_color,
+            ha=alignment,
+            va="center",
+            fontsize=fontsize,
+            fontweight="bold",
+        )
+        artist.set_gid("circuit-compare-summary-header")
+
+    rows = _multi_compare_summary_rows(side_metrics)
+    row_bottom_y = card_y + min(_SUMMARY_CARD_ROW_BOTTOM_PADDING, card_height * 0.22)
+    row_spacing = (header_y - row_bottom_y) / float(len(rows))
+    for row_index, (label, values) in enumerate(rows):
+        row_y = header_y - ((row_index + 1) * row_spacing)
+        label_artist = figure.text(
+            metric_x,
+            row_y,
+            label,
+            color=text_color,
+            ha="left",
+            va="center",
+            fontsize=9.4,
+        )
+        label_artist.set_gid("circuit-compare-summary-row")
+        for value_index, (value, x_position) in enumerate(
+            zip(values, value_x_positions, strict=True)
+        ):
+            artist = figure.text(
+                x_position,
+                row_y,
+                str(value),
+                color=_summary_value_color(values, value_index, fallback=text_color),
+                ha="center",
+                va="center",
+                fontsize=9.4,
+            )
+            artist.set_gid("circuit-compare-summary-row")
+
+
+def _multi_compare_summary_rows(
+    side_metrics: tuple[CircuitCompareSideMetrics, ...],
+) -> tuple[tuple[str, tuple[int, ...]], ...]:
+    return (
+        ("Layers", tuple(metrics.layer_count for metrics in side_metrics)),
+        ("Ops", tuple(metrics.operation_count for metrics in side_metrics)),
+        ("2Q", tuple(metrics.multi_qubit_count for metrics in side_metrics)),
+        ("SWAP", tuple(metrics.swap_count for metrics in side_metrics)),
+        ("Measurements", tuple(metrics.measurement_count for metrics in side_metrics)),
+    )
+
+
+def _summary_value_color(
+    values: tuple[int, ...],
+    value_index: int,
+    *,
+    fallback: str,
+) -> str:
+    lowest_value = min(values)
+    highest_value = max(values)
+    if lowest_value == highest_value:
+        return fallback
+    if values[value_index] == lowest_value:
+        return _SUMMARY_BEST_COLOR
+    if values[value_index] == highest_value:
+        return _SUMMARY_WORST_COLOR
+    return fallback
+
+
+def _short_summary_title(title: str) -> str:
+    normalized_title = title.strip() or "Circuit"
+    if len(normalized_title) <= 13:
+        return normalized_title
+    return f"{normalized_title[:10]}..."

@@ -69,6 +69,7 @@ class CompareDemoPayload:
     left_data: object
     right_data: object
     config: CircuitCompareConfig | HistogramCompareConfig
+    extra_data: tuple[object, ...] = ()
 
 
 CompareDemoBuilder = Callable[[CompareExampleRequest], CompareDemoPayload]
@@ -199,6 +200,7 @@ def render_compare_example(
             result = compare_circuits(
                 payload.left_data,
                 payload.right_data,
+                *payload.extra_data,
                 config=config,
             )
         else:
@@ -209,6 +211,7 @@ def render_compare_example(
             result = compare_histograms(
                 payload.left_data,
                 payload.right_data,
+                *payload.extra_data,
                 config=config,
             )
         set_result_figure_titles(result=result, saved_label=saved_label)
@@ -240,6 +243,11 @@ def _merge_circuit_compare_config(
     *,
     request: CompareExampleRequest,
 ) -> CircuitCompareConfig:
+    titles = _merge_optional_labels(
+        config.titles,
+        first_label=request.left_label,
+        second_label=request.right_label,
+    )
     shared = DrawSideConfig(
         render=replace(config.shared.render, mode=DrawMode(request.mode)),
         appearance=config.shared.appearance,
@@ -261,6 +269,7 @@ def _merge_circuit_compare_config(
             show_summary=(
                 config.show_summary if request.show_summary is None else request.show_summary
             ),
+            titles=titles,
         ),
         output=OutputOptions(
             output_path=request.output,
@@ -275,6 +284,11 @@ def _merge_histogram_compare_config(
     *,
     request: CompareExampleRequest,
 ) -> HistogramCompareConfig:
+    series_labels = _merge_optional_labels(
+        config.series_labels,
+        first_label=request.left_label,
+        second_label=request.right_label,
+    )
     return HistogramCompareConfig(
         data=HistogramDataOptions(
             kind=config.kind,
@@ -290,12 +304,30 @@ def _merge_histogram_compare_config(
             hover=config.hover,
             preset=config.preset,
             theme=config.theme,
+            series_labels=series_labels,
         ),
         output=OutputOptions(
             output_path=request.output,
             show=request.show,
             figsize=request.figsize,
         ),
+    )
+
+
+def _merge_optional_labels(
+    labels: tuple[str, ...] | None,
+    *,
+    first_label: str | None,
+    second_label: str | None,
+) -> tuple[str, ...] | None:
+    if labels is None:
+        return None
+    if len(labels) < 2:
+        return labels
+    return (
+        first_label or labels[0],
+        second_label or labels[1],
+        *labels[2:],
     )
 
 

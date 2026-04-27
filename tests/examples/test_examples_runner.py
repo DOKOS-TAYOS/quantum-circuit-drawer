@@ -498,6 +498,7 @@ def test_demo_catalog_exposes_only_the_refreshed_demo_ids() -> None:
         "qiskit-3d-exploration-showcase",
         "qiskit-control-flow-showcase",
         "qiskit-composite-modes-showcase",
+        "openqasm-showcase",
         "cirq-random",
         "cirq-qaoa",
         "cirq-native-controls-showcase",
@@ -591,6 +592,13 @@ def test_showcase_docs_reference_the_new_framework_demos() -> None:
         "pennylane-terminal-outputs-showcase",
         "myqlm-structural-showcase",
         "cudaq-kernel-showcase",
+        "openqasm-showcase",
+        "public-api-utilities-showcase",
+        "caller-managed-axes-showcase",
+        "style-accessible-showcase",
+        "diagnostics-showcase",
+        "cli-export-showcase",
+        "qiskit-backend-topology-showcase",
     ):
         assert demo_id in examples_readme
 
@@ -652,6 +660,12 @@ def test_showcase_catalog_and_examples_readme_use_current_compatibility_language
     assert "CircuitOperation provenance" in examples_readme
     assert "compact versus expanded composite instructions" in examples_readme
     assert "CircuitIR" in examples_readme
+    assert "OpenQASM" in examples_readme
+    assert "analyze_quantum_circuit" in examples_readme
+    assert "caller-managed axes" in examples_readme
+    assert "accessible" in examples_readme
+    assert "qcd" in examples_readme
+    assert "Qiskit backend topology" in examples_readme
     assert "Wires: All/Active" in examples_readme
     assert "Ancillas: Show/Hide" in examples_readme
     assert "managed 3D exploration" in examples_readme
@@ -1063,6 +1077,99 @@ def test_qiskit_showcase_script_can_render_directly(sandbox_tmp_path: Path) -> N
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
     assert f"Saved qiskit-control-flow-showcase to {output_path}" in result.stdout
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_openqasm_showcase_script_can_render_directly(sandbox_tmp_path: Path) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the OpenQASM showcase smoke test")
+
+    script_path = repo_root_for(Path(__file__)) / "examples" / "openqasm_showcase.py"
+    output_path = sandbox_tmp_path / "openqasm-showcase-direct.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved openqasm-showcase to {output_path}" in result.stdout
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("module_path", "saved_label"),
+    [
+        ("public_api_utilities_showcase.py", "public-api-utilities-showcase"),
+        ("caller_managed_axes_showcase.py", "caller-managed-axes-showcase"),
+        ("style_accessible_showcase.py", "style-accessible-showcase"),
+        ("diagnostics_showcase.py", "diagnostics-showcase"),
+        ("cli_export_showcase.py", "cli-export-showcase"),
+    ],
+)
+def test_public_utility_showcase_script_can_render_directly(
+    module_path: str,
+    saved_label: str,
+    sandbox_tmp_path: Path,
+) -> None:
+    script_path = repo_root_for(Path(__file__)) / "examples" / module_path
+    output_path = sandbox_tmp_path / f"{saved_label}.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved {saved_label} to {output_path}" in result.stdout
+
+
+@pytest.mark.optional
+@pytest.mark.integration
+def test_qiskit_backend_topology_showcase_script_can_render_directly(
+    sandbox_tmp_path: Path,
+) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the Qiskit backend topology smoke test")
+
+    script_path = repo_root_for(Path(__file__)) / "examples" / "qiskit_backend_topology_showcase.py"
+    output_path = sandbox_tmp_path / "qiskit-backend-topology-showcase.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved qiskit-backend-topology-showcase to {output_path}" in result.stdout
 
 
 @pytest.mark.optional

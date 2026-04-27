@@ -104,6 +104,17 @@ def get_demo_catalog() -> tuple[DemoSpec, ...]:
             dependency_module="qiskit",
         ),
         DemoSpec(
+            demo_id="openqasm-showcase",
+            description="OpenQASM text workflow rendered through the Qiskit parser path",
+            module_name="examples.openqasm_showcase",
+            builder_name="build_circuit",
+            framework="qasm",
+            default_qubits=3,
+            default_columns=2,
+            columns_help="Extra alternating OpenQASM gate motifs to append before measurement",
+            dependency_module="qiskit",
+        ),
+        DemoSpec(
             demo_id="cirq-random",
             description="Configurable random Cirq circuit",
             module_name="examples.cirq_random",

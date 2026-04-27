@@ -73,6 +73,8 @@ def result_figures(result: object) -> tuple[object, ...]:
             collected.append(candidate)
 
     append_figures(result)
+    for nested_result in tuple(getattr(result, "side_results", ()) or ()):
+        append_figures(nested_result)
     for nested_name in ("left_result", "right_result"):
         nested_result = getattr(result, nested_name, None)
         if nested_result is not None:

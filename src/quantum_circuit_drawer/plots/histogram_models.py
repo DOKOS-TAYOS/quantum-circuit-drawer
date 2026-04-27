@@ -149,6 +149,7 @@ class HistogramCompareOptions:
     hover: bool = True
     preset: StylePreset | str | None = None
     theme: DrawTheme | str | None = None
+    series_labels: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         normalized_preset = normalize_style_preset(self.preset)
@@ -158,6 +159,8 @@ class HistogramCompareOptions:
         object.__setattr__(self, "sort", _normalize_compare_sort(self.sort))
         object.__setattr__(self, "preset", normalized_preset)
         object.__setattr__(self, "theme", resolve_theme(preset_theme))
+        if self.series_labels is not None:
+            _validate_str_tuple("series_labels", self.series_labels)
         _validate_hover(self.hover)
 
 
@@ -340,6 +343,10 @@ class HistogramCompareConfig:
         return self.compare.right_label
 
     @property
+    def series_labels(self) -> tuple[str, ...] | None:
+        return self.compare.series_labels
+
+    @property
     def hover(self) -> bool:
         return self.compare.hover
 
@@ -385,6 +392,8 @@ class HistogramCompareResult:
     delta_values: tuple[float, ...]
     metrics: HistogramCompareMetrics
     qubits: tuple[int, ...] | None
+    series_labels: tuple[str, ...] = ()
+    series_values: tuple[tuple[float, ...], ...] = ()
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
 
@@ -403,6 +412,8 @@ class HistogramCompareResult:
             "left_values": self.left_values,
             "right_values": self.right_values,
             "delta_values": self.delta_values,
+            "series_labels": self._resolved_series_labels(),
+            "series_values": self._resolved_series_values(),
             "metrics": {
                 "total_variation_distance": self.metrics.total_variation_distance,
                 "max_absolute_delta": self.metrics.max_absolute_delta,
@@ -419,17 +430,32 @@ class HistogramCompareResult:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with output_path.open("w", newline="", encoding="utf-8") as csv_file:
             writer = csv.writer(csv_file)
-            writer.writerow(("state", "left", "right", "delta"))
-            writer.writerows(
-                zip(
-                    self.state_labels,
-                    self.left_values,
-                    self.right_values,
-                    self.delta_values,
-                    strict=True,
+            series_values = self._resolved_series_values()
+            series_labels = self._resolved_series_labels()
+            if len(series_values) <= 2:
+                writer.writerow(("state", "left", "right", "delta"))
+                writer.writerows(
+                    zip(
+                        self.state_labels,
+                        self.left_values,
+                        self.right_values,
+                        self.delta_values,
+                        strict=True,
+                    )
                 )
-            )
+            else:
+                writer.writerow(("state", *series_labels))
+                writer.writerows(
+                    (state_label, *(values[index] for values in series_values))
+                    for index, state_label in enumerate(self.state_labels)
+                )
         return _resolved_output_path(path)
+
+    def _resolved_series_labels(self) -> tuple[str, ...]:
+        return self.series_labels or ("Left", "Right")
+
+    def _resolved_series_values(self) -> tuple[tuple[float, ...], ...]:
+        return self.series_values or (self.left_values, self.right_values)
 
 
 def _resolved_output_path(path: OutputPath) -> str:
@@ -533,6 +559,12 @@ def _validate_instance(name: str, value: object, expected_type: type[object]) ->
     if isinstance(value, expected_type):
         return
     raise TypeError(f"{name} must be a {expected_type.__name__}")
+
+
+def _validate_str_tuple(name: str, value: object) -> None:
+    if isinstance(value, tuple) and all(isinstance(item, str) for item in value):
+        return
+    raise ValueError(f"{name} must be a tuple of strings")
 
 
 def _is_non_negative_integer(value: object) -> bool:

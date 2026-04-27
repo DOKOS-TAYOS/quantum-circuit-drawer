@@ -12,6 +12,7 @@ from .circuit_compare import (
     CircuitCompareMetrics,
     CircuitCompareOptions,
     CircuitCompareResult,
+    CircuitCompareSideMetrics,
 )
 from .config import (
     CircuitAppearanceOptions,
@@ -126,17 +127,18 @@ def plot_histogram(
 def compare_histograms(
     left_data: object,
     right_data: object,
-    *,
+    *additional_data: object,
     config: HistogramCompareConfig | None = None,
     ax: Axes | None = None,
 ) -> HistogramCompareResult:
-    """Overlay two histograms on the same bins and return comparison data."""
+    """Overlay two or more histograms on the same bins and return comparison data."""
 
     from .histogram import compare_histograms as _compare_histograms
 
     return _compare_histograms(
         left_data,
         right_data,
+        *additional_data,
         config=config,
         ax=ax,
     )
@@ -145,17 +147,18 @@ def compare_histograms(
 def compare_circuits(
     left_circuit: object,
     right_circuit: object,
-    *,
+    *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
-    axes: tuple[Axes, Axes] | None = None,
+    axes: tuple[Axes, ...] | None = None,
 ) -> CircuitCompareResult:
-    """Draw two circuits side by side and return comparison metadata."""
+    """Draw two or more circuits side by side and return comparison metadata."""
 
     from .circuit_compare import compare_circuits as _compare_circuits
 
     return _compare_circuits(
         left_circuit,
         right_circuit,
+        *additional_circuits,
         config=config,
         axes=axes,
     )
@@ -169,6 +172,7 @@ __all__ = [
     "CircuitCompareMetrics",
     "CircuitCompareOptions",
     "CircuitCompareResult",
+    "CircuitCompareSideMetrics",
     "CircuitRenderOptions",
     "DiagnosticSeverity",
     "DrawConfig",

@@ -179,55 +179,53 @@ def plot_histogram(
 def compare_histograms(
     left_data: object,
     right_data: object,
-    *,
+    *additional_data: object,
     config: HistogramCompareConfig | None = None,
     ax: Axes | None = None,
 ) -> HistogramCompareResult:
-    """Overlay two histograms on the same bins and return aligned values."""
+    """Overlay two or more histograms on the same bins and return aligned values."""
 
     resolved_config = config or HistogramCompareConfig()
     if ax is not None and resolved_config.figsize is not None:
         raise ValueError("figsize cannot be used with ax")
 
-    left_normalized = normalize_histogram_data(
-        left_data,
-        requested_kind=resolved_config.kind,
-        result_index=resolved_config.result_index,
-        data_key=resolved_config.data_key,
+    data_series = (left_data, right_data, *additional_data)
+    series_labels = _resolve_compare_series_labels(
+        resolved_config,
+        series_count=len(data_series),
     )
-    right_normalized = normalize_histogram_data(
-        right_data,
-        requested_kind=resolved_config.kind,
-        result_index=resolved_config.result_index,
-        data_key=resolved_config.data_key,
+    normalized_series = tuple(
+        normalize_histogram_data(
+            data,
+            requested_kind=resolved_config.kind,
+            result_index=resolved_config.result_index,
+            data_key=resolved_config.data_key,
+        )
+        for data in data_series
     )
-    left_values_by_state = apply_joint_marginal(
-        left_normalized.values_by_state,
-        qubits=resolved_config.qubits,
-        bit_width=left_normalized.bit_width,
-    )
-    right_values_by_state = apply_joint_marginal(
-        right_normalized.values_by_state,
-        qubits=resolved_config.qubits,
-        bit_width=right_normalized.bit_width,
+    values_by_state_series = tuple(
+        apply_joint_marginal(
+            normalized.values_by_state,
+            qubits=resolved_config.qubits,
+            bit_width=normalized.bit_width,
+        )
+        for normalized in normalized_series
     )
     comparison_kind = resolve_comparison_kind(
         requested_kind=resolved_config.kind,
-        left_kind=left_normalized.kind,
-        right_kind=right_normalized.kind,
+        series_kinds=tuple(normalized.kind for normalized in normalized_series),
     )
     ordered_state_labels = ordered_comparison_state_labels(
-        left_values_by_state=left_values_by_state,
-        right_values_by_state=right_values_by_state,
+        values_by_state_series=values_by_state_series,
         sort=resolved_config.sort,
         top_k=resolved_config.top_k,
     )
-    left_values = tuple(
-        float(left_values_by_state.get(state_label, 0.0)) for state_label in ordered_state_labels
+    series_values = tuple(
+        tuple(float(values_by_state.get(state_label, 0.0)) for state_label in ordered_state_labels)
+        for values_by_state in values_by_state_series
     )
-    right_values = tuple(
-        float(right_values_by_state.get(state_label, 0.0)) for state_label in ordered_state_labels
-    )
+    left_values = series_values[0]
+    right_values = series_values[1]
     delta_values = tuple(
         float(left_value - right_value)
         for left_value, right_value in zip(left_values, right_values, strict=True)
@@ -240,33 +238,27 @@ def compare_histograms(
         figure=figure,
         axes=axes,
         state_labels=ordered_state_labels,
-        left_values=left_values,
-        right_values=right_values,
+        series_values=series_values,
         kind=comparison_kind,
         theme=theme,
-        left_label=resolved_config.left_label,
-        right_label=resolved_config.right_label,
+        series_labels=series_labels,
     )
     if resolved_config.hover:
         attach_histogram_compare_hover(
             axes,
             artists=artists,
             state_labels=ordered_state_labels,
-            left_values=left_values,
-            right_values=right_values,
+            series_values=series_values,
             kind=comparison_kind,
             theme=theme,
-            left_label=resolved_config.left_label,
-            right_label=resolved_config.right_label,
+            series_labels=series_labels,
         )
-    if comparison_kind is HistogramKind.COUNTS:
-        attach_histogram_compare_legend_toggle(
-            axes,
-            artists=artists,
-            left_values=left_values,
-            right_values=right_values,
-            kind=comparison_kind,
-        )
+    attach_histogram_compare_legend_toggle(
+        axes,
+        artists=artists,
+        series_values=series_values,
+        kind=comparison_kind,
+    )
     save_histogram_if_requested(figure, output_path=resolved_config.output_path)
     if resolved_config.show:
         from ..renderers._render_support import show_figure_if_supported
@@ -283,8 +275,30 @@ def compare_histograms(
         delta_values=delta_values,
         metrics=metrics,
         qubits=resolved_config.qubits,
+        series_labels=series_labels,
+        series_values=series_values,
         diagnostics=(),
         saved_path=normalized_saved_path(resolved_config.output_path),
+    )
+
+
+def _resolve_compare_series_labels(
+    config: HistogramCompareConfig,
+    *,
+    series_count: int,
+) -> tuple[str, ...]:
+    if series_count < 2:
+        raise ValueError("compare_histograms requires at least two data series")
+    if config.series_labels is not None:
+        if len(config.series_labels) != series_count:
+            raise ValueError(
+                "compare.series_labels must contain one label for each histogram series"
+            )
+        return config.series_labels
+    return (
+        config.left_label,
+        config.right_label,
+        *(f"Series {index}" for index in range(3, series_count + 1)),
     )
 
 

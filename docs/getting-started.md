@@ -171,7 +171,7 @@ This same entry point also accepts:
 - selected marginals through `HistogramDataOptions(qubits=(...))`
 - interactive or static histogram mode
 
-## Compare Two Circuits
+## Compare Two Or More Circuits
 
 ```python
 from qiskit import QuantumCircuit, transpile
@@ -204,9 +204,9 @@ result = compare_circuits(
 )
 ```
 
-This is the quickest way to inspect structural differences without writing your own subplot logic.
+This is the quickest way to inspect structural differences without writing your own subplot logic. You can pass extra circuits after the first two; for 3+ circuits, set `CircuitCompareOptions(titles=(...))` with one title per circuit.
 
-## Compare Two Histograms
+## Compare Two Or More Histograms
 
 ```python
 from quantum_circuit_drawer import (
@@ -233,7 +233,7 @@ result = compare_histograms(
 )
 ```
 
-This returns one comparison figure and aligned values for both sides.
+This returns one comparison figure and aligned values. You can pass extra distributions after the first two; for 3+ distributions, set `HistogramCompareOptions(series_labels=(...))`.
 
 ## Framework-Free Start With `CircuitBuilder`
 

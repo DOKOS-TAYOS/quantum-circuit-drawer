@@ -86,6 +86,56 @@ def test_transform_semantic_circuit_respects_initial_collapsed_blocks() -> None:
     )
 
 
+def test_simple_qiskit_if_body_operations_do_not_become_collapsible_blocks() -> None:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(5)
+    )
+    classical_wires = (WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c[0]"),)
+    circuit = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        classical_wires=classical_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q4",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="x",
+                            native_kind="gate",
+                            location=(7, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        target_wires=("q3",),
+                        parameters=(0.35,),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="rz",
+                            native_kind="gate",
+                            location=(7, 1),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
+
+    catalog = build_exploration_catalog(circuit, circuit)
+
+    assert "op:7" not in catalog.blocks
+    assert catalog.block_id_by_operation_id == {}
+
+
 def test_nested_location_compact_block_can_be_expanded_from_selected_operation() -> None:
     quantum_wires = (
         WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),

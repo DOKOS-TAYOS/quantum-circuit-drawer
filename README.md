@@ -24,9 +24,9 @@ The library is centered on four user workflows:
 | --- | --- | --- |
 | Analyze one circuit | `analyze_quantum_circuit(...)` | Inspect framework, size, mode, pages, operations, and diagnostics without rendering |
 | Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2/3, or IR circuit |
-| Compare two circuits | `compare_circuits(...)` | Show before/after structure, for example before and after transpilation |
+| Compare circuits | `compare_circuits(...)` | Show before/after or multi-circuit structure, for example transpilation levels |
 | Plot one result distribution | `plot_histogram(...)` | Plot counts, quasi-probabilities, marginals, or framework-native result objects |
-| Compare two result distributions | `compare_histograms(...)` | Overlay ideal vs sampled, baseline vs new run, or counts vs quasi |
+| Compare result distributions | `compare_histograms(...)` | Overlay two or more ideal, sampled, baseline, or hardware distributions |
 
 The public configuration is also intentionally small:
 
@@ -124,8 +124,8 @@ This is the production support contract for the current release.
 | Generate images from your terminal | [Command line](#command-line) |
 | Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file) |
 | Plot counts or probabilities | [Plot one histogram](#plot-one-histogram) |
-| Compare two versions of a circuit | [Compare two circuits](#compare-two-circuits) |
-| Compare two distributions | [Compare two histograms](#compare-two-histograms) |
+| Compare circuit versions | [Compare circuits](#compare-two-or-more-circuits) |
+| Compare distributions | [Compare histograms](#compare-two-or-more-histograms) |
 | Build a circuit without a framework dependency | [Build with public IR tools](#build-with-public-ir-tools) |
 | Learn the full user-facing feature set | [Extended guide](docs/extended_guide.md) |
 | Explore framework-specific demos | [Recommended demos](#recommended-demos) |
@@ -364,7 +364,7 @@ result = plot_histogram(
 
 `qubits=(0, 2)` keeps the requested order, so the marginal labels are built as `q0` followed by `q2`.
 
-## Compare Two Circuits
+## Compare Two Or More Circuits
 
 ```python
 from qiskit import QuantumCircuit, transpile
@@ -400,10 +400,12 @@ result = compare_circuits(
 `CircuitCompareResult` gives you:
 
 - a compact summary figure by default
-- one `DrawResult` per side, with each circuit rendered in its own normal `pages_controls` figure unless you request `mode="full"` or pass caller-owned axes
+- one `DrawResult` per circuit, with each circuit rendered in its own normal `pages_controls` figure unless you request `mode="full"` or pass caller-owned axes
 - structural metrics such as operation counts, measurement counts, swap counts, and differing layers
 
-## Compare Two Histograms
+For three or more circuits, pass the extra circuits as positional arguments and provide `compare.titles`. The summary table switches from a two-side delta column to one column per circuit; lower aggregate counts are highlighted in green and higher aggregate counts in red for each row.
+
+## Compare Two Or More Histograms
 
 ```python
 from quantum_circuit_drawer import (
@@ -431,6 +433,8 @@ result = compare_histograms(
 ```
 
 This is useful when you want one aligned state space and quick metrics such as total variation distance. On interactive Matplotlib backends, the compare legend is clickable so you can focus one selected series at a time while keeping the axes and hover state in sync.
+
+For three or more distributions, pass extra data objects after the first two and set `HistogramCompareOptions(series_labels=(...))`. Sorting with `sort="delta_desc"` uses the largest spread across all visible series.
 
 ## Build With Public IR Tools
 
@@ -539,12 +543,21 @@ The fastest way to see the current strengths of the library is to run one of the
 | `qiskit-3d-exploration-showcase` | Managed 3D exploration with topology-aware selection, persistent expanded-block highlights, and contextual `Collapse` / `Expand` |
 | `qiskit-control-flow-showcase` | Compact Qiskit control-flow boxes plus open controls |
 | `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions on the same workflow |
+| `openqasm-showcase` | OpenQASM text input through the Qiskit parser path |
 | `ir-basic-workflow` | Framework-free rendering from the public `CircuitIR` types |
+| `public-api-utilities-showcase` | Analysis, result metadata, page exports, and histogram CSV export |
+| `caller-managed-axes-showcase` | Circuit, histogram, and comparison rendering on caller-managed axes |
+| `style-accessible-showcase` | Accessible circuit and histogram styling |
+| `diagnostics-showcase` | Diagnostics, warnings, and resolved-mode metadata |
+| `cli-export-showcase` | Terminal-oriented `qcd` JSON histogram export |
+| `qiskit-backend-topology-showcase` | Qiskit backend topology conversion into a 3D hardware view |
 | `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and CircuitOperation provenance |
 | `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
 | `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
 | `cudaq-kernel-showcase` | The supported CUDA-Q subset with scalar runtime arguments, reset, and basis measurements |
+| `compare-circuits-multi-transpile` | One Qiskit source circuit compared with several transpilation optimization levels |
 | `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend selection on interactive backends |
+| `compare-histograms-multi-series` | A multi-series overlay for ideal, noisy, raw hardware, and mitigated distributions |
 | `histogram-quasi-nonnegative` | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero |
 
 Windows PowerShell:
@@ -554,8 +567,17 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_control_flow_showcase.py
 .\.venv\Scripts\python.exe examples\qiskit_composite_modes_showcase.py --composite-mode expand
+.\.venv\Scripts\python.exe examples\openqasm_showcase.py
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
+.\.venv\Scripts\python.exe examples\public_api_utilities_showcase.py
+.\.venv\Scripts\python.exe examples\caller_managed_axes_showcase.py
+.\.venv\Scripts\python.exe examples\style_accessible_showcase.py
+.\.venv\Scripts\python.exe examples\diagnostics_showcase.py
+.\.venv\Scripts\python.exe examples\cli_export_showcase.py
+.\.venv\Scripts\python.exe examples\qiskit_backend_topology_showcase.py
+.\.venv\Scripts\python.exe examples\compare_circuits_multi_transpile.py
 .\.venv\Scripts\python.exe examples\compare_histograms_ideal_vs_sampled.py
+.\.venv\Scripts\python.exe examples\compare_histograms_multi_series.py
 .\.venv\Scripts\python.exe examples\histogram_quasi_nonnegative.py
 ```
 
@@ -566,8 +588,17 @@ Linux or WSL:
 .venv/bin/python examples/qiskit_3d_exploration_showcase.py
 .venv/bin/python examples/qiskit_control_flow_showcase.py
 .venv/bin/python examples/qiskit_composite_modes_showcase.py --composite-mode expand
+.venv/bin/python examples/openqasm_showcase.py
 .venv/bin/python examples/ir_basic_workflow.py
+.venv/bin/python examples/public_api_utilities_showcase.py
+.venv/bin/python examples/caller_managed_axes_showcase.py
+.venv/bin/python examples/style_accessible_showcase.py
+.venv/bin/python examples/diagnostics_showcase.py
+.venv/bin/python examples/cli_export_showcase.py
+.venv/bin/python examples/qiskit_backend_topology_showcase.py
+.venv/bin/python examples/compare_circuits_multi_transpile.py
 .venv/bin/python examples/compare_histograms_ideal_vs_sampled.py
+.venv/bin/python examples/compare_histograms_multi_series.py
 .venv/bin/python examples/histogram_quasi_nonnegative.py
 ```
 

@@ -34,46 +34,80 @@ _HOVER_ZORDER = 10_000
 class HistogramCompareArtists:
     """Artists and legend visibility state for one overlay histogram."""
 
-    left_bars: tuple[Rectangle, ...]
-    right_bars: tuple[Rectangle, ...]
-    left_edges: tuple[Line2D, ...]
-    right_edges: tuple[Line2D, ...]
+    series_labels: tuple[str, ...]
+    bars_by_series: tuple[tuple[Rectangle, ...], ...]
+    edges_by_series: tuple[tuple[Line2D, ...], ...]
     legend: Legend | None
-    visible_series: dict[str, bool] = field(default_factory=lambda: {"left": True, "right": True})
+    visible_series: dict[str, bool] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.visible_series:
+            self.visible_series.update(
+                {series_key(index): True for index in range(len(self.series_labels))}
+            )
+
+    @property
+    def left_bars(self) -> tuple[Rectangle, ...]:
+        return self.bars_by_series[0] if self.bars_by_series else ()
+
+    @property
+    def right_bars(self) -> tuple[Rectangle, ...]:
+        return self.bars_by_series[1] if len(self.bars_by_series) > 1 else ()
+
+    @property
+    def left_edges(self) -> tuple[Line2D, ...]:
+        return self.edges_by_series[0] if self.edges_by_series else ()
+
+    @property
+    def right_edges(self) -> tuple[Line2D, ...]:
+        return self.edges_by_series[1] if len(self.edges_by_series) > 1 else ()
+
+
+def series_key(index: int) -> str:
+    if index == 0:
+        return "left"
+    if index == 1:
+        return "right"
+    return f"series-{index + 1}"
 
 
 def resolve_comparison_kind(
     *,
     requested_kind: HistogramKind,
-    left_kind: HistogramKind,
-    right_kind: HistogramKind,
+    left_kind: HistogramKind | None = None,
+    right_kind: HistogramKind | None = None,
+    series_kinds: tuple[HistogramKind, ...] | None = None,
 ) -> HistogramKind:
-    """Resolve the final comparison kind from both normalized inputs."""
+    """Resolve the final comparison kind from all normalized inputs."""
 
     if requested_kind is not HistogramKind.AUTO:
         return requested_kind
-    if left_kind is HistogramKind.QUASI or right_kind is HistogramKind.QUASI:
+    kinds = series_kinds if series_kinds is not None else (left_kind, right_kind)
+    if any(kind is HistogramKind.QUASI for kind in kinds):
         return HistogramKind.QUASI
     return HistogramKind.COUNTS
 
 
 def ordered_comparison_state_labels(
     *,
-    left_values_by_state: Mapping[str, float],
-    right_values_by_state: Mapping[str, float],
+    left_values_by_state: Mapping[str, float] | None = None,
+    right_values_by_state: Mapping[str, float] | None = None,
+    values_by_state_series: tuple[Mapping[str, float], ...] | None = None,
     sort: HistogramCompareSort,
     top_k: int | None,
 ) -> tuple[str, ...]:
-    """Return one aligned ordering for both histogram series."""
+    """Return one aligned ordering for all histogram series."""
 
-    labels = tuple(
-        sorted(set(left_values_by_state) | set(right_values_by_state), key=_state_sort_key)
-    )
+    series = values_by_state_series
+    if series is None:
+        if left_values_by_state is None or right_values_by_state is None:
+            raise ValueError("ordered_comparison_state_labels requires comparison data")
+        series = (left_values_by_state, right_values_by_state)
+    labels = tuple(sorted(set().union(*(set(values) for values in series)), key=_state_sort_key))
     items = [
         (
             label,
-            float(left_values_by_state.get(label, 0.0)),
-            float(right_values_by_state.get(label, 0.0)),
+            tuple(float(values.get(label, 0.0)) for values in series),
         )
         for label in labels
     ]
@@ -82,10 +116,16 @@ def ordered_comparison_state_labels(
     elif sort is HistogramCompareSort.STATE_DESC:
         items.sort(key=lambda item: _state_sort_key(item[0]), reverse=True)
     else:
-        items.sort(key=lambda item: (-abs(item[1] - item[2]), _state_sort_key(item[0])))
+        items.sort(key=lambda item: (-_spread(item[1]), _state_sort_key(item[0])))
     if top_k is not None:
         items = items[:top_k]
-    return tuple(label for label, _, _ in items)
+    return tuple(label for label, _ in items)
+
+
+def _spread(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return max(values) - min(values)
 
 
 def build_compare_metrics(delta_values: tuple[float, ...]) -> HistogramCompareMetrics:
@@ -102,82 +142,64 @@ def draw_histogram_compare_axes(
     figure: Figure,
     axes: Axes,
     state_labels: tuple[str, ...],
-    left_values: tuple[float, ...],
-    right_values: tuple[float, ...],
+    series_values: tuple[tuple[float, ...], ...],
     kind: HistogramKind,
     theme: DrawTheme,
-    left_label: str,
-    right_label: str,
+    series_labels: tuple[str, ...],
 ) -> HistogramCompareArtists:
-    """Draw two aligned histograms as one overlay plot."""
+    """Draw aligned histogram series as one overlay plot."""
 
     from matplotlib.patches import Patch
 
     apply_histogram_theme(figure=figure, axes=axes, theme=theme)
     positions = tuple(range(len(state_labels)))
     bar_width = 0.82
-    left_color = theme.accent_color
-    right_color = comparison_secondary_color(theme)
+    colors = _compare_series_colors(theme, len(series_values))
     legend_handles = [
-        Patch(facecolor=left_color, edgecolor=theme.gate_edgecolor, alpha=0.72, label=left_label),
-        Patch(
-            facecolor=right_color,
-            edgecolor=theme.gate_edgecolor,
-            alpha=0.72,
-            label=right_label,
-        ),
+        Patch(facecolor=color, edgecolor=theme.gate_edgecolor, alpha=0.72, label=label)
+        for color, label in zip(colors, series_labels, strict=True)
     ]
-    left_bars: list[Rectangle] = []
-    right_bars: list[Rectangle] = []
-    left_edges: list[Line2D] = []
-    right_edges: list[Line2D] = []
+    bars_by_series: list[list[Rectangle]] = [[] for _ in series_values]
+    edges_by_series: list[list[Line2D]] = [[] for _ in series_values]
 
-    for position, left_value, right_value in zip(positions, left_values, right_values, strict=True):
-        left_is_back = abs(float(left_value)) >= abs(float(right_value))
-        left_bar = axes.bar(
-            position,
-            (float(left_value),),
-            width=bar_width,
-            color=left_color,
-            edgecolor=theme.gate_edgecolor,
-            linewidth=1.6 if left_is_back else 1.1,
-            alpha=0.26 if left_is_back else 0.58,
-            zorder=2 if left_is_back else 3,
-        )[0]
-        right_bar = axes.bar(
-            position,
-            (float(right_value),),
-            width=bar_width,
-            color=right_color,
-            edgecolor=theme.gate_edgecolor,
-            linewidth=1.1 if left_is_back else 1.6,
-            alpha=0.58 if left_is_back else 0.26,
-            zorder=3 if left_is_back else 2,
-        )[0]
-        left_bar.set_label("_nolegend_")
-        left_bar.set_gid("histogram-compare:left")
-        right_bar.set_label("_nolegend_")
-        right_bar.set_gid("histogram-compare:right")
-        left_edge = _draw_bar_top_edge(
-            axes=axes,
-            position=float(position),
-            value=float(left_value),
-            width=bar_width,
-            color=left_color,
-            series_name="left",
+    for state_index, position in enumerate(positions):
+        order = sorted(
+            range(len(series_values)),
+            key=lambda series_index: abs(float(series_values[series_index][state_index])),
+            reverse=True,
         )
-        right_edge = _draw_bar_top_edge(
-            axes=axes,
-            position=float(position),
-            value=float(right_value),
-            width=bar_width,
-            color=right_color,
-            series_name="right",
-        )
-        left_bars.append(left_bar)
-        right_bars.append(right_bar)
-        left_edges.append(left_edge)
-        right_edges.append(right_edge)
+        zorders_by_series = {
+            series_index: 2 + draw_index for draw_index, series_index in enumerate(order)
+        }
+        alphas_by_series = {
+            series_index: 0.24 + (0.36 * (draw_index / max(1, len(order) - 1)))
+            for draw_index, series_index in enumerate(order)
+        }
+        for series_index in order:
+            value = float(series_values[series_index][state_index])
+            key = series_key(series_index)
+            bar = axes.bar(
+                position,
+                (value,),
+                width=bar_width,
+                color=colors[series_index],
+                edgecolor=theme.gate_edgecolor,
+                linewidth=1.6 if zorders_by_series[series_index] == 2 + len(order) - 1 else 1.1,
+                alpha=alphas_by_series[series_index],
+                zorder=zorders_by_series[series_index],
+            )[0]
+            bar.set_label("_nolegend_")
+            bar.set_gid(f"histogram-compare:{key}")
+            edge = _draw_bar_top_edge(
+                axes=axes,
+                position=float(position),
+                value=value,
+                width=bar_width,
+                color=colors[series_index],
+                series_name=key,
+            )
+            bars_by_series[series_index].append(bar)
+            edges_by_series[series_index].append(edge)
 
     axes.set_xlabel("State")
     axes.set_ylabel("Counts" if kind is HistogramKind.COUNTS else "Quasi-probability")
@@ -189,7 +211,7 @@ def draw_histogram_compare_axes(
         axes.set_xlim(-0.5, len(positions) - 0.5)
     axes.set_ylim(
         *resolved_histogram_y_limits(
-            (*left_values, *right_values),
+            tuple(value for values in series_values for value in values),
             kind=kind,
             uniform_reference_value=None,
         )
@@ -198,12 +220,25 @@ def draw_histogram_compare_axes(
     _style_compare_legend(legend=legend, theme=theme)
     axes.margins(x=0.02)
     return HistogramCompareArtists(
-        left_bars=tuple(left_bars),
-        right_bars=tuple(right_bars),
-        left_edges=tuple(left_edges),
-        right_edges=tuple(right_edges),
+        series_labels=series_labels,
+        bars_by_series=tuple(tuple(bars) for bars in bars_by_series),
+        edges_by_series=tuple(tuple(edges) for edges in edges_by_series),
         legend=legend,
     )
+
+
+def _compare_series_colors(theme: DrawTheme, series_count: int) -> tuple[str, ...]:
+    palette = (
+        theme.accent_color,
+        comparison_secondary_color(theme),
+        "#f59e0b",
+        "#22c55e",
+        "#ef4444",
+        "#06b6d4",
+        "#e879f9",
+        "#84cc16",
+    )
+    return tuple(palette[index % len(palette)] for index in range(series_count))
 
 
 def _draw_bar_top_edge(
@@ -233,14 +268,12 @@ def attach_histogram_compare_hover(
     *,
     artists: HistogramCompareArtists,
     state_labels: tuple[str, ...],
-    left_values: tuple[float, ...],
-    right_values: tuple[float, ...],
+    series_values: tuple[tuple[float, ...], ...],
     kind: HistogramKind,
     theme: DrawTheme,
-    left_label: str,
-    right_label: str,
+    series_labels: tuple[str, ...],
 ) -> None:
-    """Attach one hover annotation that compares both series for the hovered bin."""
+    """Attach one hover annotation that compares visible series for the hovered bin."""
 
     clear_hover_state(axes)
     annotation = axes.annotate(
@@ -286,19 +319,14 @@ def attach_histogram_compare_hover(
             return
         if active_index == hovered_index:
             return
-        show_left = artists.left_bars[hovered_index].get_visible()
-        show_right = artists.right_bars[hovered_index].get_visible()
         annotation.xy = (event.x, event.y)
         annotation.set_text(
             _compare_histogram_hover_text(
                 state_label=state_labels[hovered_index],
-                left_value=left_values[hovered_index],
-                right_value=right_values[hovered_index],
+                values=tuple(values[hovered_index] for values in series_values),
                 kind=kind,
-                left_label=left_label,
-                right_label=right_label,
-                show_left=show_left,
-                show_right=show_right,
+                series_labels=series_labels,
+                visible_series=artists.visible_series,
             )
         )
         annotation.set_visible(True)
@@ -313,10 +341,12 @@ def _hovered_compare_bar_index(
     artists: HistogramCompareArtists,
     event: MouseEvent,
 ) -> int | None:
-    for index, (left_bar, right_bar) in enumerate(
-        zip(artists.left_bars, artists.right_bars, strict=True)
-    ):
-        for bar in (left_bar, right_bar):
+    state_count = len(artists.bars_by_series[0]) if artists.bars_by_series else 0
+    for index in range(state_count):
+        for series_index, series_bars in enumerate(artists.bars_by_series):
+            if not artists.visible_series.get(series_key(series_index), True):
+                continue
+            bar = series_bars[index]
             if not bar.get_visible():
                 continue
             contains, _ = bar.contains(event)
@@ -328,25 +358,25 @@ def _hovered_compare_bar_index(
 def _compare_histogram_hover_text(
     *,
     state_label: str,
-    left_value: float,
-    right_value: float,
+    values: tuple[float, ...],
     kind: HistogramKind,
-    left_label: str,
-    right_label: str,
-    show_left: bool,
-    show_right: bool,
+    series_labels: tuple[str, ...],
+    visible_series: Mapping[str, bool],
 ) -> str:
     value_label = "counts" if kind is HistogramKind.COUNTS else "quasi-probability"
     lines = [f"State: {state_label}"]
-    if show_left:
-        lines.append(f"{left_label} {value_label}: {_formatted_histogram_value(left_value, kind)}")
-    if show_right:
-        lines.append(
-            f"{right_label} {value_label}: {_formatted_histogram_value(right_value, kind)}"
-        )
-    if show_left and show_right:
-        delta_value = left_value - right_value
+    visible_values: list[float] = []
+    for series_index, (label, value) in enumerate(zip(series_labels, values, strict=True)):
+        if not visible_series.get(series_key(series_index), True):
+            continue
+        visible_values.append(value)
+        lines.append(f"{label} {value_label}: {_formatted_histogram_value(value, kind)}")
+    if len(visible_values) == 2 and len(values) == 2:
+        delta_value = visible_values[0] - visible_values[1]
         lines.append(f"Delta: {_formatted_histogram_value(delta_value, kind)}")
+    elif len(visible_values) > 1:
+        spread_value = max(visible_values) - min(visible_values)
+        lines.append(f"Range: {_formatted_histogram_value(spread_value, kind)}")
     return "\n".join(lines)
 
 
@@ -367,8 +397,7 @@ def attach_histogram_compare_legend_toggle(
     axes: Axes,
     *,
     artists: HistogramCompareArtists,
-    left_values: tuple[float, ...],
-    right_values: tuple[float, ...],
+    series_values: tuple[tuple[float, ...], ...],
     kind: HistogramKind,
 ) -> None:
     """Select one compare series from legend clicks."""
@@ -379,35 +408,38 @@ def attach_histogram_compare_legend_toggle(
         return
 
     handle_artists = tuple(getattr(legend, "legend_handles", ()) or ())
-    if len(handle_artists) < 2:
+    if len(handle_artists) < len(artists.series_labels):
         handle_artists = tuple(getattr(legend, "legendHandles", ()) or ())
-    if len(handle_artists) < 2:
+    if len(handle_artists) < len(artists.series_labels):
         return
 
-    legend_targets = {
-        handle_artists[0]: "left",
-        handle_artists[1]: "right",
-        legend.get_texts()[0]: "left",
-        legend.get_texts()[1]: "right",
-    }
+    legend_targets = {}
+    for index, (handle_artist, text_artist) in enumerate(
+        zip(handle_artists, legend.get_texts(), strict=False)
+    ):
+        if index >= len(artists.series_labels):
+            break
+        key = series_key(index)
+        legend_targets[handle_artist] = key
+        legend_targets[text_artist] = key
 
     for artist in legend_targets:
         if hasattr(artist, "set_picker"):
             artist.set_picker(True)
 
     def apply_visibility() -> None:
-        for bar, edge in zip(artists.left_bars, artists.left_edges, strict=True):
-            bar.set_visible(artists.visible_series["left"])
-            edge.set_visible(artists.visible_series["left"])
-        for bar, edge in zip(artists.right_bars, artists.right_edges, strict=True):
-            bar.set_visible(artists.visible_series["right"])
-            edge.set_visible(artists.visible_series["right"])
+        for series_index, (bars, edges) in enumerate(
+            zip(artists.bars_by_series, artists.edges_by_series, strict=True)
+        ):
+            visible = artists.visible_series[series_key(series_index)]
+            for bar, edge in zip(bars, edges, strict=True):
+                bar.set_visible(visible)
+                edge.set_visible(visible)
 
         active_values: list[float] = []
-        if artists.visible_series["left"]:
-            active_values.extend(float(value) for value in left_values)
-        if artists.visible_series["right"]:
-            active_values.extend(float(value) for value in right_values)
+        for series_index, values in enumerate(series_values):
+            if artists.visible_series[series_key(series_index)]:
+                active_values.extend(float(value) for value in values)
         if active_values:
             axes.set_ylim(
                 *resolved_histogram_y_limits(
@@ -419,8 +451,10 @@ def attach_histogram_compare_legend_toggle(
         else:
             axes.set_ylim(0.0, 1.0)
 
-        legend_handle_alpha = {"left": 0.72, "right": 0.72}
-        legend_text_alpha = {"left": 1.0, "right": 1.0}
+        legend_handle_alpha = {
+            series_key(index): 0.72 for index in range(len(artists.series_labels))
+        }
+        legend_text_alpha = {series_key(index): 1.0 for index in range(len(artists.series_labels))}
         for series_name, visible in artists.visible_series.items():
             if not visible:
                 legend_handle_alpha[series_name] = 0.22

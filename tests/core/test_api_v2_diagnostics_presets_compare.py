@@ -16,6 +16,7 @@ from quantum_circuit_drawer import (
     DrawMode,
     HistogramCompareConfig,
     HistogramCompareMetrics,
+    HistogramCompareOptions,
     HistogramCompareResult,
     HistogramCompareSort,
     HistogramConfig,
@@ -481,6 +482,119 @@ def test_compare_histograms_legend_click_shows_only_selected_series_and_updates_
     assert annotation.get_visible() is True
     assert "Ideal counts: 8" in annotation.get_text()
     assert "Sampled counts" not in annotation.get_text()
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_legend_click_works_for_mixed_quasi_and_counts() -> None:
+    result = compare_histograms(
+        {"00": 0.5, "11": 0.5},
+        {"00": 47, "01": 3, "11": 50},
+        config=build_public_histogram_compare_config(
+            show=False,
+            sort=HistogramCompareSort.STATE,
+            left_label="Ideal",
+            right_label="Sampled",
+        ),
+    )
+
+    legend = result.axes.get_legend()
+
+    assert legend is not None
+
+    handle_artists = tuple(getattr(legend, "legend_handles", ()) or ())
+    assert len(handle_artists) >= 2
+
+    _dispatch_pick_event(result.figure, handle_artists[1])
+
+    left_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:left"
+    ]
+    right_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:right"
+    ]
+
+    assert result.kind.name == "QUASI"
+    assert all(patch.get_visible() is False for patch in left_patches)
+    assert all(patch.get_visible() is True for patch in right_patches)
+
+    result.figure.canvas.draw()
+    _dispatch_motion_event(result.figure, right_patches[0])
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is True
+    assert "Sampled quasi-probability" in annotation.get_text()
+    assert "Ideal quasi-probability" not in annotation.get_text()
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_accepts_multiple_series_and_legend_selects_one() -> None:
+    result = compare_histograms(
+        {"00": 0.5, "11": 0.5},
+        {"00": 47, "01": 3, "11": 50},
+        {"00": 45, "10": 5, "11": 50},
+        config=HistogramCompareConfig(
+            compare=HistogramCompareOptions(
+                sort=HistogramCompareSort.STATE,
+                series_labels=("Ideal", "Sampled A", "Sampled B"),
+            )
+        ),
+    )
+
+    assert result.series_labels == ("Ideal", "Sampled A", "Sampled B")
+    assert result.state_labels == ("00", "01", "10", "11")
+    assert result.series_values == (
+        (0.5, 0.0, 0.0, 0.5),
+        (47.0, 3.0, 0.0, 50.0),
+        (45.0, 0.0, 5.0, 50.0),
+    )
+    assert result.left_values == result.series_values[0]
+    assert result.right_values == result.series_values[1]
+
+    legend = result.axes.get_legend()
+
+    assert legend is not None
+    assert tuple(text.get_text() for text in legend.get_texts()) == (
+        "Ideal",
+        "Sampled A",
+        "Sampled B",
+    )
+
+    _dispatch_pick_event(result.figure, legend.get_texts()[2])
+
+    first_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:left"
+    ]
+    second_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:right"
+    ]
+    third_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:series-3"
+    ]
+
+    assert all(patch.get_visible() is False for patch in first_patches)
+    assert all(patch.get_visible() is False for patch in second_patches)
+    assert all(patch.get_visible() is True for patch in third_patches)
+
+    result.figure.canvas.draw()
+    _dispatch_motion_event(result.figure, third_patches[0])
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+
+    assert annotation.get_visible() is True
+    assert "Sampled B quasi-probability: 45" in annotation.get_text()
+    assert "Ideal quasi-probability" not in annotation.get_text()
+    assert "Sampled A quasi-probability" not in annotation.get_text()
 
     plt.close(result.figure)
 

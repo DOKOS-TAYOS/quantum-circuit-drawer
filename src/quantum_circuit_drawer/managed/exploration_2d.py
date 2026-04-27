@@ -1373,11 +1373,21 @@ def _collapse_label(operations: Sequence[SemanticOperationIR]) -> str | None:
         for candidate in (
             operation.provenance.composite_label,
             operation.provenance.decomposition_origin,
-            operation.provenance.native_name,
         ):
             if candidate:
                 return candidate
+    if _is_measurement_block(operations):
+        return operations[0].provenance.native_name or operations[0].name
     return None
+
+
+def _is_measurement_block(operations: Sequence[SemanticOperationIR]) -> bool:
+    if not operations:
+        return False
+    if any(operation.kind is not OperationKind.MEASUREMENT for operation in operations):
+        return False
+    native_names = {operation.provenance.native_name for operation in operations}
+    return len(native_names) == 1 and next(iter(native_names)) is not None
 
 
 def _flatten_operations(circuit: SemanticCircuitIR) -> tuple[SemanticOperationIR, ...]:

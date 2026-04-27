@@ -57,7 +57,7 @@ This documentation is organized around what a user normally wants to do first: i
 
 ### I want to compare outputs
 
-1. [Getting started](getting-started.md#compare-two-circuits)
+1. [Getting started](getting-started.md#compare-two-or-more-circuits)
 2. [User guide](user-guide.md#comparison-workflows)
 3. [API reference](api.md#comparison-apis)
 
