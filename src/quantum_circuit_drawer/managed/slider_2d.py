@@ -42,9 +42,20 @@ from .exploration_2d import (
 )
 from .interaction import (
     is_block_toggle_key,
+    is_clear_selection_key,
+    is_end_key,
+    is_home_key,
+    is_minus_key,
+    is_next_selection_key,
+    is_page_down_key,
+    is_page_up_key,
+    is_plus_key,
+    is_previous_selection_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
+    next_visible_operation_selection,
     toggle_operation_with_selection,
+    visible_expandable_operation_ids,
 )
 from .slider_2d_windowing import _scene_for_current_window
 from .ui_palette import ManagedUiPalette, managed_ui_palette
@@ -226,6 +237,11 @@ class Managed2DPageSliderState:
         _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
 
+    def clear_selection(self) -> None:
+        """Clear the current contextual selection."""
+
+        self.select_operation(None)
+
     def step_start_column(self, delta: int) -> None:
         """Move the horizontal window by one managed step."""
 
@@ -235,6 +251,47 @@ class Managed2DPageSliderState:
         """Move the vertical window by one managed step when it exists."""
 
         self.show_start_row(self.start_row + delta)
+
+    def show_first_window(self) -> None:
+        """Jump to the absolute beginning of the horizontal slider window."""
+
+        self.show_start_column(0)
+
+    def show_last_window(self) -> None:
+        """Jump to the absolute end of the horizontal slider window."""
+
+        self.show_start_column(self.max_start_column)
+
+    def step_start_column_large(self, delta: int) -> None:
+        """Move the horizontal window by approximately one visible window."""
+
+        if not self.scene.pages:
+            self.step_start_column(delta)
+            return
+        visible_column_count = max(
+            1,
+            self.scene.pages[0].end_column - self.scene.pages[0].start_column + 1,
+        )
+        self.show_start_column(self.start_column + (delta * max(1, visible_column_count - 1)))
+
+    def step_expandable_selection(self, *, backwards: bool = False) -> None:
+        """Move the selection across visible expandable blocks in visual order."""
+
+        if self.exploration is None:
+            return
+        visible_operation_ids = visible_expandable_operation_ids(
+            self.scene.gates,
+            catalog=self.exploration.catalog,
+            collapsed_block_ids=self.exploration.collapsed_block_ids,
+        )
+        next_operation_id = next_visible_operation_selection(
+            visible_operation_ids,
+            self.exploration.selected_operation_id,
+            backwards=backwards,
+        )
+        if next_operation_id is None:
+            return
+        self.select_operation(next_operation_id)
 
     def managed_text_boxes(self) -> tuple[object | None, ...]:
         """Return the managed text inputs that can capture keyboard input."""
@@ -1087,6 +1144,33 @@ def _attach_slider_key_shortcuts(state: Managed2DPageSliderState) -> None:
         if managed_text_boxes_capture_keys(state.managed_text_boxes()):
             return
         key_name = managed_key_name(event)
+        if is_home_key(event):
+            state.show_first_window()
+            return
+        if is_end_key(event):
+            state.show_last_window()
+            return
+        if is_page_up_key(event):
+            state.step_start_column_large(-1)
+            return
+        if is_page_down_key(event):
+            state.step_start_column_large(1)
+            return
+        if is_plus_key(event):
+            _set_visible_qubits(state, state.visible_qubits + 1)
+            return
+        if is_minus_key(event):
+            _set_visible_qubits(state, state.visible_qubits - 1)
+            return
+        if is_next_selection_key(event):
+            state.step_expandable_selection()
+            return
+        if is_previous_selection_key(event):
+            state.step_expandable_selection(backwards=True)
+            return
+        if is_clear_selection_key(event):
+            state.clear_selection()
+            return
         if key_name == "left":
             state.step_start_column(-1)
             return

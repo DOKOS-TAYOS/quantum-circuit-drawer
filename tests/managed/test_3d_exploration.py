@@ -29,11 +29,15 @@ from quantum_circuit_drawer.managed.page_window_3d import (
     configure_3d_page_window,
     windowed_3d_page_scenes,
 )
-from quantum_circuit_drawer.managed.slider_3d import Managed3DPageSliderState
+from quantum_circuit_drawer.managed.slider_3d import (
+    Managed3DPageSliderState,
+    configure_3d_page_slider,
+)
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_page_slider,
     get_page_window,
+    set_page_slider,
     set_page_window,
 )
 from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import MatplotlibRenderer3D
@@ -398,6 +402,118 @@ def test_3d_page_window_arrow_keys_navigate_pages_and_visible_count() -> None:
         plt.close(result.primary_figure)
 
 
+def test_3d_page_window_additional_shortcuts_navigate_and_clear_selection() -> None:
+    result = public_draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=36, wire_count=4),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            style={"max_page_width": 4.0},
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = get_page_window(result.primary_figure)
+        assert page_window is not None
+
+        _dispatch_key_press(result.primary_figure, "down")
+        assert page_window.visible_page_count == 2
+
+        _dispatch_key_press(result.primary_figure, "pagedown")
+        forward_start_page = page_window.start_page
+        assert forward_start_page > 0
+
+        _dispatch_key_press(result.primary_figure, "pageup")
+        assert page_window.start_page < forward_start_page
+
+        _dispatch_key_press(result.primary_figure, "end")
+        assert page_window.start_page == page_window.total_pages - 1
+
+        _dispatch_key_press(result.primary_figure, "home")
+        assert page_window.start_page == 0
+
+        _dispatch_key_press(result.primary_figure, "up")
+        assert page_window.visible_page_count == 1
+
+        _dispatch_key_press(result.primary_figure, "+")
+        assert page_window.visible_page_count == 2
+
+        _dispatch_key_press(result.primary_figure, "-")
+        assert page_window.visible_page_count == 1
+
+        page_window.select_operation("op:0")
+        assert page_window.exploration is not None
+
+        _dispatch_key_press(result.primary_figure, "escape")
+        assert page_window.exploration.selected_operation_id is None
+    finally:
+        plt.close(result.primary_figure)
+
+
+def test_3d_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    style = DrawStyle(max_page_width=3.0)
+    layout_engine = LayoutEngine3D()
+    draw_options = DrawPipelineOptions(
+        composite_mode="compact",
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        direct=True,
+        hover=HoverOptions(enabled=True),
+    )
+    initial_scene = _compute_3d_scene(
+        layout_engine,
+        current_circuit,
+        style,
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    pipeline = PreparedDrawPipeline(
+        normalized_style=style,
+        ir=current_circuit,
+        semantic_ir=current_semantic_ir,
+        expanded_semantic_ir=expanded_semantic_ir,
+        layout_engine=layout_engine,
+        paged_scene=initial_scene,
+        renderer=MatplotlibRenderer3D(),
+        draw_options=draw_options,
+    )
+    page_scenes = windowed_3d_page_scenes(pipeline, figure_size=(6.0, 4.2))
+    figure, axes = create_managed_figure(
+        initial_scene,
+        figure_width=6.0,
+        figure_height=4.2,
+        use_agg=True,
+        projection="3d",
+    )
+
+    try:
+        page_window = configure_3d_page_window(
+            figure=figure,
+            axes=axes,
+            pipeline=pipeline,
+            page_scenes=page_scenes,
+            set_page_window=set_page_window,
+        )
+        assert page_window.exploration is not None
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == "op:0"
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == "op:2"
+
+        _dispatch_key_press(figure, "shift+tab")
+        assert page_window.exploration.selected_operation_id == "op:0"
+    finally:
+        plt.close(figure)
+
+
 def test_3d_slider_arrow_keys_move_horizontal_window_only() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
@@ -421,6 +537,101 @@ def test_3d_slider_arrow_keys_move_horizontal_window_only() -> None:
 
         _dispatch_key_press(figure, "left")
         assert page_slider.start_column == 0
+    finally:
+        plt.close(figure)
+
+
+def test_3d_slider_additional_shortcuts_navigate_and_ignore_plus_minus() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=4),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        page_slider=True,
+        show=False,
+    )
+
+    try:
+        page_slider = cast(Managed3DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.max_start_column > 0
+
+        _dispatch_key_press(figure, "pagedown")
+        forward_start_column = page_slider.start_column
+        assert forward_start_column > 0
+
+        _dispatch_key_press(figure, "pageup")
+        assert page_slider.start_column < forward_start_column
+
+        _dispatch_key_press(figure, "end")
+        assert page_slider.start_column == page_slider.max_start_column
+
+        _dispatch_key_press(figure, "home")
+        assert page_slider.start_column == 0
+
+        _dispatch_key_press(figure, "+")
+        assert page_slider.start_column == 0
+
+        _dispatch_key_press(figure, "-")
+        assert page_slider.start_column == 0
+    finally:
+        plt.close(figure)
+
+
+def test_3d_slider_tab_shortcuts_select_expandable_blocks_and_clear_selection() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_controls_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    style = DrawStyle(max_page_width=3.0)
+    layout_engine = LayoutEngine3D()
+    draw_options = DrawPipelineOptions(
+        composite_mode="compact",
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        direct=True,
+        hover=HoverOptions(enabled=True),
+    )
+    initial_scene = _compute_3d_scene(
+        layout_engine,
+        current_circuit,
+        style,
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    pipeline = PreparedDrawPipeline(
+        normalized_style=style,
+        ir=current_circuit,
+        semantic_ir=current_semantic_ir,
+        expanded_semantic_ir=expanded_semantic_ir,
+        layout_engine=layout_engine,
+        paged_scene=initial_scene,
+        renderer=MatplotlibRenderer3D(),
+        draw_options=draw_options,
+    )
+    figure, axes = create_managed_figure(
+        initial_scene,
+        figure_width=3.2,
+        figure_height=2.4,
+        use_agg=True,
+        projection="3d",
+    )
+
+    try:
+        page_slider = configure_3d_page_slider(
+            figure=figure,
+            axes=axes,
+            pipeline=pipeline,
+            set_page_slider=set_page_slider,
+        )
+        assert page_slider is not None
+        assert page_slider.exploration is not None
+
+        _dispatch_key_press(figure, "tab")
+        assert page_slider.exploration.selected_operation_id == "op:0"
+
+        _dispatch_key_press(figure, "escape")
+        assert page_slider.exploration.selected_operation_id is None
     finally:
         plt.close(figure)
 
@@ -750,6 +961,291 @@ def _semantic_block_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:
                             native_name="X",
                             native_kind="gate",
                             location=(1, 0),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
+    return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_controls_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:
+    quantum_wires = (
+        WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+        WireIR(id="anc0", index=1, kind=WireKind.QUANTUM, label="anc0"),
+        WireIR(id="q1", index=2, kind=WireKind.QUANTUM, label="q1"),
+        WireIR(id="q2", index=3, kind=WireKind.QUANTUM, label="q2"),
+    )
+    current_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Prep",
+                        label="Prep",
+                        target_wires=("q0", "q1"),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Prep",
+                            native_kind="composite",
+                            composite_label="Prep",
+                            location=(0,),
+                        ),
+                        metadata={"collapsed_block": True},
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="X",
+                            native_kind="gate",
+                            location=(1,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Y",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Y",
+                            native_kind="gate",
+                            location=(2,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Z",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Z",
+                            native_kind="gate",
+                            location=(3,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            location=(4,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="S",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="S",
+                            native_kind="gate",
+                            location=(5,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="T",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="T",
+                            native_kind="gate",
+                            location=(6,),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=("q2",),
+                        parameters=(0.25,),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="RX",
+                            native_kind="gate",
+                            location=(7,),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
+    expanded_semantic_ir = SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            decomposition_origin="Prep",
+                            composite_label="Prep",
+                            location=(0, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="CX",
+                            native_kind="gate",
+                            decomposition_origin="Prep",
+                            composite_label="Prep",
+                            location=(0, 1),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="X",
+                            native_kind="gate",
+                            location=(1, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Y",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Y",
+                            native_kind="gate",
+                            location=(2, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Z",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Z",
+                            native_kind="gate",
+                            location=(3, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            location=(4, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="S",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="S",
+                            native_kind="gate",
+                            location=(5, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="T",
+                        target_wires=("q2",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="T",
+                            native_kind="gate",
+                            location=(6, 0),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=("q2",),
+                        parameters=(0.25,),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="RX",
+                            native_kind="gate",
+                            location=(7, 0),
                         ),
                     ),
                 )

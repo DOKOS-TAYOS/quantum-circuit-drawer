@@ -26,9 +26,20 @@ from .exploration_2d import (
 )
 from .interaction import (
     is_block_toggle_key,
+    is_clear_selection_key,
+    is_end_key,
+    is_home_key,
+    is_minus_key,
+    is_next_selection_key,
+    is_page_down_key,
+    is_page_up_key,
+    is_plus_key,
+    is_previous_selection_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
+    next_visible_operation_selection,
     toggle_operation_with_selection,
+    visible_expandable_operation_ids,
 )
 from .page_window_3d_controls import (
     _attach_controls,
@@ -191,6 +202,11 @@ class Managed3DPageWindowState:
         _render_current_window(self)
         _sync_inputs(self)
 
+    def clear_selection(self) -> None:
+        """Clear the current contextual selection."""
+
+        self.select_operation(None)
+
     def step_page(self, delta: int) -> None:
         """Move the visible page window backward or forward."""
 
@@ -213,6 +229,49 @@ class Managed3DPageWindowState:
         )
         _render_current_window(self)
         _sync_inputs(self)
+
+    def show_first_page(self) -> None:
+        """Jump to the absolute beginning of the paged window."""
+
+        self.start_page = 0
+        _render_current_window(self)
+        _sync_inputs(self)
+
+    def show_last_page(self) -> None:
+        """Jump to the absolute end of the paged window."""
+
+        self.start_page = max(0, self.total_pages - 1)
+        self.visible_page_count = _clamp_visible_page_count(
+            self.visible_page_count,
+            total_pages=self.total_pages,
+            start_page=self.start_page,
+        )
+        _render_current_window(self)
+        _sync_inputs(self)
+
+    def step_page_large(self, delta: int) -> None:
+        """Move the visible page window by a large managed step."""
+
+        self.step_page(delta * max(1, self.visible_page_count))
+
+    def step_expandable_selection(self, *, backwards: bool = False) -> None:
+        """Move the selection across visible expandable blocks in visual order."""
+
+        if self.exploration is None:
+            return
+        visible_operation_ids = visible_expandable_operation_ids(
+            self.current_scene.gates,
+            catalog=self.exploration.catalog,
+            collapsed_block_ids=self.exploration.collapsed_block_ids,
+        )
+        next_operation_id = next_visible_operation_selection(
+            visible_operation_ids,
+            self.exploration.selected_operation_id,
+            backwards=backwards,
+        )
+        if next_operation_id is None:
+            return
+        self.select_operation(next_operation_id)
 
     def managed_text_boxes(self) -> tuple[object | None, ...]:
         """Return the managed text inputs that can capture keyboard input."""
@@ -390,6 +449,33 @@ def _attach_3d_window_key_shortcuts(state: Managed3DPageWindowState) -> None:
         if managed_text_boxes_capture_keys(state.managed_text_boxes()):
             return
         key_name = managed_key_name(event)
+        if is_home_key(event):
+            state.show_first_page()
+            return
+        if is_end_key(event):
+            state.show_last_page()
+            return
+        if is_page_up_key(event):
+            state.step_page_large(-1)
+            return
+        if is_page_down_key(event):
+            state.step_page_large(1)
+            return
+        if is_plus_key(event):
+            state.step_visible_pages(1)
+            return
+        if is_minus_key(event):
+            state.step_visible_pages(-1)
+            return
+        if is_next_selection_key(event):
+            state.step_expandable_selection()
+            return
+        if is_previous_selection_key(event):
+            state.step_expandable_selection(backwards=True)
+            return
+        if is_clear_selection_key(event):
+            state.clear_selection()
+            return
         if key_name == "left":
             state.step_page(-1)
             return

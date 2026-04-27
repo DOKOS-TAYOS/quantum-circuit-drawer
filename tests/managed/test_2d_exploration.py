@@ -876,6 +876,100 @@ def test_page_window_arrow_keys_navigate_pages_and_visible_count() -> None:
         plt.close(figure)
 
 
+def test_page_window_additional_shortcuts_navigate_and_clear_selection() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=18, wire_count=4),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+
+        _dispatch_key_press(figure, "down")
+        assert page_window.visible_page_count == 2
+
+        _dispatch_key_press(figure, "pagedown")
+        forward_start_page = page_window.start_page
+        assert forward_start_page > 0
+
+        _dispatch_key_press(figure, "pageup")
+        assert page_window.start_page < forward_start_page
+
+        _dispatch_key_press(figure, "end")
+        assert page_window.start_page == page_window.total_pages - 1
+
+        _dispatch_key_press(figure, "home")
+        assert page_window.start_page == 0
+
+        _dispatch_key_press(figure, "up")
+        assert page_window.visible_page_count == 1
+
+        _dispatch_key_press(figure, "+")
+        assert page_window.visible_page_count == 2
+
+        _dispatch_key_press(figure, "-")
+        assert page_window.visible_page_count == 1
+
+        page_window.select_operation("op:0")
+        assert page_window.exploration is not None
+
+        _dispatch_key_press(figure, "escape")
+        assert page_window.exploration.selected_operation_id is None
+    finally:
+        plt.close(figure)
+
+
+def test_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=8.0)
+    scene = managed_module.compute_paged_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=2.2,
+        figure_height=2.0,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            scene=scene,
+            effective_page_width=style.max_page_width,
+            set_page_window=set_page_window,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+        )
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == "op:0"
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == "op:2"
+
+        _dispatch_key_press(figure, "shift+tab")
+        assert page_window.exploration.selected_operation_id == "op:0"
+    finally:
+        plt.close(figure)
+
+
 def test_slider_arrow_keys_move_horizontal_and_vertical_windows() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24, wire_count=24),
@@ -901,6 +995,87 @@ def test_slider_arrow_keys_move_horizontal_and_vertical_windows() -> None:
 
         _dispatch_key_press(figure, "up")
         assert page_slider.start_row == 0
+    finally:
+        plt.close(figure)
+
+
+def test_slider_additional_shortcuts_navigate_and_adjust_visible_wires() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    try:
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.max_start_column > 0
+        assert page_slider.max_start_row > 0
+
+        _dispatch_key_press(figure, "pagedown")
+        assert page_slider.start_column > 0
+
+        _dispatch_key_press(figure, "pageup")
+        assert page_slider.start_column == 0
+
+        _dispatch_key_press(figure, "end")
+        assert page_slider.start_column == page_slider.max_start_column
+
+        _dispatch_key_press(figure, "home")
+        assert page_slider.start_column == 0
+
+        visible_qubits = page_slider.visible_qubits
+        _dispatch_key_press(figure, "+")
+        assert page_slider.visible_qubits == min(visible_qubits + 1, page_slider.total_visible_rows)
+
+        _dispatch_key_press(figure, "-")
+        assert page_slider.visible_qubits == visible_qubits
+    finally:
+        plt.close(figure)
+
+
+def test_slider_tab_shortcuts_traverse_visible_expandable_blocks_and_clear_selection() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_controls_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=3.0)
+    scene = managed_module.build_continuous_slider_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=2.2,
+        figure_height=2.0,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_slider(
+            figure=figure,
+            axes=axes,
+            scene=scene,
+            viewport_width=1.0,
+            set_page_slider=set_page_slider,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            normalized_style=style,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+        )
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.exploration is not None
+
+        _dispatch_key_press(figure, "tab")
+        assert page_slider.exploration.selected_operation_id == "op:0"
+
+        _dispatch_key_press(figure, "escape")
+        assert page_slider.exploration.selected_operation_id is None
     finally:
         plt.close(figure)
 
