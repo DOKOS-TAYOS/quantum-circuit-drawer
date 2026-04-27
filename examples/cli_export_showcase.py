@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from argparse import ArgumentParser
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 try:
     from examples._bootstrap import ensure_local_project_on_path
@@ -15,6 +14,8 @@ except ImportError:
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer.cli import main as qcd_main  # noqa: E402
+
+DEFAULT_OUTPUT_FILENAME = "cli-export-showcase.png"
 
 
 def demo_payload() -> dict[str, dict[str, int]]:
@@ -39,14 +40,7 @@ def main() -> None:
 
     output_path, show = _parse_args()
     if output_path is None:
-        with TemporaryDirectory(prefix="qcd-cli-export-") as temporary_directory:
-            _run_cli_export(
-                payload_path=Path(temporary_directory) / "counts.json",
-                output_path=Path(temporary_directory) / "cli-export-showcase.png",
-                show=show,
-                persistent_output=None,
-            )
-        return
+        output_path = default_output_path()
 
     payload_path = output_path.with_name(f"{output_path.stem}_counts.json")
     _run_cli_export(
@@ -66,6 +60,8 @@ def _run_cli_export(
 ) -> None:
     """Write a JSON payload and render it through the public qcd CLI."""
 
+    payload_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     payload_path.write_text(json.dumps(demo_payload(), indent=2), encoding="utf-8")
     exit_code = qcd_main(
         [
@@ -88,6 +84,12 @@ def _run_cli_export(
         raise SystemExit(exit_code)
     if persistent_output is not None:
         print(f"Saved cli-export-showcase to {persistent_output}")
+
+
+def default_output_path() -> Path:
+    """Return the persistent default PNG path for the export demo."""
+
+    return Path(__file__).resolve().parent / "output" / DEFAULT_OUTPUT_FILENAME
 
 
 def _parse_args() -> tuple[Path | None, bool]:

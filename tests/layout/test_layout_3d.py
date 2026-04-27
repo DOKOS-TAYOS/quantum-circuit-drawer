@@ -19,6 +19,7 @@ from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
     Poly3DCollection,
 )
 
+from quantum_circuit_drawer.hover import HoverOptions
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.classical_conditions import ClassicalConditionIR
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
@@ -32,6 +33,7 @@ from quantum_circuit_drawer.layout.scene_3d import (
     Point3D,
     SceneConnection3D,
     SceneGate3D,
+    SceneHoverData,
 )
 from quantum_circuit_drawer.layout.topology_3d import build_topology
 from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import (
@@ -1347,21 +1349,24 @@ def test_matplotlib_renderer_3d_prioritizes_gate_hover_targets_over_wire_hover_t
         renderer: MatplotlibRenderer3D,
         managed_axes: Axes3D,
         rendered_scene: object,
-        hover_targets: list[tuple[object, str]],
+        hover_targets: list[tuple[object, object]],
     ) -> None:
-        captured_hover_texts.extend(text for _, text in hover_targets)
+        captured_hover_texts.extend(
+            payload.name if isinstance(payload, SceneHoverData) else str(payload)
+            for _, payload in hover_targets
+        )
         original_attach_hover(
             renderer,
             managed_axes,
             rendered_scene,
-            cast("list[tuple[Artist, str]]", hover_targets),
+            cast("list[tuple[Artist, object]]", hover_targets),
         )
 
     monkeypatch.setattr(MatplotlibRenderer3D, "_attach_hover", capture_hover_targets)
 
     MatplotlibRenderer3D().render(scene, ax=axes)
 
-    gate_hover_texts = [gate.hover_text for gate in scene.gates if gate.hover_text]
+    gate_hover_texts = [gate.hover_data.name for gate in scene.gates if gate.hover_data is not None]
     wire_hover_texts = [wire.hover_text for wire in scene.wires if wire.hover_text]
 
     assert gate_hover_texts
@@ -1547,6 +1552,75 @@ def test_draw_quantum_circuit_interactive_hover_draws_without_annotation_crash(
     figure.canvas.draw()
 
 
+def test_draw_quantum_circuit_3d_hover_matches_2d_details_for_multiqubit_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _topology_hover_multiqubit_ir(),
+        view="3d",
+        topology="line",
+        hover=HoverOptions(show_matrix="never"),
+    )
+    scene = LayoutEngine3D().compute(
+        _topology_hover_multiqubit_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+
+    _dispatch_hover_at_3d_point(figure, axes, scene.gates[0].center)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+    hover_text = annotation.get_text().lower()
+
+    assert annotation.get_visible() is True
+    assert "rzz" in hover_text
+    assert "matrix: 4 x 4" in hover_text
+    assert "qubits: q0, q3" in hover_text
+    assert "required swaps (round trip): 4" in hover_text
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_3d_hover_reports_swap_count_on_control_markers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _line_control_ir(),
+        view="3d",
+        topology="line",
+        hover=HoverOptions(show_matrix="never"),
+    )
+    scene = LayoutEngine3D().compute(
+        _line_control_ir(),
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    control_marker = next(
+        marker for marker in scene.markers if marker.style is MarkerStyle3D.CONTROL
+    )
+
+    _dispatch_hover_at_3d_point(figure, axes, control_marker.center)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+    hover_text = annotation.get_text().lower()
+
+    assert annotation.get_visible() is True
+    assert "cnot" in hover_text
+    assert "qubits: q0, q3" in hover_text
+    assert "control states: q0=1" in hover_text
+    assert "required swaps (round trip): 4" in hover_text
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_interactive_hover_stays_above_scene_artists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1614,6 +1688,49 @@ def test_draw_quantum_circuit_projects_time_axis_horizontally_by_default() -> No
 
     assert_figure_has_visible_content(figure)
     assert delta_x > delta_y
+
+
+def _dispatch_hover_at_3d_point(
+    figure: Figure,
+    axes: Axes3D,
+    point: Point3D,
+) -> None:
+    figure.canvas.draw()
+    projected_x, projected_y, _ = proj3d.proj_transform(
+        point.x,
+        point.y,
+        point.z,
+        axes.get_proj(),
+    )
+    display_x, display_y = axes.transData.transform((projected_x, projected_y))
+    motion_event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        float(display_x),
+        float(display_y),
+    )
+    figure.canvas.callbacks.process("motion_notify_event", motion_event)
+
+
+def _topology_hover_multiqubit_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZZ",
+                        target_wires=("q0", "q3"),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
+        ],
+    )
 
 
 def test_draw_quantum_circuit_saves_non_empty_3d_output(sandbox_tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 import warnings
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 from importlib.util import find_spec
 from pathlib import Path
 from types import SimpleNamespace
@@ -575,6 +575,112 @@ def test_qiskit_composite_modes_showcase_build_circuit_avoids_qft_deprecation_wa
     ]
 
 
+def test_shared_example_topology_help_mentions_2d_hover_usage() -> None:
+    parser = ArgumentParser()
+
+    shared_module.add_render_arguments(
+        parser,
+        default_qubits=8,
+        default_columns=6,
+        columns_help="Demo columns",
+    )
+
+    topology_action = next(action for action in parser._actions if action.dest == "topology")
+
+    assert "3D topology" in topology_action.help
+    assert "2D hover" in topology_action.help
+
+
+def test_qiskit_2d_exploration_showcase_main_defaults_to_grid_topology_for_hover(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the 2D showcase import test")
+
+    module = importlib.import_module("examples.qiskit_2d_exploration_showcase")
+    captured: dict[str, object] = {}
+
+    def fake_run_example(builder: object, **kwargs: object) -> None:
+        captured["builder"] = builder
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(module, "run_example", fake_run_example)
+
+    module.main()
+
+    assert captured["builder"] is module.build_circuit
+    assert captured["kwargs"]["default_topology"] == "grid"
+    assert "topology-aware hover" in str(captured["kwargs"]["description"])
+
+
+def test_qiskit_3d_exploration_showcase_copy_mentions_hover_and_controls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the 3D showcase import test")
+
+    module = importlib.import_module("examples.qiskit_3d_exploration_showcase")
+    captured: dict[str, object] = {}
+
+    def fake_run_example(builder: object, **kwargs: object) -> None:
+        captured["builder"] = builder
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(module, "run_example", fake_run_example)
+
+    module.main()
+
+    assert captured["builder"] is module.build_circuit
+    assert "hover" in str(captured["kwargs"]["description"])
+    assert "controlled" in str(captured["kwargs"]["description"])
+
+
+def test_qiskit_backend_topology_showcase_build_circuit_uses_long_range_rzz_and_controlled_gates() -> (
+    None
+):
+    module = importlib.import_module("examples.qiskit_backend_topology_showcase")
+    circuit = module.build_circuit(
+        ExampleRequest(
+            qubits=6,
+            columns=3,
+            mode="pages",
+            view="3d",
+            topology="line",
+            seed=7,
+            output=None,
+            show=False,
+            figsize=(10.0, 5.5),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        )
+    )
+
+    operations = flatten_operations(circuit)
+
+    def quantum_index(wire_id: str) -> int:
+        return int(wire_id.removeprefix("q"))
+
+    assert any(
+        operation.name == "RZZ"
+        and len(operation.target_wires) == 2
+        and abs(quantum_index(operation.target_wires[0]) - quantum_index(operation.target_wires[1]))
+        >= 2
+        for operation in operations
+    )
+    assert any(
+        operation.kind.name == "CONTROLLED_GATE"
+        and len(operation.control_wires) == 1
+        and len(operation.target_wires) == 1
+        and abs(
+            quantum_index(operation.control_wires[0]) - quantum_index(operation.target_wires[0])
+        )
+        >= 2
+        for operation in operations
+    )
+
+
 def test_showcase_docs_reference_the_new_framework_demos() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     examples_readme = Path("examples/README.md").read_text(encoding="utf-8")
@@ -670,6 +776,40 @@ def test_showcase_catalog_and_examples_readme_use_current_compatibility_language
     assert "Ancillas: Show/Hide" in examples_readme
     assert "managed 3D exploration" in examples_readme
     assert "topology-aware selection" in examples_readme
+
+
+def test_caller_managed_axes_showcase_reserves_library_summary_panel() -> None:
+    module = importlib.import_module("examples.caller_managed_axes_showcase")
+
+    figure, layout = module.create_dashboard_layout()
+
+    try:
+        panel_axes = (
+            layout.circuit_axes,
+            layout.histogram_axes,
+            *layout.compare_axes,
+            layout.summary_axes,
+        )
+        summary_subplotspec = layout.summary_axes.get_subplotspec()
+
+        assert len({id(axes) for axes in panel_axes}) == 5
+        assert not hasattr(module, "draw_comparison_summary_table")
+        assert module.build_compare_config().show_summary is True
+        assert summary_subplotspec.rowspan.start == 2
+        assert summary_subplotspec.rowspan.stop == 3
+        assert summary_subplotspec.colspan.start == 0
+        assert summary_subplotspec.colspan.stop == 2
+    finally:
+        plt.close(figure)
+
+
+def test_caller_managed_axes_showcase_uses_light_histogram_theme() -> None:
+    module = importlib.import_module("examples.caller_managed_axes_showcase")
+
+    config = module.build_histogram_config()
+
+    assert config.theme.name == "light"
+    assert config.theme.axes_facecolor == "#ffffff"
 
 
 def test_run_demo_reports_clear_message_when_optional_dependency_is_missing(
@@ -1141,6 +1281,35 @@ def test_public_utility_showcase_script_can_render_directly(
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
     assert f"Saved {saved_label} to {output_path}" in result.stdout
+
+
+@pytest.mark.integration
+def test_cli_export_showcase_default_output_is_persistent() -> None:
+    script_path = repo_root_for(Path(__file__)) / "examples" / "cli_export_showcase.py"
+    output_path = script_path.parent / "output" / "cli-export-showcase.png"
+    payload_path = output_path.with_name("cli-export-showcase_counts.json")
+
+    output_path.unlink(missing_ok=True)
+    payload_path.unlink(missing_ok=True)
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(script_path),
+                "--no-show",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert_saved_image_has_visible_content(output_path)
+        assert payload_path.is_file()
+        assert f"Saved cli-export-showcase to {output_path}" in result.stdout
+    finally:
+        output_path.unlink(missing_ok=True)
+        payload_path.unlink(missing_ok=True)
 
 
 @pytest.mark.optional

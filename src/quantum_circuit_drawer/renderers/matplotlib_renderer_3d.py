@@ -6,7 +6,6 @@ import logging
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
-from matplotlib.artist import Artist
 
 from ..layout.scene import LayoutScene
 from ..layout.scene_3d import (
@@ -60,6 +59,7 @@ from ._matplotlib_renderer_3d_geometry import (
     _PreparedBatchedGateGeometry3D,
     _RenderContext3D,
 )
+from ._matplotlib_renderer_3d_hover import HoverTarget3D
 from ._matplotlib_renderer_3d_markers import (
     attach_hover_targets_3d,
     clear_batched_text_artists_3d,
@@ -333,14 +333,14 @@ class MatplotlibRenderer3D(BaseRenderer):
             x_target_ring_segments=_X_TARGET_RING_SEGMENTS,
         )
 
-    def _draw_wires(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
+    def _draw_wires(self, axes: Axes3D, scene: LayoutScene3D) -> list[HoverTarget3D]:
         return draw_wires_3d(axes, scene)
 
     def _draw_connections(
         self,
         axes: Axes3D,
         scene: LayoutScene3D,
-    ) -> list[tuple[Artist, str]]:
+    ) -> list[HoverTarget3D]:
         return draw_connections_3d(self, axes, scene)
 
     def _draw_gates(
@@ -348,7 +348,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         axes: Axes3D,
         scene: LayoutScene3D,
         render_context: _RenderContext3D,
-    ) -> list[tuple[Artist, str]]:
+    ) -> list[HoverTarget3D]:
         return draw_gates_3d(self, axes, scene, render_context)
 
     def _draw_topology_planes(self, axes: Axes3D, scene: LayoutScene3D) -> None:
@@ -360,7 +360,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         gate: SceneGate3D,
         scene: LayoutScene3D,
         render_context: _RenderContext3D,
-    ) -> list[tuple[Artist, str]]:
+    ) -> list[HoverTarget3D]:
         return draw_x_target_3d(self, axes, gate, scene, render_context)
 
     def _draw_x_targets_batched(
@@ -381,7 +381,7 @@ class MatplotlibRenderer3D(BaseRenderer):
     ) -> None:
         draw_x_target_segment_collections_3d(axes, ring_segments, cross_segments, scene)
 
-    def _draw_markers(self, axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
+    def _draw_markers(self, axes: Axes3D, scene: LayoutScene3D) -> list[HoverTarget3D]:
         return draw_markers_3d(self, axes, scene)
 
     def _draw_measurement_symbols_batched(
@@ -435,7 +435,7 @@ class MatplotlibRenderer3D(BaseRenderer):
         self,
         axes: Axes3D,
         scene: LayoutScene3D,
-        hover_targets: list[tuple[Artist, str]],
+        hover_targets: list[HoverTarget3D],
     ) -> None:
         attach_hover_targets_3d(axes, scene, hover_targets)
 

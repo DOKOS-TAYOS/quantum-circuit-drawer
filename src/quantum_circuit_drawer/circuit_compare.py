@@ -155,6 +155,7 @@ class CircuitCompareResult:
     side_results: tuple[DrawResult, ...] = ()
     side_metrics: tuple[CircuitCompareSideMetrics, ...] = ()
     titles: tuple[str, ...] = ()
+    summary_axes: Axes | None = None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
 
@@ -195,6 +196,7 @@ def compare_circuits(
     *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, ...] | None = None,
+    summary_ax: Axes | None = None,
 ) -> CircuitCompareResult:
     """Render two or more circuits side by side and return structural comparison data."""
 
@@ -206,6 +208,7 @@ def compare_circuits(
         *additional_circuits,
         config=config,
         axes=axes,
+        summary_ax=summary_ax,
     )
 
 

@@ -39,6 +39,23 @@ def _dispatch_motion_event(figure: Figure, patch: object) -> None:
     figure.canvas.callbacks.process("motion_notify_event", event)
 
 
+def _dispatch_motion_event_at_patch_corner(
+    figure: Figure,
+    patch: object,
+    *,
+    inset: float = 1.0,
+) -> None:
+    renderer = figure.canvas.get_renderer()
+    x, y, width, height = patch.get_window_extent(renderer=renderer).bounds
+    event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        x + width - inset,
+        y + height - inset,
+    )
+    figure.canvas.callbacks.process("motion_notify_event", event)
+
+
 def _dispatch_motion_event_at_axes_center(figure: Figure, axes: object) -> None:
     x, y, width, height = axes.get_window_extent(renderer=figure.canvas.get_renderer()).bounds
     event = MouseEvent(
@@ -46,6 +63,22 @@ def _dispatch_motion_event_at_axes_center(figure: Figure, axes: object) -> None:
         figure.canvas,
         x + (width / 2.0),
         y + (height / 2.0),
+    )
+    figure.canvas.callbacks.process("motion_notify_event", event)
+
+
+def _dispatch_motion_event_at_axes_corner(
+    figure: Figure,
+    axes: object,
+    *,
+    inset: float = 1.0,
+) -> None:
+    x, y, width, height = axes.get_window_extent(renderer=figure.canvas.get_renderer()).bounds
+    event = MouseEvent(
+        "motion_notify_event",
+        figure.canvas,
+        x + width - inset,
+        y + height - inset,
     )
     figure.canvas.callbacks.process("motion_notify_event", event)
 
@@ -360,6 +393,42 @@ def test_histogram_interactive_hover_reports_bitstring_and_value(
     plt.close(result.figure)
 
 
+def test_histogram_interactive_hover_repositions_inside_figure_near_top_right_bar() -> None:
+    result = plot_histogram(
+        {"0": 1, "1": 25},
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(4.0, 3.0),
+        ),
+    )
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    result.figure.canvas.draw()
+
+    top_right_patch = max(
+        result.axes.patches,
+        key=lambda patch: (
+            patch.get_window_extent(renderer=result.figure.canvas.get_renderer()).x1,
+            patch.get_window_extent(renderer=result.figure.canvas.get_renderer()).y1,
+        ),
+    )
+    _dispatch_motion_event_at_patch_corner(result.figure, top_right_patch)
+    annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
+    bbox = annotation.get_window_extent(renderer=result.figure.canvas.get_renderer())
+
+    assert annotation.get_visible() is True
+    assert annotation.get_ha() == "right"
+    assert annotation.get_va() == "top"
+    assert bbox.x0 >= 0.0
+    assert bbox.y0 >= 0.0
+    assert bbox.x1 <= result.figure.bbox.width
+    assert bbox.y1 <= result.figure.bbox.height
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_uniform_reference_line_shows_explanatory_hover() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
@@ -627,6 +696,42 @@ def test_histogram_interactive_marginal_box_hover_shows_usage_help() -> None:
     assert "0,2,5" in hover_state.annotation.get_text()
     assert "blank" in hover_state.annotation.get_text().lower()
     assert "\n" in hover_state.annotation.get_text()
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_marginal_box_hover_repositions_inside_figure_near_top_right_corner() -> (
+    None
+):
+    result = plot_histogram(
+        {"00": 7, "01": 5, "10": 9, "11": 1},
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(7.0, 3.4),
+        ),
+    )
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.marginal_axes is not None
+    result.figure.canvas.draw()
+
+    _dispatch_motion_event_at_axes_corner(result.figure, state.marginal_axes)
+    hover_state = get_hover_state(state.marginal_axes)
+
+    assert hover_state is not None
+    assert hover_state.annotation.get_visible() is True
+
+    annotation = hover_state.annotation
+    bbox = annotation.get_window_extent(renderer=result.figure.canvas.get_renderer())
+
+    assert annotation.get_ha() == "right"
+    assert annotation.get_va() == "bottom"
+    assert bbox.x0 >= 0.0
+    assert bbox.y0 >= 0.0
+    assert bbox.x1 <= result.figure.bbox.width
+    assert bbox.y1 <= result.figure.bbox.height
 
     plt.close(result.figure)
 

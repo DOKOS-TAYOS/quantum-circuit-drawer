@@ -1,5 +1,6 @@
 # ruff: noqa: F403, F405
 import quantum_circuit_drawer.renderers._matplotlib_hover as matplotlib_hover_module
+import quantum_circuit_drawer.renderers._matplotlib_hover_position as hover_position_module
 from quantum_circuit_drawer.layout.scene import SceneHoverData
 from tests._matplotlib_renderer_support import *
 
@@ -173,6 +174,150 @@ def test_draw_quantum_circuit_2d_hover_reports_controlled_gate_matrix_dimensions
 
     assert "matrix: 4 x 4" in annotation.get_text().lower()
     assert "qubits: q0, q1" in annotation.get_text().lower()
+
+
+def test_draw_quantum_circuit_2d_hover_reports_topology_swap_count_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, axes = draw_quantum_circuit(
+        _topology_hover_multiqubit_ir(),
+        hover=HoverOptions(show_matrix="never"),
+        topology="grid",
+    )
+    figure.canvas.draw()
+
+    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    _dispatch_motion_event(figure, axes, gate_patch)
+    annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+    assert "rzz" in annotation.get_text().lower()
+    assert "qubits: q0, q3" in annotation.get_text().lower()
+    assert "required swaps (round trip): 2" in annotation.get_text().lower()
+
+
+def test_position_hover_annotation_flips_below_and_left_near_top_right_corner() -> None:
+    figure, axes = plt.subplots(figsize=(3.2, 2.4))
+    try:
+        annotation = axes.annotate(
+            "Long hover text\nwith multiple lines",
+            xy=(0.0, 0.0),
+            xycoords="figure pixels",
+            xytext=(10.0, 10.0),
+            textcoords="offset points",
+            visible=False,
+            bbox={"boxstyle": "round,pad=0.18", "fc": "#ffffff", "ec": "#000000", "alpha": 0.9},
+            annotation_clip=False,
+        )
+        figure.canvas.draw()
+
+        hover_position_module.position_hover_annotation(
+            annotation,
+            anchor_x=float(figure.bbox.width - 2.0),
+            anchor_y=float(figure.bbox.height - 2.0),
+        )
+        annotation.set_visible(True)
+
+        bbox = annotation.get_window_extent(renderer=figure.canvas.get_renderer())
+
+        assert annotation.get_ha() == "right"
+        assert annotation.get_va() == "top"
+        assert bbox.x0 >= 0.0
+        assert bbox.y0 >= 0.0
+        assert bbox.x1 <= figure.bbox.width
+        assert bbox.y1 <= figure.bbox.height
+    finally:
+        plt.close(figure)
+
+
+def test_position_hover_annotation_flips_below_near_top_edge() -> None:
+    figure, axes = plt.subplots(figsize=(3.2, 2.4))
+    try:
+        annotation = axes.annotate(
+            "Hover text",
+            xy=(0.0, 0.0),
+            xycoords="figure pixels",
+            xytext=(10.0, 10.0),
+            textcoords="offset points",
+            visible=False,
+            bbox={"boxstyle": "round,pad=0.18", "fc": "#ffffff", "ec": "#000000", "alpha": 0.9},
+            annotation_clip=False,
+        )
+        figure.canvas.draw()
+
+        hover_position_module.position_hover_annotation(
+            annotation,
+            anchor_x=float(figure.bbox.width / 2.0),
+            anchor_y=float(figure.bbox.height - 2.0),
+        )
+
+        assert annotation.get_ha() == "left"
+        assert annotation.get_va() == "top"
+    finally:
+        plt.close(figure)
+
+
+def test_position_hover_annotation_flips_left_near_right_edge() -> None:
+    figure, axes = plt.subplots(figsize=(3.2, 2.4))
+    try:
+        annotation = axes.annotate(
+            "Hover text",
+            xy=(0.0, 0.0),
+            xycoords="figure pixels",
+            xytext=(10.0, 10.0),
+            textcoords="offset points",
+            visible=False,
+            bbox={"boxstyle": "round,pad=0.18", "fc": "#ffffff", "ec": "#000000", "alpha": 0.9},
+            annotation_clip=False,
+        )
+        figure.canvas.draw()
+
+        hover_position_module.position_hover_annotation(
+            annotation,
+            anchor_x=float(figure.bbox.width - 2.0),
+            anchor_y=float(figure.bbox.height / 2.0),
+        )
+
+        assert annotation.get_ha() == "right"
+        assert annotation.get_va() == "bottom"
+    finally:
+        plt.close(figure)
+
+
+def test_position_hover_annotation_keeps_long_tooltip_inside_bottom_left_corner() -> None:
+    figure, axes = plt.subplots(figsize=(3.2, 2.4))
+    try:
+        annotation = axes.annotate(
+            "Long hover text\nwith multiple lines",
+            xy=(0.0, 0.0),
+            xycoords="figure pixels",
+            xytext=(10.0, 10.0),
+            textcoords="offset points",
+            visible=False,
+            bbox={"boxstyle": "round,pad=0.18", "fc": "#ffffff", "ec": "#000000", "alpha": 0.9},
+            annotation_clip=False,
+        )
+        figure.canvas.draw()
+
+        hover_position_module.position_hover_annotation(
+            annotation,
+            anchor_x=2.0,
+            anchor_y=2.0,
+        )
+        annotation.set_visible(True)
+
+        bbox = annotation.get_window_extent(renderer=figure.canvas.get_renderer())
+
+        assert annotation.get_ha() == "left"
+        assert annotation.get_va() == "bottom"
+        assert bbox.x0 >= 0.0
+        assert bbox.y0 >= 0.0
+        assert bbox.x1 <= figure.bbox.width
+        assert bbox.y1 <= figure.bbox.height
+    finally:
+        plt.close(figure)
 
 
 def test_draw_quantum_circuit_2d_hover_only_redraws_on_target_changes(
@@ -395,5 +540,26 @@ def _adjacent_cnot_and_box_gates_ir() -> CircuitIR:
                     OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q6",)),
                 ]
             ),
+        ],
+    )
+
+
+def _topology_hover_multiqubit_ir() -> CircuitIR:
+    return CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZZ",
+                        target_wires=("q0", "q3"),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
         ],
     )

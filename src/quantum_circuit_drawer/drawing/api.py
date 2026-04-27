@@ -37,6 +37,7 @@ def compare_circuits(
     *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, ...] | None = None,
+    summary_ax: Axes | None = None,
 ) -> CircuitCompareResult:
     """Render two or more circuits side by side and return structural comparison data."""
 
@@ -48,4 +49,5 @@ def compare_circuits(
         *additional_circuits,
         config=config,
         axes=axes,
+        summary_ax=summary_ax,
     )

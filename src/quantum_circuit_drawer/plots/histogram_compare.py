@@ -9,7 +9,13 @@ from typing import TYPE_CHECKING
 from matplotlib.backend_bases import Event, MouseEvent
 from matplotlib.patches import Rectangle
 
-from ..renderers._matplotlib_figure import HoverState, clear_hover_state, set_hover_state
+from ..renderers._matplotlib_figure import (
+    HoverState,
+    clear_hover_state,
+    get_hover_state,
+    set_hover_state,
+)
+from ..renderers._matplotlib_hover_position import position_hover_annotation
 from ..style.theme import DrawTheme
 from .histogram_models import HistogramCompareMetrics, HistogramCompareSort, HistogramKind
 from .histogram_normalize import _state_sort_key
@@ -216,7 +222,13 @@ def draw_histogram_compare_axes(
             uniform_reference_value=None,
         )
     )
-    legend = axes.legend(handles=legend_handles, frameon=False)
+    legend = axes.legend(
+        handles=legend_handles,
+        frameon=False,
+        loc="upper right",
+        bbox_to_anchor=(0.985, 0.985),
+        borderaxespad=0.0,
+    )
     _style_compare_legend(legend=legend, theme=theme)
     axes.margins(x=0.02)
     return HistogramCompareArtists(
@@ -319,7 +331,6 @@ def attach_histogram_compare_hover(
             return
         if active_index == hovered_index:
             return
-        annotation.xy = (event.x, event.y)
         annotation.set_text(
             _compare_histogram_hover_text(
                 state_label=state_labels[hovered_index],
@@ -328,6 +339,11 @@ def attach_histogram_compare_hover(
                 series_labels=series_labels,
                 visible_series=artists.visible_series,
             )
+        )
+        position_hover_annotation(
+            annotation,
+            anchor_x=float(event.x),
+            anchor_y=float(event.y),
         )
         annotation.set_visible(True)
         active_index = hovered_index
@@ -451,6 +467,13 @@ def attach_histogram_compare_legend_toggle(
         else:
             axes.set_ylim(0.0, 1.0)
 
+        hover_state = get_hover_state(axes)
+        if (
+            hover_state is not None
+            and getattr(hover_state.annotation, "get_visible", lambda: False)()
+        ):
+            hover_state.annotation.set_visible(False)
+
         legend_handle_alpha = {
             series_key(index): 0.72 for index in range(len(artists.series_labels))
         }
@@ -472,8 +495,7 @@ def attach_histogram_compare_legend_toggle(
         picked_series = legend_targets.get(getattr(event, "artist", None))
         if picked_series is None:
             return
-        for series_name in artists.visible_series:
-            artists.visible_series[series_name] = series_name == picked_series
+        artists.visible_series[picked_series] = not artists.visible_series[picked_series]
         apply_visibility()
 
     canvas.mpl_connect("pick_event", on_pick)

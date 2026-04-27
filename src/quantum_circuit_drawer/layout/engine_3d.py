@@ -5,12 +5,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
+from ..hover import HoverOptions
 from ..ir.circuit import CircuitIR, LayerIR
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind, binary_control_states
-from ..ir.wires import WireKind
+from ..ir.wires import WireIR, WireKind
 from ..style import DrawStyle, normalize_style
 from ..topology import TopologyInput, TopologyQubitMode, TopologyResizeMode
+from ..utils.matrix_support import operation_matrix_dimension, resolved_operation_matrix
 from ._engine_3d_classical import append_classical_condition_connections_3d
 from ._engine_3d_metrics import _OperationMetrics3D, build_operation_metrics_3d
 from ._engine_3d_operations import (
@@ -18,7 +20,6 @@ from ._engine_3d_operations import (
     connection_points_3d,
     fit_gate_text_size_3d,
     gate_cube_size_3d,
-    gate_hover_text_3d,
     nearest_anchor_wire_3d,
     point_for_wire_3d,
     uses_canonical_controlled_x_target_3d,
@@ -31,6 +32,7 @@ from ._engine_3d_topology import (
     build_wire_texts_3d,
 )
 from ._layering import normalize_draw_layers
+from ._operation_layout_hover import build_scene_hover_data, hover_details, hover_name
 from .scene_3d import (
     ConnectionRenderStyle3D,
     GateRenderStyle3D,
@@ -39,6 +41,7 @@ from .scene_3d import (
     Point3D,
     SceneConnection3D,
     SceneGate3D,
+    SceneHoverData,
     SceneMarker3D,
     SceneText3D,
     SceneTopologyPlane3D,
@@ -75,7 +78,7 @@ class LayoutEngine3D:
             normalize_style(style),
             topology_name=topology_name,
             direct=direct,
-            hover_enabled=hover_enabled,
+            hover_options=HoverOptions(enabled=hover_enabled),
             topology_qubits=topology_qubits,
             topology_resize=topology_resize,
         )
@@ -87,7 +90,7 @@ class LayoutEngine3D:
         *,
         topology_name: TopologyInput,
         direct: bool,
-        hover_enabled: bool,
+        hover_options: HoverOptions,
         topology_qubits: TopologyQubitMode = "used",
         topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:
@@ -152,7 +155,7 @@ class LayoutEngine3D:
             topology=topology,
             quantum_wire_positions=quantum_wire_positions,
             classical_wire_positions=classical_wire_positions,
-            hover_enabled=hover_enabled,
+            hover_enabled=hover_options.enabled,
             draw_style=draw_style,
         )
 
@@ -166,7 +169,8 @@ class LayoutEngine3D:
                     gate_z=gate_z,
                     topology=topology,
                     direct=direct,
-                    hover_enabled=hover_enabled,
+                    hover_options=hover_options,
+                    wire_map=circuit.wire_map,
                     classical_wire_positions=classical_wire_positions,
                     quantum_wire_positions=quantum_wire_positions,
                     draw_style=draw_style,
@@ -195,10 +199,11 @@ class LayoutEngine3D:
             connections=tuple(connections),
             topology_planes=topology_planes,
             texts=tuple(texts),
-            hover_enabled=hover_enabled,
+            hover_enabled=hover_options.enabled,
             quantum_wire_positions=quantum_wire_positions,
             classical_wire_positions=classical_wire_positions,
             classical_plane_y=classical_plane_y,
+            hover_options=hover_options,
         )
         logger.debug(
             "Computed 3D layout scene for topology=%s wires=%d layers=%d depth=%.2f",
@@ -316,7 +321,8 @@ class LayoutEngine3D:
         gate_z: float,
         topology: Topology3D,
         direct: bool,
-        hover_enabled: bool,
+        hover_options: HoverOptions,
+        wire_map: dict[str, WireIR],
         classical_wire_positions: dict[str, Point3D],
         quantum_wire_positions: dict[str, Point3D],
         draw_style: DrawStyle,
@@ -331,7 +337,9 @@ class LayoutEngine3D:
                 metrics=metrics,
                 column=column,
                 gate_z=gate_z,
-                hover_enabled=hover_enabled,
+                hover_options=hover_options,
+                wire_map=wire_map,
+                topology=topology,
                 classical_wire_positions=classical_wire_positions,
                 quantum_wire_positions=quantum_wire_positions,
                 draw_style=draw_style,
@@ -374,17 +382,29 @@ class LayoutEngine3D:
             self._point_for_wire(wire_id, quantum_wire_positions, gate_z)
             for wire_id in operation.target_wires
         )
+        operation_hover_data = self._build_hover_data(
+            operation=operation,
+            metrics=metrics,
+            column=column,
+            topology=topology,
+            wire_map=wire_map,
+            quantum_wire_positions=quantum_wire_positions,
+            gate_z=gate_z,
+            draw_style=draw_style,
+            hover_enabled=hover_options.enabled,
+        )
         gate = self._build_gate(
             operation=operation,
             metrics=metrics,
             column=column,
             target_points=target_points,
-            hover_enabled=hover_enabled,
+            hover_enabled=hover_options.enabled,
             draw_style=draw_style,
+            hover_data=operation_hover_data,
         )
         if gate is not None:
             gates.append(gate)
-            if not hover_enabled and gate.label:
+            if not hover_options.enabled and gate.label:
                 gate_text = gate.label if not gate.subtitle else f"{gate.label}\n{gate.subtitle}"
                 label_font_size = self._fit_gate_text_size(
                     text=gate_text,
@@ -425,6 +445,7 @@ class LayoutEngine3D:
                             if simple_binary_states is not None
                             else 1
                         ),
+                        hover_data=operation_hover_data,
                         operation_id=_operation_id_3d(operation),
                     )
                 )
@@ -456,6 +477,7 @@ class LayoutEngine3D:
                         points=connection_points,
                         render_style=ConnectionRenderStyle3D.CONTROL,
                         hover_text=hover_text,
+                        hover_data=operation_hover_data,
                         operation_id=_operation_id_3d(operation),
                     )
                 )
@@ -472,6 +494,7 @@ class LayoutEngine3D:
                         style=MarkerStyle3D.CONTROL,
                         size=draw_style.control_radius * _CONTROL_MARKER_SCALE,
                         state=1,
+                        hover_data=operation_hover_data,
                         operation_id=_operation_id_3d(operation),
                     )
                 )
@@ -490,7 +513,9 @@ class LayoutEngine3D:
         metrics: _OperationMetrics3D,
         column: int,
         gate_z: float,
-        hover_enabled: bool,
+        hover_options: HoverOptions,
+        wire_map: dict[str, WireIR],
+        topology: Topology3D,
         classical_wire_positions: dict[str, Point3D],
         quantum_wire_positions: dict[str, Point3D],
         draw_style: DrawStyle,
@@ -502,8 +527,19 @@ class LayoutEngine3D:
             operation.target_wires[0], quantum_wire_positions, gate_z
         )
         gate_size = self._gate_cube_size(draw_style)
-        label = "" if hover_enabled else metrics.display_label
-        subtitle = None if hover_enabled else metrics.subtitle
+        label = "" if hover_options.enabled else metrics.display_label
+        subtitle = None if hover_options.enabled else metrics.subtitle
+        hover_data = self._build_hover_data(
+            operation=operation,
+            metrics=metrics,
+            column=column,
+            topology=topology,
+            wire_map=wire_map,
+            quantum_wire_positions=quantum_wire_positions,
+            gate_z=gate_z,
+            draw_style=draw_style,
+            hover_enabled=hover_options.enabled,
+        )
         gates.append(
             SceneGate3D(
                 column=column,
@@ -515,12 +551,12 @@ class LayoutEngine3D:
                 subtitle=subtitle,
                 kind=OperationKind.MEASUREMENT,
                 render_style=GateRenderStyle3D.MEASUREMENT,
-                hover_text=self._gate_hover_text(metrics),
+                hover_data=hover_data,
                 target_positions=(target_point,),
                 operation_id=_operation_id_3d(operation),
             )
         )
-        if not hover_enabled and label:
+        if not hover_options.enabled and label:
             gate_text = label if not subtitle else f"{label}\n{subtitle}"
             label_font_size = self._fit_gate_text_size(
                 text=gate_text,
@@ -604,6 +640,7 @@ class LayoutEngine3D:
         target_points: tuple[Point3D, ...],
         hover_enabled: bool,
         draw_style: DrawStyle,
+        hover_data: SceneHoverData | None,
     ) -> SceneGate3D | None:
         if operation.kind is OperationKind.CONTROLLED_GATE and self._uses_canonical_controlled_z(
             operation
@@ -642,9 +679,71 @@ class LayoutEngine3D:
             subtitle=subtitle if render_style is not GateRenderStyle3D.X_TARGET else None,
             kind=operation.kind,
             render_style=render_style,
-            hover_text=self._gate_hover_text(metrics),
+            hover_data=hover_data,
             target_positions=target_points,
             operation_id=_operation_id_3d(operation),
+        )
+
+    def _build_hover_data(
+        self,
+        *,
+        operation: OperationIR,
+        metrics: _OperationMetrics3D,
+        column: int,
+        topology: Topology3D,
+        wire_map: dict[str, WireIR],
+        quantum_wire_positions: dict[str, Point3D],
+        gate_z: float,
+        draw_style: DrawStyle,
+        hover_enabled: bool,
+    ) -> SceneHoverData | None:
+        if not hover_enabled:
+            return None
+
+        occupied_quantum_wire_ids = tuple(
+            dict.fromkeys((*operation.control_wires, *operation.target_wires))
+        )
+        target_points = tuple(
+            self._point_for_wire(wire_id, quantum_wire_positions, gate_z)
+            for wire_id in occupied_quantum_wire_ids
+        )
+        if not target_points:
+            return None
+
+        center_x = sum(point.x for point in target_points) / len(target_points)
+        center_y = sum(point.y for point in target_points) / len(target_points)
+        gate_size = self._gate_cube_size(draw_style)
+        span_x = (
+            max(point.x for point in target_points) - min(point.x for point in target_points)
+            if len(target_points) > 1
+            else 0.0
+        )
+        span_y = (
+            max(point.y for point in target_points) - min(point.y for point in target_points)
+            if len(target_points) > 1
+            else 0.0
+        )
+        operation_id = operation.metadata.get("semantic_operation_id")
+        return build_scene_hover_data(
+            operation=operation,
+            wire_map=wire_map,
+            name=hover_name(operation, metrics.display_label),
+            key=(
+                str(operation_id)
+                if isinstance(operation_id, str) and operation_id
+                else f"op-3d-{column}-{id(operation)}"
+            ),
+            details=hover_details(
+                wire_map=wire_map,
+                operation=operation,
+                topology=topology,
+            ),
+            matrix=resolved_operation_matrix(operation),
+            matrix_dimension=operation_matrix_dimension(operation),
+            gate_x=center_x,
+            gate_y=center_y,
+            gate_width=max(gate_size, span_x + gate_size),
+            gate_height=max(gate_size, span_y + gate_size),
         )
 
     def _append_classical_condition_connections(
@@ -709,9 +808,6 @@ class LayoutEngine3D:
 
     def _uses_canonical_controlled_z(self, operation: OperationIR) -> bool:
         return uses_canonical_controlled_z_3d(operation)
-
-    def _gate_hover_text(self, metrics: _OperationMetrics3D) -> str:
-        return gate_hover_text_3d(metrics)
 
     def _gate_cube_size(self, style: DrawStyle) -> float:
         return gate_cube_size_3d(style)

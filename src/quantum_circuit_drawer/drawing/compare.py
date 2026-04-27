@@ -77,12 +77,15 @@ def compare_circuits(
     *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, ...] | None = None,
+    summary_ax: Axes | None = None,
 ) -> CircuitCompareResult:
     """Render two or more circuits side by side and return structural comparison data."""
 
     resolved_compare_config = config or CircuitCompareConfig()
     if axes is not None and resolved_compare_config.figsize is not None:
         raise ValueError("figsize cannot be used with axes in compare_circuits")
+    if axes is None and summary_ax is not None:
+        raise ValueError("summary_ax can only be used with caller-managed compare axes")
 
     circuits = (left_circuit, right_circuit, *additional_circuits)
     titles = resolve_compare_titles(resolved_compare_config, circuit_count=len(circuits))
@@ -116,7 +119,9 @@ def compare_circuits(
             titles=titles,
         )
 
-    figure = shared_figure_for_compare_axes(*axes)
+    figure = shared_figure_for_compare_axes(
+        *((*axes, summary_ax) if summary_ax is not None else axes)
+    )
     prepared_calls = tuple(
         prepare_draw_call(circuit, config=side_config, ax=side_axes)
         for circuit, side_config, side_axes in zip(
@@ -162,6 +167,7 @@ def compare_circuits(
 
     apply_compare_titles(
         axes=rendered_axes,
+        summary_ax=summary_ax,
         config=resolved_compare_config,
         metrics=metrics,
         side_metrics=side_metrics,
@@ -200,6 +206,7 @@ def compare_circuits(
         side_results=side_results,
         side_metrics=side_metrics,
         titles=titles,
+        summary_axes=summary_ax,
         diagnostics=(),
         saved_path=normalized_saved_path(resolved_compare_config.output_path),
     )
@@ -351,7 +358,7 @@ def _build_compare_summary_figure(
 def _summary_figure_size(side_count: int) -> tuple[float, float]:
     if side_count <= 2:
         return _SUMMARY_FIGURE_SIZE
-    return (max(_SUMMARY_FIGURE_SIZE[0], 2.1 + (side_count * 1.15)), _SUMMARY_FIGURE_SIZE[1])
+    return (max(_SUMMARY_FIGURE_SIZE[0], 2.8 + (side_count * 1.2)), _SUMMARY_FIGURE_SIZE[1])
 
 
 def normalize_compare_draw_config(
@@ -656,6 +663,7 @@ def scene_column_spans(scene: LayoutScene) -> dict[int, tuple[float, float]]:
 def apply_compare_titles(
     *,
     axes: tuple[Axes, ...],
+    summary_ax: Axes | None = None,
     config: CircuitCompareConfig,
     metrics: CircuitCompareMetrics,
     side_metrics: tuple[CircuitCompareSideMetrics, ...],
@@ -675,6 +683,10 @@ def apply_compare_titles(
     if not config.show_summary:
         return
 
+    if summary_ax is not None:
+        summary_ax.clear()
+        summary_ax.axis("off")
+
     _add_compare_summary_card(
         figure=summary_figure,
         metrics=metrics,
@@ -682,6 +694,23 @@ def apply_compare_titles(
         titles=titles,
         text_color=text_color,
         card_facecolor=summary_facecolor,
+        bounds=(
+            _summary_axes_card_bounds(summary_ax)
+            if summary_ax is not None
+            else _SUMMARY_CARD_BOUNDS
+        ),
+    )
+
+
+def _summary_axes_card_bounds(summary_ax: Axes) -> tuple[float, float, float, float]:
+    bounds = summary_ax.get_position()
+    horizontal_padding = min(0.012, bounds.width * 0.04)
+    vertical_padding = min(0.012, bounds.height * 0.08)
+    return (
+        bounds.x0 + horizontal_padding,
+        bounds.y0 + vertical_padding,
+        max(0.01, bounds.width - (2.0 * horizontal_padding)),
+        max(0.01, bounds.height - (2.0 * vertical_padding)),
     )
 
 
@@ -751,11 +780,12 @@ def _add_two_compare_summary_rows(
     bounds: tuple[float, float, float, float],
 ) -> None:
     card_x, card_y, card_width, card_height = bounds
-    header_y = card_y + card_height - _SUMMARY_CARD_HEADER_OFFSET
+    header_y = card_y + card_height - _summary_header_offset(card_height)
     metric_x = card_x + _SUMMARY_CARD_PADDING_X
     left_x = card_x + (card_width * 0.56)
     right_x = card_x + (card_width * 0.74)
     delta_x = card_x + (card_width * 0.9)
+    header_fontsize, row_fontsize = _summary_font_sizes(card_height)
 
     for text, x_position, alignment in (
         ("Metric", metric_x, "left"),
@@ -770,7 +800,7 @@ def _add_two_compare_summary_rows(
             color=text_color,
             ha=alignment,
             va="center",
-            fontsize=11.0,
+            fontsize=header_fontsize,
             fontweight="bold",
         )
         artist.set_gid("circuit-compare-summary-header")
@@ -797,7 +827,7 @@ def _add_two_compare_summary_rows(
             metrics.measurement_delta,
         ),
     )
-    row_bottom_y = card_y + min(_SUMMARY_CARD_ROW_BOTTOM_PADDING, card_height * 0.22)
+    row_bottom_y = card_y + _summary_row_bottom_padding(card_height)
     row_spacing = (header_y - row_bottom_y) / float(len(rows))
 
     for row_index, (label, left_value, right_value, delta_value) in enumerate(rows):
@@ -815,7 +845,7 @@ def _add_two_compare_summary_rows(
                 color=text_color,
                 ha=alignment,
                 va="center",
-                fontsize=10.0,
+                fontsize=row_fontsize,
             )
             artist.set_gid("circuit-compare-summary-row")
 
@@ -829,22 +859,27 @@ def _add_multi_compare_summary_rows(
     bounds: tuple[float, float, float, float],
 ) -> None:
     card_x, card_y, card_width, card_height = bounds
-    header_y = card_y + card_height - _SUMMARY_CARD_HEADER_OFFSET
+    header_y = card_y + card_height - _summary_header_offset(card_height)
     metric_x = card_x + _SUMMARY_CARD_PADDING_X
-    data_left_x = card_x + (card_width * 0.42)
-    data_right_x = card_x + card_width - _SUMMARY_CARD_PADDING_X
-    if len(side_metrics) == 1:
-        value_x_positions = ((data_left_x + data_right_x) / 2.0,)
-    else:
-        step = (data_right_x - data_left_x) / float(len(side_metrics) - 1)
-        value_x_positions = tuple(
-            data_left_x + (index * step) for index in range(len(side_metrics))
-        )
+    side_count = len(side_metrics)
+    outer_padding = max(_SUMMARY_CARD_PADDING_X, min(0.03, card_width * 0.04))
+    metric_column_width = min(card_width * 0.24, max(card_width * 0.17, 0.16))
+    data_left_x = metric_x + metric_column_width
+    data_right_x = card_x + card_width - outer_padding
+    header_fontsize, row_fontsize = _summary_font_sizes(
+        card_height,
+        multi=True,
+        side_count=side_count,
+    )
+    slot_width = max(0.01, (data_right_x - data_left_x) / float(max(1, side_count)))
+    value_x_positions = tuple(
+        data_left_x + ((index + 0.5) * slot_width) for index in range(side_count)
+    )
 
     header_specs = (
-        ("Metric", metric_x, "left", 10.5),
+        ("Metric", metric_x, "left", header_fontsize),
         *(
-            (_short_summary_title(title), x_position, "center", 9.0)
+            (_short_summary_title(title), x_position, "center", max(7.4, header_fontsize - 1.0))
             for title, x_position in zip(titles, value_x_positions, strict=True)
         ),
     )
@@ -862,7 +897,7 @@ def _add_multi_compare_summary_rows(
         artist.set_gid("circuit-compare-summary-header")
 
     rows = _multi_compare_summary_rows(side_metrics)
-    row_bottom_y = card_y + min(_SUMMARY_CARD_ROW_BOTTOM_PADDING, card_height * 0.22)
+    row_bottom_y = card_y + _summary_row_bottom_padding(card_height)
     row_spacing = (header_y - row_bottom_y) / float(len(rows))
     for row_index, (label, values) in enumerate(rows):
         row_y = header_y - ((row_index + 1) * row_spacing)
@@ -873,7 +908,7 @@ def _add_multi_compare_summary_rows(
             color=text_color,
             ha="left",
             va="center",
-            fontsize=9.4,
+            fontsize=row_fontsize,
         )
         label_artist.set_gid("circuit-compare-summary-row")
         for value_index, (value, x_position) in enumerate(
@@ -886,9 +921,37 @@ def _add_multi_compare_summary_rows(
                 color=_summary_value_color(values, value_index, fallback=text_color),
                 ha="center",
                 va="center",
-                fontsize=9.4,
+                fontsize=row_fontsize,
             )
             artist.set_gid("circuit-compare-summary-row")
+
+
+def _summary_header_offset(card_height: float) -> float:
+    return min(_SUMMARY_CARD_HEADER_OFFSET, max(0.018, card_height * 0.16))
+
+
+def _summary_row_bottom_padding(card_height: float) -> float:
+    return min(_SUMMARY_CARD_ROW_BOTTOM_PADDING, max(0.014, card_height * 0.14))
+
+
+def _summary_font_sizes(
+    card_height: float,
+    *,
+    multi: bool = False,
+    side_count: int = 2,
+) -> tuple[float, float]:
+    if card_height < 0.18:
+        header_fontsize, row_fontsize = (8.2, 7.6) if multi else (8.8, 8.0)
+    elif card_height < 0.28:
+        header_fontsize, row_fontsize = (9.2, 8.5) if multi else (9.8, 8.9)
+    else:
+        header_fontsize, row_fontsize = (10.5, 9.4) if multi else (11.0, 10.0)
+
+    if multi and side_count > 3:
+        shrink = min(1.2, 0.3 * float(side_count - 3))
+        header_fontsize -= shrink
+        row_fontsize -= min(0.6, 0.15 * float(side_count - 3))
+    return (header_fontsize, row_fontsize)
 
 
 def _multi_compare_summary_rows(

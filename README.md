@@ -556,7 +556,7 @@ The fastest way to see the current strengths of the library is to run one of the
 | `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
 | `cudaq-kernel-showcase` | The supported CUDA-Q subset with scalar runtime arguments, reset, and basis measurements |
 | `compare-circuits-multi-transpile` | One Qiskit source circuit compared with several transpilation optimization levels |
-| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend selection on interactive backends |
+| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend toggles on interactive backends |
 | `compare-histograms-multi-series` | A multi-series overlay for ideal, noisy, raw hardware, and mitigated distributions |
 | `histogram-quasi-nonnegative` | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero |
 
@@ -601,6 +601,8 @@ Linux or WSL:
 .venv/bin/python examples/compare_histograms_multi_series.py
 .venv/bin/python examples/histogram_quasi_nonnegative.py
 ```
+
+The CLI export showcase writes `examples/output/cli-export-showcase.png` by default. Use `--output` to choose another PNG path.
 
 The full curated catalog, including direct script commands, histogram demos, compare demos, and per-framework recommendations, lives in [examples/README.md](examples/README.md).
 

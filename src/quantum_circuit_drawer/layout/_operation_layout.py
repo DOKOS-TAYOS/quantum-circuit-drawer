@@ -37,6 +37,7 @@ from .scene import (
     SceneText,
     SceneWire,
 )
+from .topology_3d import Topology3D
 
 resolved_operation_matrix = _matrix_support_module.resolved_operation_matrix
 operation_matrix_dimension = _matrix_support_module.operation_matrix_dimension
@@ -60,6 +61,7 @@ class _OperationSceneBuilder:
     circuit: CircuitIR
     scaffold: _LayoutScaffold
     hover_enabled: bool = True
+    hover_topology: Topology3D | None = None
     resolved_operation_matrix_fn: Callable[[OperationIR], object | None] = resolved_operation_matrix
     operation_matrix_dimension_fn: Callable[[OperationIR], int | None] = operation_matrix_dimension
     wire_map: dict[str, WireIR] = field(init=False)
@@ -108,7 +110,7 @@ class _OperationSceneBuilder:
         )
 
     def _hover_name(self, operation: OperationIR | MeasurementIR, display_name: str) -> str:
-        return hover_name(self, operation, display_name)
+        return hover_name(operation, display_name)
 
     def _layout_operation(
         self,
@@ -163,6 +165,7 @@ def build_scene_collections(
     scaffold: _LayoutScaffold,
     *,
     hover_enabled: bool = True,
+    hover_topology: Topology3D | None = None,
 ) -> _SceneCollections:
     """Build all scene primitives using the shared scaffold."""
 
@@ -170,6 +173,7 @@ def build_scene_collections(
         circuit=circuit,
         scaffold=scaffold,
         hover_enabled=hover_enabled,
+        hover_topology=hover_topology,
         resolved_operation_matrix_fn=resolved_operation_matrix,
         operation_matrix_dimension_fn=operation_matrix_dimension,
     ).build()

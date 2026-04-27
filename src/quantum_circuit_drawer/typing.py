@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
+    from .hover import HoverOptions
     from .ir.circuit import CircuitIR
     from .layout.scene import LayoutScene
     from .layout.scene_3d import LayoutScene3D
@@ -49,7 +50,7 @@ class LayoutEngine3DLike(Protocol):
         *,
         topology_name: TopologyInput,
         direct: bool,
-        hover_enabled: bool,
+        hover_options: HoverOptions,
         topology_qubits: TopologyQubitMode = "used",
         topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:

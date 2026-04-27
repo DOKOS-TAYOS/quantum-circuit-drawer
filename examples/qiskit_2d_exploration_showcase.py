@@ -28,13 +28,14 @@ def build_circuit(request: ExampleRequest) -> QuantumCircuit:
     for step in range(_motif_count(request)):
         phase = 0.17 * float(step + 1)
         circuit.append(prep_block, [left[0], focus_wire, ancillas[0]])
-        circuit.rz(phase, edge_wire)
+        circuit.rzz(phase, focus_wire, edge_wire)
+        circuit.rz(phase / 2.0, edge_wire)
         circuit.append(relay_block, [left[0], ancillas[0], focus_wire, edge_wire])
         if step % 2 == 0:
             circuit.cx(focus_wire, edge_wire)
         else:
-            circuit.cz(left[0], focus_wire)
-        circuit.barrier(left[0], ancillas[0], focus_wire, edge_wire)
+            circuit.cz(left[1], edge_wire)
+        circuit.barrier(left[0], left[1], ancillas[0], focus_wire, edge_wire)
 
     circuit.measure(left[0], classical[0])
     circuit.measure(focus_wire, classical[1])
@@ -75,13 +76,15 @@ def main() -> None:
         build_circuit,
         description=(
             "Render a Qiskit workflow designed for managed 2D exploration, including "
-            "wire filtering, ancilla toggles, and contextual block controls."
+            "wire filtering, topology-aware hover details, ancilla toggles, and contextual "
+            "block controls."
         ),
         framework="qiskit",
         saved_label="qiskit-2d-exploration-showcase",
         default_qubits=8,
         default_columns=7,
         columns_help="Repeated composite motifs to place across the exploration showcase",
+        default_topology="grid",
     )
 
 

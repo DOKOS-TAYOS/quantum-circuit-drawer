@@ -6,7 +6,6 @@ import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
-from matplotlib.artist import Artist
 from mpl_toolkits.mplot3d.art3d import Line3DCollection  # type: ignore[import-untyped]
 
 from ..layout.scene_3d import ConnectionRenderStyle3D, LayoutScene3D, Point3D, SceneConnection3D
@@ -27,8 +26,10 @@ from ._matplotlib_visual_state import (
 if TYPE_CHECKING:
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
 
-    from ._matplotlib_renderer_3d_geometry import Segment3D
     from .matplotlib_renderer_3d import MatplotlibRenderer3D
+
+from ._matplotlib_renderer_3d_geometry import Segment3D
+from ._matplotlib_renderer_3d_hover import HoverTarget3D
 
 
 def wire_geometry_points_3d(scene: LayoutScene3D) -> np.ndarray:
@@ -65,8 +66,8 @@ def connection_geometry_points_3d(
     return np.asarray(points, dtype=float) if points else np.empty((0, 3), dtype=float)
 
 
-def draw_wires_3d(axes: Axes3D, scene: LayoutScene3D) -> list[tuple[Artist, str]]:
-    hover_targets: list[tuple[Artist, str]] = []
+def draw_wires_3d(axes: Axes3D, scene: LayoutScene3D) -> list[HoverTarget3D]:
+    hover_targets: list[HoverTarget3D] = []
     for wire in scene.wires:
         wire_color = color_for_visual_state(
             scene.style.theme.classical_wire_color
@@ -112,7 +113,7 @@ def draw_connections_3d(
     renderer: MatplotlibRenderer3D,
     axes: Axes3D,
     scene: LayoutScene3D,
-) -> list[tuple[Artist, str]]:
+) -> list[HoverTarget3D]:
     if scene.hover_enabled or _requires_individual_connection_artists(scene):
         return draw_connections_with_hover_3d(renderer, axes, scene)
     draw_connections_batched_3d(renderer, axes, scene)
@@ -123,8 +124,8 @@ def draw_connections_with_hover_3d(
     renderer: MatplotlibRenderer3D,
     axes: Axes3D,
     scene: LayoutScene3D,
-) -> list[tuple[Artist, str]]:
-    hover_targets: list[tuple[Artist, str]] = []
+) -> list[HoverTarget3D]:
+    hover_targets: list[HoverTarget3D] = []
     for connection in scene.connections:
         segments = renderer._connection_segments(connection)
         if not segments:
@@ -160,7 +161,9 @@ def draw_connections_with_hover_3d(
             )
         if connection.label:
             renderer._draw_connection_label(axes, connection, scene)
-        if connection.hover_text:
+        if connection.hover_data is not None:
+            hover_targets.append((collection, connection.hover_data))
+        elif connection.hover_text:
             hover_targets.append((collection, connection.hover_text))
     return hover_targets
 

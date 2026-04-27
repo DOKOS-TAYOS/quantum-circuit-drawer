@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 
@@ -23,6 +25,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     DrawConfig,
     DrawMode,
     DrawSideConfig,
+    HistogramAppearanceOptions,
     HistogramConfig,
     HistogramDataOptions,
     HistogramMode,
@@ -32,6 +35,20 @@ from quantum_circuit_drawer import (  # noqa: E402
     draw_quantum_circuit,
     plot_histogram,
 )
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
+
+@dataclass(frozen=True, slots=True)
+class DashboardLayout:
+    """Axes used by the caller-managed dashboard."""
+
+    circuit_axes: Axes
+    histogram_axes: Axes
+    compare_axes: tuple[Axes, Axes]
+    summary_axes: Axes
 
 
 def build_left_circuit() -> object:
@@ -83,16 +100,13 @@ def main() -> None:
     """Run the caller-managed axes showcase."""
 
     output_path, show = _parse_args()
-    figure, axes_grid = plt.subplots(2, 2, figsize=(12.0, 7.2), constrained_layout=True)
-    circuit_axes = axes_grid[0, 0]
-    histogram_axes = axes_grid[0, 1]
-    compare_axes = (axes_grid[1, 0], axes_grid[1, 1])
+    figure, layout = create_dashboard_layout()
     circuit = build_left_circuit()
     comparison_circuit = build_right_circuit()
 
     draw_quantum_circuit(
         circuit,
-        ax=circuit_axes,
+        ax=layout.circuit_axes,
         config=DrawConfig(
             side=DrawSideConfig(
                 render=CircuitRenderOptions(mode=DrawMode.FULL, framework="ir"),
@@ -103,28 +117,15 @@ def main() -> None:
     )
     plot_histogram(
         demo_counts(),
-        ax=histogram_axes,
-        config=HistogramConfig(
-            data=HistogramDataOptions(top_k=6),
-            view=HistogramViewOptions(mode=HistogramMode.STATIC, sort="value_desc"),
-            output=OutputOptions(show=False),
-        ),
+        ax=layout.histogram_axes,
+        config=build_histogram_config(),
     )
     compare_circuits(
         circuit,
         comparison_circuit,
-        axes=compare_axes,
-        config=CircuitCompareConfig(
-            shared=DrawSideConfig(
-                render=CircuitRenderOptions(mode=DrawMode.FULL, framework="ir"),
-                appearance=CircuitAppearanceOptions(preset="notebook"),
-            ),
-            compare=CircuitCompareOptions(
-                left_title="Reference",
-                right_title="Variant",
-            ),
-            output=OutputOptions(show=False),
-        ),
+        axes=layout.compare_axes,
+        summary_ax=layout.summary_axes,
+        config=build_compare_config(),
     )
     figure.suptitle("caller-managed axes")
     if output_path is not None:
@@ -133,6 +134,57 @@ def main() -> None:
     if show:
         plt.show()
     plt.close(figure)
+
+
+def create_dashboard_layout() -> tuple[Figure, DashboardLayout]:
+    """Create a five-panel Matplotlib dashboard layout."""
+
+    figure = plt.figure(figsize=(14.0, 10.2), constrained_layout=True)
+    grid = figure.add_gridspec(
+        3,
+        2,
+        height_ratios=(1.0, 1.0, 0.72),
+        hspace=0.24,
+        wspace=0.12,
+    )
+    layout = DashboardLayout(
+        circuit_axes=figure.add_subplot(grid[0, 0]),
+        histogram_axes=figure.add_subplot(grid[0, 1]),
+        compare_axes=(
+            figure.add_subplot(grid[1, 0]),
+            figure.add_subplot(grid[1, 1]),
+        ),
+        summary_axes=figure.add_subplot(grid[2, :]),
+    )
+    return figure, layout
+
+
+def build_histogram_config() -> HistogramConfig:
+    """Build the light-theme histogram config used by the dashboard."""
+
+    return HistogramConfig(
+        data=HistogramDataOptions(top_k=6),
+        view=HistogramViewOptions(mode=HistogramMode.STATIC, sort="value_desc"),
+        appearance=HistogramAppearanceOptions(theme="light"),
+        output=OutputOptions(show=False),
+    )
+
+
+def build_compare_config() -> CircuitCompareConfig:
+    """Build the caller-owned axes comparison config."""
+
+    return CircuitCompareConfig(
+        shared=DrawSideConfig(
+            render=CircuitRenderOptions(mode=DrawMode.FULL, framework="ir"),
+            appearance=CircuitAppearanceOptions(preset="notebook"),
+        ),
+        compare=CircuitCompareOptions(
+            left_title="Reference",
+            right_title="Variant",
+            show_summary=True,
+        ),
+        output=OutputOptions(show=False),
+    )
 
 
 def _parse_args() -> tuple[Path | None, bool]:

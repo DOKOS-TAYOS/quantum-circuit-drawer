@@ -130,7 +130,10 @@ def add_render_arguments(
         "--topology",
         choices=SUPPORTED_TOPOLOGIES,
         default=default_topology,
-        help="3D topology. It is ignored in 2D mode.",
+        help=(
+            "3D topology selection. In 2D hover mode it still drives topology-aware hover "
+            "details, including SWAP estimates for non-local multi-qubit operations."
+        ),
     )
     parser.add_argument(
         "--seed",

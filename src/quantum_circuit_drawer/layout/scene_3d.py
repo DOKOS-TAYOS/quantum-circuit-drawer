@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .._compat import StrEnum
+from ..hover import HoverOptions
 from ..ir.operations import OperationKind
 from ..ir.wires import WireKind
 from ..style import DrawStyle
-from .scene import SceneVisualState
+from .scene import SceneHoverData, SceneVisualState
 from .topology_3d import Topology3D
 
 
@@ -67,6 +68,7 @@ class SceneConnection3D:
     arrow_at_end: bool = False
     label: str | None = None
     hover_text: str | None = None
+    hover_data: SceneHoverData | None = None
     operation_id: str | None = None
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
@@ -94,6 +96,7 @@ class SceneGate3D:
     kind: OperationKind
     render_style: GateRenderStyle3D = GateRenderStyle3D.BOX
     hover_text: str | None = None
+    hover_data: SceneHoverData | None = None
     target_positions: tuple[Point3D, ...] = field(default_factory=tuple)
     operation_id: str | None = None
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
@@ -107,6 +110,8 @@ class SceneMarker3D:
     style: MarkerStyle3D
     size: float
     state: int = 1
+    hover_text: str | None = None
+    hover_data: SceneHoverData | None = None
     operation_id: str | None = None
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
@@ -141,3 +146,4 @@ class LayoutScene3D:
     quantum_wire_positions: dict[str, Point3D]
     classical_wire_positions: dict[str, Point3D]
     classical_plane_y: float
+    hover_options: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))

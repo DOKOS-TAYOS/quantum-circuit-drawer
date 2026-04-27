@@ -1035,7 +1035,7 @@ Metrics include:
 - differing layer count
 - left-only and right-only layer counts
 
-Use explicit `mode="full"` or caller-owned axes when you want one static side-by-side figure. Provide one axes object per circuit.
+Use explicit `mode="full"` or caller-owned axes when you want one static side-by-side figure. Provide one axes object per circuit. If your Matplotlib layout has room for a dedicated summary panel, pass `summary_ax=...`; the library will place its built-in comparison summary card in that subplot.
 
 For 3+ circuits:
 
@@ -1108,7 +1108,7 @@ Metrics include:
 - total variation distance
 - maximum absolute delta
 
-On interactive Matplotlib backends, the legend is clickable. Clicking a legend entry focuses that selected series; clicking another entry switches the focused series.
+On interactive Matplotlib backends, the legend is clickable. Clicking a legend entry toggles that series on or off while keeping the legend anchored in the same position.
 
 For 3+ histogram series:
 
@@ -1459,15 +1459,15 @@ Start with these demos:
 | `caller-managed-axes-showcase` | Caller-managed axes for circuit, histogram, and comparison panels |
 | `style-accessible-showcase` | Accessible circuit and histogram styling |
 | `diagnostics-showcase` | Diagnostics, warnings, and resolved-mode metadata |
-| `cli-export-showcase` | `qcd` CLI histogram export from JSON |
+| `cli-export-showcase` | `qcd` CLI histogram export from JSON, saving `examples/output/cli-export-showcase.png` by default |
 | `qiskit-backend-topology-showcase` | Qiskit backend topology conversion into a 3D hardware view |
 | `cirq-native-controls-showcase` | Cirq controls, classical control, and `CircuitOperation` provenance |
 | `pennylane-terminal-outputs-showcase` | PennyLane terminal outputs and mid-circuit measurement |
 | `myqlm-structural-showcase` | MyQLM compact composite routines |
 | `cudaq-kernel-showcase` | CUDA-Q supported subset and scalar runtime arguments |
 | `compare-circuits-multi-transpile` | One Qiskit source circuit compared with several transpilation levels |
-| `compare-histograms-ideal-vs-sampled` | Histogram comparison with clickable legend selection |
-| `compare-histograms-multi-series` | Multi-series histogram comparison with clickable legend selection |
+| `compare-histograms-ideal-vs-sampled` | Histogram comparison with clickable legend toggles |
+| `compare-histograms-multi-series` | Multi-series histogram comparison with clickable legend toggles |
 
 List available demos:
 

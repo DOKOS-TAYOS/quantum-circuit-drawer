@@ -43,8 +43,11 @@ def build_circuit(request: ExampleRequest) -> object:
     for step in range(max(1, request.columns)):
         target = step % qubit_count
         partner = (target + 2) % qubit_count
-        builder.rz(0.2 * float(step + 1), target)
-        builder.cz(target, partner)
+        remote = (target + 3) % qubit_count
+        phase = 0.2 * float(step + 1)
+        builder.rz(phase, target)
+        builder.rzz(phase + 0.11, target, partner)
+        builder.cz(target, remote)
     builder.measure_all()
     return builder.build()
 
@@ -63,7 +66,10 @@ def main() -> None:
     """Run the Qiskit backend topology showcase."""
 
     request = parse_example_args(
-        description="Render a public IR circuit on a Qiskit backend-derived topology.",
+        description=(
+            "Render a public IR circuit on a Qiskit backend-derived topology with long-range "
+            "multi-qubit hovers and SWAP estimates."
+        ),
         default_qubits=6,
         default_columns=3,
         columns_help="Backend-topology motifs to append before measurement",

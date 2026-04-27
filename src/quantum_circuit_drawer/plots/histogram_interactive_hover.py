@@ -8,6 +8,7 @@ from matplotlib.backend_bases import Event, MouseEvent
 from matplotlib.patches import Rectangle
 
 from ..renderers._matplotlib_figure import HoverState, set_hover_state
+from ..renderers._matplotlib_hover_position import position_hover_annotation
 from .histogram_models import HistogramKind, HistogramStateLabelMode
 from .histogram_render import display_state_label
 
@@ -64,8 +65,12 @@ def attach_usage_hover(
         if not isinstance(event, MouseEvent) or event.inaxes is not axes:
             hide_annotation()
             return
-        annotation.xy = (event.x, event.y)
         annotation.set_text(text)
+        position_hover_annotation(
+            annotation,
+            anchor_x=float(event.x),
+            anchor_y=float(event.y),
+        )
         if is_visible:
             return
         annotation.set_visible(True)
@@ -132,7 +137,6 @@ def attach_histogram_hover(
         if hovered_index is not None:
             if active_target == ("bar", hovered_index):
                 return
-            annotation.xy = (event.x, event.y)
             annotation.set_text(
                 _histogram_hover_text(
                     state_labels[hovered_index],
@@ -140,6 +144,11 @@ def attach_histogram_hover(
                     kind,
                     label_mode=label_mode,
                 )
+            )
+            position_hover_annotation(
+                annotation,
+                anchor_x=float(event.x),
+                anchor_y=float(event.y),
             )
             annotation.set_visible(True)
             active_target = ("bar", hovered_index)
@@ -152,7 +161,6 @@ def attach_histogram_hover(
         ):
             if active_target == ("uniform", None):
                 return
-            annotation.xy = (event.x, event.y)
             annotation.set_text(
                 _uniform_reference_hover_text(
                     kind=kind,
@@ -160,6 +168,11 @@ def attach_histogram_hover(
                     reference_total=reference_total,
                     bit_width=bit_width,
                 )
+            )
+            position_hover_annotation(
+                annotation,
+                anchor_x=float(event.x),
+                anchor_y=float(event.y),
             )
             annotation.set_visible(True)
             active_target = ("uniform", None)

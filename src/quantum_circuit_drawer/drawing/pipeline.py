@@ -171,6 +171,10 @@ def prepare_draw_pipeline(
             ir,
             normalized_style,
             hover_enabled=draw_options.hover.enabled,
+            topology_name=draw_options.topology,
+            topology_qubits=draw_options.topology_qubits,
+            topology_resize=draw_options.topology_resize,
+            topology_hover=draw_options.topology_hover,
         )
         scene_2d.hover = draw_options.hover
         paged_scene = scene_2d
@@ -210,6 +214,7 @@ def coerce_pipeline_options(
         topology=normalize_topology_input(options.get("topology", "line")),
         topology_qubits=normalize_topology_qubits(options.get("topology_qubits", "used")),
         topology_resize=normalize_topology_resize(options.get("topology_resize", "error")),
+        topology_hover=bool(options.get("topology_hover", False)),
         topology_menu=bool(options.get("topology_menu", False)),
         direct=bool(options.get("direct", True)),
         hover=_normalize_hover_option(options.get("hover", False)),
@@ -223,6 +228,7 @@ def coerce_pipeline_options(
                 "topology",
                 "topology_qubits",
                 "topology_resize",
+                "topology_hover",
                 "topology_menu",
                 "direct",
                 "hover",
@@ -267,14 +273,30 @@ def _compute_2d_scene(
     style: DrawStyle,
     *,
     hover_enabled: bool,
+    topology_name: TopologyInput,
+    topology_qubits: str = "used",
+    topology_resize: str = "error",
+    topology_hover: bool = False,
 ) -> LayoutScene:
     from ..layout.engine import LayoutEngine
+    from ..layout.topology_3d import build_topology
 
     if isinstance(layout_engine, LayoutEngine):
+        hover_topology = (
+            build_topology(
+                topology_name,
+                tuple(circuit.quantum_wires),
+                topology_qubits=normalize_topology_qubits(topology_qubits),
+                topology_resize=normalize_topology_resize(topology_resize),
+            )
+            if topology_hover
+            else None
+        )
         return layout_engine._compute_with_normalized_style(
             circuit,
             style,
             hover_enabled=hover_enabled,
+            hover_topology=hover_topology,
         )
     return layout_engine.compute(circuit, style)
 
@@ -296,7 +318,7 @@ def _compute_3d_scene(
             style,
             topology_name=topology_name,
             direct=direct,
-            hover_enabled=hover_enabled,
+            hover_options=HoverOptions(enabled=hover_enabled),
             topology_qubits=normalize_topology_qubits(topology_qubits),
             topology_resize=normalize_topology_resize(topology_resize),
         )

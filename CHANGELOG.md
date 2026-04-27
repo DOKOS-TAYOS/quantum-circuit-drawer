@@ -26,14 +26,20 @@
 
 ### Changed
 
+- Updated the 2D, 3D, and backend-topology showcase demos so the new topology-aware hover details are easier to discover, including clearer long-range multi-qubit motifs and example copy that points users toward the SWAP estimates.
 - Reused prepared 2D gate label text during Matplotlib rendering, reducing repeated label formatting and text-fit work without changing the rendered appearance.
-- Changed interactive compare-histogram legend clicks to focus the selected series exclusively instead of toggling series on and off.
 - Made Cirq and PennyLane adapter autodetection use narrow optional imports (`cirq.circuits` and `pennylane.tape`) so native Windows users avoid loading the heavier top-level packages during framework detection.
 - Removed unused private wrappers, unreachable compare-rendering code, and duplicated page-window clamping helpers while preserving public compatibility facades.
 - Made the real CUDA-Q Linux integration job run on normal CI events instead of only manual and scheduled runs.
 
 ### Fixed
 
+- Fixed histogram hover cards so they now use the same viewport-aware edge rebounding as circuit hovers, and changed interactive compare-histogram legends from exclusive focus to stable-position checkbox-style toggles that can hide any combination of series, including all of them.
+- Fixed the last remaining histogram help-hover path so the marginal-usage tooltip now stays inside the figure under edge cases too, and added regression coverage for lower-left as well as top-right hover placement bounds.
+- Fixed multi-circuit comparison summary tables so examples with three or more columns reserve enough width and horizontal spacing for titles such as `Opt level 0` through `Opt level 3`, both in owned summary figures and caller-managed summary axes.
+- Fixed Matplotlib circuit hovers so tooltips now flip below or to the left of the cursor near window edges, with a final clamp that keeps both 2D and 3D hover cards inside the visible figure.
+- Fixed 3D hover cards so they now use the same rich gate details as 2D hovers, including qubits, matrix dimensions, control-state details, and topology-based round-trip SWAP counts for multi-qubit operations; 2D hovers now also show that SWAP estimate when a topology is requested.
+- Fixed the CLI export showcase default run so it writes a persistent PNG under `examples/output/cli-export-showcase.png` instead of saving to a temporary folder that disappears after the demo exits.
 - Fixed obsolete CLI `type: ignore` comments so strict `mypy` checks stay clean.
 - Fixed compact Cirq `CircuitOperation` demos so the visible `CircuitOp` box no longer shows a redundant tiny native annotation and can be expanded/collapsed from managed 2D controls.
 - Fixed managed exploration expand/collapse button labels so parameter-heavy block names use the same rounded numeric text as their collapsed circuit boxes.

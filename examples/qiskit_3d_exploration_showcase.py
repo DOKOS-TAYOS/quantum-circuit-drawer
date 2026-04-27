@@ -33,7 +33,7 @@ def build_circuit(request: ExampleRequest) -> QuantumCircuit:
         if step % 2 == 0:
             circuit.cx(focus_wire, edge_wire)
         else:
-            circuit.cz(source[1], focus_wire)
+            circuit.cz(source[1], edge_wire)
         circuit.barrier(source[0], source[1], ancillas[0], focus_wire, edge_wire)
 
     circuit.measure(source[0], classical[0])
@@ -75,7 +75,8 @@ def main() -> None:
         build_circuit,
         description=(
             "Render a Qiskit workflow designed for managed 3D exploration, including "
-            "topology-aware selection, ancilla toggles, and contextual block controls."
+            "topology-aware hover, controlled interactions, ancilla toggles, and contextual "
+            "block controls."
         ),
         framework="qiskit",
         saved_label="qiskit-3d-exploration-showcase",

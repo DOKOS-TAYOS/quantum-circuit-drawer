@@ -6,7 +6,6 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import numpy as np
-from matplotlib.artist import Artist
 from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
     Line3DCollection,
     Poly3DCollection,
@@ -16,6 +15,7 @@ from ..layout.scene_3d import GateRenderStyle3D, LayoutScene3D, SceneGate3D
 from ..style import resolved_gate_edge_line_width, resolved_wire_line_width
 from ._matplotlib_figure import append_artist_click_target
 from ._matplotlib_renderer_3d_geometry import _PreparedBatchedGateGeometry3D, _RenderContext3D
+from ._matplotlib_renderer_3d_hover import HoverTarget3D
 from ._matplotlib_visual_state import (
     alpha_for_visual_state,
     color_for_visual_state,
@@ -177,7 +177,7 @@ def draw_gates_3d(
     axes: Axes3D,
     scene: LayoutScene3D,
     render_context: _RenderContext3D,
-) -> list[tuple[Artist, str]]:
+) -> list[HoverTarget3D]:
     if scene.hover_enabled or _requires_individual_gate_artists(scene):
         return draw_gates_with_hover_3d(renderer, axes, scene, render_context)
     draw_gates_batched_3d(renderer, axes, scene, render_context)
@@ -189,8 +189,8 @@ def draw_gates_with_hover_3d(
     axes: Axes3D,
     scene: LayoutScene3D,
     render_context: _RenderContext3D,
-) -> list[tuple[Artist, str]]:
-    hover_targets: list[tuple[Artist, str]] = []
+) -> list[HoverTarget3D]:
+    hover_targets: list[HoverTarget3D] = []
     for gate in scene.gates:
         if gate.group_highlighted:
             _draw_group_highlight_overlay_3d(
@@ -226,7 +226,9 @@ def draw_gates_with_hover_3d(
                 operation_id=gate.operation_id,
                 priority=40,
             )
-        if gate.hover_text:
+        if gate.hover_data is not None:
+            hover_targets.append((collection, gate.hover_data))
+        elif gate.hover_text:
             hover_targets.append((collection, gate.hover_text))
     return hover_targets
 
@@ -353,7 +355,7 @@ def draw_x_target_3d(
     gate: SceneGate3D,
     scene: LayoutScene3D,
     render_context: _RenderContext3D,
-) -> list[tuple[Artist, str]]:
+) -> list[HoverTarget3D]:
     radius = min(gate.size_x, gate.size_y) * 0.32
     ring_points = renderer._x_target_ring_points(gate, radius, render_context)
     closed_ring_points = np.vstack((ring_points, ring_points[0]))
@@ -404,8 +406,11 @@ def draw_x_target_3d(
             operation_id=gate.operation_id,
             priority=45,
         )
-    hover_targets: list[tuple[Artist, str]] = []
-    if gate.hover_text:
+    hover_targets: list[HoverTarget3D] = []
+    if gate.hover_data is not None:
+        hover_targets.append((circle_line, gate.hover_data))
+        hover_targets.append((cross_collection, gate.hover_data))
+    elif gate.hover_text:
         hover_targets.append((circle_line, gate.hover_text))
         hover_targets.append((cross_collection, gate.hover_text))
     return hover_targets

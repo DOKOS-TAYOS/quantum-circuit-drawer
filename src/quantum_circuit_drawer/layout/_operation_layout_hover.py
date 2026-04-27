@@ -13,11 +13,14 @@ from ..ir.operations import (
     binary_control_states,
     resolved_control_values,
 )
+from ..ir.wires import WireIR
 from ..utils.formatting import format_gate_name
+from ._topology_hover import topology_hover_details
 from .scene import SceneHoverData
 
 if TYPE_CHECKING:
     from ._operation_layout import _OperationSceneBuilder
+    from .topology_3d import Topology3D
 
 
 def build_hover_data(
@@ -26,6 +29,45 @@ def build_hover_data(
     operation: OperationIR,
     column: int,
     name: str,
+    gate_x: float,
+    gate_y: float,
+    gate_width: float,
+    gate_height: float,
+) -> SceneHoverData:
+    matrix, matrix_dimension = hover_matrix_and_dimension(builder, operation)
+    operation_id = operation.metadata.get("semantic_operation_id")
+    return build_scene_hover_data(
+        operation=operation,
+        wire_map=builder.wire_map,
+        name=name,
+        key=(
+            str(operation_id)
+            if isinstance(operation_id, str) and operation_id
+            else f"op-{column}-{id(operation)}"
+        ),
+        details=hover_details(
+            wire_map=builder.wire_map,
+            operation=operation,
+            topology=builder.hover_topology,
+        ),
+        matrix=matrix,
+        matrix_dimension=matrix_dimension,
+        gate_x=gate_x,
+        gate_y=gate_y,
+        gate_width=gate_width,
+        gate_height=gate_height,
+    )
+
+
+def build_scene_hover_data(
+    *,
+    operation: OperationIR | MeasurementIR,
+    wire_map: dict[str, WireIR],
+    name: str,
+    key: str,
+    details: tuple[str, ...],
+    matrix: object | None,
+    matrix_dimension: int | None,
     gate_x: float,
     gate_y: float,
     gate_width: float,
@@ -42,9 +84,7 @@ def build_hover_data(
         other_wire_ids.append(operation.classical_target)
     unique_other_wire_ids = tuple(dict.fromkeys(other_wire_ids))
     qubit_labels = tuple(
-        (builder.wire_map[wire_id].label or builder.wire_map[wire_id].id)
-        if wire_id in builder.wire_map
-        else wire_id
+        (wire_map[wire_id].label or wire_map[wire_id].id) if wire_id in wire_map else wire_id
         for wire_id in quantum_wire_ids
     )
     measurement_bit_label = (
@@ -59,21 +99,17 @@ def build_hover_data(
         if measurement_bit_label is not None
         and isinstance(operation, MeasurementIR)
         and operation.classical_target == wire_id
-        else (builder.wire_map[wire_id].label or builder.wire_map[wire_id].id)
-        if wire_id in builder.wire_map
+        else (wire_map[wire_id].label or wire_map[wire_id].id)
+        if wire_id in wire_map
         else wire_id
         for wire_id in unique_other_wire_ids
     )
-    matrix, matrix_dimension = hover_matrix_and_dimension(builder, operation)
-    operation_id = operation.metadata.get("semantic_operation_id")
     return SceneHoverData(
-        key=str(operation_id)
-        if isinstance(operation_id, str) and operation_id
-        else f"op-{column}-{id(operation)}",
+        key=key,
         name=name,
         qubit_labels=qubit_labels,
         other_wire_labels=other_wire_labels,
-        details=_hover_details(builder, operation),
+        details=details,
         matrix=matrix,
         matrix_dimension=matrix_dimension,
         gate_x=gate_x,
@@ -149,7 +185,6 @@ def maybe_hover_data(
 
 
 def hover_name(
-    builder: _OperationSceneBuilder,
     operation: OperationIR | MeasurementIR,
     display_name: str,
 ) -> str:
@@ -177,9 +212,11 @@ def hover_name(
     return f"{'C' * control_count}{display_name}"
 
 
-def _hover_details(
-    builder: _OperationSceneBuilder,
+def hover_details(
+    *,
+    wire_map: dict[str, WireIR],
     operation: OperationIR | MeasurementIR,
+    topology: Topology3D | None,
 ) -> tuple[str, ...]:
     raw_details = operation.metadata.get("hover_details", ())
     details = (
@@ -187,11 +224,16 @@ def _hover_details(
         if isinstance(raw_details, tuple | list)
         else ()
     )
-    return (*details, *_control_hover_details(builder, operation))
+    return (
+        *details,
+        *_control_hover_details(wire_map=wire_map, operation=operation),
+        *topology_hover_details(operation, topology),
+    )
 
 
 def _control_hover_details(
-    builder: _OperationSceneBuilder,
+    *,
+    wire_map: dict[str, WireIR],
     operation: OperationIR | MeasurementIR,
 ) -> tuple[str, ...]:
     if operation.kind is not OperationKind.CONTROLLED_GATE or not operation.control_wires:
@@ -202,7 +244,7 @@ def _control_hover_details(
         return (
             "control states: "
             + ", ".join(
-                f"{_wire_label(builder, wire_id)}={state}"
+                f"{_wire_label(wire_map, wire_id)}={state}"
                 for wire_id, state in zip(
                     operation.control_wires,
                     simple_binary_states,
@@ -214,7 +256,7 @@ def _control_hover_details(
     return (
         "control values: "
         + ", ".join(
-            f"{_wire_label(builder, wire_id)} in {{{','.join(str(value) for value in values)}}}"
+            f"{_wire_label(wire_map, wire_id)} in {{{','.join(str(value) for value in values)}}}"
             for wire_id, values in zip(
                 operation.control_wires,
                 resolved_control_values(operation),
@@ -224,8 +266,8 @@ def _control_hover_details(
     )
 
 
-def _wire_label(builder: _OperationSceneBuilder, wire_id: str) -> str:
-    wire = builder.wire_map.get(wire_id)
+def _wire_label(wire_map: dict[str, WireIR], wire_id: str) -> str:
+    wire = wire_map.get(wire_id)
     if wire is None:
         return wire_id
     return wire.label or wire.id

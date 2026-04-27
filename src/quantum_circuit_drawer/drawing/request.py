@@ -48,6 +48,7 @@ class DrawPipelineOptions:
     topology: TopologyMode = "line"
     topology_qubits: TopologyQubitMode = "used"
     topology_resize: TopologyResizeMode = "error"
+    topology_hover: bool = False
     topology_menu: bool = False
     direct: bool = True
     hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
@@ -65,6 +66,7 @@ class DrawPipelineOptions:
             "topology": self.topology,
             "topology_qubits": self.topology_qubits,
             "topology_resize": self.topology_resize,
+            "topology_hover": self.topology_hover,
             "topology_menu": self.topology_menu,
             "direct": self.direct,
             "hover": self.hover,
@@ -85,6 +87,7 @@ class DrawPipelineOptions:
             "topology",
             "topology_qubits",
             "topology_resize",
+            "topology_hover",
             "topology_menu",
             "direct",
             "hover",
@@ -181,6 +184,12 @@ def build_draw_request(
             topology=normalize_topology_input(topology),
             topology_qubits=normalize_topology_qubits(topology_qubits),
             topology_resize=normalize_topology_resize(topology_resize),
+            topology_hover=_should_enable_2d_topology_hover(
+                view=view,
+                topology=topology,
+                topology_qubits=topology_qubits,
+                topology_resize=topology_resize,
+            ),
             topology_menu=topology_menu,
             direct=direct,
             hover=resolved_hover,
@@ -318,6 +327,18 @@ def _resolved_adapter_extra_options(
     if not effective_hover.enabled and resolved_options.get("explicit_matrices") is not True:
         resolved_options["explicit_matrices"] = False
     return resolved_options
+
+
+def _should_enable_2d_topology_hover(
+    *,
+    view: ViewMode,
+    topology: TopologyMode,
+    topology_qubits: TopologyQubitMode,
+    topology_resize: TopologyResizeMode,
+) -> bool:
+    if view != "2d":
+        return False
+    return topology != "line" or topology_qubits != "used" or topology_resize != "error"
 
 
 __all__ = [

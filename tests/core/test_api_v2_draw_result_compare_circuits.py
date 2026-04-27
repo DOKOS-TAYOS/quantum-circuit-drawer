@@ -668,6 +668,117 @@ def test_compare_circuits_accepts_multiple_circuits_with_summary_columns() -> No
         plt.close(figure)
 
 
+def test_compare_circuits_multi_summary_headers_fit_without_overlap() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        build_single_qubit_reference_ir(),
+        build_reference_compare_ir(),
+        config=CircuitCompareConfig(
+            compare=CircuitCompareOptions(
+                left_title="Source",
+                right_title="Opt level 0",
+                titles=("Source", "Opt level 0", "Opt level 1", "Opt level 3"),
+            ),
+            output=OutputOptions(show=False),
+        ),
+    )
+
+    try:
+        result.figure.canvas.draw()
+        renderer = result.figure.canvas.get_renderer()
+        header_texts = [
+            text
+            for text in result.figure.texts
+            if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-header"
+            and text.get_text() != "Metric"
+        ]
+        figure_bbox = result.figure.bbox
+
+        assert [text.get_text() for text in header_texts] == [
+            "Source",
+            "Opt level 0",
+            "Opt level 1",
+            "Opt level 3",
+        ]
+
+        header_bboxes = [text.get_window_extent(renderer=renderer) for text in header_texts]
+
+        assert all(bbox.x0 >= figure_bbox.x0 + 12.0 for bbox in header_bboxes)
+        assert all(bbox.x1 <= figure_bbox.x1 - 20.0 for bbox in header_bboxes)
+        assert all(
+            not left_bbox.overlaps(right_bbox)
+            for left_bbox, right_bbox in zip(header_bboxes, header_bboxes[1:], strict=False)
+        )
+    finally:
+        for figure in (
+            *result.side_results[0].figures,
+            *result.side_results[1].figures,
+            *result.side_results[2].figures,
+            *result.side_results[3].figures,
+            result.figure,
+        ):
+            plt.close(figure)
+
+
+def test_compare_circuits_multi_summary_headers_fit_inside_caller_managed_summary_axes() -> None:
+    figure = plt.figure(figsize=(11.0, 7.0), constrained_layout=True)
+    grid = figure.add_gridspec(2, 4)
+    summary_axes = figure.add_subplot(grid[1, :])
+    side_axes = tuple(figure.add_subplot(grid[0, index]) for index in range(4))
+
+    compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        build_single_qubit_reference_ir(),
+        build_reference_compare_ir(),
+        config=CircuitCompareConfig(
+            compare=CircuitCompareOptions(
+                left_title="Source",
+                right_title="Opt level 0",
+                titles=("Source", "Opt level 0", "Opt level 1", "Opt level 3"),
+            ),
+            output=OutputOptions(show=False),
+        ),
+        axes=side_axes,
+        summary_ax=summary_axes,
+    )
+
+    try:
+        figure.canvas.draw()
+        renderer = figure.canvas.get_renderer()
+        summary_bounds = summary_axes.get_position()
+        header_texts = [
+            text
+            for text in figure.texts
+            if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-header"
+            and text.get_text() != "Metric"
+        ]
+        header_bboxes = [text.get_window_extent(renderer=renderer) for text in header_texts]
+        figure_width = float(figure.bbox.width)
+        figure_height = float(figure.bbox.height)
+
+        assert [text.get_text() for text in header_texts] == [
+            "Source",
+            "Opt level 0",
+            "Opt level 1",
+            "Opt level 3",
+        ]
+        assert all(
+            summary_bounds.x0 <= float(bbox.x0) / figure_width
+            and float(bbox.x1) / figure_width <= summary_bounds.x1
+            and summary_bounds.y0 <= float(bbox.y0) / figure_height
+            and float(bbox.y1) / figure_height <= summary_bounds.y1
+            for bbox in header_bboxes
+        )
+        assert all(
+            not left_bbox.overlaps(right_bbox)
+            for left_bbox, right_bbox in zip(header_bboxes, header_bboxes[1:], strict=False)
+        )
+    finally:
+        plt.close(figure)
+
+
 def test_compare_circuits_full_mode_without_axes_uses_three_normal_figures() -> None:
     result = compare_circuits(
         build_reference_compare_ir(),
@@ -868,6 +979,58 @@ def test_compare_circuits_uses_caller_managed_axes_and_saves_single_output(
     assert result.axes == (axes[0], axes[1])
     assert result.saved_path == str(output_path.resolve())
     assert_saved_image_has_visible_content(output_path)
+
+    plt.close(figure)
+
+
+def test_compare_circuits_can_render_summary_into_caller_managed_axes() -> None:
+    figure = plt.figure(figsize=(10.0, 7.0), constrained_layout=True)
+    grid = figure.add_gridspec(2, 2)
+    left_axes = figure.add_subplot(grid[0, 0])
+    right_axes = figure.add_subplot(grid[0, 1])
+    summary_axes = figure.add_subplot(grid[1, :])
+
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
+        axes=(left_axes, right_axes),
+        summary_ax=summary_axes,
+    )
+
+    summary_bounds = summary_axes.get_position()
+    summary_texts = [
+        text
+        for text in figure.texts
+        if getattr(text, "get_gid", lambda: None)()
+        in {"circuit-compare-summary-header", "circuit-compare-summary-row"}
+    ]
+
+    assert result.summary_axes is summary_axes
+    assert summary_axes.axison is False
+    assert {"Metric", "Left", "Right", "\u0394"}.issubset(
+        {text.get_text() for text in summary_texts}
+    )
+    assert all(
+        summary_bounds.x0 <= text.get_position()[0] <= summary_bounds.x1
+        and summary_bounds.y0 <= text.get_position()[1] <= summary_bounds.y1
+        for text in summary_texts
+    )
+    row_positions = sorted(
+        {
+            round(text.get_position()[1], 4)
+            for text in summary_texts
+            if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+        },
+        reverse=True,
+    )
+    row_gaps = [
+        upper_row - lower_row
+        for upper_row, lower_row in zip(row_positions, row_positions[1:], strict=False)
+    ]
+
+    assert len(row_positions) == 5
+    assert min(row_gaps) >= 0.018
 
     plt.close(figure)
 

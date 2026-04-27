@@ -17,7 +17,7 @@ from ..style import (
     resolved_topology_edge_line_width,
 )
 from ._matplotlib_figure import append_artist_click_target
-from ._matplotlib_renderer_3d_hover import attach_hover_3d
+from ._matplotlib_renderer_3d_hover import HoverTarget3D, attach_hover_3d
 from ._matplotlib_renderer_3d_text import (
     _aligned_text_path,
     _TextPathCacheKey,
@@ -64,7 +64,7 @@ def draw_markers_3d(
     renderer: MatplotlibRenderer3D,
     axes: Axes3D,
     scene: LayoutScene3D,
-) -> list[tuple[Artist, str]]:
+) -> list[HoverTarget3D]:
     if scene.hover_enabled or _requires_individual_marker_artists(scene):
         return draw_markers_with_hover_3d(renderer, axes, scene)
     return draw_markers_batched_3d(axes, scene)
@@ -74,9 +74,9 @@ def draw_markers_with_hover_3d(
     renderer: MatplotlibRenderer3D,
     axes: Axes3D,
     scene: LayoutScene3D,
-) -> list[tuple[Artist, str]]:
+) -> list[HoverTarget3D]:
     del renderer
-    hover_targets: list[tuple[Artist, str]] = []
+    hover_targets: list[HoverTarget3D] = []
     for marker in scene.markers:
         if marker.style is MarkerStyle3D.TOPOLOGY_NODE:
             axes.scatter(
@@ -121,7 +121,10 @@ def draw_markers_with_hover_3d(
                     operation_id=marker.operation_id,
                     priority=35,
                 )
-            hover_targets.append((artist, "control"))
+            if marker.hover_data is not None:
+                hover_targets.append((artist, marker.hover_data))
+            elif marker.hover_text:
+                hover_targets.append((artist, marker.hover_text))
             continue
         size = marker.size
         collection = Line3DCollection(
@@ -159,7 +162,7 @@ def draw_markers_with_hover_3d(
 def draw_markers_batched_3d(
     axes: Axes3D,
     scene: LayoutScene3D,
-) -> list[tuple[Artist, str]]:
+) -> list[HoverTarget3D]:
     topology_nodes = [
         marker for marker in scene.markers if marker.style is MarkerStyle3D.TOPOLOGY_NODE
     ]
@@ -451,11 +454,12 @@ def clear_batched_text_artists_3d(
 def attach_hover_targets_3d(
     axes: Axes3D,
     scene: LayoutScene3D,
-    hover_targets: list[tuple[Artist, str]],
+    hover_targets: list[HoverTarget3D],
 ) -> None:
     attach_hover_3d(
         axes,
         hover_targets=hover_targets,
+        hover_options=scene.hover_options,
         hover_facecolor=scene.style.theme.hover_facecolor,
         hover_edgecolor=scene.style.theme.hover_edgecolor,
         hover_text_color=scene.style.theme.hover_text_color,

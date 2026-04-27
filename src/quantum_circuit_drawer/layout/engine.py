@@ -11,6 +11,7 @@ from ._layout_scaffold import _LayoutScaffold, build_layout_scaffold
 from ._operation_layout import _SceneCollections, build_scene_collections
 from .scene import LayoutScene
 from .spacing import operation_width_from_parts
+from .topology_3d import Topology3D
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class LayoutEngine:
         style: DrawStyle,
         *,
         hover_enabled: bool = True,
+        hover_topology: Topology3D | None = None,
     ) -> LayoutScene:
         if not circuit.quantum_wires:
             raise LayoutError("circuit must contain at least one quantum wire")
@@ -40,6 +42,7 @@ class LayoutEngine:
             circuit,
             scaffold,
             hover_enabled=hover_enabled,
+            hover_topology=hover_topology,
         )
         scene = LayoutScene(
             width=scaffold.scene_width,
@@ -84,9 +87,11 @@ class LayoutEngine:
         scaffold: _LayoutScaffold,
         *,
         hover_enabled: bool = True,
+        hover_topology: Topology3D | None = None,
     ) -> _SceneCollections:
         return build_scene_collections(
             circuit,
             scaffold,
             hover_enabled=hover_enabled,
+            hover_topology=hover_topology,
         )

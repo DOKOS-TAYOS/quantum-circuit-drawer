@@ -43,6 +43,7 @@ compare_circuits(
     *additional_circuits: object,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, ...] | None = None,
+    summary_ax: Axes | None = None,
 ) -> CircuitCompareResult
 
 plot_histogram(
@@ -308,6 +309,7 @@ Notes:
 - the default `auto` mode renders compared circuits as normal managed `pages_controls` figures and uses `result.figure` for the compact comparison summary
 - explicit circuit modes `pages`, `pages_controls`, and `slider` also render compared circuits as normal managed circuit figures
 - explicit `mode="full"` or caller-owned `axes` use the static side-by-side comparison path
+- `summary_ax` can be used with caller-owned `axes` to place the library-generated summary card in a reserved Matplotlib subplot
 - for 3+ circuits, the summary table has one column per circuit and highlights the lowest aggregate value in green and the highest in red on each row
 
 ### `CircuitCompareResult`
@@ -622,6 +624,7 @@ For histograms:
 
 `compare_circuits(...)` accepts `axes=(left_axes, right_axes)` when you want to embed the comparison in your own Matplotlib figure.
 Caller-owned axes are only valid for the static comparison path. With axes, `mode="auto"` is treated like `mode="full"`. Managed compare modes such as `pages`, `pages_controls`, and `slider` create their own figures, just like `draw_quantum_circuit(...)`.
+Pass `summary_ax=...` when you want the built-in comparison summary card to appear in a separate subplot instead of as a compact overlay on the shared figure.
 
 ## Style and theme
 

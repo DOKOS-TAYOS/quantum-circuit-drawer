@@ -17,8 +17,8 @@ The direct utility demos are the best copy-paste examples when you want to use r
 
 | Demo                                  | Why run it first                                                                                                           | Platform                     |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `qiskit-2d-exploration-showcase`      | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual block controls | Windows and Linux            |
-| `qiskit-3d-exploration-showcase`      | Managed 3D exploration with topology-aware selection, persistent block highlights, and contextual block controls           | Windows and Linux            |
+| `qiskit-2d-exploration-showcase`      | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and topology-aware hover SWAP estimates | Windows and Linux            |
+| `qiskit-3d-exploration-showcase`      | Managed 3D exploration with topology-aware selection and hover, persistent block highlights, controlled interactions, and contextual block controls | Windows and Linux            |
 | `qiskit-control-flow-showcase`        | Native Qiskit control-flow boxes and open controls                                                                         | Windows and Linux            |
 | `qiskit-composite-modes-showcase`     | Compact versus expanded composite instructions                                                                             | Windows and Linux            |
 | `openqasm-showcase`                   | OpenQASM text input through the Qiskit parser path                                                                          | Windows and Linux            |
@@ -28,12 +28,12 @@ The direct utility demos are the best copy-paste examples when you want to use r
 | `style-accessible-showcase`           | The shared `accessible` preset on circuit and histogram output                                                              | Windows and Linux            |
 | `diagnostics-showcase`                | Diagnostics, warnings, `to_dict()`, and non-rendering analysis                                                              | Windows and Linux            |
 | `cli-export-showcase`                 | The installed `qcd` CLI path for JSON histogram exports                                                                     | Windows and Linux            |
-| `qiskit-backend-topology-showcase`    | Qiskit backend topology conversion into a 3D hardware view                                                                  | Windows and Linux            |
+| `qiskit-backend-topology-showcase`    | Qiskit backend topology conversion into a 3D hardware view with long-range hover SWAP estimates                             | Windows and Linux            |
 | `cirq-native-controls-showcase`       | Native controls, classical control, and `CircuitOperation` provenance                                                      | Prefer Linux or WSL          |
 | `pennylane-terminal-outputs-showcase` | `qml.cond(...)`, mid-measurement, and terminal output boxes                                                                | Prefer Linux or WSL          |
 | `myqlm-structural-showcase`           | Native MyQLM adapter path with compact composite routines                                                                  | Windows and Linux with MyQLM |
 | `cudaq-kernel-showcase`               | Supported CUDA-Q subset, including scalar runtime arguments in the direct script                                           | Linux or WSL2                |
-| `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend selection on supported backends                      | Windows and Linux            |
+| `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend toggles on supported backends                        | Windows and Linux            |
 | `compare-histograms-multi-series`     | Multi-series comparison with ideal, noisy, raw hardware, and mitigated distributions                                       | Windows and Linux            |
 
 
@@ -154,6 +154,8 @@ This block includes the full curated catalog.
 .venv/bin/python examples/compare_histograms_multi_series.py
 ```
 
+The CLI export showcase writes `examples/output/cli-export-showcase.png` by default. Use `--output` to choose another PNG path.
+
 ## Circuit Workflows
 
 ### Catalog
@@ -161,8 +163,8 @@ This block includes the full curated catalog.
 
 | Demo                                  | Focus                                                                                                           | Notes                                                                                                                       |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `qiskit-2d-exploration-showcase`      | Managed 2D exploration, active-wire filtering, ancilla toggles, folded-wire markers, contextual collapse/expand | Best first demo for `pages_controls` and `slider` on a circuit with intentional idle wires and reusable composite structure |
-| `qiskit-3d-exploration-showcase`      | Managed 3D exploration, topology-aware selection, and contextual block controls                                 | Best first demo for managed 3D exploration, selection, expand/collapse, and topology switching on the shared semantic path  |
+| `qiskit-2d-exploration-showcase`      | Managed 2D exploration, active-wire filtering, ancilla toggles, folded-wire markers, topology-aware hover SWAP estimates, contextual collapse/expand | Best first demo for `pages_controls` and `slider` on a circuit with intentional idle wires, reusable composite structure, and 2D topology hover details |
+| `qiskit-3d-exploration-showcase`      | Managed 3D exploration, topology-aware selection and hover, controlled interactions, and contextual block controls | Best first demo for managed 3D exploration, selection, expand/collapse, and hover parity across cubes and controls on the shared semantic path |
 | `qiskit-control-flow-showcase`        | Native `if_else`, `switch_case`, loops, open controls                                                           | Best first Qiskit demo                                                                                                      |
 | `qiskit-composite-modes-showcase`     | Composite instructions that are useful with `--composite-mode compact\|expand`                                  | Shows compact versus expanded composite instructions on the same workflow                                                   |
 | `openqasm-showcase`                   | OpenQASM text input                                                                                             | Catalog demo for the Qiskit parser path                                                                                    |
@@ -233,9 +235,9 @@ Linux or WSL:
 
 Use the broad Qiskit demos for option sweeps because they are the most reliable multiplatform path.
 
-When you specifically want the managed 2D controls, use `qiskit-2d-exploration-showcase` first and then widen out to `qiskit-random`.
+When you specifically want the managed 2D controls, use `qiskit-2d-exploration-showcase` first and then widen out to `qiskit-random`. The 2D showcase defaults to `grid` so the hover can show topology-aware SWAP estimates immediately.
 
-When you want managed 3D exploration, start with `qiskit-3d-exploration-showcase` before using `qiskit-qaoa` as the denser follow-up.
+When you want managed 3D exploration, start with `qiskit-3d-exploration-showcase` before using `qiskit-qaoa` as the denser follow-up. For backend-derived topology hover details, use `qiskit-backend-topology-showcase`.
 
 Windows PowerShell:
 
@@ -292,7 +294,7 @@ These direct scripts are intentionally small and copyable. They cover the practi
 | `style-accessible-showcase` | accessible circuit and histogram styling with the shared `accessible` preset |
 | `diagnostics-showcase` | diagnostics, warnings, resolved modes, page counts, and analysis summaries |
 | `cli-export-showcase` | `qcd histogram` from a JSON file with `--data-key`, sorting, top-k filtering, and export |
-| `qiskit-backend-topology-showcase` | Qiskit backend topology conversion with `HardwareTopology.from_qiskit_backend(...)` and a 3D hardware view |
+| `qiskit-backend-topology-showcase` | Qiskit backend topology conversion with `HardwareTopology.from_qiskit_backend(...)`, long-range multi-qubit motifs, and a 3D hardware view |
 
 Windows PowerShell:
 
@@ -400,7 +402,7 @@ Useful histogram flags:
 | `compare-circuits-qiskit-transpile`   | Before/after transpilation                                                                                  | qiskit     |
 | `compare-circuits-composite-modes`    | Compact versus expanded composite views                                                                     | qiskit     |
 | `compare-circuits-multi-transpile`    | Source circuit versus several Qiskit transpilation optimization levels                                       | qiskit     |
-| `compare-histograms-ideal-vs-sampled` | Ideal versus sampled distribution on one state space, with clickable legend selection on interactive backends | none       |
+| `compare-histograms-ideal-vs-sampled` | Ideal versus sampled distribution on one state space, with clickable legend toggles on interactive backends | none       |
 | `compare-histograms-multi-series`     | Ideal, noisy, raw hardware, and mitigated distributions in one selectable overlay                            | none       |
 
 
@@ -428,7 +430,7 @@ Linux or WSL:
 
 Circuit-compare demos default to `--mode pages_controls`, and every circuit-compare mode opens one normal Matplotlib window per circuit plus the summary table when the example owns the figures.
 
-On interactive Matplotlib backends, compare-histogram demos let you click either a legend swatch or legend label to focus that series. Clicking another legend entry switches the focused series.
+On interactive Matplotlib backends, compare-histogram demos let you click either a legend swatch or legend label to toggle each series on or off independently while keeping the legend fixed in place.
 
 Useful compare flags:
 

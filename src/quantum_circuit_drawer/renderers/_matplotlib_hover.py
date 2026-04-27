@@ -13,6 +13,7 @@ from ..layout.scene import SceneHoverData
 from ..style.theme import DrawTheme
 from ..utils.matrix_support import matrix_qubit_count, square_matrix
 from ._matplotlib_figure import HoverState, set_hover_state
+from ._matplotlib_hover_position import position_hover_annotation
 
 _HOVER_ZORDER = 10_000
 _SMALL_GATE_PIXEL_THRESHOLD = 48.0
@@ -138,8 +139,12 @@ def attach_hover(
             hide_annotation()
             return
 
-        annotation.xy = (event.x, event.y)
         annotation.set_text(hover_text)
+        position_hover_annotation(
+            annotation,
+            anchor_x=float(event.x),
+            anchor_y=float(event.y),
+        )
         annotation.set_visible(True)
         active_hover_key = hover_box.hover_data.key
         canvas.draw_idle()
