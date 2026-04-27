@@ -127,6 +127,7 @@ This is the production support contract for the current release.
 | Compare two versions of a circuit | [Compare two circuits](#compare-two-circuits) |
 | Compare two distributions | [Compare two histograms](#compare-two-histograms) |
 | Build a circuit without a framework dependency | [Build with public IR tools](#build-with-public-ir-tools) |
+| Learn the full user-facing feature set | [Extended guide](docs/extended_guide.md) |
 | Explore framework-specific demos | [Recommended demos](#recommended-demos) |
 
 ## Command Line
@@ -429,7 +430,7 @@ result = compare_histograms(
 )
 ```
 
-This is useful when you want one aligned state space and quick metrics such as total variation distance. On interactive Matplotlib backends, the compare legend is clickable so you can hide or restore either series while keeping the axes and hover state in sync.
+This is useful when you want one aligned state space and quick metrics such as total variation distance. On interactive Matplotlib backends, the compare legend is clickable so you can focus one selected series at a time while keeping the axes and hover state in sync.
 
 ## Build With Public IR Tools
 
@@ -543,7 +544,7 @@ The fastest way to see the current strengths of the library is to run one of the
 | `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
 | `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
 | `cudaq-kernel-showcase` | The supported CUDA-Q subset with scalar runtime arguments, reset, and basis measurements |
-| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend toggles on interactive backends |
+| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend selection on interactive backends |
 | `histogram-quasi-nonnegative` | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero |
 
 Windows PowerShell:
@@ -580,6 +581,7 @@ Use these pages depending on what you need:
 - [Installation](docs/installation.md)
 - [Getting started](docs/getting-started.md)
 - [User guide](docs/user-guide.md)
+- [Extended guide](docs/extended_guide.md)
 - [API reference](docs/api.md)
 - [Frameworks](docs/frameworks.md)
 - [Recipes](docs/recipes.md)

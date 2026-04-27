@@ -1,6 +1,7 @@
 # Frameworks
 
 This guide explains how `quantum-circuit-drawer` behaves across the supported input paths.
+For a broader user manual that also covers modes, managed controls, CLI usage, histograms, comparisons, and result helpers, see the [Extended guide](extended_guide.md).
 
 In the common case, your call still looks the same:
 

@@ -439,7 +439,7 @@ def test_compare_histograms_hover_can_be_disabled() -> None:
     plt.close(result.figure)
 
 
-def test_compare_histograms_legend_toggle_hides_series_and_updates_hover_and_limits() -> None:
+def test_compare_histograms_legend_click_shows_only_selected_series_and_updates_hover() -> None:
     result = compare_histograms(
         {"00": 8, "01": 2},
         {"00": 4, "01": 5},
@@ -470,22 +470,22 @@ def test_compare_histograms_legend_toggle_hides_series_and_updates_hover_and_lim
 
     assert left_patches
     assert right_patches
-    assert all(patch.get_visible() is False for patch in left_patches)
-    assert all(patch.get_visible() is True for patch in right_patches)
-    assert result.axes.get_ylim() == pytest.approx((0.0, 5.25))
+    assert all(patch.get_visible() is True for patch in left_patches)
+    assert all(patch.get_visible() is False for patch in right_patches)
+    assert result.axes.get_ylim() == pytest.approx((0.0, 8.4))
 
     result.figure.canvas.draw()
-    _dispatch_motion_event(result.figure, right_patches[0])
+    _dispatch_motion_event(result.figure, left_patches[0])
     annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
 
     assert annotation.get_visible() is True
-    assert "Sampled counts: 4" in annotation.get_text()
-    assert "Ideal counts" not in annotation.get_text()
+    assert "Ideal counts: 8" in annotation.get_text()
+    assert "Sampled counts" not in annotation.get_text()
 
     plt.close(result.figure)
 
 
-def test_compare_histograms_legend_toggle_keeps_empty_state_stable_when_all_series_hidden() -> None:
+def test_compare_histograms_legend_click_switches_selection_without_empty_state() -> None:
     result = compare_histograms(
         {"00": 8, "01": 2},
         {"00": 4, "01": 5},
@@ -501,16 +501,31 @@ def test_compare_histograms_legend_toggle_keeps_empty_state_stable_when_all_seri
 
     assert legend is not None
 
-    for legend_text in legend.get_texts():
-        _dispatch_pick_event(result.figure, legend_text)
+    _dispatch_pick_event(result.figure, legend.get_texts()[0])
+    _dispatch_pick_event(result.figure, legend.get_texts()[1])
+    _dispatch_pick_event(result.figure, legend.get_texts()[1])
 
-    assert result.axes.get_ylim() == pytest.approx((0.0, 1.0))
+    left_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:left"
+    ]
+    right_patches = [
+        patch
+        for patch in result.axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "histogram-compare:right"
+    ]
+
+    assert all(patch.get_visible() is False for patch in left_patches)
+    assert all(patch.get_visible() is True for patch in right_patches)
+    assert result.axes.get_ylim() == pytest.approx((0.0, 5.25))
 
     result.figure.canvas.draw()
-    visible_patch = next(iter(result.axes.patches))
-    _dispatch_motion_event(result.figure, visible_patch)
+    _dispatch_motion_event(result.figure, right_patches[0])
     annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
 
-    assert annotation.get_visible() is False
+    assert annotation.get_visible() is True
+    assert "Sampled counts: 4" in annotation.get_text()
+    assert "Ideal counts" not in annotation.get_text()
 
     plt.close(result.figure)

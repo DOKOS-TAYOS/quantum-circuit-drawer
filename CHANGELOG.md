@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added `docs/extended_guide.md` as a long-form user manual covering install choices, public configs, draw modes, managed controls, 3D topology workflows, CLI usage, framework notes, histograms, comparisons, examples, and troubleshooting paths.
 - Added `analyze_quantum_circuit(...)` and `CircuitAnalysisResult` for non-rendering circuit analysis before opening windows or saving figures.
 - Added result export helpers: `save(...)`, `to_dict()`, circuit `save_all_pages(...)`, and histogram `to_csv(...)` methods on public result objects.
 - Added internally generated framework capability support tables to keep framework documentation aligned with the release support contract.
@@ -24,6 +25,7 @@
 ### Changed
 
 - Reused prepared 2D gate label text during Matplotlib rendering, reducing repeated label formatting and text-fit work without changing the rendered appearance.
+- Changed interactive compare-histogram legend clicks to focus the selected series exclusively instead of toggling series on and off.
 - Made Cirq and PennyLane adapter autodetection use narrow optional imports (`cirq.circuits` and `pennylane.tape`) so native Windows users avoid loading the heavier top-level packages during framework detection.
 - Removed unused private wrappers, unreachable compare-rendering code, and duplicated page-window clamping helpers while preserving public compatibility facades.
 - Made the real CUDA-Q Linux integration job run on normal CI events instead of only manual and scheduled runs.

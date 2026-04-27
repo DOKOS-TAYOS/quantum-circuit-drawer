@@ -9,6 +9,7 @@ This documentation is organized around what a user normally wants to do first: i
 | Install the package in a local `.venv` | [Installation](installation.md) |
 | Get the first circuit render working | [Getting started](getting-started.md) |
 | Understand the normal day-to-day workflows | [User guide](user-guide.md) |
+| Go deep on every user-facing feature, mode, and utility | [Extended guide](extended_guide.md) |
 | See exact public types, fields, and return values | [API reference](api.md) |
 | Check framework support and differences | [Frameworks](frameworks.md) |
 | Draw OpenQASM 2/3 text or `.qasm` / `.qasm3` files | [Recipes](recipes.md#draw-openqasm-2-or-3-text-or-a-qasm-qasm3-file) and [Frameworks](frameworks.md#openqasm-2-and-3) |
@@ -30,8 +31,9 @@ This documentation is organized around what a user normally wants to do first: i
 ### I already installed it and want to use it well
 
 1. [User guide](user-guide.md)
-2. [Frameworks](frameworks.md)
-3. [API reference](api.md)
+2. [Extended guide](extended_guide.md)
+3. [Frameworks](frameworks.md)
+4. [API reference](api.md)
 
 ### I have OpenQASM 2 or 3 text or a `.qasm` / `.qasm3` file
 
@@ -72,6 +74,7 @@ This documentation is organized around what a user normally wants to do first: i
 | [Installation](installation.md) | Python version, extras, Jupyter setup, editable installs, and platform notes |
 | [Getting started](getting-started.md) | The quickest path to a first render, save, histogram, and comparison |
 | [User guide](user-guide.md) | Practical advice for scripts, notebooks, 3D views, hover, presets, histograms, and compare workflows |
+| [Extended guide](extended_guide.md) | Long-form user manual for install choices, configs, modes, managed controls, 3D, histograms, comparisons, examples, and troubleshooting |
 | [API reference](api.md) | The exact public functions, configs, enums, result objects, and extension-facing modules |
 | [Frameworks](frameworks.md) | What changes across Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and the internal IR |
 | [Recipes](recipes.md) | Small copy-paste snippets for common tasks |

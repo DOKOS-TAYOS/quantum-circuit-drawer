@@ -196,6 +196,7 @@ For CUDA-Q development, use Linux or WSL2:
 ## Where To Go Next
 
 - [Getting started](getting-started.md) for your first successful draw or histogram
+- [Extended guide](extended_guide.md) for the detailed user manual after the first successful run
 - [Frameworks](frameworks.md) if you want to choose a backend path deliberately
 - [Examples](../examples/README.md) if you prefer runnable scripts over snippets
 - [Troubleshooting](troubleshooting.md) if an install or import step fails

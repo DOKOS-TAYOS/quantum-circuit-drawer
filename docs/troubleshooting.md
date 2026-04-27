@@ -1,6 +1,7 @@
 # Troubleshooting
 
 This page is organized by symptom so you can get to the likely fix quickly.
+For broader usage context before debugging a specific symptom, see the [Extended guide](extended_guide.md).
 
 ## Optional framework import fails
 

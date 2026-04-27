@@ -50,7 +50,7 @@ def get_demo_catalog() -> tuple[CompareDemoSpec, ...]:
         ),
         CompareDemoSpec(
             demo_id="compare-histograms-ideal-vs-sampled",
-            description="Ideal probabilities versus sampled counts over the same state space with clickable legend toggles",
+            description="Ideal probabilities versus sampled counts over the same state space with clickable legend selection",
             module_name="examples.compare_histograms_ideal_vs_sampled",
             builder_name="build_demo",
             compare_kind="histograms",

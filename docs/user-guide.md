@@ -1,6 +1,7 @@
 # User guide
 
 This guide focuses on how the library behaves in real use, not just on listing parameters.
+For the full user-facing manual with more examples, mode details, CLI flag tables, framework notes, and troubleshooting paths, see the [Extended guide](extended_guide.md).
 
 The best way to think about `quantum-circuit-drawer` is:
 
@@ -420,7 +421,7 @@ This is especially useful for:
 - baseline vs new execution comparisons
 - comparing two result objects with the same logical meaning but different noise levels
 
-On interactive Matplotlib backends, the compare legend is clickable so you can hide or restore either series without rebuilding the figure.
+On interactive Matplotlib backends, the compare legend is clickable so you can focus one selected series at a time without rebuilding the figure.
 
 ## Histogram Workflows
 

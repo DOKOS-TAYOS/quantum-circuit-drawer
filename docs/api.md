@@ -2,7 +2,7 @@
 
 This page documents the current public API surface.
 
-For task-oriented guidance, prefer [Getting started](getting-started.md), [User guide](user-guide.md), [Recipes](recipes.md), and [Examples](../examples/README.md). This page stays reference-oriented on purpose.
+For task-oriented guidance, prefer [Getting started](getting-started.md), [User guide](user-guide.md), [Recipes](recipes.md), and [Examples](../examples/README.md). For a fuller usage manual covering modes, managed controls, framework paths, CLI flags, histograms, comparisons, and troubleshooting in one place, use the [Extended guide](extended_guide.md). This page stays reference-oriented on purpose.
 
 The public entry points stay intentionally small:
 

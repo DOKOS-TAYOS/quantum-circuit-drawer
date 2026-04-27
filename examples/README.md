@@ -6,6 +6,8 @@ The examples are organized around normal user workflows:
 - call the public API directly
 - use the shared runners only when you want discovery or a quick catalog launcher
 
+If you want the longer explanation of what each mode, config block, managed control, histogram option, and comparison result means, read the [Extended guide](../docs/extended_guide.md).
+
 OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantum-circuit-drawer[qiskit]`, then pass text starting with `OPENQASM` or a `.qasm` path to `draw_quantum_circuit(...)`; use `framework="qasm"` when you want the parser path to be explicit.
 
 ## Start Here
@@ -22,7 +24,7 @@ OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantu
 | `pennylane-terminal-outputs-showcase` | `qml.cond(...)`, mid-measurement, and terminal output boxes                                                                | Prefer Linux or WSL          |
 | `myqlm-structural-showcase`           | Native MyQLM adapter path with compact composite routines                                                                  | Windows and Linux with MyQLM |
 | `cudaq-kernel-showcase`               | Supported CUDA-Q subset, including scalar runtime arguments in the direct script                                           | Linux or WSL2                |
-| `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend toggles on supported backends                        | Windows and Linux            |
+| `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend selection on supported backends                      | Windows and Linux            |
 
 
 ## Discovery
@@ -329,7 +331,7 @@ Useful histogram flags:
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------- |
 | `compare-circuits-qiskit-transpile`   | Before/after transpilation                                                                                  | qiskit     |
 | `compare-circuits-composite-modes`    | Compact versus expanded composite views                                                                     | qiskit     |
-| `compare-histograms-ideal-vs-sampled` | Ideal versus sampled distribution on one state space, with clickable legend toggles on interactive backends | none       |
+| `compare-histograms-ideal-vs-sampled` | Ideal versus sampled distribution on one state space, with clickable legend selection on interactive backends | none       |
 
 
 ### Commands
@@ -352,7 +354,7 @@ Linux or WSL:
 
 Circuit-compare demos default to `--mode pages_controls`, and every circuit-compare mode opens the left circuit, right circuit, and summary table as three normal Matplotlib windows when the example owns the figures.
 
-On interactive Matplotlib backends, `compare-histograms-ideal-vs-sampled` lets you click either the legend swatch or the legend label to hide and restore each series.
+On interactive Matplotlib backends, `compare-histograms-ideal-vs-sampled` lets you click either the legend swatch or the legend label to focus that series. Clicking the other legend entry switches the focused series.
 
 Useful compare flags:
 

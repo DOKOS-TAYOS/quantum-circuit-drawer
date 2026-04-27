@@ -1,6 +1,7 @@
 # Recipes
 
 These are copy-paste workflows for common tasks.
+For the detailed explanation behind these snippets and the full user-facing feature set, see the [Extended guide](extended_guide.md).
 
 ## Circuit Recipes
 

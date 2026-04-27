@@ -371,7 +371,7 @@ def attach_histogram_compare_legend_toggle(
     right_values: tuple[float, ...],
     kind: HistogramKind,
 ) -> None:
-    """Toggle compare-series visibility from legend clicks."""
+    """Select one compare series from legend clicks."""
 
     legend = artists.legend
     canvas = axes.figure.canvas
@@ -438,7 +438,8 @@ def attach_histogram_compare_legend_toggle(
         picked_series = legend_targets.get(getattr(event, "artist", None))
         if picked_series is None:
             return
-        artists.visible_series[picked_series] = not artists.visible_series[picked_series]
+        for series_name in artists.visible_series:
+            artists.visible_series[series_name] = series_name == picked_series
         apply_visibility()
 
     canvas.mpl_connect("pick_event", on_pick)

@@ -258,6 +258,7 @@ This is often the easiest way to generate small circuits in tests, docs, or prep
 ## What To Read Next
 
 - [User guide](user-guide.md): when to use each mode, hover, 3D, presets, and histogram options.
+- [Extended guide](extended_guide.md): the detailed user manual for configs, modes, managed controls, 3D, CLI, histograms, comparisons, examples, and troubleshooting.
 - [Frameworks](frameworks.md): what changes across Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR.
 - [API reference](api.md): exact fields, enums, return types, and extension-facing modules.
 - [Recipes](recipes.md): copy-paste tasks for common usage patterns.

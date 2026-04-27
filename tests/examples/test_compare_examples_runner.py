@@ -135,7 +135,7 @@ def test_compare_demo_catalog_exposes_expected_demo_ids() -> None:
     }
 
 
-def test_compare_examples_readme_mentions_histogram_legend_toggle() -> None:
+def test_compare_examples_readme_mentions_histogram_legend_selection() -> None:
     examples_readme = Path("examples/README.md").read_text(encoding="utf-8")
 
     assert "compare-histograms-ideal-vs-sampled" in examples_readme
