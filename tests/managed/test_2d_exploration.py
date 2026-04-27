@@ -5,7 +5,7 @@ from typing import cast
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
 import quantum_circuit_drawer.managed.rendering as managed_module
@@ -848,6 +848,173 @@ def test_page_window_click_selection_uses_visible_page_coordinates() -> None:
         plt.close(figure)
 
 
+def test_page_window_arrow_keys_navigate_pages_and_visible_count() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+
+        _dispatch_key_press(figure, "down")
+        assert page_window.visible_page_count == 2
+
+        _dispatch_key_press(figure, "up")
+        assert page_window.visible_page_count == 1
+
+        _dispatch_key_press(figure, "right")
+        assert page_window.start_page == 1
+
+        _dispatch_key_press(figure, "left")
+        assert page_window.start_page == 0
+    finally:
+        plt.close(figure)
+
+
+def test_slider_arrow_keys_move_horizontal_and_vertical_windows() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    try:
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.max_start_column > 0
+        assert page_slider.max_start_row > 0
+
+        _dispatch_key_press(figure, "right")
+        assert page_slider.start_column == 1
+
+        _dispatch_key_press(figure, "down")
+        assert page_slider.start_row == 1
+
+        _dispatch_key_press(figure, "left")
+        assert page_slider.start_column == 0
+
+        _dispatch_key_press(figure, "up")
+        assert page_slider.start_row == 0
+    finally:
+        plt.close(figure)
+
+
+def test_slider_enter_toggles_selected_block() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=3.0)
+    scene = managed_module.build_continuous_slider_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=2.6,
+        figure_height=2.8,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_slider(
+            figure=figure,
+            axes=axes,
+            scene=scene,
+            viewport_width=scene.width,
+            set_page_slider=set_page_slider,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            normalized_style=style,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+        )
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+
+        page_slider.select_operation("op:0")
+        _dispatch_key_press(figure, "enter")
+        assert page_slider.exploration is not None
+        assert page_slider.exploration.selected_operation_id == "op:0.0"
+
+        _dispatch_key_press(figure, " ")
+        assert page_slider.exploration.selected_operation_id == "op:0"
+    finally:
+        plt.close(figure)
+
+
+def test_page_window_double_click_toggles_clicked_block() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=3.0)
+    scene = managed_module.compute_paged_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=3.2,
+        figure_height=3.0,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            scene=scene,
+            effective_page_width=style.max_page_width,
+            set_page_window=set_page_window,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+        )
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        selected_gate = next(
+            gate for gate in page_window.window_scene.gates if gate.operation_id == "op:0"
+        )
+        visible_page = page_window.window_scene.pages[0]
+
+        _dispatch_click_at_data(
+            figure,
+            axes,
+            x=selected_gate.x + page_x_offset(visible_page, page_window.window_scene),
+            y=selected_gate.y + page_y_offset(visible_page),
+            dblclick=True,
+        )
+        assert page_window.exploration is not None
+        assert page_window.exploration.selected_operation_id == "op:0.0"
+
+        selected_gate = next(
+            gate for gate in page_window.window_scene.gates if gate.operation_id == "op:0.0"
+        )
+        visible_page = page_window.window_scene.pages[0]
+        _dispatch_click_at_data(
+            figure,
+            axes,
+            x=selected_gate.x + page_x_offset(visible_page, page_window.window_scene),
+            y=selected_gate.y + page_y_offset(visible_page),
+            dblclick=True,
+        )
+        assert page_window.exploration.selected_operation_id == "op:0"
+    finally:
+        plt.close(figure)
+
+
 def test_page_window_wire_filter_refresh_keeps_hover_connected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -878,6 +1045,47 @@ def test_page_window_wire_filter_refresh_keeps_hover_connected(
         assert get_hover_state(axes) is not None
     finally:
         plt.close(figure)
+
+
+def test_public_managed_interaction_flags_disable_keyboard_and_double_click() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    result = public_draw_quantum_circuit(
+        lower_semantic_circuit(current_semantic_ir),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            style={"max_page_width": 3.0},
+            hover=True,
+            show=False,
+            keyboard_shortcuts=False,
+            double_click_toggle=False,
+        ),
+    )
+
+    try:
+        figure = result.primary_figure
+        axes = result.primary_axes
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+
+        _dispatch_key_press(figure, "right")
+        assert page_window.start_page == 0
+
+        selected_gate = next(
+            gate for gate in page_window.window_scene.gates if gate.operation_id == "op:0"
+        )
+        visible_page = page_window.window_scene.pages[0]
+        _dispatch_click_at_data(
+            figure,
+            axes,
+            x=selected_gate.x + page_x_offset(visible_page, page_window.window_scene),
+            y=selected_gate.y + page_y_offset(visible_page),
+            dblclick=True,
+        )
+
+        assert page_window.exploration is not None
+        assert page_window.exploration.selected_operation_id == "op:0"
+    finally:
+        plt.close(result.primary_figure)
 
 
 def test_page_window_block_toggle_recovers_single_interleaved_collapsed_block() -> None:
@@ -932,6 +1140,7 @@ def _dispatch_click_at_data(
     *,
     x: float,
     y: float,
+    dblclick: bool = False,
 ) -> None:
     figure.canvas.draw()
     display_x, display_y = axes.transData.transform((x, y))
@@ -941,8 +1150,18 @@ def _dispatch_click_at_data(
         float(display_x),
         float(display_y),
         button=1,
+        dblclick=dblclick,
     )
     figure.canvas.callbacks.process("button_press_event", event)
+
+
+def _dispatch_key_press(figure: Figure, key: str) -> None:
+    event = KeyEvent(
+        "key_press_event",
+        figure.canvas,
+        key=key,
+    )
+    figure.canvas.callbacks.process("key_press_event", event)
 
 
 def _semantic_block_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:

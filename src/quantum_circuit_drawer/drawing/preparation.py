@@ -73,6 +73,8 @@ def prepare_draw_call(
         topology_resize=resolved_config.config.topology_resize,
         topology_menu=resolved_config.config.topology_menu,
         direct=resolved_config.config.direct,
+        keyboard_shortcuts=resolved_config.config.keyboard_shortcuts,
+        double_click_toggle=resolved_config.config.double_click_toggle,
         hover=resolved_config.config.hover,
         **adapter_options,
     )

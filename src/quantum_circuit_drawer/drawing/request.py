@@ -51,6 +51,8 @@ class DrawPipelineOptions:
     topology_hover: bool = False
     topology_menu: bool = False
     direct: bool = True
+    keyboard_shortcuts: bool = True
+    double_click_toggle: bool = True
     hover: HoverOptions = field(default_factory=lambda: HoverOptions(enabled=False))
     extra: Mapping[str, object] = field(default_factory=dict)
 
@@ -69,6 +71,8 @@ class DrawPipelineOptions:
             "topology_hover": self.topology_hover,
             "topology_menu": self.topology_menu,
             "direct": self.direct,
+            "keyboard_shortcuts": self.keyboard_shortcuts,
+            "double_click_toggle": self.double_click_toggle,
             "hover": self.hover,
             **self.extra,
         }
@@ -90,6 +94,8 @@ class DrawPipelineOptions:
             "topology_hover",
             "topology_menu",
             "direct",
+            "keyboard_shortcuts",
+            "double_click_toggle",
             "hover",
         ):
             options.pop(key, None)
@@ -135,6 +141,8 @@ def build_draw_request(
     topology_resize: TopologyResizeMode = "error",
     topology_menu: bool = False,
     direct: bool = True,
+    keyboard_shortcuts: bool = True,
+    double_click_toggle: bool = True,
     hover: bool | HoverOptions | Mapping[str, object] = False,
     **options: object,
 ) -> DrawRequest:
@@ -157,6 +165,8 @@ def build_draw_request(
         page_window=page_window,
         topology_menu=topology_menu,
         figsize=figsize,
+        keyboard_shortcuts=keyboard_shortcuts,
+        double_click_toggle=double_click_toggle,
     )
     resolved_hover, diagnostics = resolve_effective_hover(
         hover=normalized_hover,
@@ -192,6 +202,8 @@ def build_draw_request(
             ),
             topology_menu=topology_menu,
             direct=direct,
+            keyboard_shortcuts=keyboard_shortcuts,
+            double_click_toggle=double_click_toggle,
             hover=resolved_hover,
             extra=resolved_options,
         ),
@@ -212,6 +224,8 @@ def validate_public_options(
     page_window: object,
     topology_menu: object,
     figsize: object,
+    keyboard_shortcuts: object,
+    double_click_toggle: object,
 ) -> None:
     """Validate public draw options that are not enforced by Python typing."""
 
@@ -225,6 +239,8 @@ def validate_public_options(
     _validate_bool("page_slider", page_slider)
     _validate_bool("page_window", page_window)
     _validate_bool("topology_menu", topology_menu)
+    _validate_bool("keyboard_shortcuts", keyboard_shortcuts)
+    _validate_bool("double_click_toggle", double_click_toggle)
     _validate_figsize(figsize)
 
 

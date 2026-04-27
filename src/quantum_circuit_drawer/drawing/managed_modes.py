@@ -294,6 +294,8 @@ def _render_managed_3d_page_controls_result(
         pipeline=pipeline,
         page_scenes=page_scenes,
         set_page_window=set_page_window,
+        keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
+        double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
     )
     primary_axes = page_window.display_axes[0]
     if pipeline.draw_options.topology_menu and not use_agg_canvas:

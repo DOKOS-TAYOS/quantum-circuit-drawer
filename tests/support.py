@@ -95,6 +95,8 @@ def build_public_draw_config(
     topology_resize: str = "error",
     topology_menu: bool = False,
     direct: bool = True,
+    keyboard_shortcuts: bool = True,
+    double_click_toggle: bool = True,
     preset: object = None,
     style: object = None,
     hover: object = False,
@@ -119,6 +121,8 @@ def build_public_draw_config(
                 topology_resize=topology_resize,  # type: ignore[arg-type]
                 topology_menu=topology_menu,
                 direct=direct,
+                keyboard_shortcuts=keyboard_shortcuts,
+                double_click_toggle=double_click_toggle,
                 unsupported_policy=unsupported_policy,  # type: ignore[arg-type]
             ),
             appearance=CircuitAppearanceOptions(

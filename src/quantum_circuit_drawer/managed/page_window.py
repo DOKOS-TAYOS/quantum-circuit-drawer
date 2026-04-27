@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
 from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_ir
@@ -30,6 +30,12 @@ from .exploration_2d import (
     selected_block_action,
     toggle_wire_filter_mode,
     transform_semantic_circuit,
+)
+from .interaction import (
+    is_block_toggle_key,
+    managed_key_name,
+    managed_text_boxes_capture_keys,
+    toggle_operation_with_selection,
 )
 from .page_window_controls import _MAIN_AXES_BOUNDS, _attach_controls, _sync_inputs
 from .page_window_render import _render_current_window
@@ -87,7 +93,10 @@ class Managed2DPageWindowState:
     ui_palette: ManagedUiPalette | None = None
     is_syncing_inputs: bool = False
     exploration: Managed2DExplorationState | None = None
+    keyboard_shortcuts_enabled: bool = True
+    double_click_toggle_enabled: bool = True
     click_callback_id: int | None = None
+    key_callback_id: int | None = None
 
     def select_operation(self, operation_id: str | None) -> None:
         """Update the contextual selection and redraw the current page window."""
@@ -145,6 +154,34 @@ class Managed2DPageWindowState:
         _render_current_window(self)
         _sync_inputs(self)
 
+    def step_page(self, delta: int) -> None:
+        """Move the visible page window backward or forward."""
+
+        self.start_page = _clamp_page_index((self.start_page + 1) + delta, self.total_pages)
+        self.visible_page_count = _clamp_visible_page_count(
+            self.visible_page_count,
+            total_pages=self.total_pages,
+            start_page=self.start_page,
+        )
+        _render_current_window(self)
+        _sync_inputs(self)
+
+    def step_visible_pages(self, delta: int) -> None:
+        """Grow or shrink the visible page count."""
+
+        self.visible_page_count = _clamp_visible_page_count(
+            self.visible_page_count + delta,
+            total_pages=self.total_pages,
+            start_page=self.start_page,
+        )
+        _render_current_window(self)
+        _sync_inputs(self)
+
+    def managed_text_boxes(self) -> tuple[object | None, ...]:
+        """Return the managed text inputs that can capture keyboard input."""
+
+        return (self.page_box, self.visible_pages_box)
+
 
 def configure_page_window(
     *,
@@ -158,6 +195,8 @@ def configure_page_window(
     set_page_window: Callable[[Figure, object], None],
     semantic_ir: SemanticCircuitIR | None = None,
     expanded_semantic_ir: SemanticCircuitIR | None = None,
+    keyboard_shortcuts_enabled: bool = True,
+    double_click_toggle_enabled: bool = True,
 ) -> Managed2DPageWindowState:
     """Attach fixed page-window controls and render the initial visible window."""
 
@@ -194,10 +233,13 @@ def configure_page_window(
         visible_page_count=1,
         ui_palette=ui_palette,
         exploration=exploration,
+        keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
+        double_click_toggle_enabled=double_click_toggle_enabled,
     )
     set_page_window(figure, state)
     _attach_controls(state)
     _attach_window_selection_clicks(state)
+    _attach_window_key_shortcuts(state)
     _render_current_window(state)
     _sync_inputs(state)
     return state
@@ -303,6 +345,41 @@ def _attach_window_selection_clicks(state: Managed2DPageWindowState) -> None:
         if event.inaxes is not state.axes:
             return
         click_scene = state.window_scene or state.scene
-        state.select_operation(clicked_operation_id(state.axes, click_scene, event))
+        operation_id = clicked_operation_id(state.axes, click_scene, event)
+        if state.double_click_toggle_enabled and event.dblclick:
+            toggle_operation_with_selection(state, operation_id)
+            return
+        state.select_operation(operation_id)
 
     state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
+
+
+def _attach_window_key_shortcuts(state: Managed2DPageWindowState) -> None:
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is None:
+        return
+    if state.key_callback_id is not None:
+        canvas.mpl_disconnect(state.key_callback_id)
+
+    def _handle_key(event: KeyEvent) -> None:
+        if not state.keyboard_shortcuts_enabled:
+            return
+        if managed_text_boxes_capture_keys(state.managed_text_boxes()):
+            return
+        key_name = managed_key_name(event)
+        if key_name == "left":
+            state.step_page(-1)
+            return
+        if key_name == "right":
+            state.step_page(1)
+            return
+        if key_name == "up":
+            state.step_visible_pages(-1)
+            return
+        if key_name == "down":
+            state.step_visible_pages(1)
+            return
+        if is_block_toggle_key(event):
+            state.toggle_selected_block()
+
+    state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))

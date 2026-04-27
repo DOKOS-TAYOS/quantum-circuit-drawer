@@ -252,6 +252,8 @@ def configure_page_slider(
     normalized_style: DrawStyle | None = None,
     semantic_ir: object | None = None,
     expanded_semantic_ir: object | None = None,
+    keyboard_shortcuts_enabled: bool = True,
+    double_click_toggle_enabled: bool = True,
 ) -> None:
     """Attach and wire a slider that redraws discrete 2D circuit windows."""
 
@@ -271,6 +273,8 @@ def configure_page_slider(
         normalized_style=normalized_style,
         semantic_ir=cast("SemanticCircuitIR | None", semantic_ir),
         expanded_semantic_ir=cast("SemanticCircuitIR | None", expanded_semantic_ir),
+        keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
+        double_click_toggle_enabled=double_click_toggle_enabled,
     )
 
 
@@ -286,6 +290,8 @@ def configure_page_window(
     set_page_window: Callable[[Figure, object], None],
     semantic_ir: object | None = None,
     expanded_semantic_ir: object | None = None,
+    keyboard_shortcuts_enabled: bool = True,
+    double_click_toggle_enabled: bool = True,
 ) -> object:
     """Attach fixed page-window controls for one managed 2D figure."""
 
@@ -300,6 +306,8 @@ def configure_page_window(
         set_page_window=set_page_window,
         semantic_ir=cast("SemanticCircuitIR | None", semantic_ir),
         expanded_semantic_ir=cast("SemanticCircuitIR | None", expanded_semantic_ir),
+        keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
+        double_click_toggle_enabled=double_click_toggle_enabled,
     )
 
 
@@ -348,6 +356,8 @@ def configure_3d_page_slider(
     axes: Axes,
     pipeline: PreparedDrawPipeline,
     set_page_slider: Callable[[Figure, object], None],
+    keyboard_shortcuts_enabled: bool = True,
+    double_click_toggle_enabled: bool = True,
 ) -> object | None:
     """Attach and wire a 3D page slider that moves through circuit columns."""
 
@@ -356,6 +366,8 @@ def configure_3d_page_slider(
         axes=axes,
         pipeline=pipeline,
         set_page_slider=set_page_slider,
+        keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
+        double_click_toggle_enabled=double_click_toggle_enabled,
     )
 
 

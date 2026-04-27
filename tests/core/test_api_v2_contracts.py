@@ -200,6 +200,26 @@ def test_draw_config_validates_public_choices() -> None:
         )
 
 
+def test_circuit_render_options_accepts_managed_interaction_flags() -> None:
+    options = CircuitRenderOptions(
+        keyboard_shortcuts=False,
+        double_click_toggle=False,
+    )
+
+    assert options.keyboard_shortcuts is False
+    assert options.double_click_toggle is False
+
+
+@pytest.mark.parametrize("field_name", ["keyboard_shortcuts", "double_click_toggle"])
+def test_circuit_render_options_rejects_non_boolean_managed_interaction_flags(
+    field_name: str,
+) -> None:
+    kwargs = {field_name: "yes"}
+
+    with pytest.raises(ValueError, match=field_name):
+        CircuitRenderOptions(**kwargs)  # type: ignore[arg-type]
+
+
 def test_draw_config_rejects_boolean_figsize_entries() -> None:
     with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
         OutputOptions(figsize=(True, 2.0))

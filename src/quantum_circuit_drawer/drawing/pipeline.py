@@ -217,6 +217,8 @@ def coerce_pipeline_options(
         topology_hover=bool(options.get("topology_hover", False)),
         topology_menu=bool(options.get("topology_menu", False)),
         direct=bool(options.get("direct", True)),
+        keyboard_shortcuts=bool(options.get("keyboard_shortcuts", True)),
+        double_click_toggle=bool(options.get("double_click_toggle", True)),
         hover=_normalize_hover_option(options.get("hover", False)),
         extra={
             key: value
@@ -231,6 +233,8 @@ def coerce_pipeline_options(
                 "topology_hover",
                 "topology_menu",
                 "direct",
+                "keyboard_shortcuts",
+                "double_click_toggle",
                 "hover",
             }
         },

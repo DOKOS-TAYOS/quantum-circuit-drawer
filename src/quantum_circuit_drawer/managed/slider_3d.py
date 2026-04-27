@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
 from ..drawing.pipeline import PreparedDrawPipeline, _compute_3d_scene
@@ -40,6 +40,11 @@ from .exploration_2d import (
     selected_block_action,
     toggle_wire_filter_mode,
     transform_semantic_circuit,
+)
+from .interaction import (
+    is_block_toggle_key,
+    managed_key_name,
+    toggle_operation_with_selection,
 )
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .view_state_3d import (
@@ -91,9 +96,12 @@ class Managed3DPageSliderState:
     ancilla_toggle_axes: Axes | None = None
     block_toggle_axes: Axes | None = None
     exploration: Managed2DExplorationState | None = None
+    keyboard_shortcuts_enabled: bool = True
+    double_click_toggle_enabled: bool = True
     click_press_callback_id: int | None = None
     click_release_callback_id: int | None = None
-    pending_click: tuple[float, float] | None = None
+    key_callback_id: int | None = None
+    pending_click: tuple[float, float, bool] | None = None
 
     def show_start_column(self, start_column: int) -> None:
         """Render the requested 3D column window on the managed axes."""
@@ -177,6 +185,11 @@ class Managed3DPageSliderState:
         _refresh_3d_slider_exploration_context(self)
         self.show_start_column(self.start_column)
 
+    def step_start_column(self, delta: int) -> None:
+        """Move the managed 3D window by one column step."""
+
+        self.show_start_column(self.start_column + delta)
+
     def _scene_for_start_column(self, start_column: int) -> LayoutScene3D:
         cached_scene = self.scene_cache.get(start_column)
         if cached_scene is not None:
@@ -213,6 +226,8 @@ def configure_3d_page_slider(
     axes: Axes,
     pipeline: PreparedDrawPipeline,
     set_page_slider: Callable[[Figure, object], None],
+    keyboard_shortcuts_enabled: bool = True,
+    double_click_toggle_enabled: bool = True,
 ) -> Managed3DPageSliderState | None:
     """Attach and wire a managed 3D slider that moves through circuit columns."""
 
@@ -260,6 +275,8 @@ def configure_3d_page_slider(
         scene_cache={},
         ui_palette=palette,
         exploration=exploration,
+        keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
+        double_click_toggle_enabled=double_click_toggle_enabled,
     )
     initial_scene = state._scene_for_start_column(0)
     state.current_scene = initial_scene
@@ -283,6 +300,7 @@ def configure_3d_page_slider(
     slider.on_changed(lambda value: state.show_start_column(round(float(value))))
     state.horizontal_slider = slider
     _attach_3d_slider_selection_clicks(state)
+    _attach_3d_slider_key_shortcuts(state)
     _ensure_3d_slider_exploration_controls(state)
     _sync_3d_slider_exploration_buttons(state)
     set_page_slider(figure, state)
@@ -377,7 +395,7 @@ def _attach_3d_slider_selection_clicks(state: Managed3DPageSliderState) -> None:
         if state.exploration is None or event.inaxes is not state.axes or event.button != 1:
             state.pending_click = None
             return
-        state.pending_click = (float(event.x), float(event.y))
+        state.pending_click = (float(event.x), float(event.y), bool(event.dblclick))
 
     def _handle_release(event: MouseEvent) -> None:
         if state.exploration is None:
@@ -393,12 +411,39 @@ def _attach_3d_slider_selection_clicks(state: Managed3DPageSliderState) -> None:
             > _CLICK_RELEASE_MAX_DRAG_PIXELS
         ):
             return
-        state.select_operation(clicked_artist_operation_id(cast("Axes", state.axes), event))
+        operation_id = clicked_artist_operation_id(cast("Axes", state.axes), event)
+        if state.double_click_toggle_enabled and pending_click[2]:
+            toggle_operation_with_selection(state, operation_id)
+            return
+        state.select_operation(operation_id)
 
     state.click_press_callback_id = int(canvas.mpl_connect("button_press_event", _handle_press))
     state.click_release_callback_id = int(
         canvas.mpl_connect("button_release_event", _handle_release)
     )
+
+
+def _attach_3d_slider_key_shortcuts(state: Managed3DPageSliderState) -> None:
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is None:
+        return
+    if state.key_callback_id is not None:
+        canvas.mpl_disconnect(state.key_callback_id)
+
+    def _handle_key(event: KeyEvent) -> None:
+        if not state.keyboard_shortcuts_enabled:
+            return
+        key_name = managed_key_name(event)
+        if key_name == "left":
+            state.step_start_column(-1)
+            return
+        if key_name == "right":
+            state.step_start_column(1)
+            return
+        if is_block_toggle_key(event):
+            state.toggle_selected_block()
+
+    state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))
 
 
 def _3d_slider_exploration_button_bounds(

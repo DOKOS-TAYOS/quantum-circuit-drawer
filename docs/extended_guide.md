@@ -327,11 +327,15 @@ Managed 2D can include:
 - page navigation
 - visible-window controls
 - horizontal and vertical sliders when needed
+- keyboard shortcuts for navigation and selected-block toggling
 - click-based operation selection
+- double-click block expand/collapse when semantic provenance is available
 - `Wires: All/Active`
 - `Ancillas: Show/Hide`
 - contextual `Collapse` / `Expand` when semantic provenance is available
 - folded-wire markers such as `... N hidden wires ...`
+
+If you want to disable those managed interactions explicitly, use `CircuitRenderOptions(keyboard_shortcuts=False, double_click_toggle=False)`.
 
 Use these controls for:
 
@@ -431,6 +435,8 @@ result = draw_quantum_circuit(
 - `full`
 - shared camera state in managed page controls
 - topology-aware selection
+- keyboard shortcuts in managed `pages_controls` and `slider`
+- double-click block expand/collapse in managed `pages_controls` and `slider`
 - hover over selected operations when the backend supports interaction
 - optional topology menu in managed 3D views
 

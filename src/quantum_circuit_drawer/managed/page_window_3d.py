@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
 from ..ir.lowering import lower_semantic_circuit
@@ -23,6 +23,12 @@ from .exploration_2d import (
     selected_block_action,
     toggle_wire_filter_mode,
     transform_semantic_circuit,
+)
+from .interaction import (
+    is_block_toggle_key,
+    managed_key_name,
+    managed_text_boxes_capture_keys,
+    toggle_operation_with_selection,
 )
 from .page_window_3d_controls import (
     _attach_controls,
@@ -92,9 +98,12 @@ class Managed3DPageWindowState:
     ui_palette: ManagedUiPalette | None = None
     is_syncing_inputs: bool = False
     exploration: Managed2DExplorationState | None = None
+    keyboard_shortcuts_enabled: bool = True
+    double_click_toggle_enabled: bool = True
     click_press_callback_id: int | None = None
     click_release_callback_id: int | None = None
-    pending_click: tuple[float, float, Axes3D] | None = None
+    key_callback_id: int | None = None
+    pending_click: tuple[float, float, Axes3D, bool] | None = None
 
     @property
     def current_scene(self) -> LayoutScene3D:
@@ -182,6 +191,34 @@ class Managed3DPageWindowState:
         _render_current_window(self)
         _sync_inputs(self)
 
+    def step_page(self, delta: int) -> None:
+        """Move the visible page window backward or forward."""
+
+        self.start_page = min(max(0, self.start_page + delta), self.total_pages - 1)
+        self.visible_page_count = _clamp_visible_page_count(
+            self.visible_page_count,
+            total_pages=self.total_pages,
+            start_page=self.start_page,
+        )
+        _render_current_window(self)
+        _sync_inputs(self)
+
+    def step_visible_pages(self, delta: int) -> None:
+        """Grow or shrink the visible page count."""
+
+        self.visible_page_count = _clamp_visible_page_count(
+            self.visible_page_count + delta,
+            total_pages=self.total_pages,
+            start_page=self.start_page,
+        )
+        _render_current_window(self)
+        _sync_inputs(self)
+
+    def managed_text_boxes(self) -> tuple[object | None, ...]:
+        """Return the managed text inputs that can capture keyboard input."""
+
+        return (self.page_box, self.visible_pages_box)
+
 
 def configure_3d_page_window(
     *,
@@ -190,6 +227,8 @@ def configure_3d_page_window(
     pipeline: PreparedDrawPipeline,
     page_scenes: tuple[LayoutScene3D, ...],
     set_page_window: Callable[[Figure, object], None],
+    keyboard_shortcuts_enabled: bool = True,
+    double_click_toggle_enabled: bool = True,
 ) -> Managed3DPageWindowState:
     """Attach fixed page-window controls and render the initial 3D window."""
 
@@ -219,10 +258,13 @@ def configure_3d_page_window(
         visible_page_count=1,
         ui_palette=ui_palette,
         exploration=exploration,
+        keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
+        double_click_toggle_enabled=double_click_toggle_enabled,
     )
     set_page_window(figure, state)
     _attach_controls(state)
     _attach_3d_window_selection_clicks(state)
+    _attach_3d_window_key_shortcuts(state)
     _render_current_window(state)
     _sync_inputs(state)
     return state
@@ -302,7 +344,12 @@ def _attach_3d_window_selection_clicks(state: Managed3DPageWindowState) -> None:
         if state.exploration is None or event.inaxes not in state.display_axes or event.button != 1:
             state.pending_click = None
             return
-        state.pending_click = (float(event.x), float(event.y), cast("Axes3D", event.inaxes))
+        state.pending_click = (
+            float(event.x),
+            float(event.y),
+            cast("Axes3D", event.inaxes),
+            bool(event.dblclick),
+        )
 
     def _handle_release(event: MouseEvent) -> None:
         if state.exploration is None:
@@ -318,9 +365,44 @@ def _attach_3d_window_selection_clicks(state: Managed3DPageWindowState) -> None:
             (float(event.x) - pending_click[0]) ** 2 + (float(event.y) - pending_click[1]) ** 2
         ) ** 0.5 > 6.0:
             return
-        state.select_operation(clicked_artist_operation_id(clicked_axes, event))
+        operation_id = clicked_artist_operation_id(clicked_axes, event)
+        if state.double_click_toggle_enabled and pending_click[3]:
+            toggle_operation_with_selection(state, operation_id)
+            return
+        state.select_operation(operation_id)
 
     state.click_press_callback_id = int(canvas.mpl_connect("button_press_event", _handle_press))
     state.click_release_callback_id = int(
         canvas.mpl_connect("button_release_event", _handle_release)
     )
+
+
+def _attach_3d_window_key_shortcuts(state: Managed3DPageWindowState) -> None:
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is None:
+        return
+    if state.key_callback_id is not None:
+        canvas.mpl_disconnect(state.key_callback_id)
+
+    def _handle_key(event: KeyEvent) -> None:
+        if not state.keyboard_shortcuts_enabled:
+            return
+        if managed_text_boxes_capture_keys(state.managed_text_boxes()):
+            return
+        key_name = managed_key_name(event)
+        if key_name == "left":
+            state.step_page(-1)
+            return
+        if key_name == "right":
+            state.step_page(1)
+            return
+        if key_name == "up":
+            state.step_visible_pages(-1)
+            return
+        if key_name == "down":
+            state.step_visible_pages(1)
+            return
+        if is_block_toggle_key(event):
+            state.toggle_selected_block()
+
+    state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))

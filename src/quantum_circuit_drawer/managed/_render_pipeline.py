@@ -95,6 +95,8 @@ def render_managed_draw_pipeline(
                 axes=axes,
                 pipeline=pipeline,
                 set_page_slider=set_page_slider,
+                keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
+                double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
             )
 
         if pipeline.draw_options.topology_menu and output is None and not use_agg_canvas:
@@ -171,6 +173,8 @@ def render_managed_draw_pipeline(
             normalized_style=frozen_style,
             semantic_ir=pipeline.semantic_ir,
             expanded_semantic_ir=pipeline.expanded_semantic_ir,
+            keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
+            double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
         )
         logger.debug(
             "Rendered managed figure with discrete page slider viewport_width=%.2f viewport_height=%.2f pages=%d",
@@ -228,6 +232,8 @@ def render_managed_draw_pipeline(
             set_page_window=set_page_window,
             semantic_ir=pipeline.semantic_ir,
             expanded_semantic_ir=pipeline.expanded_semantic_ir,
+            keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
+            double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
         )
         logger.debug(
             "Rendered managed figure with fixed page window effective_page_width=%.2f pages=%d",

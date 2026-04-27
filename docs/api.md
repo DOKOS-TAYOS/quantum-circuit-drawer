@@ -91,6 +91,8 @@ DrawConfig(
             topology_resize="error",
             topology_menu=False,
             direct=True,
+            keyboard_shortcuts=True,
+            double_click_toggle=True,
             unsupported_policy=UnsupportedPolicy.RAISE,
             adapter_options={},
         ),
@@ -121,6 +123,8 @@ Important fields:
 - `side.render.topology_resize`: `"error"` rejects undersized topologies; `"fit"` rebuilds functional or periodic topologies for the circuit size
 - `side.render.topology_menu`: managed interactive 3D topology selector
 - `side.render.direct`: 3D layout flag for topology routing behavior
+- `side.render.keyboard_shortcuts`: enable or disable managed keyboard navigation in `pages_controls` and `slider`
+- `side.render.double_click_toggle`: enable or disable managed double-click block toggling in `pages_controls` and `slider`
 - `side.render.unsupported_policy`: `UnsupportedPolicy.RAISE` or `UnsupportedPolicy.PLACEHOLDER`
 - `side.render.adapter_options`: optional adapter-specific mapping, such as `{"cudaq_args": (...)}`
 - `side.appearance.preset`: shared style preset baseline

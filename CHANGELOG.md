@@ -17,6 +17,7 @@
 - Added the shared `accessible` style preset and `accessible` theme with high-contrast, colorblind-friendlier colors for circuit and histogram rendering.
 - Added direct OpenQASM 2 file input for `draw_quantum_circuit(...)`, accepting `Path("circuit.qasm")` and string `.qasm` paths through the existing Qiskit parser path.
 - Added OpenQASM 3 text and `.qasm3` file input through Qiskit's `qasm3.loads(...)` parser, plus a separate `qasm3` extra for `qiskit-qasm3-import`.
+- Added `CircuitRenderOptions.keyboard_shortcuts` and `double_click_toggle` for managed `pages_controls` and `slider` figures, enabling arrow-key navigation plus keyboard and double-click block expand/collapse by default while still allowing callers to disable them.
 - Added `scripts/clean.py` as a cross-platform cleanup command for Windows, Linux, and WSL development environments.
 - Added direct Cirq `FrozenCircuit` input support and direct MyQLM `Program` and `QRoutine` inputs, reusing the existing Cirq and MyQLM semantic adapter paths without adding dependencies.
 - Added README gallery screenshots and refreshed user documentation so OpenQASM 2/3 text, `.qasm` / `.qasm3` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.

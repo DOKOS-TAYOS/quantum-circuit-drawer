@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
 from ..ir.circuit import CircuitIR
@@ -39,6 +39,12 @@ from .exploration_2d import (
     selected_block_action,
     toggle_wire_filter_mode,
     transform_semantic_circuit,
+)
+from .interaction import (
+    is_block_toggle_key,
+    managed_key_name,
+    managed_text_boxes_capture_keys,
+    toggle_operation_with_selection,
 )
 from .slider_2d_windowing import _scene_for_current_window
 from .ui_palette import ManagedUiPalette, managed_ui_palette
@@ -152,7 +158,10 @@ class Managed2DPageSliderState:
     text_fit_cache: _GateTextCache = field(default_factory=dict)
     is_syncing_visible_qubits: bool = False
     exploration: Managed2DExplorationState | None = None
+    keyboard_shortcuts_enabled: bool = True
+    double_click_toggle_enabled: bool = True
     click_callback_id: int | None = None
+    key_callback_id: int | None = None
 
     def show_start_column(self, start_column: int) -> None:
         """Render the requested horizontal start column."""
@@ -216,6 +225,21 @@ class Managed2DPageSliderState:
         )
         _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
+
+    def step_start_column(self, delta: int) -> None:
+        """Move the horizontal window by one managed step."""
+
+        self.show_start_column(self.start_column + delta)
+
+    def step_start_row(self, delta: int) -> None:
+        """Move the vertical window by one managed step when it exists."""
+
+        self.show_start_row(self.start_row + delta)
+
+    def managed_text_boxes(self) -> tuple[object | None, ...]:
+        """Return the managed text inputs that can capture keyboard input."""
+
+        return (self.visible_qubits_box,)
 
 
 def prepare_page_slider_layout(axes: Axes, scene: LayoutScene) -> Managed2DSliderLayout:
@@ -282,6 +306,8 @@ def configure_page_slider(
     normalized_style: DrawStyle | None = None,
     semantic_ir: SemanticCircuitIR | None = None,
     expanded_semantic_ir: SemanticCircuitIR | None = None,
+    keyboard_shortcuts_enabled: bool = True,
+    double_click_toggle_enabled: bool = True,
 ) -> None:
     """Attach and wire sliders that redraw one discrete 2D window at a time."""
 
@@ -406,9 +432,12 @@ def configure_page_slider(
         show_visible_qubits_box=resolved_visible_row_count > _DEFAULT_VISIBLE_QUBITS,
         layout=None,
         exploration=exploration,
+        keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
+        double_click_toggle_enabled=double_click_toggle_enabled,
     )
     set_page_slider(figure, state)
     _attach_slider_selection_clicks(state)
+    _attach_slider_key_shortcuts(state)
     _apply_2d_slider_state(state)
     _sync_visible_qubits_box(state, state.visible_qubits)
 
@@ -1036,9 +1065,46 @@ def _attach_slider_selection_clicks(state: Managed2DPageSliderState) -> None:
             return
         if event.inaxes is not state.axes:
             return
-        state.select_operation(clicked_operation_id(state.axes, state.scene, event))
+        operation_id = clicked_operation_id(state.axes, state.scene, event)
+        if state.double_click_toggle_enabled and event.dblclick:
+            toggle_operation_with_selection(state, operation_id)
+            return
+        state.select_operation(operation_id)
 
     state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
+
+
+def _attach_slider_key_shortcuts(state: Managed2DPageSliderState) -> None:
+    canvas = getattr(state.figure, "canvas", None)
+    if canvas is None:
+        return
+    if state.key_callback_id is not None:
+        canvas.mpl_disconnect(state.key_callback_id)
+
+    def _handle_key(event: KeyEvent) -> None:
+        if not state.keyboard_shortcuts_enabled:
+            return
+        if managed_text_boxes_capture_keys(state.managed_text_boxes()):
+            return
+        key_name = managed_key_name(event)
+        if key_name == "left":
+            state.step_start_column(-1)
+            return
+        if key_name == "right":
+            state.step_start_column(1)
+            return
+        if key_name == "up":
+            if state.max_start_row > 0:
+                state.step_start_row(-1)
+            return
+        if key_name == "down":
+            if state.max_start_row > 0:
+                state.step_start_row(1)
+            return
+        if is_block_toggle_key(event):
+            state.toggle_selected_block()
+
+    state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))
 
 
 def _slider_exploration_button_bounds(

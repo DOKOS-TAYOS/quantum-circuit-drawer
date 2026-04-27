@@ -74,6 +74,8 @@ class CircuitRenderOptions:
     topology_resize: TopologyResizeMode = "error"
     topology_menu: bool = False
     direct: bool = True
+    keyboard_shortcuts: bool = True
+    double_click_toggle: bool = True
     unsupported_policy: UnsupportedPolicy | str = UnsupportedPolicy.RAISE
     adapter_options: Mapping[str, object] = field(default_factory=dict)
 
@@ -87,6 +89,8 @@ class CircuitRenderOptions:
         object.__setattr__(self, "topology_resize", normalize_topology_resize(self.topology_resize))
         _validate_bool("topology_menu", self.topology_menu)
         _validate_bool("direct", self.direct)
+        _validate_bool("keyboard_shortcuts", self.keyboard_shortcuts)
+        _validate_bool("double_click_toggle", self.double_click_toggle)
         object.__setattr__(
             self,
             "unsupported_policy",
@@ -181,6 +185,14 @@ class DrawConfig:
     @property
     def direct(self) -> bool:
         return self.side.render.direct
+
+    @property
+    def keyboard_shortcuts(self) -> bool:
+        return self.side.render.keyboard_shortcuts
+
+    @property
+    def double_click_toggle(self) -> bool:
+        return self.side.render.double_click_toggle
 
     @property
     def unsupported_policy(self) -> UnsupportedPolicy:
