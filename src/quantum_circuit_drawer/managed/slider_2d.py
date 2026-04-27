@@ -53,17 +53,20 @@ from .interaction import (
     is_plus_key,
     is_previous_selection_key,
     is_reset_view_key,
+    is_shortcut_help_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
     next_visible_operation_selection,
     toggle_operation_with_selection,
     visible_expandable_operation_ids,
 )
+from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
 from .slider_2d_windowing import _scene_for_current_window
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .viewport import _figure_size_inches, axes_viewport_pixels, build_continuous_slider_scene
 
 if TYPE_CHECKING:
+    from matplotlib.text import Text
     from matplotlib.widgets import Button, Slider, TextBox
 
     from ..ir.semantic import SemanticCircuitIR
@@ -154,6 +157,7 @@ class Managed2DPageSliderState:
     wire_filter_axes: Axes | None
     ancilla_toggle_axes: Axes | None
     block_toggle_axes: Axes | None
+    shortcut_help_text: Text | None
     start_column: int
     max_start_column: int
     start_row: int
@@ -252,6 +256,11 @@ class Managed2DPageSliderState:
         reset_exploration_state(self.exploration)
         _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
+
+    def toggle_shortcut_help(self) -> None:
+        """Toggle the managed shortcut-help overlay."""
+
+        toggle_shortcut_help_text(self.shortcut_help_text, figure=self.figure)
 
     def step_start_column(self, delta: int) -> None:
         """Move the horizontal window by one managed step."""
@@ -483,6 +492,7 @@ def configure_page_slider(
         wire_filter_axes=None,
         ancilla_toggle_axes=None,
         block_toggle_axes=None,
+        shortcut_help_text=None,
         start_column=0,
         max_start_column=0,
         start_row=0,
@@ -504,6 +514,25 @@ def configure_page_slider(
         double_click_toggle_enabled=double_click_toggle_enabled,
     )
     set_page_slider(figure, state)
+    state.shortcut_help_text = create_shortcut_help_text(
+        figure,
+        palette=managed_ui_palette(current_full_scene.style.theme),
+        lines=(
+            "View",
+            "Left/Right: Move columns",
+            "Up/Down: Move wire rows",
+            "Home/End: Jump to first/last columns",
+            "PageUp/PageDown: Jump by visible window",
+            "+/-: Show more/fewer wires",
+            "",
+            "Selection",
+            "Tab/Shift+Tab: Move between blocks",
+            "Enter/Space: Toggle block",
+            "Esc: Clear selection",
+            "0: Reset exploration",
+            "?: Show/hide this help",
+        ),
+    )
     _attach_slider_selection_clicks(state)
     _attach_slider_key_shortcuts(state)
     _apply_2d_slider_state(state)
@@ -1184,6 +1213,9 @@ def _attach_slider_key_shortcuts(state: Managed2DPageSliderState) -> None:
             return
         if is_reset_view_key(event):
             state.reset_exploration_view()
+            return
+        if is_shortcut_help_key(event):
+            state.toggle_shortcut_help()
             return
         if key_name == "left":
             state.step_start_column(-1)

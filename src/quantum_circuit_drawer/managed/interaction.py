@@ -54,6 +54,12 @@ def is_reset_view_key(event: KeyEvent) -> bool:
     return managed_key_name(event) == "0"
 
 
+def is_shortcut_help_key(event: KeyEvent) -> bool:
+    """Return whether the key event should toggle the shortcut-help overlay."""
+
+    return managed_key_name(event) in {"?", "shift+/"}
+
+
 def is_home_key(event: KeyEvent) -> bool:
     """Return whether the key event should jump to the absolute start."""
 
@@ -134,13 +140,46 @@ def visible_expandable_operation_ids(
     return tuple(operation_ids)
 
 
+def visible_operation_ids(operation_items: Iterable[object]) -> tuple[str, ...]:
+    """Return visible operation ids in visual order without repeating the same item."""
+
+    operation_ids: list[str] = []
+    seen_operation_ids: set[str] = set()
+    for item in operation_items:
+        operation_id = getattr(item, "operation_id", None)
+        if not isinstance(operation_id, str) or operation_id in seen_operation_ids:
+            continue
+        seen_operation_ids.add(operation_id)
+        operation_ids.append(operation_id)
+    return tuple(operation_ids)
+
+
+def visible_column_operation_ids(operation_items: Iterable[object]) -> tuple[str, ...]:
+    """Return one visible operation id per visual column in left-to-right order."""
+
+    operation_ids_by_column: dict[int, str] = {}
+    for item in operation_items:
+        operation_id = getattr(item, "operation_id", None)
+        column = getattr(item, "column", None)
+        if (
+            not isinstance(operation_id, str)
+            or not operation_id
+            or not isinstance(column, int)
+            or column in operation_ids_by_column
+        ):
+            continue
+        operation_ids_by_column[column] = operation_id
+    return tuple(operation_ids_by_column[column] for column in sorted(operation_ids_by_column))
+
+
 def next_visible_operation_selection(
     visible_operation_ids: Sequence[str],
     current_operation_id: str | None,
     *,
     backwards: bool = False,
+    wrap: bool = True,
 ) -> str | None:
-    """Return the next visible expandable operation using cyclic visual traversal."""
+    """Return the next visible operation using visual traversal."""
 
     if not visible_operation_ids:
         return None
@@ -148,7 +187,12 @@ def next_visible_operation_selection(
         return visible_operation_ids[-1] if backwards else visible_operation_ids[0]
     current_index = visible_operation_ids.index(current_operation_id)
     step = -1 if backwards else 1
-    return visible_operation_ids[(current_index + step) % len(visible_operation_ids)]
+    next_index = current_index + step
+    if 0 <= next_index < len(visible_operation_ids):
+        return visible_operation_ids[next_index]
+    if wrap:
+        return visible_operation_ids[next_index % len(visible_operation_ids)]
+    return None
 
 
 __all__ = [
@@ -163,9 +207,12 @@ __all__ = [
     "is_plus_key",
     "is_previous_selection_key",
     "is_reset_view_key",
+    "is_shortcut_help_key",
     "managed_key_name",
     "managed_text_boxes_capture_keys",
     "next_visible_operation_selection",
     "toggle_operation_with_selection",
+    "visible_column_operation_ids",
+    "visible_operation_ids",
     "visible_expandable_operation_ids",
 ]

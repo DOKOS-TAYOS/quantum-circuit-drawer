@@ -10,6 +10,8 @@ from matplotlib.backend_bases import KeyEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
+from ..managed.shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
+from ..managed.ui_palette import managed_ui_palette
 from ..renderers._matplotlib_figure import clear_hover_state, set_histogram_state
 from ..style.theme import resolve_theme
 from .histogram_interactive_controls import (
@@ -99,6 +101,7 @@ class HistogramInteractiveState:
     marginal_axes: Axes | None = None
     slider_axes: Axes | None = None
     horizontal_slider: Slider | None = None
+    shortcut_help_text: Text | None = None
     current_labels: tuple[str, ...] = ()
     current_display_labels: tuple[str, ...] = ()
     current_values: tuple[float, ...] = ()
@@ -351,6 +354,11 @@ class HistogramInteractiveState:
         self._set_message("")
         self.redraw()
 
+    def toggle_shortcut_help(self) -> None:
+        """Toggle the interactive histogram shortcut-help overlay."""
+
+        toggle_shortcut_help_text(self.shortcut_help_text, figure=self.figure)
+
     def remove(self) -> None:
         """Disconnect callbacks and remove interactive artists."""
 
@@ -479,6 +487,22 @@ def attach_histogram_interactivity(
         active_qubits=config.qubits,
         slider_enabled=True,
         message_text=message_text,
+        shortcut_help_text=create_shortcut_help_text(
+            figure,
+            palette=managed_ui_palette(theme),
+            lines=(
+                "View",
+                "Left/Right: Move slider window",
+                "0: Restore the original view",
+                "?: Show/hide this help",
+                "",
+                "Modes",
+                "s: Change ordering",
+                "b: Toggle binary/decimal labels",
+                "q: Switch counts/quasi",
+                "m: Edit marginal qubits",
+            ),
+        ),
     )
     attach_histogram_controls(state=state, config=config)
 
@@ -539,6 +563,9 @@ def _attach_histogram_key_shortcuts(state: HistogramInteractiveState) -> None:
             return
         if key_name == "m":
             state.focus_marginal_text_input()
+            return
+        if key_name in {"?", "shift+/"}:
+            state.toggle_shortcut_help()
             return
         if key_name == "0":
             state.restore_initial_view()

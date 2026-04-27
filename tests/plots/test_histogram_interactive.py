@@ -378,6 +378,37 @@ def test_histogram_interactive_keyboard_shortcuts_update_and_reset_view() -> Non
     plt.close(result.figure)
 
 
+def test_histogram_interactive_question_shortcut_toggles_shortcut_help() -> None:
+    result = plot_histogram(
+        _dense_histogram_counts(),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.shortcut_help_text is not None
+    assert state.shortcut_help_text.get_visible() is False
+
+    _dispatch_key_press(result.figure, "?")
+    assert state.shortcut_help_text.get_visible() is True
+    assert "Shortcuts" in state.shortcut_help_text.get_text()
+    assert state.shortcut_help_text.get_ha() == "left"
+    assert "View" in state.shortcut_help_text.get_text()
+    assert "Left/Right: Move slider window" in state.shortcut_help_text.get_text()
+    assert "Modes" in state.shortcut_help_text.get_text()
+    assert "m: Edit marginal qubits" in state.shortcut_help_text.get_text()
+
+    _dispatch_key_press(result.figure, "?")
+    assert state.shortcut_help_text.get_visible() is False
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_marginal_text_updates_distribution_and_preserves_last_valid_state() -> (
     None
 ):

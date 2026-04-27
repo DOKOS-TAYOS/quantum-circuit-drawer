@@ -25,6 +25,7 @@ from quantum_circuit_drawer.ir.semantic import (
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout.engine_3d import LayoutEngine3D
 from quantum_circuit_drawer.layout.scene import SceneVisualState
+from quantum_circuit_drawer.layout.scene_3d import LayoutScene3D
 from quantum_circuit_drawer.managed.exploration_2d import WireFilterMode
 from quantum_circuit_drawer.managed.page_window_3d import (
     configure_3d_page_window,
@@ -45,6 +46,30 @@ from quantum_circuit_drawer.renderers.matplotlib_renderer_3d import MatplotlibRe
 from quantum_circuit_drawer.style import DrawStyle
 from tests.support import build_dense_rotation_ir, build_public_draw_config, build_wrapped_ir
 from tests.support import draw_quantum_circuit_legacy as draw_quantum_circuit
+
+
+def _unique_gate_operation_ids_for_scene(scene: LayoutScene3D) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            gate.operation_id
+            for gate in scene.gates
+            if isinstance(gate.operation_id, str) and gate.operation_id
+        )
+    )
+
+
+def _column_operation_ids_for_scene(scene: LayoutScene3D) -> tuple[str, ...]:
+    operation_ids_by_column: dict[int, str] = {}
+    for gate in scene.gates:
+        operation_id = gate.operation_id
+        if (
+            not isinstance(operation_id, str)
+            or not operation_id
+            or gate.column in operation_ids_by_column
+        ):
+            continue
+        operation_ids_by_column[gate.column] = operation_id
+    return tuple(operation_ids_by_column[column] for column in sorted(operation_ids_by_column))
 
 
 def test_3d_page_slider_selection_survives_topology_switch(
@@ -388,10 +413,10 @@ def test_3d_page_window_arrow_keys_navigate_pages_and_visible_count() -> None:
         page_window = get_page_window(result.primary_figure)
         assert page_window is not None
 
-        _dispatch_key_press(result.primary_figure, "down")
+        _dispatch_key_press(result.primary_figure, "up")
         assert page_window.visible_page_count == 2
 
-        _dispatch_key_press(result.primary_figure, "up")
+        _dispatch_key_press(result.primary_figure, "down")
         assert page_window.visible_page_count == 1
 
         _dispatch_key_press(result.primary_figure, "right")
@@ -419,7 +444,7 @@ def test_3d_page_window_additional_shortcuts_navigate_and_clear_selection() -> N
         page_window = get_page_window(result.primary_figure)
         assert page_window is not None
 
-        _dispatch_key_press(result.primary_figure, "down")
+        _dispatch_key_press(result.primary_figure, "up")
         assert page_window.visible_page_count == 2
 
         _dispatch_key_press(result.primary_figure, "pagedown")
@@ -435,7 +460,7 @@ def test_3d_page_window_additional_shortcuts_navigate_and_clear_selection() -> N
         _dispatch_key_press(result.primary_figure, "home")
         assert page_window.start_page == 0
 
-        _dispatch_key_press(result.primary_figure, "up")
+        _dispatch_key_press(result.primary_figure, "down")
         assert page_window.visible_page_count == 1
 
         _dispatch_key_press(result.primary_figure, "+")
@@ -453,8 +478,8 @@ def test_3d_page_window_additional_shortcuts_navigate_and_clear_selection() -> N
         plt.close(result.primary_figure)
 
 
-def test_3d_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> None:
-    current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
+def test_3d_page_window_tab_shortcuts_advance_by_visible_column() -> None:
+    current_semantic_ir = _semantic_parallel_gate_circuit()
     current_circuit = lower_semantic_circuit(current_semantic_ir)
     style = DrawStyle(max_page_width=3.0)
     layout_engine = LayoutEngine3D()
@@ -478,7 +503,7 @@ def test_3d_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> No
         normalized_style=style,
         ir=current_circuit,
         semantic_ir=current_semantic_ir,
-        expanded_semantic_ir=expanded_semantic_ir,
+        expanded_semantic_ir=current_semantic_ir,
         layout_engine=layout_engine,
         paged_scene=initial_scene,
         renderer=MatplotlibRenderer3D(),
@@ -502,17 +527,59 @@ def test_3d_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> No
             set_page_window=set_page_window,
         )
         assert page_window.exploration is not None
+        operation_ids = _column_operation_ids_for_scene(page_window.current_scene)
+        assert len(operation_ids) >= 2
 
         _dispatch_key_press(figure, "tab")
-        assert page_window.exploration.selected_operation_id == "op:0"
+        assert page_window.exploration.selected_operation_id == operation_ids[0]
 
         _dispatch_key_press(figure, "tab")
-        assert page_window.exploration.selected_operation_id == "op:2"
+        assert page_window.exploration.selected_operation_id == operation_ids[1]
 
         _dispatch_key_press(figure, "shift+tab")
-        assert page_window.exploration.selected_operation_id == "op:0"
+        assert page_window.exploration.selected_operation_id == operation_ids[0]
     finally:
         plt.close(figure)
+
+
+def test_3d_page_window_tab_shortcuts_advance_across_visible_columns_and_change_pages() -> None:
+    result = public_draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=36, wire_count=4),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            style={"max_page_width": 4.0},
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = get_page_window(result.primary_figure)
+        assert page_window is not None
+        assert page_window.exploration is not None
+        assert page_window.total_pages >= 2
+
+        first_page_operation_ids = _column_operation_ids_for_scene(page_window.page_scenes[0])
+        second_page_operation_ids = _column_operation_ids_for_scene(page_window.page_scenes[1])
+
+        assert first_page_operation_ids
+        assert second_page_operation_ids
+
+        for expected_operation_id in first_page_operation_ids:
+            _dispatch_key_press(result.primary_figure, "tab")
+            assert page_window.exploration.selected_operation_id == expected_operation_id
+            assert page_window.start_page == 0
+
+        _dispatch_key_press(result.primary_figure, "tab")
+        assert page_window.start_page == 1
+        assert page_window.exploration.selected_operation_id == second_page_operation_ids[0]
+
+        _dispatch_key_press(result.primary_figure, "shift+tab")
+        assert page_window.start_page == 0
+        assert page_window.exploration.selected_operation_id == first_page_operation_ids[-1]
+    finally:
+        plt.close(result.primary_figure)
 
 
 def test_3d_page_window_zero_shortcut_resets_exploration_state() -> None:
@@ -1364,6 +1431,59 @@ def _semantic_controls_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]
         ),
     )
     return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_parallel_gate_circuit() -> SemanticCircuitIR:
+    quantum_wires = (
+        WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+        WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+    )
+    return SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            location=(0, 0),
+                        ),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="X",
+                            native_kind="gate",
+                            location=(0, 1),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Z",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Z",
+                            native_kind="gate",
+                            location=(1, 0),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
 
 
 def _semantic_fundamental_rzz_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:

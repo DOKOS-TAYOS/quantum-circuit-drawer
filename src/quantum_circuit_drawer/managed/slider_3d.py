@@ -52,11 +52,13 @@ from .interaction import (
     is_page_up_key,
     is_previous_selection_key,
     is_reset_view_key,
+    is_shortcut_help_key,
     managed_key_name,
     next_visible_operation_selection,
     toggle_operation_with_selection,
     visible_expandable_operation_ids,
 )
+from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .view_state_3d import (
     _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
@@ -65,6 +67,7 @@ from .view_state_3d import (
 from .viewport import _figure_size_inches
 
 if TYPE_CHECKING:
+    from matplotlib.text import Text
     from matplotlib.widgets import Button, Slider
     from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
 
@@ -106,6 +109,7 @@ class Managed3DPageSliderState:
     wire_filter_axes: Axes | None = None
     ancilla_toggle_axes: Axes | None = None
     block_toggle_axes: Axes | None = None
+    shortcut_help_text: Text | None = None
     exploration: Managed2DExplorationState | None = None
     keyboard_shortcuts_enabled: bool = True
     double_click_toggle_enabled: bool = True
@@ -209,6 +213,11 @@ class Managed3DPageSliderState:
         reset_exploration_state(self.exploration)
         _refresh_3d_slider_exploration_context(self)
         self.show_start_column(self.start_column)
+
+    def toggle_shortcut_help(self) -> None:
+        """Toggle the managed shortcut-help overlay."""
+
+        toggle_shortcut_help_text(self.shortcut_help_text, figure=self.figure)
 
     def step_start_column(self, delta: int) -> None:
         """Move the managed 3D window by one column step."""
@@ -358,6 +367,23 @@ def configure_3d_page_slider(
     _style_slider(slider, palette=palette)
     slider.on_changed(lambda value: state.show_start_column(round(float(value))))
     state.horizontal_slider = slider
+    state.shortcut_help_text = create_shortcut_help_text(
+        figure,
+        palette=palette,
+        lines=(
+            "View",
+            "Left/Right: Move columns",
+            "Home/End: Jump to first/last columns",
+            "PageUp/PageDown: Jump by visible window",
+            "",
+            "Selection",
+            "Tab/Shift+Tab: Move between blocks",
+            "Enter/Space: Toggle block",
+            "Esc: Clear selection",
+            "0: Reset exploration",
+            "?: Show/hide this help",
+        ),
+    )
     _attach_3d_slider_selection_clicks(state)
     _attach_3d_slider_key_shortcuts(state)
     _ensure_3d_slider_exploration_controls(state)
@@ -516,6 +542,9 @@ def _attach_3d_slider_key_shortcuts(state: Managed3DPageSliderState) -> None:
             return
         if is_reset_view_key(event):
             state.reset_exploration_view()
+            return
+        if is_shortcut_help_key(event):
+            state.toggle_shortcut_help()
             return
         if key_name == "left":
             state.step_start_column(-1)

@@ -37,11 +37,12 @@ from .interaction import (
     is_plus_key,
     is_previous_selection_key,
     is_reset_view_key,
+    is_shortcut_help_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
     next_visible_operation_selection,
     toggle_operation_with_selection,
-    visible_expandable_operation_ids,
+    visible_column_operation_ids,
 )
 from .page_window_3d_controls import (
     _attach_controls,
@@ -55,6 +56,7 @@ from .page_window_3d_ranges import (
     windowed_3d_page_scenes,
 )
 from .page_window_3d_render import _render_current_window
+from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .viewport import _figure_size_inches
 
@@ -108,6 +110,7 @@ class Managed3DPageWindowState:
     block_toggle_axes: Axes | None = None
     page_suffix_text: Text | None = None
     visible_suffix_text: Text | None = None
+    shortcut_help_text: Text | None = None
     ui_palette: ManagedUiPalette | None = None
     is_syncing_inputs: bool = False
     exploration: Managed2DExplorationState | None = None
@@ -219,6 +222,11 @@ class Managed3DPageWindowState:
         _render_current_window(self)
         _sync_inputs(self)
 
+    def toggle_shortcut_help(self) -> None:
+        """Toggle the managed shortcut-help overlay."""
+
+        toggle_shortcut_help_text(self.shortcut_help_text, figure=self.figure)
+
     def step_page(self, delta: int) -> None:
         """Move the visible page window backward or forward."""
 
@@ -266,24 +274,50 @@ class Managed3DPageWindowState:
 
         self.step_page(delta * max(1, self.visible_page_count))
 
-    def step_expandable_selection(self, *, backwards: bool = False) -> None:
-        """Move the selection across visible expandable blocks in visual order."""
+    def step_operation_selection(self, *, backwards: bool = False) -> None:
+        """Move the selection across visible operations and advance pages when needed."""
 
         if self.exploration is None:
             return
-        visible_operation_ids = visible_expandable_operation_ids(
-            self.current_scene.gates,
-            catalog=self.exploration.catalog,
-            collapsed_block_ids=self.exploration.collapsed_block_ids,
+        operation_ids = visible_column_operation_ids(
+            gate
+            for page_index in range(self.start_page, self.start_page + self.visible_page_count)
+            for gate in self.page_scenes[page_index].gates
         )
         next_operation_id = next_visible_operation_selection(
-            visible_operation_ids,
+            operation_ids,
             self.exploration.selected_operation_id,
             backwards=backwards,
+            wrap=False,
         )
-        if next_operation_id is None:
+        if next_operation_id is not None:
+            self.select_operation(next_operation_id)
             return
-        self.select_operation(next_operation_id)
+        if backwards:
+            if self.start_page <= 0:
+                return
+            self.start_page -= 1
+        else:
+            if (self.start_page + self.visible_page_count) >= self.total_pages:
+                return
+            self.start_page += 1
+        self.visible_page_count = _clamp_visible_page_count(
+            self.visible_page_count,
+            total_pages=self.total_pages,
+            start_page=self.start_page,
+        )
+        _render_current_window(self)
+        _sync_inputs(self)
+        shifted_operation_ids = visible_column_operation_ids(
+            gate
+            for page_index in range(self.start_page, self.start_page + self.visible_page_count)
+            for gate in self.page_scenes[page_index].gates
+        )
+        boundary_operation_id = (
+            shifted_operation_ids[-1] if backwards and shifted_operation_ids else None
+        ) or (shifted_operation_ids[0] if shifted_operation_ids else None)
+        if boundary_operation_id is not None:
+            self.select_operation(boundary_operation_id)
 
     def managed_text_boxes(self) -> tuple[object | None, ...]:
         """Return the managed text inputs that can capture keyboard input."""
@@ -334,6 +368,25 @@ def configure_3d_page_window(
     )
     set_page_window(figure, state)
     _attach_controls(state)
+    state.shortcut_help_text = create_shortcut_help_text(
+        figure,
+        palette=ui_palette,
+        lines=(
+            "Navigation",
+            "Left/Right: Move pages",
+            "Up/Down: Show more/fewer pages",
+            "Home/End: Jump to first/last page",
+            "PageUp/PageDown: Jump by visible window",
+            "+/-: Show more/fewer pages",
+            "",
+            "Selection",
+            "Tab/Shift+Tab: Move between columns",
+            "Enter/Space: Toggle block",
+            "Esc: Clear selection",
+            "0: Reset exploration",
+            "?: Show/hide this help",
+        ),
+    )
     _attach_3d_window_selection_clicks(state)
     _attach_3d_window_key_shortcuts(state)
     _render_current_window(state)
@@ -480,16 +533,19 @@ def _attach_3d_window_key_shortcuts(state: Managed3DPageWindowState) -> None:
             state.step_visible_pages(-1)
             return
         if is_next_selection_key(event):
-            state.step_expandable_selection()
+            state.step_operation_selection()
             return
         if is_previous_selection_key(event):
-            state.step_expandable_selection(backwards=True)
+            state.step_operation_selection(backwards=True)
             return
         if is_clear_selection_key(event):
             state.clear_selection()
             return
         if is_reset_view_key(event):
             state.reset_exploration_view()
+            return
+        if is_shortcut_help_key(event):
+            state.toggle_shortcut_help()
             return
         if key_name == "left":
             state.step_page(-1)
@@ -498,10 +554,10 @@ def _attach_3d_window_key_shortcuts(state: Managed3DPageWindowState) -> None:
             state.step_page(1)
             return
         if key_name == "up":
-            state.step_visible_pages(-1)
+            state.step_visible_pages(1)
             return
         if key_name == "down":
-            state.step_visible_pages(1)
+            state.step_visible_pages(-1)
             return
         if is_block_toggle_key(event):
             state.toggle_selected_block()

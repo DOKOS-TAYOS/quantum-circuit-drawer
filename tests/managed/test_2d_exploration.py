@@ -23,7 +23,7 @@ from quantum_circuit_drawer.ir.semantic import (
 from quantum_circuit_drawer.ir.wires import WireIR, WireKind
 from quantum_circuit_drawer.layout._layering import normalized_draw_circuit
 from quantum_circuit_drawer.layout.engine import LayoutEngine
-from quantum_circuit_drawer.layout.scene import SceneVisualState
+from quantum_circuit_drawer.layout.scene import LayoutScene, SceneVisualState
 from quantum_circuit_drawer.managed.exploration_2d import (
     WireFilterMode,
     build_exploration_catalog,
@@ -861,10 +861,10 @@ def test_page_window_arrow_keys_navigate_pages_and_visible_count() -> None:
         page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
         assert page_window is not None
 
-        _dispatch_key_press(figure, "down")
+        _dispatch_key_press(figure, "up")
         assert page_window.visible_page_count == 2
 
-        _dispatch_key_press(figure, "up")
+        _dispatch_key_press(figure, "down")
         assert page_window.visible_page_count == 1
 
         _dispatch_key_press(figure, "right")
@@ -889,7 +889,7 @@ def test_page_window_additional_shortcuts_navigate_and_clear_selection() -> None
         page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
         assert page_window is not None
 
-        _dispatch_key_press(figure, "down")
+        _dispatch_key_press(figure, "up")
         assert page_window.visible_page_count == 2
 
         _dispatch_key_press(figure, "pagedown")
@@ -905,7 +905,7 @@ def test_page_window_additional_shortcuts_navigate_and_clear_selection() -> None
         _dispatch_key_press(figure, "home")
         assert page_window.start_page == 0
 
-        _dispatch_key_press(figure, "up")
+        _dispatch_key_press(figure, "down")
         assert page_window.visible_page_count == 1
 
         _dispatch_key_press(figure, "+")
@@ -923,8 +923,77 @@ def test_page_window_additional_shortcuts_navigate_and_clear_selection() -> None
         plt.close(figure)
 
 
-def test_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> None:
-    current_semantic_ir, expanded_semantic_ir = _semantic_fundamental_rzz_circuits()
+def test_page_window_question_shortcut_toggles_shortcut_help() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.shortcut_help_text is not None
+        assert page_window.shortcut_help_text.get_visible() is False
+
+        _dispatch_key_press(figure, "?")
+        assert page_window.shortcut_help_text.get_visible() is True
+        assert "Shortcuts" in page_window.shortcut_help_text.get_text()
+        assert page_window.shortcut_help_text.get_ha() == "left"
+        assert "Navigation" in page_window.shortcut_help_text.get_text()
+        assert "Left/Right: Move pages" in page_window.shortcut_help_text.get_text()
+        assert "Selection" in page_window.shortcut_help_text.get_text()
+        assert "Enter/Space: Toggle block" in page_window.shortcut_help_text.get_text()
+
+        _dispatch_key_press(figure, "?")
+        assert page_window.shortcut_help_text.get_visible() is False
+    finally:
+        plt.close(figure)
+
+
+def _unique_gate_operation_ids_for_scene(scene: LayoutScene) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            gate.operation_id
+            for gate in scene.gates
+            if isinstance(gate.operation_id, str) and gate.operation_id
+        )
+    )
+
+
+def _page_gate_operation_ids(scene: LayoutScene, page_index: int) -> tuple[str, ...]:
+    page = scene.pages[page_index]
+    return tuple(
+        dict.fromkeys(
+            gate.operation_id
+            for gate in scene.gates
+            if isinstance(gate.operation_id, str)
+            and gate.operation_id
+            and page.start_column <= gate.column <= page.end_column
+        )
+    )
+
+
+def _page_column_operation_ids(scene: LayoutScene, page_index: int) -> tuple[str, ...]:
+    page = scene.pages[page_index]
+    operation_ids_by_column: dict[int, str] = {}
+    for gate in scene.gates:
+        operation_id = gate.operation_id
+        if (
+            not isinstance(operation_id, str)
+            or not operation_id
+            or gate.column in operation_ids_by_column
+            or not (page.start_column <= gate.column <= page.end_column)
+        ):
+            continue
+        operation_ids_by_column[gate.column] = operation_id
+    return tuple(operation_ids_by_column[column] for column in sorted(operation_ids_by_column))
+
+
+def test_page_window_tab_shortcuts_advance_by_visible_column() -> None:
+    current_semantic_ir = _semantic_parallel_gate_circuit()
     current_circuit = lower_semantic_circuit(current_semantic_ir)
     layout_engine = LayoutEngine()
     style = DrawStyle(max_page_width=8.0)
@@ -952,6 +1021,92 @@ def test_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> None:
             effective_page_width=style.max_page_width,
             set_page_window=set_page_window,
             semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=current_semantic_ir,
+        )
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+        operation_ids = _page_column_operation_ids(page_window.scene, 0)
+        assert len(operation_ids) >= 2
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == operation_ids[0]
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == operation_ids[1]
+
+        _dispatch_key_press(figure, "shift+tab")
+        assert page_window.exploration.selected_operation_id == operation_ids[0]
+    finally:
+        plt.close(figure)
+
+
+def test_page_window_tab_shortcuts_advance_across_visible_columns_and_change_pages() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=18, wire_count=4),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+        assert page_window.total_pages >= 2
+
+        first_page_operation_ids = _page_column_operation_ids(page_window.scene, 0)
+        second_page_operation_ids = _page_column_operation_ids(page_window.scene, 1)
+
+        assert first_page_operation_ids
+        assert second_page_operation_ids
+
+        for expected_operation_id in first_page_operation_ids:
+            _dispatch_key_press(figure, "tab")
+            assert page_window.exploration.selected_operation_id == expected_operation_id
+            assert page_window.start_page == 0
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.start_page == 1
+        assert page_window.exploration.selected_operation_id == second_page_operation_ids[0]
+
+        _dispatch_key_press(figure, "shift+tab")
+        assert page_window.start_page == 0
+        assert page_window.exploration.selected_operation_id == first_page_operation_ids[-1]
+    finally:
+        plt.close(figure)
+
+
+def test_page_window_tab_selection_still_supports_enter_and_escape() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=3.0)
+    scene = managed_module.compute_paged_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=3.2,
+        figure_height=3.0,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            scene=scene,
+            effective_page_width=style.max_page_width,
+            set_page_window=set_page_window,
+            semantic_ir=current_semantic_ir,
             expanded_semantic_ir=expanded_semantic_ir,
         )
         page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
@@ -961,11 +1116,11 @@ def test_page_window_tab_shortcuts_traverse_visible_expandable_blocks() -> None:
         _dispatch_key_press(figure, "tab")
         assert page_window.exploration.selected_operation_id == "op:0"
 
-        _dispatch_key_press(figure, "tab")
-        assert page_window.exploration.selected_operation_id == "op:2"
+        _dispatch_key_press(figure, "enter")
+        assert page_window.exploration.selected_operation_id == "op:0.0"
 
-        _dispatch_key_press(figure, "shift+tab")
-        assert page_window.exploration.selected_operation_id == "op:0"
+        _dispatch_key_press(figure, "escape")
+        assert page_window.exploration.selected_operation_id is None
     finally:
         plt.close(figure)
 
@@ -2674,6 +2829,59 @@ def _semantic_controls_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]
         ),
     )
     return current_semantic_ir, expanded_semantic_ir
+
+
+def _semantic_parallel_gate_circuit() -> SemanticCircuitIR:
+    quantum_wires = (
+        WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+        WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+    )
+    return SemanticCircuitIR(
+        quantum_wires=quantum_wires,
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="H",
+                            native_kind="gate",
+                            location=(0, 0),
+                        ),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="X",
+                            native_kind="gate",
+                            location=(0, 1),
+                        ),
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Z",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="demo",
+                            native_name="Z",
+                            native_kind="gate",
+                            location=(1, 0),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    )
 
 
 def _semantic_fundamental_rzz_circuits() -> tuple[SemanticCircuitIR, SemanticCircuitIR]:

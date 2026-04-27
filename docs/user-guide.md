@@ -512,6 +512,7 @@ Interactive histograms also support keyboard shortcuts:
 - `q`: switch between counts and quasi view when both exist
 - `m`: focus the marginal-qubits text box
 - `0`: restore the original interactive histogram view
+- `?`: toggle the shortcut-help overlay
 
 Set `HistogramAppearanceOptions(hover=False)` if you want the interactive controls without hover labels.
 

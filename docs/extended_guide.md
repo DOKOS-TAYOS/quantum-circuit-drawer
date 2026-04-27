@@ -330,7 +330,7 @@ Managed 2D can include:
 - keyboard shortcuts for navigation and selected-block toggling
 - click-based operation selection
 - double-click block expand/collapse when semantic provenance is available
-- keyboard shortcuts for arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, `0`, and `+/-` where the mode supports them
+- keyboard shortcuts for arrows, `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, `0`, `?`, and `+/-` where the mode supports them; in `pages_controls`, `Up` adds one visible page, `Down` removes one, and `Tab` / `Shift+Tab` keep moving column by column across page boundaries
 - `Wires: All/Active`
 - `Ancillas: Show/Hide`
 - contextual `Collapse` / `Expand` when semantic provenance is available
