@@ -11,6 +11,7 @@ from matplotlib.axes import Axes
 from matplotlib.textpath import TextPath
 
 from ..layout.scene import LayoutScene, SceneConnection
+from ..typing import UseMathTextMode
 from ..utils.formatting import format_visible_label
 from ._matplotlib_axes import _default_font_properties
 from ._matplotlib_figure import get_viewport_width
@@ -174,8 +175,8 @@ def _connection_label_style(
     )
 
 
-def _format_connection_label(label: str, *, use_mathtext: bool) -> str:
-    if use_mathtext and _PLAIN_TEXT_CONNECTION_LABEL_PATTERN.search(label):
+def _format_connection_label(label: str, *, use_mathtext: UseMathTextMode) -> str:
+    if use_mathtext is True and _PLAIN_TEXT_CONNECTION_LABEL_PATTERN.search(label):
         return label
     return format_visible_label(label, use_mathtext=use_mathtext)
 
@@ -348,6 +349,7 @@ def _gate_text_fit_cache_key(
         round(context.default_scale, 9),
         round(context.points_per_layout_unit, 9),
         _gate_text_fit_cache_token(text),
+        _is_mathtext_string(text),
         round(width, 9),
         None if height is None else round(height, 9),
         round(default_font_size, 9),

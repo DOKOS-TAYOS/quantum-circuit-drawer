@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from functools import lru_cache
 from numbers import Real
 
 import numpy as np
+
+from ..typing import UseMathTextMode
 
 _GREEK_IDENTIFIER_TO_MATHTEXT: dict[str, str] = {
     "alpha": r"\alpha",
@@ -35,6 +38,7 @@ _GREEK_IDENTIFIER_TO_MATHTEXT: dict[str, str] = {
     "omega": r"\omega",
 }
 _PARAMETER_IDENTIFIER_PATTERN = re.compile(r"[A-Za-z]+")
+_PARAMETER_MATHTEXT_TRIGGER_PATTERN = re.compile(r"[\\^_]")
 _VISIBLE_LABEL_ESCAPES = str.maketrans(
     {
         "\\": r"\\",
@@ -133,37 +137,79 @@ def format_visible_label_mathtext(text: str) -> str:
     return rf"$\mathrm{{{escaped_text}}}$"
 
 
-def format_visible_label(text: str, *, use_mathtext: bool) -> str:
+def format_visible_label(text: str, *, use_mathtext: UseMathTextMode) -> str:
     """Return visible circuit text in either plain text or MathText form."""
 
-    if not use_mathtext:
-        return text
-    return format_visible_label_mathtext(text)
+    return _format_resolved_text(text, role="visible_label", use_mathtext=use_mathtext)
 
 
-def format_parameter_text(text: str, *, use_mathtext: bool) -> str:
+def format_parameter_text(text: str, *, use_mathtext: UseMathTextMode) -> str:
     """Return parameter text in either plain text or MathText form."""
 
-    if not use_mathtext:
-        return text
-    return format_parameter_text_mathtext(text)
+    return _format_resolved_text(text, role="parameter", use_mathtext=use_mathtext)
 
 
 def format_gate_text_block(
     label: str,
     subtitle: str | None,
     *,
-    use_mathtext: bool,
+    use_mathtext: UseMathTextMode,
 ) -> str:
     """Return gate text as a single centered block, multiline when needed."""
 
-    visible_label = format_visible_label(label, use_mathtext=use_mathtext)
-    if not subtitle:
-        return visible_label
-    visible_subtitle = format_parameter_text(subtitle, use_mathtext=use_mathtext)
-    return f"{visible_label}\n{visible_subtitle}"
+    return _format_gate_text_block_cached(label, subtitle, use_mathtext)
 
 
 def _replace_parameter_identifier(match: re.Match[str]) -> str:
     identifier = match.group(0)
     return _GREEK_IDENTIFIER_TO_MATHTEXT.get(identifier.lower(), identifier)
+
+
+@lru_cache(maxsize=1024)
+def _format_resolved_text(
+    text: str,
+    *,
+    role: str,
+    use_mathtext: UseMathTextMode,
+) -> str:
+    if use_mathtext is False or not text:
+        return text
+    if use_mathtext is True:
+        return _format_text_for_role_mathtext(text, role=role)
+    if role == "visible_label":
+        return text
+    if _parameter_uses_mathtext_auto(text):
+        return format_parameter_text_mathtext(text)
+    return text
+
+
+def _format_text_for_role_mathtext(text: str, *, role: str) -> str:
+    if role == "parameter":
+        return format_parameter_text_mathtext(text)
+    return format_visible_label_mathtext(text)
+
+
+def _parameter_uses_mathtext_auto(text: str) -> bool:
+    stripped_text = text.strip()
+    if not stripped_text:
+        return False
+    transformed_text = _PARAMETER_IDENTIFIER_PATTERN.sub(
+        _replace_parameter_identifier,
+        stripped_text,
+    )
+    if transformed_text != stripped_text:
+        return True
+    return _PARAMETER_MATHTEXT_TRIGGER_PATTERN.search(stripped_text) is not None
+
+
+@lru_cache(maxsize=512)
+def _format_gate_text_block_cached(
+    label: str,
+    subtitle: str | None,
+    use_mathtext: UseMathTextMode,
+) -> str:
+    visible_label = format_visible_label(label, use_mathtext=use_mathtext)
+    if not subtitle:
+        return visible_label
+    visible_subtitle = format_parameter_text(subtitle, use_mathtext=use_mathtext)
+    return f"{visible_label}\n{visible_subtitle}"

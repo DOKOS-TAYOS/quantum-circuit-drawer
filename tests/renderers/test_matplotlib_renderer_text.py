@@ -1,26 +1,35 @@
 # ruff: noqa: F403, F405
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+
 import quantum_circuit_drawer.renderers._matplotlib_axes as matplotlib_axes_module
 import quantum_circuit_drawer.renderers._matplotlib_gates as matplotlib_gates_module
 import quantum_circuit_drawer.renderers._matplotlib_text as matplotlib_text_module
 from tests._matplotlib_renderer_support import *
 
 
-def test_matplotlib_renderer_uses_mathtext_for_visible_circuit_text_by_default() -> None:
+def _projected_gate_display_bounds(
+    figure: Figure,
+    axes: Axes,
+    gate: SceneGate,
+) -> tuple[float, float, float, float]:
+    del figure
+    x0, y0 = axes.transData.transform((gate.x - (gate.width / 2.0), gate.y - (gate.height / 2.0)))
+    x1, y1 = axes.transData.transform((gate.x + (gate.width / 2.0), gate.y + (gate.height / 2.0)))
+    return min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0)
+
+
+def test_matplotlib_renderer_keeps_visible_circuit_text_plain_by_default() -> None:
     figure, axes = plt.subplots()
 
     scene = build_sample_scene()
     MatplotlibRenderer().render(scene, ax=axes)
 
-    assert {
-        r"$\mathrm{H}$",
-        r"$\mathrm{M}$",
-        r"$\mathrm{q0}$",
-        r"$\mathrm{q1}$",
-        r"$\mathrm{c0}$",
-    }.issubset({text.get_text() for text in axes.texts})
+    assert {"H", "M", "q0", "q1", "c0"}.issubset({text.get_text() for text in axes.texts})
+    assert not any(text.get_text().startswith("$") for text in axes.texts)
 
 
-def test_matplotlib_renderer_renders_gate_parameters_with_mathtext_by_default() -> None:
+def test_matplotlib_renderer_keeps_numeric_gate_parameters_plain_by_default() -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=1, wire_count=1),
         DrawStyle(show_params=True),
@@ -29,7 +38,31 @@ def test_matplotlib_renderer_renders_gate_parameters_with_mathtext_by_default() 
 
     MatplotlibRenderer().render(scene, ax=axes)
 
-    assert r"$\mathrm{RX}$" + "\n" + r"$0.5$" in {text.get_text() for text in axes.texts}
+    assert "RX\n0.5" in {text.get_text() for text in axes.texts}
+
+
+def test_matplotlib_renderer_formats_symbolic_gate_parameters_with_mathtext_in_auto_mode() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RX",
+                        target_wires=("q0",),
+                        parameters=("theta",),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(show_params=True))
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert "RX\n$\\theta$" in {text.get_text() for text in axes.texts}
 
 
 def test_matplotlib_renderer_keeps_visible_text_plain_when_mathtext_is_disabled() -> None:
@@ -40,6 +73,19 @@ def test_matplotlib_renderer_keeps_visible_text_plain_when_mathtext_is_disabled(
 
     assert {"H", "M", "q0", "q1", "c0"}.issubset({text.get_text() for text in axes.texts})
     assert not any(text.get_text().startswith("$") for text in axes.texts)
+
+
+def test_matplotlib_renderer_preserves_legacy_mathtext_behavior_when_enabled() -> None:
+    figure, axes = plt.subplots()
+
+    scene = LayoutEngine().compute(
+        build_dense_rotation_ir(layer_count=1, wire_count=1),
+        DrawStyle(show_params=True, use_mathtext=True),
+    )
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    assert r"$\mathrm{0}$" in {text.get_text() for text in axes.texts}
+    assert r"$\mathrm{RX}$" + "\n" + r"$0.5$" in {text.get_text() for text in axes.texts}
 
 
 def test_matplotlib_renderer_draws_measurement_destination_arrow_and_label() -> None:
@@ -210,26 +256,28 @@ def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_wrapped_ma
     )
     scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
 
-    figure, axes = MatplotlibRenderer().render(scene)
+    renderer = MatplotlibRenderer()
+    figure, axes = renderer.render(scene)
     figure.canvas.draw()
 
-    gate_patches = sorted(
-        (patch for patch in axes.patches if isinstance(patch, FancyBboxPatch)),
-        key=lambda patch: patch.get_y(),
-    )
+    projected_gate_bounds = [
+        _projected_gate_display_bounds(figure, axes, gate)
+        for page in renderer._project_pages(scene)
+        for gate in page.gates
+    ]
     gate_texts = sorted(
         (text for text in axes.texts if normalize_rendered_text(text.get_text()) == "SWAP"),
         key=lambda text: text.get_position()[1],
     )
 
-    assert len(gate_patches) == len(gate_texts) == 20
+    assert len(projected_gate_bounds) == len(gate_texts) == 20
 
-    for gate_patch, gate_text in zip(gate_patches, gate_texts, strict=True):
-        patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+    for gate_text in gate_texts:
         text_x, _, text_width, _ = _display_bounds(figure, gate_text)
-
-        assert text_x >= patch_x
-        assert text_x + text_width <= patch_x + patch_width
+        assert any(
+            text_x >= patch_x and text_x + text_width <= patch_x + patch_width
+            for patch_x, _, patch_width, _ in projected_gate_bounds
+        )
 
 
 def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_narrow_wrapped_figures() -> (
@@ -257,12 +305,13 @@ def test_matplotlib_renderer_keeps_four_letter_labels_inside_boxes_on_narrow_wra
     scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=4.0))
     figure, axes = plt.subplots(figsize=(2.1, 18.0))
 
-    MatplotlibRenderer().render(scene, ax=axes)
+    renderer = MatplotlibRenderer()
+    renderer.render(scene, ax=axes)
     figure.canvas.draw()
 
-    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    projected_gate = next(gate for page in renderer._project_pages(scene) for gate in page.gates)
     gate_text = _find_axis_text(axes, "SWAP")
-    patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+    patch_x, _, patch_width, _ = _projected_gate_display_bounds(figure, axes, projected_gate)
     text_x, _, text_width, _ = _display_bounds(figure, gate_text)
 
     assert text_x >= patch_x
@@ -282,12 +331,13 @@ def test_matplotlib_renderer_keeps_tiny_dense_labels_inside_boxes() -> None:
     scene = LayoutEngine().compute(circuit, DrawStyle(max_page_width=200.0, use_mathtext=False))
     figure, axes = plt.subplots(figsize=(4.0, 1.2))
 
-    MatplotlibRenderer().render(scene, ax=axes)
+    renderer = MatplotlibRenderer()
+    renderer.render(scene, ax=axes)
     figure.canvas.draw()
 
-    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    projected_gate = next(gate for page in renderer._project_pages(scene) for gate in page.gates)
     gate_text = _find_axis_text(axes, "SWAP")
-    patch_x, _, patch_width, _ = _display_bounds(figure, gate_patch)
+    patch_x, _, patch_width, _ = _projected_gate_display_bounds(figure, axes, projected_gate)
     text_x, _, text_width, _ = _display_bounds(figure, gate_text)
 
     assert text_width <= patch_width
@@ -302,12 +352,17 @@ def test_matplotlib_renderer_keeps_tiny_dense_label_and_subtitle_inside_box() ->
     )
     figure, axes = plt.subplots(figsize=(5.0, 1.8))
 
-    MatplotlibRenderer().render(scene, ax=axes)
+    renderer = MatplotlibRenderer()
+    renderer.render(scene, ax=axes)
     figure.canvas.draw()
 
-    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
+    projected_gate = next(gate for page in renderer._project_pages(scene) for gate in page.gates)
     gate_text = _find_axis_text(axes, "RX\n0.5")
-    patch_x, patch_y, patch_width, patch_height = _display_bounds(figure, gate_patch)
+    patch_x, patch_y, patch_width, patch_height = _projected_gate_display_bounds(
+        figure,
+        axes,
+        projected_gate,
+    )
     text_x, text_y, text_width, text_height = _display_bounds(figure, gate_text)
 
     assert text_width <= patch_width

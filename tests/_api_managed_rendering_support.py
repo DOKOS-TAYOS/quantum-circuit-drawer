@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import pytest
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.collections import PatchCollection
 from matplotlib.figure import Figure
 from matplotlib.patches import FancyBboxPatch
 from matplotlib.transforms import Bbox
@@ -336,8 +337,25 @@ def _adapted_scene_for_axes(
 
 
 def _gate_box_line_width(axes: object) -> float:
-    gate_patch = next(patch for patch in axes.patches if isinstance(patch, FancyBboxPatch))
-    return float(gate_patch.get_linewidth())
+    gate_patch = next(
+        (patch for patch in axes.patches if isinstance(patch, FancyBboxPatch)),
+        None,
+    )
+    if gate_patch is not None:
+        return float(gate_patch.get_linewidth())
+
+    gate_collection = next(
+        (
+            collection
+            for collection in axes.collections
+            if isinstance(collection, PatchCollection) and len(collection.get_paths()) > 0
+        ),
+        None,
+    )
+    if gate_collection is None:
+        raise StopIteration("No gate box patch or patch collection was rendered")
+    line_widths = gate_collection.get_linewidths()
+    return float(line_widths[0])
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

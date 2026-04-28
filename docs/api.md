@@ -655,6 +655,12 @@ Pass `summary_ax=...` when you want the built-in comparison summary card to appe
 
 Built-in theme names are `light`, `paper`, `dark`, and `accessible`.
 
+`DrawStyle.use_mathtext` accepts `True`, `False`, or `"auto"`.
+
+- `True`: preserve the legacy behavior and format visible circuit text and parameters with MathText
+- `False`: keep visible labels and parameters as plain text
+- `"auto"`: default mode; keep visible labels plain while promoting symbolic parameter text such as `theta`, `phi`, or `pi/2` to MathText
+
 ## Hover
 
 `HoverOptions` stays public and is nested under `DrawConfig.side.appearance.hover`.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import floor
 
 import numpy as np
 from matplotlib.axes import Axes
@@ -39,6 +40,14 @@ class _HoverBox2D:
     @property
     def area(self) -> float:
         return max(0.0, self.x_max - self.x_min) * max(0.0, self.y_max - self.y_min)
+
+
+@dataclass(frozen=True, slots=True)
+class _HoverGrid2D:
+    hover_boxes: tuple[_HoverBox2D, ...]
+    cell_size_x: float
+    cell_size_y: float
+    cells: dict[tuple[int, int], tuple[int, ...]]
 
 
 def add_hover_target(
@@ -97,6 +106,7 @@ def attach_hover(
     if canvas is None:
         return
     hover_boxes = _build_hover_boxes(hover_targets)
+    hover_grid = _build_hover_grid(hover_boxes)
     active_hover_key: str | None = None
 
     def hide_annotation() -> None:
@@ -116,8 +126,8 @@ def attach_hover(
             hide_annotation()
             return
 
-        hover_box = _resolve_hover_box(
-            hover_boxes,
+        hover_box = _resolve_hover_box_in_grid(
+            hover_grid,
             x=float(event.xdata),
             y=float(event.ydata),
         )
@@ -266,6 +276,54 @@ def _build_hover_boxes(
     return tuple(_hover_box_from_target(target) for target in hover_targets)
 
 
+def _build_hover_grid(hover_boxes: tuple[_HoverBox2D, ...]) -> _HoverGrid2D:
+    if not hover_boxes:
+        return _HoverGrid2D(
+            hover_boxes=(),
+            cell_size_x=1.0,
+            cell_size_y=1.0,
+            cells={},
+        )
+
+    widths = [
+        hover_box.x_max - hover_box.x_min
+        for hover_box in hover_boxes
+        if hover_box.x_max > hover_box.x_min
+    ]
+    heights = [
+        hover_box.y_max - hover_box.y_min
+        for hover_box in hover_boxes
+        if hover_box.y_max > hover_box.y_min
+    ]
+    x_min = min(hover_box.x_min for hover_box in hover_boxes)
+    x_max = max(hover_box.x_max for hover_box in hover_boxes)
+    y_min = min(hover_box.y_min for hover_box in hover_boxes)
+    y_max = max(hover_box.y_max for hover_box in hover_boxes)
+    span_x = max(1e-6, x_max - x_min)
+    span_y = max(1e-6, y_max - y_min)
+    cell_size_x = max(np.median(widths).item() if widths else span_x / 32.0, span_x / 64.0, 1e-6)
+    cell_size_y = max(
+        np.median(heights).item() if heights else span_y / 32.0,
+        span_y / 64.0,
+        1e-6,
+    )
+    cells: dict[tuple[int, int], list[int]] = {}
+    for index, hover_box in enumerate(hover_boxes):
+        x_start = floor(hover_box.x_min / cell_size_x)
+        x_end = floor(hover_box.x_max / cell_size_x)
+        y_start = floor(hover_box.y_min / cell_size_y)
+        y_end = floor(hover_box.y_max / cell_size_y)
+        for grid_x in range(x_start, x_end + 1):
+            for grid_y in range(y_start, y_end + 1):
+                cells.setdefault((grid_x, grid_y), []).append(index)
+    return _HoverGrid2D(
+        hover_boxes=hover_boxes,
+        cell_size_x=float(cell_size_x),
+        cell_size_y=float(cell_size_y),
+        cells={cell: tuple(indexes) for cell, indexes in cells.items()},
+    )
+
+
 def _hover_box_from_target(
     target: _HoverTarget2D,
 ) -> _HoverBox2D:
@@ -288,6 +346,31 @@ def _resolve_hover_box(
         hover_box
         for hover_box in hover_boxes
         if hover_box.x_min <= x <= hover_box.x_max and hover_box.y_min <= y <= hover_box.y_max
+    ]
+    if not matching_hover_boxes:
+        return None
+    return min(matching_hover_boxes, key=lambda hover_box: hover_box.area)
+
+
+def _resolve_hover_box_in_grid(
+    hover_grid: _HoverGrid2D,
+    *,
+    x: float,
+    y: float,
+) -> _HoverBox2D | None:
+    if not hover_grid.hover_boxes:
+        return None
+
+    grid_x = floor(x / hover_grid.cell_size_x)
+    grid_y = floor(y / hover_grid.cell_size_y)
+    candidate_indexes = hover_grid.cells.get((grid_x, grid_y), ())
+    if not candidate_indexes:
+        return None
+    matching_hover_boxes = [
+        hover_grid.hover_boxes[index]
+        for index in candidate_indexes
+        if hover_grid.hover_boxes[index].x_min <= x <= hover_grid.hover_boxes[index].x_max
+        and hover_grid.hover_boxes[index].y_min <= y <= hover_grid.hover_boxes[index].y_max
     ]
     if not matching_hover_boxes:
         return None

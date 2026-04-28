@@ -19,13 +19,19 @@ from ..layout.scene import (
     SceneWireFoldMarker,
 )
 from ..style import DrawStyle
-from .slider_3d import circuit_window
-from .viewport import build_continuous_slider_scene
 
 if TYPE_CHECKING:
     from .slider_2d import Managed2DPageSliderState
 
 _VIEWPORT_EPSILON = 1e-6
+
+
+def build_continuous_slider_scene(*args: object, **kwargs: object) -> LayoutScene:
+    """Compatibility proxy kept for tests that instrument the old call site."""
+
+    from .viewport import build_continuous_slider_scene as _build_continuous_slider_scene
+
+    return _build_continuous_slider_scene(*args, **kwargs)
 
 
 def _scene_for_current_window(state: Managed2DPageSliderState) -> LayoutScene:
@@ -119,16 +125,9 @@ def _continuous_horizontal_scene(
     start_column: int,
     end_column: int,
 ) -> LayoutScene:
-    windowed_circuit = circuit_window(
-        state.circuit,
+    return state.scene_factory.continuous_scene_for_column_window(
         start_column=start_column,
-        window_size=max(1, end_column - start_column + 1),
-    )
-    return build_continuous_slider_scene(
-        windowed_circuit,
-        state.layout_engine,
-        state.style,
-        hover_enabled=state.full_scene.hover.enabled,
+        end_column=end_column,
     )
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from os import PathLike
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -22,6 +22,7 @@ else:
 Metadata: TypeAlias = dict[str, object]
 OutputPath: TypeAlias = str | PathLike[str]
 RenderResult: TypeAlias = tuple[Figure, Axes] | Axes
+UseMathTextMode: TypeAlias = bool | Literal["auto"]
 
 
 class LayoutEngineLike(Protocol):
@@ -82,4 +83,5 @@ __all__ = [
     "Metadata",
     "OutputPath",
     "RenderResult",
+    "UseMathTextMode",
 ]

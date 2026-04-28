@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from numbers import Real
 from typing import TypedDict, Unpack, cast
 
+from ..typing import UseMathTextMode
 from .theme import DrawTheme, resolve_theme
 
 DEFAULT_LINE_WIDTH = 1.6
@@ -28,7 +29,7 @@ class DrawStyleChanges(TypedDict, total=False):
     control_radius: float
     show_params: bool
     show_wire_labels: bool
-    use_mathtext: bool
+    use_mathtext: UseMathTextMode
     theme: DrawTheme
     margin_left: float
     margin_right: float
@@ -66,7 +67,7 @@ class DrawStyle:
     control_radius: float = 0.08
     show_params: bool = True
     show_wire_labels: bool = True
-    use_mathtext: bool = True
+    use_mathtext: UseMathTextMode = "auto"
     theme: DrawTheme = field(default_factory=lambda: resolve_theme(None))
     margin_left: float = 0.85
     margin_right: float = 0.35

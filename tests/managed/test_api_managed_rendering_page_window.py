@@ -1,5 +1,15 @@
 # ruff: noqa: F403, F405
+import math
+
+import quantum_circuit_drawer.managed._adaptive_paging as adaptive_paging_module
+import quantum_circuit_drawer.managed.page_window as page_window_module
 import quantum_circuit_drawer.renderers._matplotlib_text as matplotlib_text_module
+from quantum_circuit_drawer.ir.lowering import (
+    lower_semantic_circuit,
+    semantic_circuit_from_circuit_ir,
+)
+from quantum_circuit_drawer.layout._layering import normalized_draw_circuit
+from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
 from tests._api_managed_rendering_support import *
 
 
@@ -161,6 +171,57 @@ def test_draw_quantum_circuit_page_window_reuses_text_fit_cache_between_redraws(
     plt.close(figure)
 
 
+def test_configure_page_window_reuses_provided_initial_scene_without_recomputing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    circuit = build_wrapped_ir()
+    style = DrawStyle(max_page_width=4.0)
+    layout_engine = LayoutEngine()
+    semantic_ir = semantic_circuit_from_circuit_ir(circuit)
+    semantic_circuit = normalized_draw_circuit(lower_semantic_circuit(semantic_ir))
+    initial_scene = layout_engine.compute(semantic_circuit, style)
+    effective_page_width = max(
+        (page.content_width for page in initial_scene.pages),
+        default=initial_scene.style.max_page_width,
+    )
+    scene_lookup_calls = 0
+    original_scene_for_page_width = page_window_module._Managed2DSceneFactory.scene_for_page_width
+
+    def count_scene_for_page_width(
+        self: object,
+        page_width: float,
+    ) -> LayoutScene:
+        nonlocal scene_lookup_calls
+        scene_lookup_calls += 1
+        return original_scene_for_page_width(self, page_width)
+
+    monkeypatch.setattr(
+        page_window_module._Managed2DSceneFactory,
+        "scene_for_page_width",
+        count_scene_for_page_width,
+    )
+    figure, axes = create_managed_figure(initial_scene, use_agg=True)
+
+    try:
+        state = page_window_module.configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            scene=initial_scene,
+            effective_page_width=effective_page_width,
+            set_page_window=lambda _figure, _state: None,
+            semantic_ir=semantic_ir,
+            attach_controls=False,
+        )
+
+        assert state.base_scene is initial_scene
+        assert scene_lookup_calls == 0
+    finally:
+        plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_window_keeps_initial_page_width_after_resize() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
@@ -262,6 +323,92 @@ def test_draw_quantum_circuit_page_window_fills_vertical_space_from_visible_page
     assert page_window.total_pages > len(full_scene_adaptive.pages)
     assert page_window.effective_page_width < full_scene_page_width
     plt.close(figure)
+
+
+def test_page_window_adaptive_paging_uses_early_exit_shortcuts_and_keeps_visible_page_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    style = DrawStyle(max_page_width=4.0)
+    scene_factory = adaptive_paging_module._Managed2DSceneFactory(
+        circuit=build_sample_ir(),
+        layout_engine=LayoutEngine(),
+        style=style,
+        hover_enabled=False,
+    )
+    figure, axes = plt.subplots(figsize=(6.0, 3.0))
+    metrics_calls: list[float] = []
+    sizing_calls: list[tuple[str, int, float]] = []
+
+    def fake_metrics_for_page_width(
+        _scene_factory: adaptive_paging_module._Managed2DSceneFactory,
+        page_width: float,
+    ) -> object:
+        metrics_calls.append(page_width)
+        if math.isinf(page_width):
+            return adaptive_paging_module._AdaptivePagingMetrics(
+                pages=(
+                    adaptive_paging_module.ScenePage(
+                        index=0,
+                        start_column=0,
+                        end_column=0,
+                        content_x_start=0.0,
+                        content_x_end=20.0,
+                        content_width=20.0,
+                        y_offset=0.0,
+                    ),
+                    adaptive_paging_module.ScenePage(
+                        index=1,
+                        start_column=1,
+                        end_column=1,
+                        content_x_start=0.0,
+                        content_x_end=20.0,
+                        content_width=20.0,
+                        y_offset=0.0,
+                    ),
+                ),
+                scene_width=20.0,
+                scene_height=10.0,
+            )
+        raise AssertionError(f"unexpected finite width evaluation: {page_width}")
+
+    def fake_viewport_size_for_mode(
+        candidate_metrics: object,
+        paging_inputs: object,
+        *,
+        mode: str,
+        visible_page_count: int,
+    ) -> tuple[float, float]:
+        del paging_inputs
+        sizing_calls.append((mode, visible_page_count, candidate_metrics.scene_width))
+        if mode != "page_window":
+            raise AssertionError(f"unexpected mode: {mode}")
+        assert visible_page_count == 2
+        return candidate_metrics.scene_width, candidate_metrics.scene_height
+
+    monkeypatch.setattr(
+        adaptive_paging_module._Managed2DSceneFactory,
+        "metrics_for_page_width",
+        fake_metrics_for_page_width,
+    )
+    monkeypatch.setattr(adaptive_paging_module, "axes_viewport_ratio", lambda _axes: 2.0)
+    monkeypatch.setattr(
+        adaptive_paging_module,
+        "_viewport_size_for_mode",
+        fake_viewport_size_for_mode,
+    )
+
+    try:
+        best_page_width = scene_factory.best_page_width_for_axes(
+            axes,
+            mode="page_window",
+            visible_page_count=2,
+        )
+    finally:
+        plt.close(figure)
+
+    assert best_page_width == pytest.approx(20.0)
+    assert metrics_calls == [float("inf")]
+    assert sizing_calls == [("page_window", 2, 20.0)]
 
 
 def test_draw_quantum_circuit_page_window_renders_requested_page_inside_viewport() -> None:

@@ -1,7 +1,9 @@
 # ruff: noqa: F403, F405
+from matplotlib.collections import PatchCollection
 from matplotlib.colors import to_hex
 
 import quantum_circuit_drawer.renderers._matplotlib_axes as matplotlib_axes_module
+from quantum_circuit_drawer.layout.scene import SceneGroupHighlight
 from tests._matplotlib_renderer_support import *
 
 
@@ -378,6 +380,86 @@ def test_matplotlib_renderer_batches_cx_target_and_control_markers_into_collecti
         )
     )
     assert not any(isinstance(patch, Circle) for patch in axes.patches)
+
+
+def test_matplotlib_renderer_batches_gate_boxes_into_patch_collections() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(3)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),
+                    OperationIR(kind=OperationKind.GATE, name="X", target_wires=("q1",)),
+                    OperationIR(kind=OperationKind.GATE, name="Z", target_wires=("q2",)),
+                ]
+            ),
+            LayerIR(
+                operations=[
+                    OperationIR(kind=OperationKind.GATE, name="S", target_wires=("q0",)),
+                    OperationIR(kind=OperationKind.GATE, name="T", target_wires=("q1",)),
+                    OperationIR(kind=OperationKind.GATE, name="Y", target_wires=("q2",)),
+                ]
+            ),
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    patch_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, PatchCollection)
+        and len(collection.get_paths()) >= len(scene.gates)
+    ]
+
+    assert len(scene.gates) == 6
+    assert patch_collections
+    assert len([patch for patch in axes.patches if isinstance(patch, FancyBboxPatch)]) < len(
+        scene.gates
+    )
+
+
+def test_matplotlib_renderer_batches_measurement_boxes_into_patch_collections() -> None:
+    scene = LayoutEngine().compute(_measurement_register_ir(measurement_count=4), DrawStyle())
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    patch_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, PatchCollection)
+        and len(collection.get_paths()) >= len(scene.measurements)
+    ]
+
+    assert len(scene.measurements) == 4
+    assert patch_collections
+
+
+def test_matplotlib_renderer_batches_group_highlights_into_patch_collection() -> None:
+    scene = build_sample_scene()
+    scene.group_highlights = (
+        SceneGroupHighlight(column=0, x=1.4, y=1.0, width=0.8, height=0.8),
+        SceneGroupHighlight(column=0, x=2.4, y=2.0, width=0.9, height=0.9),
+    )
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    highlight_collections = [
+        collection
+        for collection in axes.collections
+        if isinstance(collection, PatchCollection)
+        and getattr(collection, "get_gid", lambda: None)() == "decomposition-group-highlight"
+    ]
+
+    assert highlight_collections
+    assert max(len(collection.get_paths()) for collection in highlight_collections) == 2
 
 
 def test_matplotlib_renderer_draws_open_controls_as_hollow_ellipses() -> None:

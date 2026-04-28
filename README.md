@@ -178,6 +178,11 @@ axes = result.primary_axes
 
 This same shape works for the supported framework objects and for the public IR types.
 
+For text styling, the default circuit style now uses `use_mathtext="auto"`. That keeps
+visible labels such as wire names and gate names in plain text by default, while still
+using MathText automatically for parameter subtitles when it improves symbolic notation
+such as `theta`, `phi`, or `pi/2`.
+
 ## Analyze A Circuit Without Rendering
 
 Use `analyze_quantum_circuit(...)` when you want a quick summary before opening windows or saving images:

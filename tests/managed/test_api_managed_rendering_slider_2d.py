@@ -1,4 +1,8 @@
 # ruff: noqa: F403, F405
+import math
+
+import quantum_circuit_drawer.managed._adaptive_paging as adaptive_paging_module
+import quantum_circuit_drawer.managed.slider_2d_windowing as slider_windowing_module
 import quantum_circuit_drawer.renderers._matplotlib_text as matplotlib_text_module
 from tests._api_managed_rendering_support import *
 
@@ -1146,6 +1150,265 @@ def test_draw_quantum_circuit_slider_reuses_text_fit_cache_between_redraws(
     plt.close(figure)
 
 
+def test_viewport_adaptive_paged_scene_reuses_cached_paging_inputs_and_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    circuit = build_dense_rotation_ir(layer_count=24)
+    style = DrawStyle(max_page_width=4.0)
+    layout_engine = LayoutEngine()
+    initial_scene = layout_engine.compute(circuit, style)
+    figure, axes = plt.subplots(figsize=(7.0, 3.5))
+    build_layout_calls = 0
+    metrics_calls = 0
+    original_build_layout_paging_inputs = adaptive_paging_module.build_layout_paging_inputs
+    original_paged_scene_metrics_for_width = adaptive_paging_module.paged_scene_metrics_for_width
+
+    def count_build_layout_paging_inputs(
+        _circuit: CircuitIR,
+        _style: DrawStyle,
+    ) -> object:
+        nonlocal build_layout_calls
+        build_layout_calls += 1
+        return original_build_layout_paging_inputs(_circuit, _style)
+
+    def count_paged_scene_metrics_for_width(
+        paging_inputs: object,
+        *,
+        max_page_width: float,
+    ) -> object:
+        nonlocal metrics_calls
+        metrics_calls += 1
+        return original_paged_scene_metrics_for_width(
+            cast("object", paging_inputs),
+            max_page_width=max_page_width,
+        )
+
+    monkeypatch.setattr(
+        adaptive_paging_module,
+        "build_layout_paging_inputs",
+        count_build_layout_paging_inputs,
+    )
+    monkeypatch.setattr(
+        adaptive_paging_module,
+        "paged_scene_metrics_for_width",
+        count_paged_scene_metrics_for_width,
+    )
+
+    try:
+        adaptive_paging_module.viewport_adaptive_paged_scene(
+            circuit,
+            layout_engine,
+            style,
+            axes,
+            hover_enabled=initial_scene.hover.enabled,
+            initial_scene=initial_scene,
+        )
+        initial_build_layout_calls = build_layout_calls
+        initial_metrics_calls = metrics_calls
+
+        adaptive_paging_module.viewport_adaptive_paged_scene(
+            circuit,
+            layout_engine,
+            style,
+            axes,
+            hover_enabled=initial_scene.hover.enabled,
+            initial_scene=initial_scene,
+        )
+
+        assert build_layout_calls == initial_build_layout_calls
+        assert metrics_calls == initial_metrics_calls
+    finally:
+        plt.close(figure)
+
+
+def test_viewport_adaptive_paged_scene_returns_continuous_width_without_finite_search_when_fit_is_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    style = DrawStyle(max_page_width=4.0)
+    scene_factory = _adaptive_scene_factory_for_tests(style=style)
+    figure, axes = plt.subplots(figsize=(6.0, 3.0))
+    metrics_calls: list[float] = []
+
+    continuous_metrics = _adaptive_metrics_for_test(
+        page_width=20.0,
+        scene_width=20.0,
+        scene_height=10.0,
+    )
+
+    def fake_metrics_for_page_width(
+        _scene_factory: adaptive_paging_module._Managed2DSceneFactory,
+        page_width: float,
+    ) -> object:
+        metrics_calls.append(page_width)
+        if math.isinf(page_width):
+            return continuous_metrics
+        raise AssertionError(f"unexpected finite width evaluation: {page_width}")
+
+    monkeypatch.setattr(
+        adaptive_paging_module._Managed2DSceneFactory,
+        "metrics_for_page_width",
+        fake_metrics_for_page_width,
+    )
+    monkeypatch.setattr(adaptive_paging_module, "axes_viewport_ratio", lambda _axes: 2.0)
+
+    try:
+        best_page_width = scene_factory.best_page_width_for_axes(
+            axes,
+            mode="full",
+        )
+    finally:
+        plt.close(figure)
+
+    assert best_page_width == pytest.approx(20.0)
+    assert metrics_calls == [float("inf")]
+
+
+def test_viewport_adaptive_paged_scene_returns_max_page_width_when_endpoint_is_clearly_best(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    style = DrawStyle(max_page_width=4.0)
+    scene_factory = _adaptive_scene_factory_for_tests(style=style)
+    figure, axes = plt.subplots(figsize=(4.0, 4.0))
+    metrics_calls: list[float] = []
+
+    def fake_metrics_for_page_width(
+        _scene_factory: adaptive_paging_module._Managed2DSceneFactory,
+        page_width: float,
+    ) -> object:
+        metrics_calls.append(page_width)
+        if math.isinf(page_width):
+            return _adaptive_metrics_for_test(
+                page_width=20.0,
+                scene_width=20.0,
+                scene_height=5.0,
+            )
+        if math.isclose(page_width, style.max_page_width, rel_tol=1e-9, abs_tol=1e-9):
+            return _adaptive_metrics_for_test(
+                page_width=style.max_page_width,
+                scene_width=4.0,
+                scene_height=4.0,
+            )
+        raise AssertionError(f"unexpected width evaluation: {page_width}")
+
+    monkeypatch.setattr(
+        adaptive_paging_module._Managed2DSceneFactory,
+        "metrics_for_page_width",
+        fake_metrics_for_page_width,
+    )
+    monkeypatch.setattr(adaptive_paging_module, "axes_viewport_ratio", lambda _axes: 1.0)
+
+    try:
+        best_page_width = scene_factory.best_page_width_for_axes(
+            axes,
+            mode="full",
+        )
+    finally:
+        plt.close(figure)
+
+    assert best_page_width == pytest.approx(style.max_page_width)
+    assert metrics_calls == [float("inf"), style.max_page_width]
+
+
+def test_viewport_adaptive_paged_scene_skips_midpoint_search_when_interval_is_tiny(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_style = DrawStyle()
+    style = DrawStyle(max_page_width=base_style.gate_width + 0.01)
+    scene_factory = _adaptive_scene_factory_for_tests(style=style)
+    figure, axes = plt.subplots(figsize=(4.0, 4.0))
+    metrics_calls: list[float] = []
+    continuous_page_width = style.max_page_width + 0.005
+
+    def fake_metrics_for_page_width(
+        _scene_factory: adaptive_paging_module._Managed2DSceneFactory,
+        page_width: float,
+    ) -> object:
+        metrics_calls.append(page_width)
+        if math.isinf(page_width):
+            return _adaptive_metrics_for_test(
+                page_width=continuous_page_width,
+                scene_width=continuous_page_width,
+                scene_height=1.0,
+            )
+        return _adaptive_metrics_for_test(
+            page_width=page_width,
+            scene_width=page_width,
+            scene_height=1.0,
+        )
+
+    monkeypatch.setattr(
+        adaptive_paging_module._Managed2DSceneFactory,
+        "metrics_for_page_width",
+        fake_metrics_for_page_width,
+    )
+    monkeypatch.setattr(
+        adaptive_paging_module, "axes_viewport_ratio", lambda _axes: style.max_page_width + 0.002
+    )
+    monkeypatch.setattr(adaptive_paging_module, "_VIEWPORT_SCORE_EARLY_EXIT_TOLERANCE", 0.0)
+
+    try:
+        scene_factory.best_page_width_for_axes(
+            axes,
+            mode="full",
+        )
+    finally:
+        plt.close(figure)
+
+    assert metrics_calls == [float("inf"), style.max_page_width, base_style.gate_width]
+
+
+def test_draw_quantum_circuit_page_slider_reuses_cached_continuous_subscenes_on_rebuild(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    continuous_scene_calls = 0
+    original_build_continuous_slider_scene = slider_windowing_module.build_continuous_slider_scene
+
+    def count_build_continuous_slider_scene(
+        circuit: CircuitIR,
+        layout_engine: object,
+        style: DrawStyle,
+        *,
+        hover_enabled: bool = True,
+    ) -> LayoutScene:
+        nonlocal continuous_scene_calls
+        continuous_scene_calls += 1
+        return original_build_continuous_slider_scene(
+            circuit,
+            layout_engine,
+            style,
+            hover_enabled=hover_enabled,
+        )
+
+    monkeypatch.setattr(
+        slider_windowing_module,
+        "build_continuous_slider_scene",
+        count_build_continuous_slider_scene,
+    )
+
+    figure, _ = draw_quantum_circuit(
+        _variable_width_slider_ir(),
+        style={"max_page_width": 4.5},
+        page_slider=True,
+        show=False,
+        figsize=(7.0, 4.0),
+    )
+
+    try:
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+        assert page_slider is not None
+
+        _horizontal_scene_for_start_column(page_slider, 2)
+        initial_continuous_scene_calls = continuous_scene_calls
+
+        page_slider.horizontal_scene_cache.clear()
+        _horizontal_scene_for_start_column(page_slider, 2)
+
+        assert continuous_scene_calls == initial_continuous_scene_calls
+    finally:
+        plt.close(figure)
+
+
 def test_show_managed_figure_skips_builtin_show_for_notebook_backends(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1366,6 +1629,44 @@ def test_configure_page_slider_skips_slider_when_viewport_already_fits_scene() -
     assert len(figure.axes) == 1
     assert attached_sliders == []
     plt.close(figure)
+
+
+def _adaptive_scene_factory_for_tests(
+    *,
+    style: DrawStyle,
+) -> adaptive_paging_module._Managed2DSceneFactory:
+    return adaptive_paging_module._Managed2DSceneFactory(
+        circuit=build_sample_ir(),
+        layout_engine=LayoutEngine(),
+        style=style,
+        hover_enabled=False,
+    )
+
+
+def _adaptive_metrics_for_test(
+    *,
+    page_width: float,
+    scene_width: float,
+    scene_height: float,
+    page_count: int = 1,
+) -> adaptive_paging_module._AdaptivePagingMetrics:
+    pages = tuple(
+        adaptive_paging_module.ScenePage(
+            index=index,
+            start_column=index,
+            end_column=index,
+            content_x_start=0.0,
+            content_x_end=page_width,
+            content_width=page_width,
+            y_offset=0.0,
+        )
+        for index in range(page_count)
+    )
+    return adaptive_paging_module._AdaptivePagingMetrics(
+        pages=pages,
+        scene_width=scene_width,
+        scene_height=scene_height,
+    )
 
 
 @pytest.mark.parametrize(

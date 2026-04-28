@@ -20,6 +20,7 @@ from ..renderers.matplotlib_renderer import MatplotlibRenderer
 from ..style import DrawStyle
 from ..style.defaults import replace_draw_style
 from ..typing import LayoutEngineLike
+from ._adaptive_paging import _Managed2DSceneFactory, managed_2d_scene_factory
 from .exploration_2d import (
     Managed2DExplorationState,
     append_wire_fold_markers,
@@ -63,7 +64,6 @@ from .page_window_render import _render_current_window
 from .page_window_windowing import _clamp_page_index, _clamp_visible_page_count
 from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
 from .ui_palette import ManagedUiPalette, managed_ui_palette
-from .viewport import compute_paged_scene
 
 if TYPE_CHECKING:
     from matplotlib.text import Text
@@ -83,6 +83,7 @@ class Managed2DPageWindowState:
     layout_engine: LayoutEngineLike
     renderer: MatplotlibRenderer
     style: DrawStyle
+    scene_factory: _Managed2DSceneFactory
     base_scene: LayoutScene
     scene: LayoutScene
     window_scene: LayoutScene | None
@@ -373,13 +374,18 @@ def configure_page_window(
     ui_palette = managed_ui_palette(scene.style.theme)
     current_semantic = semantic_ir or semantic_circuit_from_circuit_ir(circuit)
     current_circuit = normalized_draw_circuit(lower_semantic_circuit(current_semantic))
-    current_scene = compute_paged_scene(
+    scene_factory = managed_2d_scene_factory(
         current_circuit,
         layout_engine,
         replace_draw_style(scene.style, max_page_width=effective_page_width),
         hover_enabled=scene.hover.enabled,
     )
-    current_scene.hover = scene.hover
+    if _scene_has_operation_ids(scene):
+        scene_factory.remember_scene_for_page_width(effective_page_width, scene)
+        current_scene = scene
+    else:
+        current_scene = scene_factory.scene_for_page_width(effective_page_width)
+        current_scene.hover = scene.hover
     total_pages = max(1, len(current_scene.pages))
     exploration = managed_exploration_state(
         current_semantic,
@@ -394,6 +400,7 @@ def configure_page_window(
         layout_engine=layout_engine,
         renderer=renderer,
         style=current_scene.style,
+        scene_factory=scene_factory,
         base_scene=current_scene,
         scene=current_scene,
         window_scene=None,
@@ -492,12 +499,13 @@ def _refresh_page_window_exploration_context(state: Managed2DPageWindowState) ->
     normalized_circuit = normalized_draw_circuit(transformed.circuit_ir)
     state.circuit = normalized_circuit
     base_hover = state.base_scene.hover
-    state.base_scene = compute_paged_scene(
+    state.scene_factory = managed_2d_scene_factory(
         normalized_circuit,
         state.layout_engine,
         replace_draw_style(state.style, max_page_width=state.effective_page_width),
         hover_enabled=base_hover.enabled,
     )
+    state.base_scene = state.scene_factory.scene_for_page_width(state.effective_page_width)
     state.base_scene.hover = base_hover
     _restyle_page_window_scene(state)
     state.total_pages = max(1, len(state.scene.pages))
@@ -523,6 +531,18 @@ def _restyle_page_window_scene(state: Managed2DPageWindowState) -> None:
             state.exploration.hidden_wire_ranges,
         )
     state.page_cache.clear()
+
+
+def _scene_has_operation_ids(scene: LayoutScene) -> bool:
+    return any(
+        getattr(item, "operation_id", None) is not None
+        for item in (
+            *scene.gates,
+            *scene.measurements,
+            *scene.controls,
+            *scene.swaps,
+        )
+    )
 
 
 def _attach_window_selection_clicks(state: Managed2DPageWindowState) -> None:

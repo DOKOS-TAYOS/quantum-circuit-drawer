@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from matplotlib.axes import Axes
-from matplotlib.collections import EllipseCollection, LineCollection
+from matplotlib.collections import EllipseCollection, LineCollection, PatchCollection
 from matplotlib.patches import Arc, FancyBboxPatch, Patch
 from matplotlib.text import Text
 
@@ -35,6 +35,7 @@ from ._matplotlib_axes import (
     _add_ellipse_collection,
     _add_line_collection,
     _add_patch_artist,
+    _add_patch_collection,
     _add_text_artist,
     _apply_axes_artist_clip,
     _axes_should_clip_artists,
@@ -86,50 +87,52 @@ def _prepared_gate_text(gate: SceneGate, *, use_mathtext: bool) -> _PreparedGate
     )
 
 
-def draw_group_highlights(
-    ax: Axes,
-    highlights: Sequence[SceneGroupHighlight],
+def _group_highlight_patch(
+    highlight: SceneGroupHighlight,
     scene: LayoutScene,
     *,
-    x_offset: float = 0.0,
-    y_offset: float = 0.0,
-) -> tuple[Patch, ...] | None:
-    if not highlights:
-        return None
-
-    patches: list[Patch] = []
-    for highlight in highlights:
-        patch = FancyBboxPatch(
-            (
-                highlight.x + x_offset - (highlight.width / 2.0),
-                highlight.y + y_offset - (highlight.height / 2.0),
-            ),
-            highlight.width,
-            highlight.height,
-            boxstyle="round,pad=0.03,rounding_size=0.08",
-            facecolor=scene.style.theme.accent_color,
-            edgecolor=scene.style.theme.accent_color,
-            linewidth=1.0,
-            zorder=OCCLUSION_LAYER_ZORDER - 1.0,
-            alpha=0.08 * alpha_for_visual_state(highlight.visual_state),
-        )
-        patch.set_gid("decomposition-group-highlight")
-        patches.append(_add_patch_artist(ax, patch))
-    return tuple(patches)
+    x_offset: float,
+    y_offset: float,
+) -> FancyBboxPatch:
+    patch = FancyBboxPatch(
+        (
+            highlight.x + x_offset - (highlight.width / 2.0),
+            highlight.y + y_offset - (highlight.height / 2.0),
+        ),
+        highlight.width,
+        highlight.height,
+        boxstyle="round,pad=0.03,rounding_size=0.08",
+        facecolor=scene.style.theme.accent_color,
+        edgecolor=scene.style.theme.accent_color,
+        linewidth=1.0,
+        zorder=OCCLUSION_LAYER_ZORDER - 1.0,
+        alpha=0.08 * alpha_for_visual_state(highlight.visual_state),
+    )
+    patch.set_gid("decomposition-group-highlight")
+    return patch
 
 
-def draw_gate_box(
-    ax: Axes,
+def _group_highlight_extent(
+    highlights: Sequence[SceneGroupHighlight],
+    *,
+    x_offset: float,
+    y_offset: float,
+) -> tuple[float, float, float, float]:
+    x_min = min(highlight.x + x_offset - (highlight.width / 2.0) for highlight in highlights)
+    x_max = max(highlight.x + x_offset + (highlight.width / 2.0) for highlight in highlights)
+    y_min = min(highlight.y + y_offset - (highlight.height / 2.0) for highlight in highlights)
+    y_max = max(highlight.y + y_offset + (highlight.height / 2.0) for highlight in highlights)
+    return x_min, x_max, y_min, y_max
+
+
+def _gate_box_patch(
     gate: SceneGate,
     scene: LayoutScene,
     *,
-    x_offset: float = 0.0,
-    y_offset: float = 0.0,
-) -> Patch | None:
-    if gate.render_style is GateRenderStyle.X_TARGET:
-        return None
-
-    patch = FancyBboxPatch(
+    x_offset: float,
+    y_offset: float,
+) -> FancyBboxPatch:
+    return FancyBboxPatch(
         (gate.x + x_offset - gate.width / 2, gate.y + y_offset - gate.height / 2),
         gate.width,
         gate.height,
@@ -148,7 +151,203 @@ def draw_gate_box(
         zorder=OCCLUSION_LAYER_ZORDER,
         alpha=alpha_for_visual_state(gate.visual_state),
     )
-    return _add_patch_artist(ax, patch)
+
+
+def _measurement_box_patch(
+    measurement: SceneMeasurement,
+    scene: LayoutScene,
+    *,
+    x_offset: float,
+    y_offset: float,
+) -> FancyBboxPatch:
+    return FancyBboxPatch(
+        (
+            measurement.x + x_offset - measurement.width / 2,
+            measurement.quantum_y + y_offset - measurement.height / 2,
+        ),
+        measurement.width,
+        measurement.height,
+        boxstyle="round,pad=0.01,rounding_size=0.05",
+        facecolor=measurement_facecolor_for_visual_state(
+            theme=scene.style.theme,
+            visual_state=measurement.visual_state,
+        ),
+        edgecolor=color_for_visual_state(
+            scene.style.theme.measurement_color,
+            theme=scene.style.theme,
+            visual_state=measurement.visual_state,
+        ),
+        linewidth=resolved_measurement_line_width(scene.style)
+        * line_width_scale_for_visual_state(measurement.visual_state),
+        zorder=OCCLUSION_LAYER_ZORDER,
+        alpha=alpha_for_visual_state(measurement.visual_state),
+    )
+
+
+def _gate_box_extent(
+    gates: Sequence[SceneGate],
+    *,
+    x_offset: float,
+    y_offset: float,
+) -> tuple[float, float, float, float]:
+    x_min = min(gate.x + x_offset - (gate.width / 2.0) for gate in gates)
+    x_max = max(gate.x + x_offset + (gate.width / 2.0) for gate in gates)
+    y_min = min(gate.y + y_offset - (gate.height / 2.0) for gate in gates)
+    y_max = max(gate.y + y_offset + (gate.height / 2.0) for gate in gates)
+    return x_min, x_max, y_min, y_max
+
+
+def _measurement_box_extent(
+    measurements: Sequence[SceneMeasurement],
+    *,
+    x_offset: float,
+    y_offset: float,
+) -> tuple[float, float, float, float]:
+    x_min = min(
+        measurement.x + x_offset - (measurement.width / 2.0) for measurement in measurements
+    )
+    x_max = max(
+        measurement.x + x_offset + (measurement.width / 2.0) for measurement in measurements
+    )
+    y_min = min(
+        measurement.quantum_y + y_offset - (measurement.height / 2.0)
+        for measurement in measurements
+    )
+    y_max = max(
+        measurement.quantum_y + y_offset + (measurement.height / 2.0)
+        for measurement in measurements
+    )
+    return x_min, x_max, y_min, y_max
+
+
+def draw_group_highlights(
+    ax: Axes,
+    highlights: Sequence[SceneGroupHighlight],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> tuple[Patch | PatchCollection, ...] | None:
+    if not highlights:
+        return None
+
+    rendered_artists: list[Patch | PatchCollection] = []
+    highlights_by_state: dict[SceneVisualState, list[SceneGroupHighlight]] = {}
+    for highlight in highlights:
+        highlights_by_state.setdefault(highlight.visual_state, []).append(highlight)
+
+    for state_highlights in highlights_by_state.values():
+        if len(state_highlights) == 1:
+            rendered_artists.append(
+                _add_patch_artist(
+                    ax,
+                    _group_highlight_patch(
+                        state_highlights[0],
+                        scene,
+                        x_offset=x_offset,
+                        y_offset=y_offset,
+                    ),
+                )
+            )
+            continue
+        collection = _add_patch_collection(
+            ax,
+            [
+                _group_highlight_patch(
+                    highlight,
+                    scene,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
+                for highlight in state_highlights
+            ],
+            zorder=OCCLUSION_LAYER_ZORDER - 1.0,
+            gid="decomposition-group-highlight",
+            data_extent=_group_highlight_extent(
+                state_highlights,
+                x_offset=x_offset,
+                y_offset=y_offset,
+            ),
+        )
+        if collection is not None:
+            rendered_artists.append(collection)
+    if not rendered_artists:
+        return None
+    return tuple(rendered_artists)
+
+
+def draw_gate_box(
+    ax: Axes,
+    gate: SceneGate,
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> Patch | None:
+    if gate.render_style is GateRenderStyle.X_TARGET:
+        return None
+
+    return _add_patch_artist(
+        ax,
+        _gate_box_patch(
+            gate,
+            scene,
+            x_offset=x_offset,
+            y_offset=y_offset,
+        ),
+    )
+
+
+def draw_gate_boxes(
+    ax: Axes,
+    gates: Sequence[SceneGate],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> tuple[Patch | PatchCollection, ...] | None:
+    rendered_artists: list[Patch | PatchCollection] = []
+    gates_by_state: dict[SceneVisualState, list[SceneGate]] = {}
+    for gate in gates:
+        if gate.render_style is not GateRenderStyle.BOX:
+            continue
+        gates_by_state.setdefault(gate.visual_state, []).append(gate)
+
+    for state_gates in gates_by_state.values():
+        if len(state_gates) == 1:
+            rendered_patch = draw_gate_box(
+                ax,
+                state_gates[0],
+                scene,
+                x_offset=x_offset,
+                y_offset=y_offset,
+            )
+            if rendered_patch is not None:
+                rendered_artists.append(rendered_patch)
+            continue
+        collection = _add_patch_collection(
+            ax,
+            [
+                _gate_box_patch(
+                    gate,
+                    scene,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
+                for gate in state_gates
+            ],
+            zorder=OCCLUSION_LAYER_ZORDER,
+            data_extent=_gate_box_extent(
+                state_gates,
+                x_offset=x_offset,
+                y_offset=y_offset,
+            ),
+        )
+        if collection is not None:
+            rendered_artists.append(collection)
+    if not rendered_artists:
+        return None
+    return tuple(rendered_artists)
 
 
 def draw_x_target_circles(
@@ -471,29 +670,66 @@ def draw_measurement_box(
     x_offset: float = 0.0,
     y_offset: float = 0.0,
 ) -> Patch:
-    patch = FancyBboxPatch(
-        (
-            measurement.x + x_offset - measurement.width / 2,
-            measurement.quantum_y + y_offset - measurement.height / 2,
+    return _add_patch_artist(
+        ax,
+        _measurement_box_patch(
+            measurement,
+            scene,
+            x_offset=x_offset,
+            y_offset=y_offset,
         ),
-        measurement.width,
-        measurement.height,
-        boxstyle="round,pad=0.01,rounding_size=0.05",
-        facecolor=measurement_facecolor_for_visual_state(
-            theme=scene.style.theme,
-            visual_state=measurement.visual_state,
-        ),
-        edgecolor=color_for_visual_state(
-            scene.style.theme.measurement_color,
-            theme=scene.style.theme,
-            visual_state=measurement.visual_state,
-        ),
-        linewidth=resolved_measurement_line_width(scene.style)
-        * line_width_scale_for_visual_state(measurement.visual_state),
-        zorder=OCCLUSION_LAYER_ZORDER,
-        alpha=alpha_for_visual_state(measurement.visual_state),
     )
-    return _add_patch_artist(ax, patch)
+
+
+def draw_measurement_boxes(
+    ax: Axes,
+    measurements: Sequence[SceneMeasurement],
+    scene: LayoutScene,
+    *,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+) -> tuple[Patch | PatchCollection, ...] | None:
+    if not measurements:
+        return None
+
+    rendered_artists: list[Patch | PatchCollection] = []
+    measurements_by_state: dict[SceneVisualState, list[SceneMeasurement]] = {}
+    for measurement in measurements:
+        measurements_by_state.setdefault(measurement.visual_state, []).append(measurement)
+
+    for state_measurements in measurements_by_state.values():
+        if len(state_measurements) == 1:
+            rendered_artists.append(
+                draw_measurement_box(
+                    ax,
+                    state_measurements[0],
+                    scene,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
+            )
+            continue
+        collection = _add_patch_collection(
+            ax,
+            [
+                _measurement_box_patch(
+                    measurement,
+                    scene,
+                    x_offset=x_offset,
+                    y_offset=y_offset,
+                )
+                for measurement in state_measurements
+            ],
+            zorder=OCCLUSION_LAYER_ZORDER,
+            data_extent=_measurement_box_extent(
+                state_measurements,
+                x_offset=x_offset,
+                y_offset=y_offset,
+            ),
+        )
+        if collection is not None:
+            rendered_artists.append(collection)
+    return tuple(rendered_artists)
 
 
 def draw_measurement_symbol(

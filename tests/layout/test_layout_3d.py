@@ -1518,7 +1518,7 @@ def test_draw_quantum_circuit_hides_gate_and_wire_labels_when_hover_is_interacti
     assert "M" not in labels
 
 
-def test_draw_quantum_circuit_3d_uses_mathtext_for_visible_labels_by_default() -> None:
+def test_draw_quantum_circuit_3d_keeps_visible_labels_plain_by_default() -> None:
     figure = plt.figure()
     axes = figure.add_subplot(111, projection="3d")
 
@@ -1528,6 +1528,23 @@ def test_draw_quantum_circuit_3d_uses_mathtext_for_visible_labels_by_default() -
         topology="line",
         ax=axes,
         show=False,
+    )
+
+    assert "0" in {text.get_text() for text in axes.texts}
+    assert "RX\n0.5" in {text.get_text() for text in axes.texts}
+
+
+def test_draw_quantum_circuit_3d_preserves_legacy_mathtext_behavior_when_enabled() -> None:
+    figure = plt.figure()
+    axes = figure.add_subplot(111, projection="3d")
+
+    draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=1, wire_count=1),
+        view="3d",
+        topology="line",
+        ax=axes,
+        show=False,
+        style=DrawStyle(use_mathtext=True),
     )
 
     assert r"$\mathrm{0}$" in {text.get_text() for text in axes.texts}

@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import fields
 
 from ..exceptions import StyleValidationError
+from ..typing import UseMathTextMode
 from .defaults import DrawStyle, replace_draw_style
 from .theme import resolve_theme
 
@@ -38,7 +39,7 @@ OPTIONAL_POSITIVE_FIELDS = {
     "connection_line_width",
     "topology_edge_line_width",
 }
-BOOLEAN_FIELDS = {"show_params", "show_wire_labels", "use_mathtext"}
+BOOLEAN_FIELDS = {"show_params", "show_wire_labels"}
 
 
 def normalize_style(style: DrawStyle | Mapping[str, object] | None) -> DrawStyle:
@@ -91,3 +92,12 @@ def _validate_style_values(style: DrawStyle) -> None:
         value = getattr(style, field_name)
         if not isinstance(value, bool):
             raise StyleValidationError(f"{field_name} must be a boolean")
+    _validate_use_mathtext_mode(style.use_mathtext)
+
+
+def _validate_use_mathtext_mode(value: UseMathTextMode) -> None:
+    if isinstance(value, bool):
+        return
+    if value == "auto":
+        return
+    raise StyleValidationError("use_mathtext must be a boolean or 'auto'")

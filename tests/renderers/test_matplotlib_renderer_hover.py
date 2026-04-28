@@ -1,4 +1,6 @@
 # ruff: noqa: F403, F405
+from matplotlib.axes import Axes
+
 import quantum_circuit_drawer.renderers._matplotlib_hover as matplotlib_hover_module
 import quantum_circuit_drawer.renderers._matplotlib_hover_position as hover_position_module
 from quantum_circuit_drawer.layout.scene import SceneHoverData
@@ -409,6 +411,59 @@ def test_matplotlib_hover_does_not_fill_gap_between_connected_targets() -> None:
     assert matplotlib_hover_module._resolve_hover_box(hover_boxes, x=0.5, y=2.5) is not None
 
 
+def test_matplotlib_hover_grid_matches_linear_resolution_on_dense_targets() -> None:
+    hover_data = SceneHoverData(
+        key="dense-grid",
+        name="DenseGrid",
+        qubit_labels=("q0",),
+        other_wire_labels=(),
+        matrix=None,
+        matrix_dimension=2,
+        gate_x=0.0,
+        gate_y=0.0,
+        gate_width=1.0,
+        gate_height=1.0,
+    )
+    hover_targets: list[matplotlib_hover_module._HoverTarget2D] = []
+    for x_index in range(12):
+        for y_index in range(8):
+            x_min = x_index * 1.2
+            y_min = y_index * 1.1
+            matplotlib_hover_module.add_hover_target(
+                hover_targets,
+                hover_data,
+                x_min=x_min,
+                x_max=x_min + 0.8,
+                y_min=y_min,
+                y_max=y_min + 0.7,
+            )
+
+    hover_boxes = matplotlib_hover_module._build_hover_boxes(hover_targets)
+    hover_grid = matplotlib_hover_module._build_hover_grid(hover_boxes)
+    probe_points = (
+        (0.2, 0.2),
+        (1.7, 0.3),
+        (4.9, 2.4),
+        (8.6, 6.9),
+        (13.1, 3.5),
+        (13.25, 3.95),
+        (14.1, 7.8),
+    )
+
+    for probe_x, probe_y in probe_points:
+        expected = matplotlib_hover_module._resolve_hover_box(
+            hover_boxes,
+            x=probe_x,
+            y=probe_y,
+        )
+        resolved = matplotlib_hover_module._resolve_hover_box_in_grid(
+            hover_grid,
+            x=probe_x,
+            y=probe_y,
+        )
+        assert resolved == expected
+
+
 def test_draw_quantum_circuit_2d_hover_connection_hitbox_stays_near_visible_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -512,6 +567,56 @@ def test_matplotlib_renderer_hover_keeps_batch_draws_for_hoverable_artifacts(
         "x_target_circles": 0,
         "x_target_segments": 0,
     }
+
+
+def test_matplotlib_renderer_computes_connection_hover_half_width_once_per_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = LayoutEngine().compute(_hover_batching_ir(), DrawStyle())
+    scene.hover = HoverOptions(enabled=True)
+    figure, axes = plt.subplots()
+    renderer = MatplotlibRenderer()
+    hover_half_width_calls = 0
+    original_hover_half_width = renderer._connection_hover_half_width
+
+    def count_hover_half_width(
+        axes_value: Axes,
+        scene_value: LayoutScene,
+    ) -> float:
+        nonlocal hover_half_width_calls
+        hover_half_width_calls += 1
+        return original_hover_half_width(axes_value, scene_value)
+
+    monkeypatch.setattr(renderer, "_connection_hover_half_width", count_hover_half_width)
+
+    renderer.render(scene, ax=axes)
+
+    assert hover_half_width_calls == len(scene.pages)
+
+
+def test_draw_quantum_circuit_2d_hover_dense_scene_keeps_targets_responsive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    circuit = build_dense_rotation_ir(layer_count=18)
+    scene = LayoutEngine().compute(circuit, DrawStyle(show_params=True))
+    scene.hover = HoverOptions(enabled=True)
+    figure, axes = plt.subplots()
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+    gate = scene.gates[len(scene.gates) // 2]
+    gate_center_x, gate_center_y = axes.transData.transform((gate.x, gate.y))
+
+    try:
+        _dispatch_motion_event_at(figure, float(gate_center_x), float(gate_center_y))
+        annotation = next(text for text in axes.texts if isinstance(text, Annotation))
+
+        assert annotation.get_visible() is True
+        assert annotation.get_text()
+    finally:
+        plt.close(figure)
 
 
 def _adjacent_cnot_and_box_gates_ir() -> CircuitIR:

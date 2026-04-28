@@ -35,13 +35,13 @@ def test_normalize_style_applies_mapping_values_and_keeps_defaults() -> None:
             "font_size": 10.0,
             "show_params": False,
             "theme": "light",
-            "use_mathtext": False,
+            "use_mathtext": "auto",
         }
     )
 
     assert normalized.font_size == 10.0
     assert normalized.show_params is False
-    assert normalized.use_mathtext is False
+    assert normalized.use_mathtext == "auto"
     assert normalized.theme.name == "light"
     assert normalized.layer_spacing == DrawStyle().layer_spacing
 
@@ -57,14 +57,22 @@ def test_normalize_style_rejects_invalid_positive_fields(field_name: str) -> Non
         normalize_style({field_name: 0})
 
 
-@pytest.mark.parametrize("field_name", ["show_params", "show_wire_labels", "use_mathtext"])
+@pytest.mark.parametrize("field_name", ["show_params", "show_wire_labels"])
 def test_normalize_style_rejects_invalid_boolean_fields(field_name: str) -> None:
     with pytest.raises(StyleValidationError, match=rf"{field_name} must be a boolean"):
         normalize_style({field_name: "yes"})
 
 
-def test_draw_style_enables_mathtext_by_default() -> None:
-    assert DrawStyle().use_mathtext is True
+def test_normalize_style_rejects_invalid_mathtext_mode() -> None:
+    with pytest.raises(
+        StyleValidationError,
+        match="use_mathtext must be a boolean or 'auto'",
+    ):
+        normalize_style({"use_mathtext": "smart"})
+
+
+def test_draw_style_defaults_use_mathtext_to_auto() -> None:
+    assert DrawStyle().use_mathtext == "auto"
 
 
 def test_normalize_style_tracks_default_line_width_provenance() -> None:

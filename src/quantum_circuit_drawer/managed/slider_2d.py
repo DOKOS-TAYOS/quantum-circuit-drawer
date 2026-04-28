@@ -14,12 +14,12 @@ from ..ir.circuit import CircuitIR
 from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_ir
 from ..ir.semantic import semantic_operation_id
 from ..layout._layering import normalized_draw_circuit
-from ..layout._layout_scaffold import build_layout_paging_inputs, paged_scene_metrics_for_width
 from ..layout.scene import LayoutScene
 from ..renderers._matplotlib_figure import clear_hover_state, set_viewport_width
 from ..renderers.matplotlib_primitives import _GateTextCache
 from ..style import DrawStyle
 from ..typing import LayoutEngineLike
+from ._adaptive_paging import _Managed2DSceneFactory, managed_2d_scene_factory
 from .controls import (
     _resolve_2d_slider_layout,
     _style_control_axes,
@@ -66,7 +66,7 @@ from .interaction import (
 from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
 from .slider_2d_windowing import _scene_for_current_window
 from .ui_palette import ManagedUiPalette, managed_ui_palette
-from .viewport import _figure_size_inches, axes_viewport_pixels, build_continuous_slider_scene
+from .viewport import _figure_size_inches, axes_viewport_pixels
 
 if TYPE_CHECKING:
     from matplotlib.text import Text
@@ -139,6 +139,7 @@ class Managed2DPageSliderState:
     layout_engine: LayoutEngineLike
     renderer: MatplotlibRenderer
     style: DrawStyle
+    scene_factory: _Managed2DSceneFactory
     full_scene: LayoutScene
     scene: LayoutScene
     column_widths: tuple[float, ...]
@@ -417,12 +418,13 @@ def configure_page_slider(
     base_normalized_circuit = normalized_draw_circuit(circuit)
     current_semantic = semantic_ir or semantic_circuit_from_circuit_ir(base_normalized_circuit)
     normalized_circuit = normalized_draw_circuit(lower_semantic_circuit(current_semantic))
-    current_full_scene = build_continuous_slider_scene(
+    scene_factory = managed_2d_scene_factory(
         normalized_circuit,
         layout_engine,
         resolved_style,
         hover_enabled=scene.hover.enabled,
     )
+    current_full_scene = scene_factory.scene_for_page_width(float("inf"))
     resolved_visible_row_count = max(
         _scene_visible_row_count(current_full_scene),
         1 if quantum_wire_count is None else quantum_wire_count,
@@ -432,11 +434,7 @@ def configure_page_slider(
         resolved_visible_row_count,
     )
 
-    paging_inputs = build_layout_paging_inputs(normalized_circuit, resolved_style)
-    total_scene_width = paged_scene_metrics_for_width(
-        paging_inputs,
-        max_page_width=float("inf"),
-    ).scene_width
+    total_scene_width = scene_factory.metrics_for_page_width(float("inf")).scene_width
     initial_viewport_height = _visible_qubits_viewport_height(
         current_full_scene,
         visible_qubits=resolved_visible_qubits,
@@ -474,9 +472,10 @@ def configure_page_slider(
         layout_engine=layout_engine,
         renderer=renderer,
         style=resolved_style,
+        scene_factory=scene_factory,
         full_scene=current_full_scene,
         scene=current_full_scene,
-        column_widths=tuple(paging_inputs.column_widths),
+        column_widths=tuple(scene_factory.paging_inputs.column_widths),
         total_scene_width=total_scene_width,
         total_column_count=len(normalized_circuit.layers),
         horizontal_slider=None,
@@ -1107,20 +1106,17 @@ def _refresh_2d_slider_exploration_context(state: Managed2DPageSliderState) -> N
     state.exploration.hidden_wire_ranges = transformed.hidden_wire_ranges
 
     normalized_circuit = normalized_draw_circuit(transformed.circuit_ir)
-    paging_inputs = build_layout_paging_inputs(normalized_circuit, state.style)
     state.circuit = normalized_circuit
-    state.column_widths = tuple(paging_inputs.column_widths)
-    state.total_scene_width = paged_scene_metrics_for_width(
-        paging_inputs,
-        max_page_width=float("inf"),
-    ).scene_width
-    state.total_column_count = len(normalized_circuit.layers)
-    state.full_scene = build_continuous_slider_scene(
+    state.scene_factory = managed_2d_scene_factory(
         normalized_circuit,
         state.layout_engine,
         state.style,
         hover_enabled=state.full_scene.hover.enabled,
     )
+    state.column_widths = tuple(state.scene_factory.paging_inputs.column_widths)
+    state.total_scene_width = state.scene_factory.metrics_for_page_width(float("inf")).scene_width
+    state.total_column_count = len(normalized_circuit.layers)
+    state.full_scene = state.scene_factory.scene_for_page_width(float("inf"))
     state.total_visible_rows = _scene_visible_row_count(state.full_scene)
     state.visible_qubits = _clamp_visible_qubits(state.visible_qubits, state.total_visible_rows)
     state.viewport_height = _visible_qubits_viewport_height(

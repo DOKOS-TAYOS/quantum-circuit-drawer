@@ -624,8 +624,8 @@ def test_slider_block_toggle_expands_and_recovers_semantic_block() -> None:
             set(_semantic_operation_names(page_slider.exploration.transformed_semantic_ir))
         )
         assert any(
-            getattr(patch, "get_gid", lambda: None)() == "decomposition-group-highlight"
-            for patch in axes.patches
+            getattr(artist, "get_gid", lambda: None)() == "decomposition-group-highlight"
+            for artist in [*axes.patches, *axes.collections]
         )
 
         page_slider.toggle_selected_block()
@@ -681,8 +681,8 @@ def test_slider_expanded_block_keeps_group_highlight_without_selection() -> None
             gate.visual_state is SceneVisualState.DEFAULT for gate in page_slider.scene.gates
         )
         assert any(
-            getattr(patch, "get_gid", lambda: None)() == "decomposition-group-highlight"
-            for patch in axes.patches
+            getattr(artist, "get_gid", lambda: None)() == "decomposition-group-highlight"
+            for artist in [*axes.patches, *axes.collections]
         )
     finally:
         plt.close(figure)

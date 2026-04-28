@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Changed the default circuit text behavior to `DrawStyle(use_mathtext="auto")`, keeping visible labels plain by default while still promoting symbolic parameter subtitles such as `theta`, `phi`, and `pi/2` to MathText when that improves notation.
+- Extended `DrawStyle.use_mathtext` to accept `True`, `False`, or `"auto"`, preserving explicit legacy behavior while making the default managed 2D render path noticeably faster than the old always-MathText default on large synthetic circuits.
+
+### Fixed
+
+- Reduced repeated text-resolution work across the Matplotlib circuit render path by caching resolved visible-label and gate-label text before artist creation, improving default 2D rendering performance without changing circuit layout geometry.
+- Reduced repeated 2D managed paging work by reusing adaptive paging inputs and metrics across `pages_controls`, plus cached horizontal subscenes in `slider`, cutting redraw recomputation without changing the public API.
+- Reduced 2D Matplotlib artist overhead by batching gate boxes, measurement boxes, and decomposition highlights into patch collections where styles match, while keeping the visible geometry and public API unchanged.
+- Replaced the linear 2D hover hit-test scan with a spatially indexed data-grid lookup and batched hover-target preparation for gates, measurements, controls, swaps, and connections, improving dense interactive hover responsiveness without simplifying tooltip fidelity.
+- Reduced managed 2D adaptive paging search work by adding conservative early exits for obvious viewport-fit cases and shrinking the fallback search budget, preserving page-window behavior while avoiding unnecessary width probes on large circuits.
+
 ## [0.6.0] - 2026-04-28
 
 ### Added

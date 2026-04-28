@@ -8,7 +8,7 @@ from types import MethodType
 from typing import Any, cast
 
 from matplotlib.axes import Axes
-from matplotlib.collections import EllipseCollection, LineCollection
+from matplotlib.collections import EllipseCollection, LineCollection, PatchCollection
 from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Patch
 from matplotlib.text import Text
@@ -129,6 +129,41 @@ def _add_line_collection(
     )
     ax.add_collection(collection)
     _apply_axes_artist_clip(ax, collection)
+    return collection
+
+
+def _add_patch_collection(
+    ax: Axes,
+    patches: Sequence[Patch],
+    *,
+    zorder: float | None = None,
+    gid: str | None = None,
+    data_extent: tuple[float, float, float, float] | None = None,
+) -> PatchCollection | None:
+    if not patches:
+        return None
+
+    clip_on = _axes_should_clip_artists(ax)
+    collection = PatchCollection(
+        list(patches),
+        match_original=True,
+        zorder=zorder,
+        clip_on=clip_on,
+    )
+    if gid is not None:
+        collection.set_gid(gid)
+    ax.add_collection(collection)
+    _apply_axes_artist_clip(ax, collection)
+    if data_extent is not None:
+        x_min, x_max, y_min, y_max = data_extent
+        _set_artist_data_extent(
+            ax,
+            collection,
+            x_min=x_min,
+            x_max=x_max,
+            y_min=y_min,
+            y_max=y_max,
+        )
     return collection
 
 
