@@ -11,8 +11,10 @@ from matplotlib.figure import Figure
 import quantum_circuit_drawer.managed.rendering as managed_module
 from quantum_circuit_drawer import DrawMode
 from quantum_circuit_drawer import draw_quantum_circuit as public_draw_quantum_circuit
+from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
-from quantum_circuit_drawer.ir.operations import OperationKind
+from quantum_circuit_drawer.ir.measurements import MeasurementIR
+from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
 from quantum_circuit_drawer.ir.semantic import (
     SemanticCircuitIR,
     SemanticLayerIR,
@@ -914,8 +916,14 @@ def test_page_window_additional_shortcuts_navigate_and_clear_selection() -> None
         _dispatch_key_press(figure, "-")
         assert page_window.visible_page_count == 1
 
-        page_window.select_operation("op:0")
         assert page_window.exploration is not None
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ALL
+        _dispatch_key_press(figure, "w")
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+        _dispatch_key_press(figure, "w")
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ALL
+
+        page_window.select_operation("op:0")
 
         _dispatch_key_press(figure, "escape")
         assert page_window.exploration.selected_operation_id is None
@@ -940,12 +948,14 @@ def test_page_window_question_shortcut_toggles_shortcut_help() -> None:
 
         _dispatch_key_press(figure, "?")
         assert page_window.shortcut_help_text.get_visible() is True
-        assert "Shortcuts" in page_window.shortcut_help_text.get_text()
+        shortcut_help_text = page_window.shortcut_help_text.get_text()
+        assert "Shortcuts" in shortcut_help_text
         assert page_window.shortcut_help_text.get_ha() == "left"
-        assert "Navigation" in page_window.shortcut_help_text.get_text()
-        assert "Left/Right: Move pages" in page_window.shortcut_help_text.get_text()
-        assert "Selection" in page_window.shortcut_help_text.get_text()
-        assert "Enter/Space: Toggle block" in page_window.shortcut_help_text.get_text()
+        assert "Navigation" in shortcut_help_text
+        assert "$\\mathbf{Left/Right}$: Move pages" in shortcut_help_text
+        assert "$\\mathbf{w}$: Toggle wires all/active" in shortcut_help_text
+        assert "Selection" in shortcut_help_text
+        assert "$\\mathbf{Enter/Space}$: Toggle block" in shortcut_help_text
 
         _dispatch_key_press(figure, "?")
         assert page_window.shortcut_help_text.get_visible() is False
@@ -979,16 +989,16 @@ def _page_gate_operation_ids(scene: LayoutScene, page_index: int) -> tuple[str, 
 def _page_column_operation_ids(scene: LayoutScene, page_index: int) -> tuple[str, ...]:
     page = scene.pages[page_index]
     operation_ids_by_column: dict[int, str] = {}
-    for gate in scene.gates:
-        operation_id = gate.operation_id
+    for item in (*scene.gates, *scene.measurements):
+        operation_id = item.operation_id
         if (
             not isinstance(operation_id, str)
             or not operation_id
-            or gate.column in operation_ids_by_column
-            or not (page.start_column <= gate.column <= page.end_column)
+            or item.column in operation_ids_by_column
+            or not (page.start_column <= item.column <= page.end_column)
         ):
             continue
-        operation_ids_by_column[gate.column] = operation_id
+        operation_ids_by_column[item.column] = operation_id
     return tuple(operation_ids_by_column[column] for column in sorted(operation_ids_by_column))
 
 
@@ -1076,6 +1086,48 @@ def test_page_window_tab_shortcuts_advance_across_visible_columns_and_change_pag
         assert page_window.exploration.selected_operation_id == first_page_operation_ids[-1]
     finally:
         plt.close(figure)
+
+
+def test_page_window_tab_shortcuts_reach_visible_measurements_before_changing_pages() -> None:
+    result = public_draw_quantum_circuit(
+        _public_ir_with_trailing_measurements(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            style={"max_page_width": 6.5},
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(result.primary_figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+        assert page_window.total_pages >= 2
+
+        first_page_operation_ids = _page_column_operation_ids(page_window.scene, 0)
+        measurement_operation_ids = tuple(
+            item.operation_id
+            for item in page_window.scene.measurements
+            if isinstance(item.operation_id, str)
+            and item.operation_id
+            and page_window.scene.pages[0].start_column
+            <= item.column
+            <= page_window.scene.pages[0].end_column
+        )
+        assert measurement_operation_ids
+        assert (
+            first_page_operation_ids[-len(measurement_operation_ids) :] == measurement_operation_ids
+        )
+
+        for expected_operation_id in first_page_operation_ids:
+            _dispatch_key_press(result.primary_figure, "tab")
+            assert page_window.exploration.selected_operation_id == expected_operation_id
+            assert page_window.start_page == 0
+
+        _dispatch_key_press(result.primary_figure, "tab")
+        assert page_window.start_page == 1
+    finally:
+        plt.close(result.primary_figure)
 
 
 def test_page_window_tab_selection_still_supports_enter_and_escape() -> None:
@@ -1243,6 +1295,13 @@ def test_slider_additional_shortcuts_navigate_and_adjust_visible_wires() -> None
 
         _dispatch_key_press(figure, "-")
         assert page_slider.visible_qubits == visible_qubits
+
+        assert page_slider.exploration is not None
+        assert page_slider.exploration.wire_filter_mode is WireFilterMode.ALL
+        _dispatch_key_press(figure, "w")
+        assert page_slider.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+        _dispatch_key_press(figure, "w")
+        assert page_slider.exploration.wire_filter_mode is WireFilterMode.ALL
     finally:
         plt.close(figure)
 
@@ -2877,6 +2936,96 @@ def _semantic_parallel_gate_circuit() -> SemanticCircuitIR:
                             native_kind="gate",
                             location=(1, 0),
                         ),
+                    ),
+                )
+            ),
+        ),
+    )
+
+
+def _public_ir_with_trailing_measurements() -> CircuitIR:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(4)
+    )
+    classical_wires = tuple(
+        WireIR(id=f"c{index}", index=index, kind=WireKind.CLASSICAL, label=f"c{index}")
+        for index in range(4)
+    )
+    return CircuitIR(
+        quantum_wires=quantum_wires,
+        classical_wires=classical_wires,
+        layers=(
+            LayerIR(
+                operations=(OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),)
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        target_wires=("q1",),
+                        parameters=(0.2,),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        target_wires=("q2",),
+                        parameters=(0.4,),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        target_wires=("q3",),
+                        parameters=(0.6,),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q1",),
+                        classical_target="c1",
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q2",),
+                        classical_target="c2",
                     ),
                 )
             ),

@@ -33,6 +33,7 @@ from .exploration_2d import (
     transform_semantic_circuit,
 )
 from .interaction import (
+    install_managed_tab_focus_bindings,
     is_block_toggle_key,
     is_clear_selection_key,
     is_end_key,
@@ -45,9 +46,11 @@ from .interaction import (
     is_previous_selection_key,
     is_reset_view_key,
     is_shortcut_help_key,
+    is_toggle_wire_filter_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
     next_visible_operation_selection,
+    run_managed_canvas_action,
     toggle_operation_with_selection,
     visible_column_operation_ids,
 )
@@ -243,7 +246,10 @@ class Managed2DPageWindowState:
         if self.exploration is None:
             return
         operation_ids = visible_column_operation_ids(
-            (self.window_scene or self.scene).gates,
+            (
+                *((self.window_scene or self.scene).gates),
+                *((self.window_scene or self.scene).measurements),
+            ),
         )
         next_operation_id = next_visible_operation_selection(
             operation_ids,
@@ -270,7 +276,10 @@ class Managed2DPageWindowState:
         _render_current_window(self)
         _sync_inputs(self)
         shifted_operation_ids = visible_column_operation_ids(
-            (self.window_scene or self.scene).gates
+            (
+                *((self.window_scene or self.scene).gates),
+                *((self.window_scene or self.scene).measurements),
+            )
         )
         boundary_operation_id = (
             shifted_operation_ids[-1] if backwards and shifted_operation_ids else None
@@ -349,6 +358,7 @@ def configure_page_window(
             "Home/End: Jump to first/last page",
             "PageUp/PageDown: Jump by visible window",
             "+/-: Show more/fewer pages",
+            "w: Toggle wires all/active",
             "",
             "Selection",
             "Tab/Shift+Tab: Move between columns",
@@ -480,59 +490,67 @@ def _attach_window_key_shortcuts(state: Managed2DPageWindowState) -> None:
         return
     if state.key_callback_id is not None:
         canvas.mpl_disconnect(state.key_callback_id)
+    install_managed_tab_focus_bindings(canvas)
 
     def _handle_key(event: KeyEvent) -> None:
         if not state.keyboard_shortcuts_enabled:
             return
         if managed_text_boxes_capture_keys(state.managed_text_boxes()):
             return
+
+        def _run(action: Callable[[], None]) -> None:
+            run_managed_canvas_action(canvas, action)
+
         key_name = managed_key_name(event)
         if is_home_key(event):
-            state.show_first_page()
+            _run(state.show_first_page)
             return
         if is_end_key(event):
-            state.show_last_page()
+            _run(state.show_last_page)
             return
         if is_page_up_key(event):
-            state.step_page_large(-1)
+            _run(lambda: state.step_page_large(-1))
             return
         if is_page_down_key(event):
-            state.step_page_large(1)
+            _run(lambda: state.step_page_large(1))
             return
         if is_plus_key(event):
-            state.step_visible_pages(1)
+            _run(lambda: state.step_visible_pages(1))
             return
         if is_minus_key(event):
-            state.step_visible_pages(-1)
+            _run(lambda: state.step_visible_pages(-1))
             return
         if is_next_selection_key(event):
-            state.step_operation_selection()
+            _run(state.step_operation_selection)
             return
         if is_previous_selection_key(event):
-            state.step_operation_selection(backwards=True)
+            _run(lambda: state.step_operation_selection(backwards=True))
             return
         if is_clear_selection_key(event):
-            state.clear_selection()
+            _run(state.clear_selection)
             return
         if is_reset_view_key(event):
-            state.reset_exploration_view()
+            _run(state.reset_exploration_view)
+            return
+        if is_toggle_wire_filter_key(event):
+            _run(state.toggle_wire_filter)
             return
         if is_shortcut_help_key(event):
-            state.toggle_shortcut_help()
+            _run(state.toggle_shortcut_help)
             return
         if key_name == "left":
-            state.step_page(-1)
+            _run(lambda: state.step_page(-1))
             return
         if key_name == "right":
-            state.step_page(1)
+            _run(lambda: state.step_page(1))
             return
         if key_name == "up":
-            state.step_visible_pages(1)
+            _run(lambda: state.step_visible_pages(1))
             return
         if key_name == "down":
-            state.step_visible_pages(-1)
+            _run(lambda: state.step_visible_pages(-1))
             return
         if is_block_toggle_key(event):
-            state.toggle_selected_block()
+            _run(state.toggle_selected_block)
 
     state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))

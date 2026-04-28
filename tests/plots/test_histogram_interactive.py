@@ -396,12 +396,13 @@ def test_histogram_interactive_question_shortcut_toggles_shortcut_help() -> None
 
     _dispatch_key_press(result.figure, "?")
     assert state.shortcut_help_text.get_visible() is True
-    assert "Shortcuts" in state.shortcut_help_text.get_text()
+    shortcut_help_text = state.shortcut_help_text.get_text()
+    assert "Shortcuts" in shortcut_help_text
     assert state.shortcut_help_text.get_ha() == "left"
-    assert "View" in state.shortcut_help_text.get_text()
-    assert "Left/Right: Move slider window" in state.shortcut_help_text.get_text()
-    assert "Modes" in state.shortcut_help_text.get_text()
-    assert "m: Edit marginal qubits" in state.shortcut_help_text.get_text()
+    assert "View" in shortcut_help_text
+    assert "$\\mathbf{Left/Right}$: Move slider window" in shortcut_help_text
+    assert "Modes" in shortcut_help_text
+    assert "$\\mathbf{m}$: Edit marginal qubits" in shortcut_help_text
 
     _dispatch_key_press(result.figure, "?")
     assert state.shortcut_help_text.get_visible() is False

@@ -44,7 +44,16 @@ def create_shortcut_help_text(
 def format_shortcut_help(lines: Sequence[str]) -> str:
     """Return one user-facing shortcut-help block."""
 
-    return "Shortcuts\n" + "\n".join(lines)
+    return "Shortcuts\n" + "\n".join(_format_shortcut_help_line(line) for line in lines)
+
+
+def _format_shortcut_help_line(line: str) -> str:
+    """Return one shortcut-help line with the shortcut segment emphasized."""
+
+    shortcut, separator, description = line.partition(":")
+    if separator == "":
+        return line
+    return f"$\\mathbf{{{shortcut}}}$:{description}"
 
 
 def toggle_shortcut_help_text(help_text: Text | None, *, figure: Figure) -> None:

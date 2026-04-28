@@ -132,11 +132,7 @@ def attach_topology_menu(
             else cast("LayoutScene3D", pipeline.paged_scene)
         )
     )
-    valid_topologies = tuple(
-        topology_name
-        for topology_name in _ALL_TOPOLOGIES
-        if _supports_topology(topology_name, tuple(pipeline.ir.quantum_wires))
-    )
+    valid_topologies = valid_topologies_for_quantum_wires(tuple(pipeline.ir.quantum_wires))
     active_topology = cast("TopologyName", pipeline.draw_options.topology)
     state = TopologyMenuState(
         figure=figure,
@@ -277,6 +273,50 @@ def _supports_topology(
     return True
 
 
+def valid_topologies_for_quantum_wires(
+    quantum_wires: tuple[object, ...],
+) -> tuple[TopologyName, ...]:
+    """Return the built-in 3D topologies supported by the provided wires."""
+
+    return tuple(
+        topology_name
+        for topology_name in _ALL_TOPOLOGIES
+        if _supports_topology(topology_name, quantum_wires)
+    )
+
+
+def next_valid_topology(
+    current_topology: object,
+    *,
+    quantum_wires: tuple[object, ...],
+) -> TopologyName | None:
+    """Return the next supported built-in topology after the current one."""
+
+    valid_topologies = valid_topologies_for_quantum_wires(quantum_wires)
+    if not valid_topologies:
+        return None
+    if current_topology not in valid_topologies:
+        return None
+    current_index = valid_topologies.index(cast("TopologyName", current_topology))
+    return valid_topologies[(current_index + 1) % len(valid_topologies)]
+
+
+def previous_valid_topology(
+    current_topology: object,
+    *,
+    quantum_wires: tuple[object, ...],
+) -> TopologyName | None:
+    """Return the previous supported built-in topology before the current one."""
+
+    valid_topologies = valid_topologies_for_quantum_wires(quantum_wires)
+    if not valid_topologies:
+        return None
+    if current_topology not in valid_topologies:
+        return None
+    current_index = valid_topologies.index(cast("TopologyName", current_topology))
+    return valid_topologies[(current_index - 1) % len(valid_topologies)]
+
+
 __all__ = [
     "Axes",
     "LayoutEngine3DLike",
@@ -309,6 +349,9 @@ __all__ = [
     "get_page_window",
     "managed_3d_menu_bounds",
     "managed_ui_palette",
+    "next_valid_topology",
+    "previous_valid_topology",
     "replace",
     "set_topology_menu_state",
+    "valid_topologies_for_quantum_wires",
 ]

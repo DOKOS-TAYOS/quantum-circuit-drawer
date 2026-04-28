@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import Protocol
 
 from matplotlib.backend_bases import KeyEvent
@@ -18,10 +18,101 @@ class _SelectableToggleableState(Protocol):
         """Toggle the currently selected semantic block."""
 
 
+_MANAGED_KEY_ALIASES: dict[str, str] = {
+    "iso_left_tab": "shift+tab",
+}
+_MANAGED_TAB_BINDINGS_INSTALLED_ATTR = (
+    "_quantum_circuit_drawer_managed_tab_focus_bindings_installed"
+)
+
+
 def managed_key_name(event: KeyEvent) -> str:
     """Return a normalized Matplotlib key name."""
 
-    return "" if event.key is None else str(event.key).lower()
+    key_name = "" if event.key is None else str(event.key).lower()
+    return _MANAGED_KEY_ALIASES.get(key_name, key_name)
+
+
+def restore_managed_canvas_focus(canvas: object | None) -> None:
+    """Best-effort return keyboard focus to one managed Matplotlib canvas."""
+
+    if canvas is None:
+        return
+
+    tk_widget_getter = getattr(canvas, "get_tk_widget", None)
+    if callable(tk_widget_getter):
+        try:
+            tk_widget = tk_widget_getter()
+        except Exception:
+            tk_widget = None
+        focus_set = getattr(tk_widget, "focus_set", None)
+        if callable(focus_set):
+            try:
+                focus_set()
+                return
+            except Exception:
+                pass
+
+    for focus_method_name in ("setFocus", "SetFocus", "focus_set"):
+        focus_method = getattr(canvas, focus_method_name, None)
+        if not callable(focus_method):
+            continue
+        try:
+            focus_method()
+            return
+        except TypeError:
+            continue
+        except Exception:
+            return
+
+
+def install_managed_tab_focus_bindings(canvas: object | None) -> None:
+    """Install Tk-specific Tab bindings that preserve canvas focus."""
+
+    if canvas is None or bool(getattr(canvas, _MANAGED_TAB_BINDINGS_INSTALLED_ATTR, False)):
+        return
+
+    tk_widget_getter = getattr(canvas, "get_tk_widget", None)
+    if not callable(tk_widget_getter):
+        return
+
+    try:
+        tk_widget = tk_widget_getter()
+    except Exception:
+        return
+    bind = getattr(tk_widget, "bind", None)
+    if not callable(bind):
+        return
+
+    def _forward_tab_key(key_name: str, event: object) -> str:
+        dispatch_managed_key_event(canvas, key_name=key_name, gui_event=event)
+        restore_managed_canvas_focus(canvas)
+        return "break"
+
+    bind("<Tab>", lambda event: _forward_tab_key("tab", event), add="+")
+    bind("<Shift-Tab>", lambda event: _forward_tab_key("shift+tab", event), add="+")
+    bind("<ISO_Left_Tab>", lambda event: _forward_tab_key("shift+tab", event), add="+")
+    setattr(canvas, _MANAGED_TAB_BINDINGS_INSTALLED_ATTR, True)
+
+
+def dispatch_managed_key_event(
+    canvas: object | None,
+    *,
+    key_name: str,
+    gui_event: object | None = None,
+) -> None:
+    """Dispatch one synthetic managed key event through Matplotlib callbacks."""
+
+    if canvas is None or not hasattr(canvas, "callbacks"):
+        return
+    KeyEvent("key_press_event", canvas, key=key_name, guiEvent=gui_event)._process()
+
+
+def run_managed_canvas_action(canvas: object | None, action: Callable[[], None]) -> None:
+    """Run one managed action and then try to keep keyboard focus on the canvas."""
+
+    action()
+    restore_managed_canvas_focus(canvas)
 
 
 def is_block_toggle_key(event: KeyEvent) -> bool:
@@ -52,6 +143,25 @@ def is_reset_view_key(event: KeyEvent) -> bool:
     """Return whether the key event should restore the original managed view."""
 
     return managed_key_name(event) == "0"
+
+
+def is_cycle_topology_key(event: KeyEvent) -> bool:
+    """Return whether the key event should cycle the active 3D topology."""
+
+    return managed_key_name(event) == "t" and not is_previous_topology_key(event)
+
+
+def is_previous_topology_key(event: KeyEvent) -> bool:
+    """Return whether the key event should cycle to the previous 3D topology."""
+
+    raw_key_name = "" if event.key is None else str(event.key)
+    return raw_key_name == "T" or managed_key_name(event) == "shift+t"
+
+
+def is_toggle_wire_filter_key(event: KeyEvent) -> bool:
+    """Return whether the key event should toggle the wire filter mode."""
+
+    return managed_key_name(event) == "w"
 
 
 def is_shortcut_help_key(event: KeyEvent) -> bool:
@@ -196,7 +306,9 @@ def next_visible_operation_selection(
 
 
 __all__ = [
+    "dispatch_managed_key_event",
     "is_block_toggle_key",
+    "is_cycle_topology_key",
     "is_clear_selection_key",
     "is_end_key",
     "is_home_key",
@@ -205,12 +317,17 @@ __all__ = [
     "is_page_down_key",
     "is_page_up_key",
     "is_plus_key",
+    "is_previous_topology_key",
     "is_previous_selection_key",
     "is_reset_view_key",
     "is_shortcut_help_key",
+    "is_toggle_wire_filter_key",
+    "install_managed_tab_focus_bindings",
     "managed_key_name",
     "managed_text_boxes_capture_keys",
     "next_visible_operation_selection",
+    "restore_managed_canvas_focus",
+    "run_managed_canvas_action",
     "toggle_operation_with_selection",
     "visible_column_operation_ids",
     "visible_operation_ids",

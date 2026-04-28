@@ -14,7 +14,7 @@ from ..ir.lowering import lower_semantic_circuit
 from ..ir.semantic import semantic_operation_id
 from ..layout._layering import normalized_draw_circuit
 from ..layout.topology_3d import TopologyName
-from ..renderers._matplotlib_figure import clicked_artist_operation_id
+from ..renderers._matplotlib_figure import clicked_artist_operation_id, get_topology_menu_state
 from .exploration_2d import (
     Managed2DExplorationState,
     apply_scene_visual_state_3d,
@@ -26,8 +26,10 @@ from .exploration_2d import (
     transform_semantic_circuit,
 )
 from .interaction import (
+    install_managed_tab_focus_bindings,
     is_block_toggle_key,
     is_clear_selection_key,
+    is_cycle_topology_key,
     is_end_key,
     is_home_key,
     is_minus_key,
@@ -36,11 +38,14 @@ from .interaction import (
     is_page_up_key,
     is_plus_key,
     is_previous_selection_key,
+    is_previous_topology_key,
     is_reset_view_key,
     is_shortcut_help_key,
+    is_toggle_wire_filter_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
     next_visible_operation_selection,
+    run_managed_canvas_action,
     toggle_operation_with_selection,
     visible_column_operation_ids,
 )
@@ -150,6 +155,40 @@ class Managed3DPageWindowState:
         )
         _render_current_window(self)
         _sync_inputs(self)
+
+    def cycle_topology(self) -> None:
+        """Switch to the next supported built-in topology."""
+
+        from .topology_menu import next_valid_topology
+
+        next_topology = next_valid_topology(
+            self.pipeline.draw_options.topology,
+            quantum_wires=tuple(self.pipeline.ir.quantum_wires),
+        )
+        if next_topology is None:
+            return
+        topology_menu_state = get_topology_menu_state(self.figure)
+        if hasattr(topology_menu_state, "select_topology"):
+            topology_menu_state.select_topology(next_topology)
+            return
+        self.select_topology(next_topology)
+
+    def previous_topology(self) -> None:
+        """Switch to the previous supported built-in topology."""
+
+        from .topology_menu import previous_valid_topology
+
+        previous_topology = previous_valid_topology(
+            self.pipeline.draw_options.topology,
+            quantum_wires=tuple(self.pipeline.ir.quantum_wires),
+        )
+        if previous_topology is None:
+            return
+        topology_menu_state = get_topology_menu_state(self.figure)
+        if hasattr(topology_menu_state, "select_topology"):
+            topology_menu_state.select_topology(previous_topology)
+            return
+        self.select_topology(previous_topology)
 
     def select_operation(self, operation_id: str | None) -> None:
         """Update the contextual selection and redraw the current window."""
@@ -378,6 +417,8 @@ def configure_3d_page_window(
             "Home/End: Jump to first/last page",
             "PageUp/PageDown: Jump by visible window",
             "+/-: Show more/fewer pages",
+            "t/Shift+T: Next/previous topology",
+            "w: Toggle wires all/active",
             "",
             "Selection",
             "Tab/Shift+Tab: Move between columns",
@@ -507,59 +548,73 @@ def _attach_3d_window_key_shortcuts(state: Managed3DPageWindowState) -> None:
         return
     if state.key_callback_id is not None:
         canvas.mpl_disconnect(state.key_callback_id)
+    install_managed_tab_focus_bindings(canvas)
 
     def _handle_key(event: KeyEvent) -> None:
         if not state.keyboard_shortcuts_enabled:
             return
         if managed_text_boxes_capture_keys(state.managed_text_boxes()):
             return
+
+        def _run(action: Callable[[], None]) -> None:
+            run_managed_canvas_action(canvas, action)
+
         key_name = managed_key_name(event)
         if is_home_key(event):
-            state.show_first_page()
+            _run(state.show_first_page)
             return
         if is_end_key(event):
-            state.show_last_page()
+            _run(state.show_last_page)
             return
         if is_page_up_key(event):
-            state.step_page_large(-1)
+            _run(lambda: state.step_page_large(-1))
             return
         if is_page_down_key(event):
-            state.step_page_large(1)
+            _run(lambda: state.step_page_large(1))
             return
         if is_plus_key(event):
-            state.step_visible_pages(1)
+            _run(lambda: state.step_visible_pages(1))
             return
         if is_minus_key(event):
-            state.step_visible_pages(-1)
+            _run(lambda: state.step_visible_pages(-1))
             return
         if is_next_selection_key(event):
-            state.step_operation_selection()
+            _run(state.step_operation_selection)
             return
         if is_previous_selection_key(event):
-            state.step_operation_selection(backwards=True)
+            _run(lambda: state.step_operation_selection(backwards=True))
             return
         if is_clear_selection_key(event):
-            state.clear_selection()
+            _run(state.clear_selection)
             return
         if is_reset_view_key(event):
-            state.reset_exploration_view()
+            _run(state.reset_exploration_view)
+            return
+        if is_cycle_topology_key(event):
+            _run(state.cycle_topology)
+            return
+        if is_previous_topology_key(event):
+            _run(state.previous_topology)
+            return
+        if is_toggle_wire_filter_key(event):
+            _run(state.toggle_wire_filter)
             return
         if is_shortcut_help_key(event):
-            state.toggle_shortcut_help()
+            _run(state.toggle_shortcut_help)
             return
         if key_name == "left":
-            state.step_page(-1)
+            _run(lambda: state.step_page(-1))
             return
         if key_name == "right":
-            state.step_page(1)
+            _run(lambda: state.step_page(1))
             return
         if key_name == "up":
-            state.step_visible_pages(1)
+            _run(lambda: state.step_visible_pages(1))
             return
         if key_name == "down":
-            state.step_visible_pages(-1)
+            _run(lambda: state.step_visible_pages(-1))
             return
         if is_block_toggle_key(event):
-            state.toggle_selected_block()
+            _run(state.toggle_selected_block)
 
     state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))

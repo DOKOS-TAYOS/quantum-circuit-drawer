@@ -478,6 +478,41 @@ def test_3d_page_window_additional_shortcuts_navigate_and_clear_selection() -> N
         plt.close(result.primary_figure)
 
 
+def test_3d_page_window_shortcuts_cycle_topology_and_toggle_wire_filter() -> None:
+    result = public_draw_quantum_circuit(
+        build_wrapped_ir(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            topology_menu=True,
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = get_page_window(result.primary_figure)
+        assert page_window is not None
+        assert page_window.exploration is not None
+        assert page_window.current_scene.topology.name == "line"
+
+        _dispatch_key_press(result.primary_figure, "t")
+        assert page_window.current_scene.topology.name == "grid"
+        assert page_window.pipeline.draw_options.topology == "grid"
+
+        _dispatch_key_press(result.primary_figure, "shift+t")
+        assert page_window.current_scene.topology.name == "line"
+        assert page_window.pipeline.draw_options.topology == "line"
+
+        _dispatch_key_press(result.primary_figure, "w")
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+
+        _dispatch_key_press(result.primary_figure, "w")
+        assert page_window.exploration.wire_filter_mode is WireFilterMode.ALL
+    finally:
+        plt.close(result.primary_figure)
+
+
 def test_3d_page_window_tab_shortcuts_advance_by_visible_column() -> None:
     current_semantic_ir = _semantic_parallel_gate_circuit()
     current_circuit = lower_semantic_circuit(current_semantic_ir)
@@ -714,6 +749,39 @@ def test_3d_slider_additional_shortcuts_navigate_and_ignore_plus_minus() -> None
 
         _dispatch_key_press(figure, "-")
         assert page_slider.start_column == 0
+    finally:
+        plt.close(figure)
+
+
+def test_3d_slider_shortcuts_cycle_topology_and_toggle_wire_filter() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        page_slider=True,
+        show=False,
+    )
+
+    try:
+        page_slider = cast(Managed3DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.exploration is not None
+        assert page_slider.current_scene.topology.name == "line"
+
+        _dispatch_key_press(figure, "t")
+        assert page_slider.current_scene.topology.name == "grid"
+        assert page_slider.pipeline.draw_options.topology == "grid"
+
+        _dispatch_key_press(figure, "shift+t")
+        assert page_slider.current_scene.topology.name == "line"
+        assert page_slider.pipeline.draw_options.topology == "line"
+
+        _dispatch_key_press(figure, "w")
+        assert page_slider.exploration.wire_filter_mode is WireFilterMode.ACTIVE
+
+        _dispatch_key_press(figure, "w")
+        assert page_slider.exploration.wire_filter_mode is WireFilterMode.ALL
     finally:
         plt.close(figure)
 

@@ -19,6 +19,7 @@
 - Added OpenQASM 3 text and `.qasm3` file input through Qiskit's `qasm3.loads(...)` parser, plus a separate `qasm3` extra for `qiskit-qasm3-import`.
 - Added `CircuitRenderOptions.keyboard_shortcuts` and `double_click_toggle` for managed `pages_controls` and `slider` figures, enabling arrow-key navigation plus keyboard and double-click block expand/collapse by default while still allowing callers to disable them.
 - Extended managed `keyboard_shortcuts` so `pages_controls` and `slider` also support `Home` / `End`, `PageUp` / `PageDown`, `Tab` / `Shift+Tab`, `Esc`, and `+/-` where each 2D or 3D mode supports them.
+- Added 3D managed shortcuts for `t` to cycle the active topology and `w` to toggle between `Wires: All` and `Wires: Active`.
 - Added `scripts/clean.py` as a cross-platform cleanup command for Windows, Linux, and WSL development environments.
 - Added direct Cirq `FrozenCircuit` input support and direct MyQLM `Program` and `QRoutine` inputs, reusing the existing Cirq and MyQLM semantic adapter paths without adding dependencies.
 - Added README gallery screenshots and refreshed user documentation so OpenQASM 2/3 text, `.qasm` / `.qasm3` files, 2D/3D circuit rendering, histograms, comparison workflows, and current API anchors are easier to find.
@@ -37,6 +38,9 @@
 
 ### Fixed
 
+- Fixed 2D `pages_controls` `Tab` traversal so visible measurement columns are selected before the view advances to the next page.
+- Fixed managed wire-filter shortcuts so `w` now toggles `Wires: All` / `Wires: Active` in 2D `pages_controls` and `slider` views too, and added `Shift+T` to move to the previous topology in managed 3D views.
+- Fixed managed `Tab` / `Shift+Tab` traversal so interactive circuit views keep keyboard focus more reliably after changing the selected gate, and normalized Tk `Shift+Tab` handling for Windows and Linux backends that report it as `ISO_Left_Tab`.
 - Fixed histogram hover cards so they now use the same viewport-aware edge rebounding as circuit hovers, and changed interactive compare-histogram legends from exclusive focus to stable-position checkbox-style toggles that can hide any combination of series, including all of them.
 - Fixed the last remaining histogram help-hover path so the marginal-usage tooltip now stays inside the figure under edge cases too, and added regression coverage for lower-left as well as top-right hover placement bounds.
 - Fixed multi-circuit comparison summary tables so examples with three or more columns reserve enough width and horizontal spacing for titles such as `Opt level 0` through `Opt level 3`, both in owned summary figures and caller-managed summary axes.
