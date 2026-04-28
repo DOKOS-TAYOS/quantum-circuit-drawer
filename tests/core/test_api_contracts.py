@@ -259,7 +259,7 @@ def test_package_level_draw_quantum_circuit_forwards_show_parameter(
 
 
 def test_draw_quantum_circuit_exposes_version() -> None:
-    assert quantum_circuit_drawer.__version__ == "0.5.0"
+    assert quantum_circuit_drawer.__version__ == "0.6.0"
 
 
 def test_draw_quantum_circuit_emits_debug_logs_when_enabled(
