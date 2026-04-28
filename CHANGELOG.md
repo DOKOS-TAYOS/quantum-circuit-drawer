@@ -15,6 +15,7 @@
 - Extended `DrawStyle.use_mathtext` to accept `True`, `False`, or `"auto"`, preserving explicit legacy behavior while making the default managed 2D render path noticeably faster than the old always-MathText default on large synthetic circuits.
 - Rebalanced the default exploration demos so `qiskit-2d-exploration-showcase` and `qiskit-3d-exploration-showcase` open with fewer visible wires by default and fit normal desktop screens better while still exercising the managed controls.
 - Tuned the direct example figure sizes by demo family so the standard circuit showcases open smaller, the histogram demos open a bit larger, and the tall managed 3D QAOA view uses a more horizontal screen-friendly default.
+- Fixed the direct myQLM circuit demos on native Windows by pinning their render config to the myQLM adapter path explicitly, and enlarged the myQLM histogram demo to match the other histogram examples.
 - Clarified the PyPI install guidance for WSL2 so the user docs now explain that interactive Matplotlib windows may still require the Linux `python3-tk` system package even when the library itself is installed with `pip`.
 
 ### Fixed

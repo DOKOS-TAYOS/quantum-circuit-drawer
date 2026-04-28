@@ -24,6 +24,8 @@ from quantum_circuit_drawer import (  # noqa: E402
     plot_histogram,
 )
 
+DEFAULT_HISTOGRAM_FIGSIZE: tuple[float, float] = (9.0, 5.1)
+
 
 def build_result() -> Result:
     """Build a myQLM Result with raw_data samples."""
@@ -41,7 +43,7 @@ def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
 
     return HistogramConfig(
         view=HistogramViewOptions(sort=HistogramSort.VALUE_DESC),
-        output=OutputOptions(output_path=output, show=show),
+        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_HISTOGRAM_FIGSIZE),
     )
 
 
