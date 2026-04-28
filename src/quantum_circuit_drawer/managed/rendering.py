@@ -83,6 +83,8 @@ def render_managed_draw_pipeline(
     page_slider: bool,
     page_window: bool,
     respect_precomputed_scene: bool = False,
+    attach_page_window_controls: bool = True,
+    page_window_initial_start_page: int = 0,
 ) -> tuple[Figure, Axes]:
     """Render a prepared pipeline on a managed figure."""
 
@@ -95,6 +97,8 @@ def render_managed_draw_pipeline(
         page_slider=page_slider,
         page_window=page_window,
         respect_precomputed_scene=respect_precomputed_scene,
+        attach_page_window_controls=attach_page_window_controls,
+        page_window_initial_start_page=page_window_initial_start_page,
     )
 
 

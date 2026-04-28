@@ -58,18 +58,33 @@ def _unique_gate_operation_ids_for_scene(scene: LayoutScene3D) -> tuple[str, ...
     )
 
 
-def _column_operation_ids_for_scene(scene: LayoutScene3D) -> tuple[str, ...]:
-    operation_ids_by_column: dict[int, str] = {}
-    for gate in scene.gates:
-        operation_id = gate.operation_id
+def _operation_ids_in_tab_order_for_scene(scene: LayoutScene3D) -> tuple[str, ...]:
+    operation_items: list[tuple[int, float, str]] = []
+    seen_operation_ids: set[str] = set()
+    for item in (*scene.gates, *scene.markers):
+        operation_id = item.operation_id
         if (
             not isinstance(operation_id, str)
             or not operation_id
-            or gate.column in operation_ids_by_column
+            or operation_id in seen_operation_ids
         ):
             continue
-        operation_ids_by_column[gate.column] = operation_id
-    return tuple(operation_ids_by_column[column] for column in sorted(operation_ids_by_column))
+        seen_operation_ids.add(operation_id)
+        operation_items.append((item.column, float(item.center.x), operation_id))
+    operation_items.sort(key=lambda item: (item[0], item[1], item[2]))
+    return tuple(operation_id for _, _, operation_id in operation_items)
+
+
+def _column_operation_ids_for_scene(scene: LayoutScene3D) -> tuple[str, ...]:
+    operation_ids: list[str] = []
+    seen_columns: set[int] = set()
+    for item in (*scene.gates, *scene.markers):
+        operation_id = item.operation_id
+        if not isinstance(operation_id, str) or not operation_id or item.column in seen_columns:
+            continue
+        seen_columns.add(item.column)
+        operation_ids.append(operation_id)
+    return tuple(operation_ids)
 
 
 def test_3d_page_slider_selection_survives_topology_switch(
@@ -513,7 +528,36 @@ def test_3d_page_window_shortcuts_cycle_topology_and_toggle_wire_filter() -> Non
         plt.close(result.primary_figure)
 
 
-def test_3d_page_window_tab_shortcuts_advance_by_visible_column() -> None:
+def test_3d_pages_mode_enables_managed_shortcuts_without_visible_controls() -> None:
+    result = public_draw_quantum_circuit(
+        build_wrapped_ir(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES,
+            view="3d",
+            topology="line",
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = get_page_window(result.primary_figure)
+        assert page_window is not None
+        assert page_window.page_box is None
+        assert page_window.visible_pages_box is None
+        assert page_window.exploration is not None
+        assert page_window.current_scene.topology.name == "line"
+
+        _dispatch_key_press(result.primary_figure, "t")
+        assert page_window.current_scene.topology.name == "grid"
+
+        _dispatch_key_press(result.primary_figure, "tab")
+        assert page_window.exploration.selected_operation_id is not None
+    finally:
+        for figure in result.figures:
+            plt.close(figure)
+
+
+def test_3d_page_window_tab_shortcuts_advance_by_visible_operation() -> None:
     current_semantic_ir = _semantic_parallel_gate_circuit()
     current_circuit = lower_semantic_circuit(current_semantic_ir)
     style = DrawStyle(max_page_width=3.0)
@@ -562,8 +606,8 @@ def test_3d_page_window_tab_shortcuts_advance_by_visible_column() -> None:
             set_page_window=set_page_window,
         )
         assert page_window.exploration is not None
-        operation_ids = _column_operation_ids_for_scene(page_window.current_scene)
-        assert len(operation_ids) >= 2
+        operation_ids = _operation_ids_in_tab_order_for_scene(page_window.current_scene)
+        assert operation_ids[:3] == ("op:0.0", "op:0.1", "op:1.0")
 
         _dispatch_key_press(figure, "tab")
         assert page_window.exploration.selected_operation_id == operation_ids[0]
@@ -571,13 +615,80 @@ def test_3d_page_window_tab_shortcuts_advance_by_visible_column() -> None:
         _dispatch_key_press(figure, "tab")
         assert page_window.exploration.selected_operation_id == operation_ids[1]
 
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == operation_ids[2]
+
         _dispatch_key_press(figure, "shift+tab")
-        assert page_window.exploration.selected_operation_id == operation_ids[0]
+        assert page_window.exploration.selected_operation_id == operation_ids[1]
     finally:
         plt.close(figure)
 
 
-def test_3d_page_window_tab_shortcuts_advance_across_visible_columns_and_change_pages() -> None:
+def test_3d_page_window_ctrl_tab_shortcuts_jump_between_visible_columns() -> None:
+    current_semantic_ir = _semantic_parallel_gate_circuit()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    style = DrawStyle(max_page_width=3.0)
+    layout_engine = LayoutEngine3D()
+    draw_options = DrawPipelineOptions(
+        composite_mode="compact",
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        direct=True,
+        hover=HoverOptions(enabled=True),
+    )
+    initial_scene = _compute_3d_scene(
+        layout_engine,
+        current_circuit,
+        style,
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    pipeline = PreparedDrawPipeline(
+        normalized_style=style,
+        ir=current_circuit,
+        semantic_ir=current_semantic_ir,
+        expanded_semantic_ir=current_semantic_ir,
+        layout_engine=layout_engine,
+        paged_scene=initial_scene,
+        renderer=MatplotlibRenderer3D(),
+        draw_options=draw_options,
+    )
+    page_scenes = windowed_3d_page_scenes(pipeline, figure_size=(6.0, 4.2))
+    figure, axes = create_managed_figure(
+        initial_scene,
+        figure_width=6.0,
+        figure_height=4.2,
+        use_agg=True,
+        projection="3d",
+    )
+
+    try:
+        page_window = configure_3d_page_window(
+            figure=figure,
+            axes=axes,
+            pipeline=pipeline,
+            page_scenes=page_scenes,
+            set_page_window=set_page_window,
+        )
+        assert page_window.exploration is not None
+        column_operation_ids = _column_operation_ids_for_scene(page_window.current_scene)
+        assert column_operation_ids == ("op:0.0", "op:1.0")
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == "op:0.0"
+
+        _dispatch_key_press(figure, "ctrl+tab")
+        assert page_window.exploration.selected_operation_id == "op:1.0"
+
+        _dispatch_key_press(figure, "ctrl+shift+tab")
+        assert page_window.exploration.selected_operation_id == "op:0.0"
+    finally:
+        plt.close(figure)
+
+
+def test_3d_page_window_tab_shortcuts_advance_across_visible_operations_and_change_pages() -> None:
     result = public_draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=36, wire_count=4),
         config=build_public_draw_config(
@@ -595,8 +706,10 @@ def test_3d_page_window_tab_shortcuts_advance_across_visible_columns_and_change_
         assert page_window.exploration is not None
         assert page_window.total_pages >= 2
 
-        first_page_operation_ids = _column_operation_ids_for_scene(page_window.page_scenes[0])
-        second_page_operation_ids = _column_operation_ids_for_scene(page_window.page_scenes[1])
+        first_page_operation_ids = _operation_ids_in_tab_order_for_scene(page_window.page_scenes[0])
+        second_page_operation_ids = _operation_ids_in_tab_order_for_scene(
+            page_window.page_scenes[1]
+        )
 
         assert first_page_operation_ids
         assert second_page_operation_ids

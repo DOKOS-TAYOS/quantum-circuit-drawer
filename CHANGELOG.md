@@ -27,6 +27,7 @@
 - Added `CircuitRenderOptions.adapter_options` so public draw configs can pass adapter-specific values such as CUDA-Q `cudaq_args`.
 - Added CUDA-Q support for scalar runtime arguments on Linux/WSL, including dynamic qvector sizes and parametrized gates resolved from `adapter_options={"cudaq_args": (...)}`.
 - Added interactive histogram keyboard shortcuts for `Left` / `Right`, `s`, `b`, `q`, `m`, `0`, and `?`, plus managed circuit-view `0` resets that restore the original exploration state in 2D and 3D `pages_controls` and `slider` modes; managed `pages_controls` now also use `Up` to add one visible page, `Down` to remove one, `Tab` / `Shift+Tab` to move column by column across page boundaries, and `?` to toggle shortcut help.
+- Added `Ctrl+Tab` / `Ctrl+Shift+Tab` managed shortcuts in paged 2D and 3D circuit views so users can jump directly between visible columns while `Tab` / `Shift+Tab` keep the finer per-operation traversal.
 
 ### Changed
 
@@ -39,8 +40,12 @@
 ### Fixed
 
 - Fixed 2D `pages_controls` `Tab` traversal so visible measurement columns are selected before the view advances to the next page.
+- Fixed managed `Tab` / `Shift+Tab` traversal in paged 2D and 3D views so it now exhausts visible operations within the current column before moving to the next or previous column.
 - Fixed managed wire-filter shortcuts so `w` now toggles `Wires: All` / `Wires: Active` in 2D `pages_controls` and `slider` views too, and added `Shift+T` to move to the previous topology in managed 3D views.
+- Fixed `pages` mode so each rendered page figure now keeps managed selection and keyboard shortcuts enabled by default, without showing the `pages_controls` navigation widgets.
 - Fixed managed `Tab` / `Shift+Tab` traversal so interactive circuit views keep keyboard focus more reliably after changing the selected gate, and normalized Tk `Shift+Tab` handling for Windows and Linux backends that report it as `ISO_Left_Tab`.
+- Fixed interactive histogram shortcuts so `c` now changes the ordering and `d` switches counts/quasi, avoiding conflicts with common Matplotlib backend save and close shortcuts on interactive desktops.
+- Added interactive histogram shortcut `o` to toggle the slider viewport on and off wherever that slider mode is available.
 - Fixed histogram hover cards so they now use the same viewport-aware edge rebounding as circuit hovers, and changed interactive compare-histogram legends from exclusive focus to stable-position checkbox-style toggles that can hide any combination of series, including all of them.
 - Fixed the last remaining histogram help-hover path so the marginal-usage tooltip now stays inside the figure under edge cases too, and added regression coverage for lower-left as well as top-right hover placement bounds.
 - Fixed multi-circuit comparison summary tables so examples with three or more columns reserve enough width and horizontal spacing for titles such as `Opt level 0` through `Opt level 3`, both in owned summary figures and caller-managed summary axes.

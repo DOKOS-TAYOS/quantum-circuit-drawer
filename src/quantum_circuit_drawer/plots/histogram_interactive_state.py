@@ -493,13 +493,14 @@ def attach_histogram_interactivity(
             lines=(
                 "View",
                 "Left/Right: Move slider window",
+                "o: Toggle slider",
                 "0: Restore the original view",
                 "?: Show/hide this help",
                 "",
                 "Modes",
-                "s: Change ordering",
+                "c: Change ordering",
                 "b: Toggle binary/decimal labels",
-                "q: Switch counts/quasi",
+                "d: Switch counts/quasi",
                 "m: Edit marginal qubits",
             ),
         ),
@@ -552,13 +553,16 @@ def _attach_histogram_key_shortcuts(state: HistogramInteractiveState) -> None:
         if key_name == "right":
             state.set_window_start(state.window_start + 1)
             return
-        if key_name == "s":
+        if key_name == "o":
+            state.toggle_slider()
+            return
+        if key_name == "c":
             state.cycle_sort()
             return
         if key_name == "b":
             state.toggle_label_mode()
             return
-        if key_name == "q":
+        if key_name == "d":
             state.toggle_kind()
             return
         if key_name == "m":

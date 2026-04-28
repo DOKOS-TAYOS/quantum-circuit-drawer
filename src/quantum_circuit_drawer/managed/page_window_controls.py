@@ -326,6 +326,9 @@ def _show_page_window(
 
 
 def _sync_inputs(state: Managed2DPageWindowState) -> None:
+    if not state.controls_enabled:
+        return
+
     if state.page_suffix_text is not None:
         state.page_suffix_text.set_text(f"/ {state.total_pages}")
     if state.visible_suffix_text is not None:

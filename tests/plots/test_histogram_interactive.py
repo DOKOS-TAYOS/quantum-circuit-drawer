@@ -351,13 +351,21 @@ def test_histogram_interactive_keyboard_shortcuts_update_and_reset_view() -> Non
     _dispatch_key_press(result.figure, "left")
     assert state.window_start == 1
 
-    _dispatch_key_press(result.figure, "s")
+    _dispatch_key_press(result.figure, "o")
+    assert state.slider_enabled is False
+    assert state.horizontal_slider is None
+
+    _dispatch_key_press(result.figure, "o")
+    assert state.slider_enabled is True
+    assert state.horizontal_slider is not None
+
+    _dispatch_key_press(result.figure, "c")
     assert state.current_sort is HistogramSort.STATE_DESC
 
     _dispatch_key_press(result.figure, "b")
     assert state.label_mode is HistogramStateLabelMode.DECIMAL
 
-    _dispatch_key_press(result.figure, "q")
+    _dispatch_key_press(result.figure, "d")
     assert state.kind is HistogramKind.QUASI
 
     _dispatch_key_press(result.figure, "m")
@@ -401,7 +409,10 @@ def test_histogram_interactive_question_shortcut_toggles_shortcut_help() -> None
     assert state.shortcut_help_text.get_ha() == "left"
     assert "View" in shortcut_help_text
     assert "$\\mathbf{Left/Right}$: Move slider window" in shortcut_help_text
+    assert "$\\mathbf{o}$: Toggle slider" in shortcut_help_text
     assert "Modes" in shortcut_help_text
+    assert "$\\mathbf{c}$: Change ordering" in shortcut_help_text
+    assert "$\\mathbf{d}$: Switch counts/quasi" in shortcut_help_text
     assert "$\\mathbf{m}$: Edit marginal qubits" in shortcut_help_text
 
     _dispatch_key_press(result.figure, "?")

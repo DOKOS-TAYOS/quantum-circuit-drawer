@@ -20,6 +20,10 @@ class _SelectableToggleableState(Protocol):
 
 _MANAGED_KEY_ALIASES: dict[str, str] = {
     "iso_left_tab": "shift+tab",
+    "ctrl+iso_left_tab": "ctrl+shift+tab",
+    "control+iso_left_tab": "ctrl+shift+tab",
+    "control+tab": "ctrl+tab",
+    "control+shift+tab": "ctrl+shift+tab",
 }
 _MANAGED_TAB_BINDINGS_INSTALLED_ATTR = (
     "_quantum_circuit_drawer_managed_tab_focus_bindings_installed"
@@ -92,6 +96,17 @@ def install_managed_tab_focus_bindings(canvas: object | None) -> None:
     bind("<Tab>", lambda event: _forward_tab_key("tab", event), add="+")
     bind("<Shift-Tab>", lambda event: _forward_tab_key("shift+tab", event), add="+")
     bind("<ISO_Left_Tab>", lambda event: _forward_tab_key("shift+tab", event), add="+")
+    bind("<Control-Tab>", lambda event: _forward_tab_key("ctrl+tab", event), add="+")
+    bind(
+        "<Control-Shift-Tab>",
+        lambda event: _forward_tab_key("ctrl+shift+tab", event),
+        add="+",
+    )
+    bind(
+        "<Control-ISO_Left_Tab>",
+        lambda event: _forward_tab_key("ctrl+shift+tab", event),
+        add="+",
+    )
     setattr(canvas, _MANAGED_TAB_BINDINGS_INSTALLED_ATTR, True)
 
 
@@ -137,6 +152,18 @@ def is_previous_selection_key(event: KeyEvent) -> bool:
     """Return whether the key event should move to the previous expandable selection."""
 
     return managed_key_name(event) == "shift+tab"
+
+
+def is_next_column_key(event: KeyEvent) -> bool:
+    """Return whether the key event should move to the next visible column."""
+
+    return managed_key_name(event) == "ctrl+tab"
+
+
+def is_previous_column_key(event: KeyEvent) -> bool:
+    """Return whether the key event should move to the previous visible column."""
+
+    return managed_key_name(event) == "ctrl+shift+tab"
 
 
 def is_reset_view_key(event: KeyEvent) -> bool:
@@ -267,19 +294,94 @@ def visible_operation_ids(operation_items: Iterable[object]) -> tuple[str, ...]:
 def visible_column_operation_ids(operation_items: Iterable[object]) -> tuple[str, ...]:
     """Return one visible operation id per visual column in left-to-right order."""
 
-    operation_ids_by_column: dict[int, str] = {}
-    for item in operation_items:
+    return tuple(operation_id for _, operation_id in _visible_column_entries(operation_items))
+
+
+def visible_operation_ids_in_tab_order(operation_items: Iterable[object]) -> tuple[str, ...]:
+    """Return visible operation ids ordered by column and then by visual row."""
+
+    operation_entries: list[tuple[int, float, int, str]] = []
+    seen_operation_ids: set[str] = set()
+    for index, item in enumerate(operation_items):
         operation_id = getattr(item, "operation_id", None)
         column = getattr(item, "column", None)
         if (
             not isinstance(operation_id, str)
             or not operation_id
             or not isinstance(column, int)
-            or column in operation_ids_by_column
+            or operation_id in seen_operation_ids
         ):
             continue
-        operation_ids_by_column[column] = operation_id
-    return tuple(operation_ids_by_column[column] for column in sorted(operation_ids_by_column))
+        seen_operation_ids.add(operation_id)
+        operation_entries.append((column, _tab_order_row_coordinate(item), index, operation_id))
+    operation_entries.sort(key=lambda entry: (entry[0], entry[1], entry[2], entry[3]))
+    return tuple(operation_id for _, _, _, operation_id in operation_entries)
+
+
+def _visible_column_entries(operation_items: Iterable[object]) -> tuple[tuple[int, str], ...]:
+    operation_entries: list[tuple[int, float, int, str]] = []
+    seen_operation_ids: set[str] = set()
+    for index, item in enumerate(operation_items):
+        operation_id = getattr(item, "operation_id", None)
+        column = getattr(item, "column", None)
+        if (
+            not isinstance(operation_id, str)
+            or not operation_id
+            or not isinstance(column, int)
+            or operation_id in seen_operation_ids
+        ):
+            continue
+        seen_operation_ids.add(operation_id)
+        operation_entries.append((column, _tab_order_row_coordinate(item), index, operation_id))
+    operation_entries.sort(key=lambda entry: (entry[0], entry[1], entry[2], entry[3]))
+
+    visible_columns: list[tuple[int, str]] = []
+    seen_columns: set[int] = set()
+    for column, _, _, operation_id in operation_entries:
+        if column in seen_columns:
+            continue
+        seen_columns.add(column)
+        visible_columns.append((column, operation_id))
+    return tuple(visible_columns)
+
+
+def _operation_column(
+    operation_items: Iterable[object],
+    current_operation_id: str | None,
+) -> int | None:
+    if current_operation_id is None:
+        return None
+    for item in operation_items:
+        operation_id = getattr(item, "operation_id", None)
+        column = getattr(item, "column", None)
+        if operation_id == current_operation_id and isinstance(column, int):
+            return column
+    return None
+
+
+def _tab_order_row_coordinate(item: object) -> float:
+    y_coordinate = getattr(item, "y", None)
+    if isinstance(y_coordinate, int | float):
+        return float(y_coordinate)
+
+    quantum_y = getattr(item, "quantum_y", None)
+    if isinstance(quantum_y, int | float):
+        return float(quantum_y)
+
+    y_top = getattr(item, "y_top", None)
+    if isinstance(y_top, int | float):
+        return float(y_top)
+
+    center = getattr(item, "center", None)
+    center_x = getattr(center, "x", None)
+    if isinstance(center_x, int | float):
+        return float(center_x)
+
+    x_coordinate = getattr(item, "x", None)
+    if isinstance(x_coordinate, int | float):
+        return float(x_coordinate)
+
+    return 0.0
 
 
 def next_visible_operation_selection(
@@ -305,6 +407,35 @@ def next_visible_operation_selection(
     return None
 
 
+def next_visible_column_selection(
+    operation_items: Iterable[object],
+    current_operation_id: str | None,
+    *,
+    backwards: bool = False,
+    wrap: bool = True,
+) -> str | None:
+    """Return the representative operation for the next visible column."""
+
+    column_entries = _visible_column_entries(operation_items)
+    if not column_entries:
+        return None
+
+    visible_columns = tuple(column for column, _ in column_entries)
+    visible_operation_ids = tuple(operation_id for _, operation_id in column_entries)
+    current_column = _operation_column(operation_items, current_operation_id)
+    if current_column not in visible_columns:
+        return visible_operation_ids[-1] if backwards else visible_operation_ids[0]
+
+    current_index = visible_columns.index(current_column)
+    step = -1 if backwards else 1
+    next_index = current_index + step
+    if 0 <= next_index < len(visible_operation_ids):
+        return visible_operation_ids[next_index]
+    if wrap:
+        return visible_operation_ids[next_index % len(visible_operation_ids)]
+    return None
+
+
 __all__ = [
     "dispatch_managed_key_event",
     "is_block_toggle_key",
@@ -313,10 +444,12 @@ __all__ = [
     "is_end_key",
     "is_home_key",
     "is_minus_key",
+    "is_next_column_key",
     "is_next_selection_key",
     "is_page_down_key",
     "is_page_up_key",
     "is_plus_key",
+    "is_previous_column_key",
     "is_previous_topology_key",
     "is_previous_selection_key",
     "is_reset_view_key",
@@ -325,11 +458,13 @@ __all__ = [
     "install_managed_tab_focus_bindings",
     "managed_key_name",
     "managed_text_boxes_capture_keys",
+    "next_visible_column_selection",
     "next_visible_operation_selection",
     "restore_managed_canvas_focus",
     "run_managed_canvas_action",
     "toggle_operation_with_selection",
     "visible_column_operation_ids",
+    "visible_operation_ids_in_tab_order",
     "visible_operation_ids",
     "visible_expandable_operation_ids",
 ]

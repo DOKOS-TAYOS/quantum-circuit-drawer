@@ -35,7 +35,10 @@ def test_draw_quantum_circuit_pages_mode_returns_one_figure_per_wrapped_page() -
     assert len(result.figures) == result.page_count
     assert len({id(figure) for figure in result.figures}) == result.page_count
     assert all(get_page_slider(figure) is None for figure in result.figures)
-    assert all(get_page_window(figure) is None for figure in result.figures)
+    assert all(get_page_window(figure) is not None for figure in result.figures)
+    assert all(
+        getattr(get_page_window(figure), "page_box", None) is None for figure in result.figures
+    )
 
     for figure in result.figures:
         plt.close(figure)

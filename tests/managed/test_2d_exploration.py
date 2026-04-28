@@ -986,23 +986,49 @@ def _page_gate_operation_ids(scene: LayoutScene, page_index: int) -> tuple[str, 
     )
 
 
-def _page_column_operation_ids(scene: LayoutScene, page_index: int) -> tuple[str, ...]:
+def _page_operation_ids_in_tab_order(scene: LayoutScene, page_index: int) -> tuple[str, ...]:
     page = scene.pages[page_index]
-    operation_ids_by_column: dict[int, str] = {}
-    for item in (*scene.gates, *scene.measurements):
+    operation_items: list[tuple[int, float, str]] = []
+    seen_operation_ids: set[str] = set()
+    for item in (*scene.gates, *scene.measurements, *scene.controls, *scene.swaps):
         operation_id = item.operation_id
         if (
             not isinstance(operation_id, str)
             or not operation_id
-            or item.column in operation_ids_by_column
             or not (page.start_column <= item.column <= page.end_column)
+            or operation_id in seen_operation_ids
         ):
             continue
-        operation_ids_by_column[item.column] = operation_id
-    return tuple(operation_ids_by_column[column] for column in sorted(operation_ids_by_column))
+        seen_operation_ids.add(operation_id)
+        row_coordinate = getattr(
+            item,
+            "y",
+            getattr(item, "quantum_y", getattr(item, "y_top", 0.0)),
+        )
+        operation_items.append((item.column, float(row_coordinate), operation_id))
+    operation_items.sort(key=lambda item: (item[0], item[1], item[2]))
+    return tuple(operation_id for _, _, operation_id in operation_items)
 
 
-def test_page_window_tab_shortcuts_advance_by_visible_column() -> None:
+def _page_column_operation_ids(scene: LayoutScene, page_index: int) -> tuple[str, ...]:
+    operation_ids: list[str] = []
+    seen_columns: set[int] = set()
+    page = scene.pages[page_index]
+    for item in (*scene.gates, *scene.measurements, *scene.controls, *scene.swaps):
+        operation_id = item.operation_id
+        if (
+            not isinstance(operation_id, str)
+            or not operation_id
+            or not (page.start_column <= item.column <= page.end_column)
+            or item.column in seen_columns
+        ):
+            continue
+        seen_columns.add(item.column)
+        operation_ids.append(operation_id)
+    return tuple(operation_ids)
+
+
+def test_page_window_tab_shortcuts_advance_by_visible_operation() -> None:
     current_semantic_ir = _semantic_parallel_gate_circuit()
     current_circuit = lower_semantic_circuit(current_semantic_ir)
     layout_engine = LayoutEngine()
@@ -1036,8 +1062,8 @@ def test_page_window_tab_shortcuts_advance_by_visible_column() -> None:
         page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
         assert page_window is not None
         assert page_window.exploration is not None
-        operation_ids = _page_column_operation_ids(page_window.scene, 0)
-        assert len(operation_ids) >= 2
+        operation_ids = _page_operation_ids_in_tab_order(page_window.scene, 0)
+        assert operation_ids[:3] == ("op:0.0", "op:0.1", "op:1.0")
 
         _dispatch_key_press(figure, "tab")
         assert page_window.exploration.selected_operation_id == operation_ids[0]
@@ -1045,13 +1071,65 @@ def test_page_window_tab_shortcuts_advance_by_visible_column() -> None:
         _dispatch_key_press(figure, "tab")
         assert page_window.exploration.selected_operation_id == operation_ids[1]
 
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == operation_ids[2]
+
         _dispatch_key_press(figure, "shift+tab")
-        assert page_window.exploration.selected_operation_id == operation_ids[0]
+        assert page_window.exploration.selected_operation_id == operation_ids[1]
     finally:
         plt.close(figure)
 
 
-def test_page_window_tab_shortcuts_advance_across_visible_columns_and_change_pages() -> None:
+def test_page_window_ctrl_tab_shortcuts_jump_between_visible_columns() -> None:
+    current_semantic_ir = _semantic_parallel_gate_circuit()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=8.0)
+    scene = managed_module.compute_paged_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=2.2,
+        figure_height=2.0,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            scene=scene,
+            effective_page_width=style.max_page_width,
+            set_page_window=set_page_window,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=current_semantic_ir,
+        )
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+        column_operation_ids = _page_column_operation_ids(page_window.scene, 0)
+        assert column_operation_ids == ("op:0.0", "op:1.0")
+
+        _dispatch_key_press(figure, "tab")
+        assert page_window.exploration.selected_operation_id == "op:0.0"
+
+        _dispatch_key_press(figure, "ctrl+tab")
+        assert page_window.exploration.selected_operation_id == "op:1.0"
+
+        _dispatch_key_press(figure, "ctrl+shift+tab")
+        assert page_window.exploration.selected_operation_id == "op:0.0"
+    finally:
+        plt.close(figure)
+
+
+def test_page_window_tab_shortcuts_advance_across_visible_operations_and_change_pages() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=18, wire_count=4),
         style={"max_page_width": 4.0},
@@ -1066,8 +1144,8 @@ def test_page_window_tab_shortcuts_advance_across_visible_columns_and_change_pag
         assert page_window.exploration is not None
         assert page_window.total_pages >= 2
 
-        first_page_operation_ids = _page_column_operation_ids(page_window.scene, 0)
-        second_page_operation_ids = _page_column_operation_ids(page_window.scene, 1)
+        first_page_operation_ids = _page_operation_ids_in_tab_order(page_window.scene, 0)
+        second_page_operation_ids = _page_operation_ids_in_tab_order(page_window.scene, 1)
 
         assert first_page_operation_ids
         assert second_page_operation_ids
@@ -1104,7 +1182,7 @@ def test_page_window_tab_shortcuts_reach_visible_measurements_before_changing_pa
         assert page_window.exploration is not None
         assert page_window.total_pages >= 2
 
-        first_page_operation_ids = _page_column_operation_ids(page_window.scene, 0)
+        first_page_operation_ids = _page_operation_ids_in_tab_order(page_window.scene, 0)
         measurement_operation_ids = tuple(
             item.operation_id
             for item in page_window.scene.measurements
@@ -1128,6 +1206,42 @@ def test_page_window_tab_shortcuts_reach_visible_measurements_before_changing_pa
         assert page_window.start_page == 1
     finally:
         plt.close(result.primary_figure)
+
+
+def test_page_window_tab_shortcuts_include_swaps_and_control_only_gates() -> None:
+    result = public_draw_quantum_circuit(
+        _public_ir_with_swap_and_control_only_gates(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES,
+            style={"max_page_width": 12.0},
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(result.primary_figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+
+        operation_ids = _page_operation_ids_in_tab_order(page_window.scene, 0)
+        assert operation_ids == (
+            "op:0.0",
+            "op:0.1",
+            "op:1.0",
+            "op:1.1",
+            "op:2.0",
+            "op:2.1",
+            "op:3.0",
+            "op:4.0",
+            "op:5.0",
+        )
+
+        for expected_operation_id in operation_ids:
+            _dispatch_key_press(result.primary_figure, "tab")
+            assert page_window.exploration.selected_operation_id == expected_operation_id
+    finally:
+        for figure in result.figures:
+            plt.close(figure)
 
 
 def test_page_window_tab_selection_still_supports_enter_and_escape() -> None:
@@ -1590,6 +1704,58 @@ def test_public_managed_interaction_flags_disable_keyboard_and_double_click() ->
         assert page_window.exploration.selected_operation_id == "op:0"
     finally:
         plt.close(result.primary_figure)
+
+
+def test_pages_mode_enables_managed_selection_shortcuts_without_visible_controls() -> None:
+    result = public_draw_quantum_circuit(
+        build_wrapped_ir(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES,
+            style={"max_page_width": 4.0},
+            hover=True,
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(result.primary_figure))
+        assert page_window is not None
+        assert page_window.page_box is None
+        assert page_window.visible_pages_box is None
+        assert page_window.exploration is not None
+        assert page_window.exploration.selected_operation_id is None
+
+        _dispatch_key_press(result.primary_figure, "tab")
+
+        assert page_window.exploration.selected_operation_id is not None
+    finally:
+        for figure in result.figures:
+            plt.close(figure)
+
+
+def test_pages_mode_respects_disabled_keyboard_shortcuts() -> None:
+    result = public_draw_quantum_circuit(
+        build_wrapped_ir(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES,
+            style={"max_page_width": 4.0},
+            hover=True,
+            show=False,
+            keyboard_shortcuts=False,
+        ),
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(result.primary_figure))
+        assert page_window is not None
+        assert page_window.exploration is not None
+
+        _dispatch_key_press(result.primary_figure, "tab")
+
+        assert page_window.exploration.selected_operation_id is None
+    finally:
+        for figure in result.figures:
+            plt.close(figure)
 
 
 def test_page_window_block_toggle_recovers_single_interleaved_collapsed_block() -> None:
@@ -3026,6 +3192,101 @@ def _public_ir_with_trailing_measurements() -> CircuitIR:
                         name="M",
                         target_wires=("q2",),
                         classical_target="c2",
+                    ),
+                )
+            ),
+        ),
+    )
+
+
+def _public_ir_with_swap_and_control_only_gates() -> CircuitIR:
+    quantum_wires = tuple(
+        WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+        for index in range(5)
+    )
+    classical_wires = tuple(
+        WireIR(id=f"c{index}", index=index, kind=WireKind.CLASSICAL, label=f"c{index}")
+        for index in range(5)
+    )
+    return CircuitIR(
+        quantum_wires=quantum_wires,
+        classical_wires=classical_wires,
+        layers=(
+            LayerIR(
+                operations=(
+                    OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",)),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        target_wires=("q2",),
+                        parameters=(0.4,),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q1",),
+                        control_wires=("q0",),
+                    ),
+                    OperationIR(kind=OperationKind.SWAP, name="SWAP", target_wires=("q2", "q3")),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q0",),
+                        parameters=(0.22,),
+                    ),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q1",),
+                        parameters=(0.44,),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="Z",
+                        target_wires=("q2",),
+                        control_wires=("q0",),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="Z",
+                        target_wires=("q3",),
+                        control_wires=("q1",),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RY",
+                        target_wires=("q2",),
+                        parameters=(0.66,),
+                    ),
+                )
+            ),
+            LayerIR(
+                operations=(
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q0",),
+                        classical_target="c0",
                     ),
                 )
             ),

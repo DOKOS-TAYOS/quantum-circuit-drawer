@@ -47,6 +47,8 @@ def render_managed_draw_pipeline(
     page_slider: bool,
     page_window: bool,
     respect_precomputed_scene: bool = False,
+    attach_page_window_controls: bool = True,
+    page_window_initial_start_page: int = 0,
 ) -> tuple[Figure, Axes]:
     """Render a prepared pipeline on a managed figure."""
 
@@ -194,24 +196,32 @@ def render_managed_draw_pipeline(
             figure_height=figure_height,
             use_agg=use_agg_canvas,
         )
-        _apply_page_window_axes_bounds_impl(axes)
-        from . import viewport as viewport_module
+        if attach_page_window_controls:
+            _apply_page_window_axes_bounds_impl(axes)
+        if respect_precomputed_scene:
+            initial_scene = scene_2d
+            effective_page_width = max(
+                (page.content_width for page in scene_2d.pages),
+                default=scene_2d.style.max_page_width,
+            )
+        else:
+            from . import viewport as viewport_module
 
-        page_window_scene_builder = getattr(
-            viewport_module,
-            "page_window_adaptive_paged_scene",
-            _page_window_adaptive_paged_scene_impl,
-        )
-        initial_scene, effective_page_width = page_window_scene_builder(
-            pipeline.ir,
-            cast(LayoutEngineLike, pipeline.layout_engine),
-            scene_2d.style,
-            axes,
-            hover_enabled=scene_2d.hover.enabled,
-            initial_scene=scene_2d,
-            visible_page_count=1,
-        )
-        initial_scene.hover = scene_2d.hover
+            page_window_scene_builder = getattr(
+                viewport_module,
+                "page_window_adaptive_paged_scene",
+                _page_window_adaptive_paged_scene_impl,
+            )
+            initial_scene, effective_page_width = page_window_scene_builder(
+                pipeline.ir,
+                cast(LayoutEngineLike, pipeline.layout_engine),
+                scene_2d.style,
+                axes,
+                hover_enabled=scene_2d.hover.enabled,
+                initial_scene=scene_2d,
+                visible_page_count=1,
+            )
+            initial_scene.hover = scene_2d.hover
         frozen_style = _freeze_default_line_width_for_scene(
             style=initial_scene.style,
             scene=initial_scene,
@@ -234,6 +244,8 @@ def render_managed_draw_pipeline(
             expanded_semantic_ir=pipeline.expanded_semantic_ir,
             keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
             double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
+            initial_start_page=page_window_initial_start_page,
+            attach_controls=attach_page_window_controls,
         )
         logger.debug(
             "Rendered managed figure with fixed page window effective_page_width=%.2f pages=%d",

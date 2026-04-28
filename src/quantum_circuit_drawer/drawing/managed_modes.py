@@ -170,17 +170,18 @@ def _render_managed_2d_pages_result(
 
     figures: list[Figure] = []
     axes_list: list[Axes] = []
-    for page_scene in page_scenes:
-        page_pipeline = replace(adapted_pipeline, paged_scene=page_scene)
+    for page_index, _page_scene in enumerate(page_scenes):
         figure, axes = render_managed_draw_pipeline(
-            page_pipeline,
+            adapted_pipeline,
             output=None,
             show=show,
             call_show=show and not defer_show,
             figsize=figsize,
             page_slider=False,
-            page_window=False,
+            page_window=True,
             respect_precomputed_scene=True,
+            attach_page_window_controls=False,
+            page_window_initial_start_page=page_index,
         )
         figures.append(figure)
         axes_list.append(axes)
@@ -208,6 +209,10 @@ def _render_managed_3d_pages_result(
     mode: DrawMode,
     diagnostics: tuple[RenderDiagnostic, ...],
 ) -> DrawResult:
+    from ..managed.page_window_3d import configure_3d_page_window
+    from ..renderers._matplotlib_figure import create_managed_figure, set_page_window
+    from ..renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
+
     page_scenes = _windowed_3d_scenes(pipeline, figsize=figsize)
 
     if output is not None:
@@ -220,19 +225,37 @@ def _render_managed_3d_pages_result(
 
     figures: list[Figure] = []
     axes_list: list[Axes] = []
-    for page_scene in page_scenes:
-        page_pipeline = replace(pipeline, paged_scene=page_scene)
-        figure, axes = render_managed_draw_pipeline(
-            page_pipeline,
-            output=None,
+    for page_index, page_scene in enumerate(page_scenes):
+        use_agg_canvas = should_use_managed_agg_canvas(
             show=show,
-            call_show=show and not defer_show,
-            figsize=figsize,
-            page_slider=False,
-            page_window=False,
+            output=None,
+            prefer_offscreen_when_hidden=not page_scene.hover_enabled,
         )
+        figure_width, figure_height = figsize or (
+            max(4.6, page_scene.width * 0.95),
+            max(2.1, page_scene.height * 0.72),
+        )
+        figure, axes = create_managed_figure(
+            page_scene,
+            figure_width=figure_width,
+            figure_height=figure_height,
+            use_agg=use_agg_canvas,
+            projection="3d",
+        )
+        page_window = configure_3d_page_window(
+            figure=figure,
+            axes=axes,
+            pipeline=pipeline,
+            page_scenes=page_scenes,
+            set_page_window=set_page_window,
+            keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
+            double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
+            initial_start_page=page_index,
+            attach_controls=False,
+        )
+        show_figure_if_supported(figure, show=show and not defer_show)
         figures.append(figure)
-        axes_list.append(axes)
+        axes_list.append(page_window.display_axes[0])
 
     return build_draw_result(
         primary_figure=figures[0],

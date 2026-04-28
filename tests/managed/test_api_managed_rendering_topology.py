@@ -80,7 +80,7 @@ def test_draw_quantum_circuit_attaches_lower_left_dark_topology_radio_panel(
     assert menu_state.menu_axes is not None
     assert menu_state.radio is not None
     assert tuple(menu_state.menu_axes.get_position().bounds) == pytest.approx(
-        (0.035, 0.06, 0.17, 0.21),
+        (0.035, 0.035, 0.17, 0.21),
         abs=1e-3,
     )
     assert menu_state.menu_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#171221"))

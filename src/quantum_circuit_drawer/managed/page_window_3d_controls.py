@@ -322,6 +322,9 @@ def _show_page_window(
 
 
 def _sync_inputs(state: Managed3DPageWindowState) -> None:
+    if not state.controls_enabled:
+        return
+
     if state.page_box is None or state.visible_pages_box is None:
         _sync_navigation_button_states(state)
         _sync_exploration_buttons(state)

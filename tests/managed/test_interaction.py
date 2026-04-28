@@ -109,9 +109,26 @@ def test_install_managed_tab_focus_bindings_forward_tab_keys_and_keep_focus() ->
     install_managed_tab_focus_bindings(canvas)
     install_managed_tab_focus_bindings(canvas)
 
-    assert set(canvas.widget.bindings) == {"<Tab>", "<Shift-Tab>", "<ISO_Left_Tab>"}
+    assert set(canvas.widget.bindings) == {
+        "<Tab>",
+        "<Shift-Tab>",
+        "<ISO_Left_Tab>",
+        "<Control-Tab>",
+        "<Control-Shift-Tab>",
+        "<Control-ISO_Left_Tab>",
+    }
     assert canvas.widget.bindings["<Tab>"](object()) == "break"
     assert canvas.widget.bindings["<Shift-Tab>"](object()) == "break"
     assert canvas.widget.bindings["<ISO_Left_Tab>"](object()) == "break"
-    assert observed_keys == ["tab", "shift+tab", "shift+tab"]
-    assert canvas.widget.focus_calls == 3
+    assert canvas.widget.bindings["<Control-Tab>"](object()) == "break"
+    assert canvas.widget.bindings["<Control-Shift-Tab>"](object()) == "break"
+    assert canvas.widget.bindings["<Control-ISO_Left_Tab>"](object()) == "break"
+    assert observed_keys == [
+        "tab",
+        "shift+tab",
+        "shift+tab",
+        "ctrl+tab",
+        "ctrl+shift+tab",
+        "ctrl+shift+tab",
+    ]
+    assert canvas.widget.focus_calls == 6

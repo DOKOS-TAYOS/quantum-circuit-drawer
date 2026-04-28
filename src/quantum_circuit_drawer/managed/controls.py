@@ -39,8 +39,8 @@ _MANAGED_2D_STEPPER_BUTTON_GAP = 0.006
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _MANAGED_3D_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
 _MANAGED_3D_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.0, 0.14, 1.0, 0.86)
-_MANAGED_3D_MENU_BOUNDS = (0.035, 0.06, 0.17, 0.21)
-_MANAGED_3D_MENU_BOUNDS_WITH_SLIDER = (0.035, 0.18, 0.17, 0.21)
+_MANAGED_3D_MENU_BOUNDS = (0.035, 0.035, 0.17, 0.21)
+_MANAGED_3D_MENU_BOUNDS_WITH_SLIDER = (0.035, 0.155, 0.17, 0.21)
 
 
 def managed_3d_axes_bounds(*, has_page_slider: bool) -> tuple[float, float, float, float]:

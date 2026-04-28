@@ -39,20 +39,24 @@ from .interaction import (
     is_end_key,
     is_home_key,
     is_minus_key,
+    is_next_column_key,
     is_next_selection_key,
     is_page_down_key,
     is_page_up_key,
     is_plus_key,
+    is_previous_column_key,
     is_previous_selection_key,
     is_reset_view_key,
     is_shortcut_help_key,
     is_toggle_wire_filter_key,
     managed_key_name,
     managed_text_boxes_capture_keys,
+    next_visible_column_selection,
     next_visible_operation_selection,
     run_managed_canvas_action,
     toggle_operation_with_selection,
     visible_column_operation_ids,
+    visible_operation_ids_in_tab_order,
 )
 from .page_window_controls import _MAIN_AXES_BOUNDS, _attach_controls, _sync_inputs
 from .page_window_render import _render_current_window
@@ -114,6 +118,7 @@ class Managed2DPageWindowState:
     exploration: Managed2DExplorationState | None = None
     keyboard_shortcuts_enabled: bool = True
     double_click_toggle_enabled: bool = True
+    controls_enabled: bool = True
     click_callback_id: int | None = None
     key_callback_id: int | None = None
 
@@ -245,10 +250,12 @@ class Managed2DPageWindowState:
 
         if self.exploration is None:
             return
-        operation_ids = visible_column_operation_ids(
+        operation_ids = visible_operation_ids_in_tab_order(
             (
                 *((self.window_scene or self.scene).gates),
                 *((self.window_scene or self.scene).measurements),
+                *((self.window_scene or self.scene).controls),
+                *((self.window_scene or self.scene).swaps),
             ),
         )
         next_operation_id = next_visible_operation_selection(
@@ -275,15 +282,66 @@ class Managed2DPageWindowState:
         )
         _render_current_window(self)
         _sync_inputs(self)
-        shifted_operation_ids = visible_column_operation_ids(
+        shifted_operation_ids = visible_operation_ids_in_tab_order(
             (
                 *((self.window_scene or self.scene).gates),
                 *((self.window_scene or self.scene).measurements),
+                *((self.window_scene or self.scene).controls),
+                *((self.window_scene or self.scene).swaps),
             )
         )
         boundary_operation_id = (
             shifted_operation_ids[-1] if backwards and shifted_operation_ids else None
         ) or (shifted_operation_ids[0] if shifted_operation_ids else None)
+        if boundary_operation_id is not None:
+            self.select_operation(boundary_operation_id)
+
+    def step_column_selection(self, *, backwards: bool = False) -> None:
+        """Move the selection across visible columns and advance pages when needed."""
+
+        if self.exploration is None:
+            return
+        operation_items = (
+            *((self.window_scene or self.scene).gates),
+            *((self.window_scene or self.scene).measurements),
+            *((self.window_scene or self.scene).controls),
+            *((self.window_scene or self.scene).swaps),
+        )
+        next_operation_id = next_visible_column_selection(
+            operation_items,
+            self.exploration.selected_operation_id,
+            backwards=backwards,
+            wrap=False,
+        )
+        if next_operation_id is not None:
+            self.select_operation(next_operation_id)
+            return
+        if backwards:
+            if self.start_page <= 0:
+                return
+            self.start_page -= 1
+        else:
+            if (self.start_page + self.visible_page_count) >= self.total_pages:
+                return
+            self.start_page += 1
+        self.visible_page_count = _clamp_visible_page_count(
+            self.visible_page_count,
+            total_pages=self.total_pages,
+            start_page=self.start_page,
+        )
+        _render_current_window(self)
+        _sync_inputs(self)
+        shifted_column_operation_ids = visible_column_operation_ids(
+            (
+                *((self.window_scene or self.scene).gates),
+                *((self.window_scene or self.scene).measurements),
+                *((self.window_scene or self.scene).controls),
+                *((self.window_scene or self.scene).swaps),
+            )
+        )
+        boundary_operation_id = (
+            shifted_column_operation_ids[-1] if backwards and shifted_column_operation_ids else None
+        ) or (shifted_column_operation_ids[0] if shifted_column_operation_ids else None)
         if boundary_operation_id is not None:
             self.select_operation(boundary_operation_id)
 
@@ -307,6 +365,8 @@ def configure_page_window(
     expanded_semantic_ir: SemanticCircuitIR | None = None,
     keyboard_shortcuts_enabled: bool = True,
     double_click_toggle_enabled: bool = True,
+    initial_start_page: int = 0,
+    attach_controls: bool = True,
 ) -> Managed2DPageWindowState:
     """Attach fixed page-window controls and render the initial visible window."""
 
@@ -339,15 +399,17 @@ def configure_page_window(
         window_scene=None,
         effective_page_width=effective_page_width,
         total_pages=total_pages,
-        start_page=0,
+        start_page=_clamp_page_index(initial_start_page + 1, total_pages),
         visible_page_count=1,
         ui_palette=ui_palette,
         exploration=exploration,
         keyboard_shortcuts_enabled=keyboard_shortcuts_enabled,
         double_click_toggle_enabled=double_click_toggle_enabled,
+        controls_enabled=attach_controls,
     )
     set_page_window(figure, state)
-    _attach_controls(state)
+    if attach_controls:
+        _attach_controls(state)
     state.shortcut_help_text = create_shortcut_help_text(
         figure,
         palette=ui_palette,
@@ -361,7 +423,8 @@ def configure_page_window(
             "w: Toggle wires all/active",
             "",
             "Selection",
-            "Tab/Shift+Tab: Move between columns",
+            "Tab/Shift+Tab: Move between visible operations",
+            "Ctrl+Tab/Ctrl+Shift+Tab: Move between visible columns",
             "Enter/Space: Toggle block",
             "Esc: Clear selection",
             "0: Reset exploration",
@@ -525,6 +588,12 @@ def _attach_window_key_shortcuts(state: Managed2DPageWindowState) -> None:
             return
         if is_previous_selection_key(event):
             _run(lambda: state.step_operation_selection(backwards=True))
+            return
+        if is_next_column_key(event):
+            _run(state.step_column_selection)
+            return
+        if is_previous_column_key(event):
+            _run(lambda: state.step_column_selection(backwards=True))
             return
         if is_clear_selection_key(event):
             _run(state.clear_selection)
