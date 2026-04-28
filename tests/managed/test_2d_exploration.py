@@ -572,6 +572,32 @@ def test_slider_selection_survives_vertical_scroll_when_selected_operation_stays
         plt.close(figure)
 
 
+def test_slider_scroll_clears_selection_when_selected_operation_leaves_window() -> None:
+    figure, _ = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    try:
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        selected_gate = page_slider.scene.gates[0]
+        assert selected_gate.operation_id is not None
+
+        page_slider.select_operation(selected_gate.operation_id)
+        page_slider.show_start_column(1)
+
+        assert page_slider.exploration is not None
+        assert page_slider.exploration.selected_operation_id is None
+        assert all(
+            gate.visual_state is SceneVisualState.DEFAULT for gate in page_slider.scene.gates
+        )
+    finally:
+        plt.close(figure)
+
+
 def test_slider_block_toggle_expands_and_recovers_semantic_block() -> None:
     current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
     current_circuit = lower_semantic_circuit(current_semantic_ir)

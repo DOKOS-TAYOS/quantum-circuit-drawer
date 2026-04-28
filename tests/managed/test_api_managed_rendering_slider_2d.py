@@ -960,6 +960,30 @@ def test_draw_quantum_circuit_page_slider_clips_windowed_multiqubit_text() -> No
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_page_slider_keeps_vertical_window_geometry_stable() -> None:
+    figure, _ = draw_quantum_circuit(
+        _tall_measured_ir(quantum_wire_count=24, layer_count=2),
+        style={"max_page_width": 12.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+    assert page_slider is not None
+    assert page_slider.max_start_row > 0
+
+    try:
+        for start_row in range(page_slider.max_start_row + 1):
+            page_slider.show_start_row(start_row)
+            window_scene = slider_windowing_module._scene_for_current_window(page_slider)
+
+            assert window_scene.height == pytest.approx(page_slider.viewport_height)
+            assert window_scene.page_height == pytest.approx(page_slider.viewport_height)
+    finally:
+        plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_slider_keeps_qiskit_measurement_tail_in_one_window() -> None:
     if find_spec("qiskit") is None:
         pytest.skip("qiskit is required for the QAOA slider regression test")

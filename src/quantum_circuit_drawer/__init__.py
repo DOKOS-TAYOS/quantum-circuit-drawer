@@ -34,6 +34,7 @@ from .exceptions import (
     UnsupportedOperationError,
 )
 from .hover import HoverOptions
+from .latex import LatexBackend, LatexMode, LatexResult
 from .presets import StylePreset
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
@@ -104,6 +105,25 @@ def analyze_quantum_circuit(
     return _analyze_quantum_circuit(
         circuit,
         config=config,
+    )
+
+
+def circuit_to_latex(
+    circuit: object,
+    *,
+    config: DrawConfig | None = None,
+    backend: LatexBackend | str = LatexBackend.QUANTIKZ,
+    mode: LatexMode | DrawMode | str | None = None,
+) -> LatexResult:
+    """Return LaTeX source for a supported 2D circuit."""
+
+    from .api import circuit_to_latex as _circuit_to_latex
+
+    return _circuit_to_latex(
+        circuit,
+        config=config,
+        backend=backend,
+        mode=mode,
     )
 
 
@@ -201,6 +221,9 @@ __all__ = [
     "HistogramSort",
     "HistogramViewOptions",
     "HoverOptions",
+    "LatexBackend",
+    "LatexMode",
+    "LatexResult",
     "LayoutError",
     "OutputOptions",
     "PeriodicTopology1D",
@@ -216,6 +239,7 @@ __all__ = [
     "UnsupportedPolicy",
     "__version__",
     "analyze_quantum_circuit",
+    "circuit_to_latex",
     "compare_circuits",
     "compare_histograms",
     "draw_quantum_circuit",

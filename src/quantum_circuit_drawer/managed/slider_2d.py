@@ -624,6 +624,7 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     if rebuild_controls:
         _remove_2d_controls(state)
     window_scene = _scene_for_current_window(state)
+    _clear_hidden_slider_selection(state, window_scene)
     state.scene = _styled_slider_scene(state, window_scene)
     clear_hover_state(state.axes)
     state.axes.clear()
@@ -655,6 +656,27 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     canvas = getattr(state.figure, "canvas", None)
     if canvas is not None:
         canvas.draw_idle()
+
+
+def _clear_hidden_slider_selection(
+    state: Managed2DPageSliderState,
+    scene: LayoutScene,
+) -> None:
+    if state.exploration is None or state.exploration.selected_operation_id is None:
+        return
+
+    visible_operation_ids = {
+        operation_id
+        for operation_id in (
+            *(getattr(item, "operation_id", None) for item in scene.gates),
+            *(getattr(item, "operation_id", None) for item in scene.measurements),
+            *(getattr(item, "operation_id", None) for item in scene.controls),
+            *(getattr(item, "operation_id", None) for item in scene.swaps),
+        )
+        if operation_id is not None
+    }
+    if state.exploration.selected_operation_id not in visible_operation_ids:
+        state.exploration.selected_operation_id = None
 
 
 def _attach_2d_controls(

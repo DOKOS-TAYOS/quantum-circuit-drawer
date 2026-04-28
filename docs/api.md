@@ -8,6 +8,7 @@ The public entry points stay intentionally small:
 
 - `analyze_quantum_circuit(...)`
 - `draw_quantum_circuit(...)`
+- `circuit_to_latex(...)`
 - `compare_circuits(...)`
 - `plot_histogram(...)`
 - `compare_histograms(...)`
@@ -36,6 +37,14 @@ draw_quantum_circuit(
     config: DrawConfig | None = None,
     ax: Axes | None = None,
 ) -> DrawResult
+
+circuit_to_latex(
+    circuit: object,
+    *,
+    config: DrawConfig | None = None,
+    backend: LatexBackend | str = LatexBackend.QUANTIKZ,
+    mode: LatexMode | DrawMode | str | None = None,
+) -> LatexResult
 
 compare_circuits(
     left_circuit: object,
@@ -71,6 +80,29 @@ compare_histograms(
 ## Circuit drawing
 
 `draw_quantum_circuit(...)` accepts supported framework objects, public `CircuitIR` objects, OpenQASM 2/3 text, `.qasm` files, and `.qasm3` files. OpenQASM paths use Qiskit for parsing: OpenQASM 2 requires `quantum-circuit-drawer[qiskit]`, and OpenQASM 3 requires `quantum-circuit-drawer[qasm3]`.
+
+### LaTeX export
+
+`circuit_to_latex(...)` accepts the same circuit inputs and `DrawConfig` style/framework options as `draw_quantum_circuit(...)`, but it returns source text instead of opening or saving Matplotlib figures. It supports 2D `full` and `pages` exports.
+
+```python
+from quantum_circuit_drawer import DrawMode, LatexBackend, circuit_to_latex
+
+result = circuit_to_latex(
+    circuit,
+    backend=LatexBackend.QUANTIKZ,
+    mode=DrawMode.PAGES,
+)
+
+print(result.source)
+```
+
+Backends:
+
+- `LatexBackend.QUANTIKZ`: the default and most complete backend, returning `quantikz` figure snippets.
+- `LatexBackend.TIKZ`: a basic experimental `tikzpicture` backend for simple static diagrams.
+
+`LatexResult` includes `source`, `pages`, `backend`, `mode`, `page_count`, `detected_framework`, `diagnostics`, and `to_dict()`. For `pages` mode, `pages` contains one snippet per page and `source` joins them with page comments. The returned text is a figure snippet, not a complete standalone `.tex` document.
 
 ### `DrawConfig`
 

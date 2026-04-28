@@ -49,6 +49,7 @@ def _scene_for_current_window(state: Managed2DPageSliderState) -> LayoutScene:
         horizontal_scene,
         start_row=state.start_row,
         visible_qubits=state.visible_qubits,
+        viewport_height=state.viewport_height,
     )
     state.window_scene_cache[cache_key] = window_scene
     return window_scene
@@ -157,6 +158,7 @@ def _row_window_scene(
     *,
     start_row: int,
     visible_qubits: int,
+    viewport_height: float | None = None,
 ) -> LayoutScene:
     visible_wires = tuple(scene.wires[start_row : start_row + visible_qubits])
     if not visible_wires:
@@ -166,9 +168,13 @@ def _row_window_scene(
     last_wire_y = visible_wires[-1].y
     style = scene.style
     window_top = first_wire_y - style.margin_top
-    window_bottom = last_wire_y + style.margin_bottom
     y_shift = style.margin_top - first_wire_y
-    window_height = style.margin_top + style.margin_bottom + (last_wire_y - first_wire_y)
+    visible_window_height = style.margin_top + style.margin_bottom + (last_wire_y - first_wire_y)
+    window_height = max(
+        visible_window_height,
+        scene.height if viewport_height is None else viewport_height,
+    )
+    window_bottom = window_top + window_height
     visible_wire_ids = {wire.id for wire in visible_wires}
 
     return LayoutScene(

@@ -235,7 +235,7 @@ Linux or WSL:
 
 Use the broad Qiskit demos for option sweeps because they are the most reliable multiplatform path.
 
-When you specifically want the managed 2D controls, use `qiskit-2d-exploration-showcase` first and then widen out to `qiskit-random`. The 2D showcase defaults to `grid` so the hover can show topology-aware SWAP estimates immediately.
+When you specifically want the managed 2D controls, use `qiskit-2d-exploration-showcase` first and then widen out to `qiskit-random`. The 2D showcase defaults to `grid` so the hover can show topology-aware SWAP estimates immediately, and it now starts with enough wires and motifs to show the slider mode more clearly out of the box.
 
 When you want managed 3D exploration, start with `qiskit-3d-exploration-showcase` before using `qiskit-qaoa` as the denser follow-up. For backend-derived topology hover details, use `qiskit-backend-topology-showcase`.
 

@@ -81,8 +81,8 @@ def main() -> None:
         ),
         framework="qiskit",
         saved_label="qiskit-2d-exploration-showcase",
-        default_qubits=8,
-        default_columns=7,
+        default_qubits=18,
+        default_columns=9,
         columns_help="Repeated composite motifs to place across the exploration showcase",
         default_topology="grid",
     )
