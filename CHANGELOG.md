@@ -11,6 +11,7 @@
 - Changed the default circuit text behavior to `DrawStyle(use_mathtext="auto")`, keeping visible labels plain by default while still promoting symbolic parameter subtitles such as `theta`, `phi`, and `pi/2` to MathText when that improves notation.
 - Extended `DrawStyle.use_mathtext` to accept `True`, `False`, or `"auto"`, preserving explicit legacy behavior while making the default managed 2D render path noticeably faster than the old always-MathText default on large synthetic circuits.
 - Increased the default size of the `qiskit-2d-exploration-showcase` example so its managed `slider` mode demonstrates horizontal navigation more clearly without extra CLI flags.
+- Clarified the PyPI install guidance for WSL2 so the user docs now explain that interactive Matplotlib windows may still require the Linux `python3-tk` system package even when the library itself is installed with `pip`.
 
 ### Fixed
 
@@ -21,6 +22,7 @@
 - Reduced managed 2D adaptive paging search work by adding conservative early exits for obvious viewport-fit cases and shrinking the fallback search budget, preserving page-window behavior while avoiding unnecessary width probes on large circuits.
 - Fixed the managed 2D vertical slider window geometry so row-window subscenes now keep a stable viewport height across scroll positions, avoiding inconsistent vertical movement when mixed quantum/classical row spacing is present.
 - Fixed managed 2D slider selection styling so moving the window now clears a selected operation as soon as it leaves the visible slider viewport, avoiding fully dimmed scenes with no visible highlighted gate.
+- Fixed `show=True` diagnostics for circuits and histograms so non-interactive Matplotlib backends now report a clear warning, including WSL2 guidance that points users to `python3-tk` instead of leaving the missing GUI dependency implicit.
 
 ## [0.6.0] - 2026-04-28
 

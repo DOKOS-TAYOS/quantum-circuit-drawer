@@ -111,6 +111,36 @@ Recommended options:
 
 If `show=True` does not open a window, the active Matplotlib backend may be non-interactive. This is common in notebooks, headless scripts, remote shells, and CI.
 
+Recent `DrawResult`, `HistogramResult`, and `HistogramCompareResult` objects also report this through structured diagnostics. If `show=True` was requested but Matplotlib fell back to a non-interactive backend such as `Agg`, check `result.warnings` or `result.diagnostics` for the `show_requested_without_interactive_backend` warning.
+
+For plain scripts, a quick backend check is:
+
+```python
+import matplotlib.pyplot as plt
+
+print(plt.get_backend())
+```
+
+If that prints `Agg`, Matplotlib does not currently have a GUI backend available for opening a desktop window.
+
+### WSL2-specific fix
+
+On WSL2, `pip install quantum-circuit-drawer` installs the Python package but may not install the Linux Tk package that Matplotlib needs for Tk-based interactive windows.
+
+Typical Ubuntu or Debian WSL2 setup:
+
+```bash
+sudo apt update
+sudo apt install python3-tk
+.venv/bin/python -m tkinter
+```
+
+If the Tk test window opens, retry your script. If it does not open:
+
+- make sure you are running under WSL2 with WSLg GUI support enabled
+- keep using `show=False` or `output_path=...` until GUI support is available
+- remember that this system dependency is installed with `apt`, not with `pip`
+
 For scripts and automated exports, use:
 
 ```python

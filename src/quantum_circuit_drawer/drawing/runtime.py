@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import builtins
+import os
+import platform
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
@@ -10,7 +12,11 @@ from typing import TYPE_CHECKING
 
 from ..config import DrawConfig, DrawMode, ResolvedDrawConfig
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
-from ..renderers._render_support import NOTEBOOK_INTERACTIVE_BACKENDS, pyplot_backend_name
+from ..renderers._render_support import (
+    NON_INTERACTIVE_BACKENDS,
+    NOTEBOOK_INTERACTIVE_BACKENDS,
+    pyplot_backend_name,
+)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -61,6 +67,13 @@ def resolve_draw_config(
                 severity=DiagnosticSeverity.INFO,
             )
         )
+    diagnostics.extend(
+        show_requested_without_interactive_backend_diagnostics(
+            show=resolved_config.show,
+            runtime_context=runtime_context,
+            caller_axes=ax,
+        )
+    )
     interactive_mode_allowed = (
         not runtime_context.is_notebook
         or runtime_context.notebook_backend_active
@@ -119,6 +132,70 @@ def _resolve_ipython_shell() -> object | None:
     return get_ipython()
 
 
+def show_requested_without_interactive_backend_diagnostics(
+    *,
+    show: bool,
+    runtime_context: RuntimeContext,
+    caller_axes: Axes | None = None,
+) -> tuple[RenderDiagnostic, ...]:
+    """Return a warning when ``show=True`` cannot open an interactive window."""
+
+    if not show or caller_axes is not None or runtime_context.is_notebook:
+        return ()
+    if runtime_context.pyplot_backend not in NON_INTERACTIVE_BACKENDS:
+        return ()
+    return (
+        RenderDiagnostic(
+            code="show_requested_without_interactive_backend",
+            message=_noninteractive_backend_show_message(runtime_context.pyplot_backend),
+            severity=DiagnosticSeverity.WARNING,
+        ),
+    )
+
+
+def _noninteractive_backend_show_message(backend_name: str) -> str:
+    """Build a user-facing explanation for non-interactive Matplotlib backends."""
+
+    message = (
+        f"show=True requested an interactive Matplotlib window, but backend {backend_name!r} "
+        "is non-interactive so no window will open."
+    )
+    if _running_in_wsl():
+        return (
+            message
+            + " In WSL2, install the system Tk package instead of relying on pip alone "
+            + "(Ubuntu/Debian: sudo apt install python3-tk), make sure WSLg GUI support is "
+            + "available, and test with python3 -m tkinter."
+        )
+    if _platform_system() == "Linux":
+        return (
+            message
+            + " On Linux, install a GUI toolkit such as Tk; on Ubuntu/Debian, run sudo apt "
+            + "install python3-tk and test with python3 -m tkinter."
+        )
+    return message + " Use show=False or save to output_path for headless runs."
+
+
+def _platform_system() -> str:
+    """Return the current operating-system family."""
+
+    return platform.system()
+
+
+def _running_in_wsl() -> bool:
+    """Return whether the current Linux process is running inside WSL."""
+
+    if _platform_system() != "Linux":
+        return False
+    wsl_markers = (
+        os.environ.get("WSL_DISTRO_NAME", ""),
+        os.environ.get("WSL_INTEROP", ""),
+        platform.release(),
+        platform.version(),
+    )
+    return any("microsoft" in marker.lower() or "wsl" in marker.lower() for marker in wsl_markers)
+
+
 __all__ = [
     "DiagnosticSeverity",
     "DrawConfig",
@@ -139,5 +216,6 @@ __all__ = [
     "lru_cache",
     "pyplot_backend_name",
     "resolve_draw_config",
+    "show_requested_without_interactive_backend_diagnostics",
     "sys",
 ]

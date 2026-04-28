@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING
 
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..drawing.results import normalized_saved_path
-from ..drawing.runtime import detect_runtime_context
+from ..drawing.runtime import (
+    detect_runtime_context,
+    show_requested_without_interactive_backend_diagnostics,
+)
 from ..style.theme import resolve_theme
 from .histogram_compare import (
     attach_histogram_compare_hover,
@@ -88,6 +91,13 @@ def plot_histogram(
                     severity=DiagnosticSeverity.INFO,
                 )
             )
+    diagnostics.extend(
+        show_requested_without_interactive_backend_diagnostics(
+            show=resolved_config.show,
+            runtime_context=runtime_context,
+            caller_axes=ax,
+        )
+    )
     if (
         resolved_mode is HistogramMode.INTERACTIVE
         and runtime_context.is_notebook
@@ -188,6 +198,14 @@ def compare_histograms(
     resolved_config = config or HistogramCompareConfig()
     if ax is not None and resolved_config.figsize is not None:
         raise ValueError("figsize cannot be used with ax")
+    runtime_context = detect_runtime_context()
+    diagnostics = list(
+        show_requested_without_interactive_backend_diagnostics(
+            show=resolved_config.show,
+            runtime_context=runtime_context,
+            caller_axes=ax,
+        )
+    )
 
     data_series = (left_data, right_data, *additional_data)
     series_labels = _resolve_compare_series_labels(
@@ -277,7 +295,7 @@ def compare_histograms(
         qubits=resolved_config.qubits,
         series_labels=series_labels,
         series_values=series_values,
-        diagnostics=(),
+        diagnostics=tuple(diagnostics),
         saved_path=normalized_saved_path(resolved_config.output_path),
     )
 

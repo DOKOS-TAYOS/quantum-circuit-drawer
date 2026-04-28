@@ -194,6 +194,68 @@ def test_plot_histogram_reports_runtime_diagnostic_when_auto_mode_falls_back_to_
     plt.close(result.figure)
 
 
+def test_draw_quantum_circuit_warns_when_show_true_uses_noninteractive_wsl_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=False, pyplot_backend="agg"),
+    )
+    monkeypatch.setattr("quantum_circuit_drawer.drawing.runtime._running_in_wsl", lambda: True)
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.runtime._platform_system",
+        lambda: "Linux",
+    )
+
+    result = draw_quantum_circuit(
+        build_sample_ir(),
+        config=build_public_draw_config(show=True),
+    )
+
+    warning = next(
+        diagnostic
+        for diagnostic in result.diagnostics
+        if diagnostic.code == "show_requested_without_interactive_backend"
+    )
+
+    assert warning.severity is DiagnosticSeverity.WARNING
+    assert "python3-tk" in warning.message
+    assert "WSL2" in warning.message
+
+    plt.close(result.primary_figure)
+
+
+def test_plot_histogram_warns_when_show_true_uses_noninteractive_linux_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.plots.histogram.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=False, pyplot_backend="agg"),
+    )
+    monkeypatch.setattr("quantum_circuit_drawer.drawing.runtime._running_in_wsl", lambda: False)
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.runtime._platform_system",
+        lambda: "Linux",
+    )
+
+    result = plot_histogram(
+        {"00": 5, "11": 3},
+        config=build_public_histogram_config(show=True),
+    )
+
+    warning = next(
+        diagnostic
+        for diagnostic in result.diagnostics
+        if diagnostic.code == "show_requested_without_interactive_backend"
+    )
+
+    assert warning.severity is DiagnosticSeverity.WARNING
+    assert "python3-tk" in warning.message
+    assert "Linux" in warning.message
+
+    plt.close(result.figure)
+
+
 def test_draw_quantum_circuit_keeps_supported_myqlm_reset_drawable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

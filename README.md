@@ -76,6 +76,20 @@ Linux or WSL:
 .venv/bin/python -m pip install quantum-circuit-drawer
 ```
 
+If you only need saved images, that install is enough. If you also want interactive Matplotlib windows inside WSL2, `pip install` is not always enough on its own because Linux distributions often ship Tk as a separate system package. On Ubuntu or Debian under WSL2, install it once with:
+
+```bash
+sudo apt install python3-tk
+```
+
+Then verify GUI support from the same virtual environment:
+
+```bash
+.venv/bin/python -m tkinter
+```
+
+If that test window does not open, keep using `show=False` or `output_path=...` and check [Troubleshooting](docs/troubleshooting.md#no-matplotlib-window-opens).
+
 Install only the extras you need:
 
 Windows PowerShell:

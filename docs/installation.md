@@ -56,6 +56,18 @@ Linux or WSL:
 .venv/bin/python -m pip install quantum-circuit-drawer
 ```
 
+If you only need file output, that base install is enough. If you also want interactive Matplotlib windows in WSL2, remember that `pip install` does not reliably install the Linux GUI toolkit itself. Many Linux distributions split `tkinter` into a separate system package.
+
+Typical Ubuntu or Debian WSL2 setup:
+
+```bash
+sudo apt update
+sudo apt install python3-tk
+.venv/bin/python -m tkinter
+```
+
+If the Tk test window opens, Matplotlib's Tk-based interactive path is available to the same virtual environment too. If it does not open, keep `show=False` for now and check [Troubleshooting](troubleshooting.md#no-matplotlib-window-opens).
+
 ## Install Optional Framework Extras
 
 Install only the extras you need.
@@ -134,6 +146,8 @@ For notebook work:
 
 - use `show=False` when you want to control display yourself
 - use a widget backend if you want Matplotlib hover or interactive histogram controls
+
+For normal `.py` scripts in WSL2, interactive windows usually depend on WSLg plus a GUI toolkit such as Tk. Notebook widget backends and desktop script windows are separate concerns.
 
 ## Quick Install Check
 
