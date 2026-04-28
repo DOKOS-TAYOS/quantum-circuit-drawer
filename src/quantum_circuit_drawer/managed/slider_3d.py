@@ -131,6 +131,7 @@ class Managed3DPageSliderState:
         scene = self._scene_for_start_column(resolved_start_column)
         self.start_column = resolved_start_column
         self.current_scene = scene
+        _sync_horizontal_slider(self)
 
         fixed_view_state = capture_managed_3d_view_state(self.axes)
         clear_hover_state(self.axes)
@@ -507,6 +508,24 @@ def _refresh_3d_slider_window_metrics(state: Managed3DPageSliderState) -> None:
     state.start_column = min(state.start_column, state.max_start_column)
     if state.horizontal_slider is not None:
         state.horizontal_slider.valmax = float(state.max_start_column)
+
+
+def _sync_horizontal_slider(state: Managed3DPageSliderState) -> None:
+    if state.horizontal_slider is None:
+        return
+    _set_slider_value_silently(state.horizontal_slider, float(state.start_column))
+
+
+def _set_slider_value_silently(slider: Slider, value: float) -> None:
+    if float(slider.val) == float(value):
+        return
+
+    previous_event_state = slider.eventson
+    slider.eventson = False
+    try:
+        slider.set_val(float(value))
+    finally:
+        slider.eventson = previous_event_state
 
 
 def _attach_3d_slider_selection_clicks(state: Managed3DPageSliderState) -> None:

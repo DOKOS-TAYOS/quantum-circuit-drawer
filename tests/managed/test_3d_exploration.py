@@ -816,15 +816,20 @@ def test_3d_slider_arrow_keys_move_horizontal_window_only() -> None:
         page_slider = cast(Managed3DPageSliderState | None, get_page_slider(figure))
         assert page_slider is not None
         assert page_slider.max_start_column > 0
+        assert page_slider.horizontal_slider is not None
+        assert page_slider.horizontal_slider.val == pytest.approx(0.0)
 
         _dispatch_key_press(figure, "right")
         assert page_slider.start_column == 1
+        assert page_slider.horizontal_slider.val == pytest.approx(1.0)
 
         _dispatch_key_press(figure, "up")
         assert page_slider.start_column == 1
+        assert page_slider.horizontal_slider.val == pytest.approx(1.0)
 
         _dispatch_key_press(figure, "left")
         assert page_slider.start_column == 0
+        assert page_slider.horizontal_slider.val == pytest.approx(0.0)
     finally:
         plt.close(figure)
 

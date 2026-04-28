@@ -44,6 +44,7 @@
 - Fixed managed wire-filter shortcuts so `w` now toggles `Wires: All` / `Wires: Active` in 2D `pages_controls` and `slider` views too, and added `Shift+T` to move to the previous topology in managed 3D views.
 - Fixed `pages` mode so each rendered page figure now keeps managed selection and keyboard shortcuts enabled by default, without showing the `pages_controls` navigation widgets.
 - Fixed managed `Tab` / `Shift+Tab` traversal so interactive circuit views keep keyboard focus more reliably after changing the selected gate, and normalized Tk `Shift+Tab` handling for Windows and Linux backends that report it as `ISO_Left_Tab`.
+- Fixed the managed 3D page-slider keyboard navigation so `Left` and `Right` keep the visible slider control in sync with the current start column.
 - Fixed interactive histogram shortcuts so `c` now changes the ordering and `d` switches counts/quasi, avoiding conflicts with common Matplotlib backend save and close shortcuts on interactive desktops.
 - Added interactive histogram shortcut `o` to toggle the slider viewport on and off wherever that slider mode is available.
 - Fixed histogram hover cards so they now use the same viewport-aware edge rebounding as circuit hovers, and changed interactive compare-histogram legends from exclusive focus to stable-position checkbox-style toggles that can hide any combination of series, including all of them.
