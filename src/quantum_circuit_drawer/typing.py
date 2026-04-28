@@ -50,7 +50,7 @@ class LayoutEngine3DLike(Protocol):
         *,
         topology_name: TopologyInput,
         direct: bool,
-        hover_options: HoverOptions,
+        hover_enabled: bool,
         topology_qubits: TopologyQubitMode = "used",
         topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:
@@ -68,7 +68,7 @@ class _NormalizedLayoutEngine3DLike(Protocol):
         *,
         topology_name: TopologyInput,
         direct: bool,
-        hover_enabled: bool,
+        hover_options: HoverOptions,
         topology_qubits: TopologyQubitMode = "used",
         topology_resize: TopologyResizeMode = "error",
     ) -> LayoutScene3D:

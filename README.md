@@ -2,11 +2,16 @@
   <img
     src="https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/Quantum_Circuit_Drawer_logo.png"
     alt="Quantum Circuit Drawer logo"
-    width="560"
+    width="880"
   />
 </p>
 
-# quantum-circuit-drawer
+# Quantum Circuit Drawer
+
+[![CI](https://img.shields.io/github/actions/workflow/status/DOKOS-TAYOS/quantum-circuit-drawer/ci.yml?branch=main&label=CI)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
+[![Windows%20%7C%20Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0A7BBB)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 `quantum-circuit-drawer` is a Matplotlib-based library for drawing quantum circuits, plotting measurement results, and comparing outputs across several quantum ecosystems with one consistent public API.
 

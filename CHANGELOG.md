@@ -31,6 +31,7 @@
 
 ### Changed
 
+- Refreshed the README header with project status badges matching the companion Tensor Network Editor style.
 - Updated the 2D, 3D, and backend-topology showcase demos so the new topology-aware hover details are easier to discover, including clearer long-range multi-qubit motifs and example copy that points users toward the SWAP estimates.
 - Reused prepared 2D gate label text during Matplotlib rendering, reducing repeated label formatting and text-fit work without changing the rendered appearance.
 - Made Cirq and PennyLane adapter autodetection use narrow optional imports (`cirq.circuits` and `pennylane.tape`) so native Windows users avoid loading the heavier top-level packages during framework detection.
@@ -39,6 +40,7 @@
 
 ### Fixed
 
+- Fixed strict `mypy` checks for Matplotlib hover helpers, managed synthetic key dispatch, 3D layout protocol signatures, compare-histogram hover state typing, and CI environments without Cirq submodule stubs.
 - Fixed 2D `pages_controls` `Tab` traversal so visible measurement columns are selected before the view advances to the next page.
 - Fixed managed `Tab` / `Shift+Tab` traversal in paged 2D and 3D views so it now exhausts visible operations within the current column before moving to the next or previous column.
 - Fixed managed wire-filter shortcuts so `w` now toggles `Wires: All` / `Wires: Active` in 2D `pages_controls` and `slider` views too, and added `Shift+T` to move to the previous topology in managed 3D views.

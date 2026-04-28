@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-circuit-drawer"
-description = "Backend-agnostic quantum circuit drawing library with Matplotlib as the first renderer."
+description = "A Matplotlib-based library for drawing quantum circuits, plotting measurement results, and comparing outputs across several quantum ecosystems with one consistent public API."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -13,7 +13,20 @@ dynamic = ["version"]
 authors = [
   { name = "Alejandro Mata Ali" },
 ]
-keywords = ["quantum", "qiskit", "cirq", "matplotlib", "visualization"]
+keywords = [
+  "quantum-circuit",
+  "quantum-computing",
+  "circuit-diagram",
+  "circuit-visualization",
+  "openqasm",
+  "qasm",
+  "qiskit",
+  "cirq",
+  "pennylane",
+  "cudaq",
+  "matplotlib",
+  "visualization",
+]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -123,6 +136,7 @@ warn_unused_ignores = true
 [[tool.mypy.overrides]]
 module = [
   "cirq",
+  "cirq.*",
   "cudaq",
   "pennylane",
   "qat",

@@ -297,7 +297,7 @@ def next_valid_topology(
         return None
     if current_topology not in valid_topologies:
         return None
-    current_index = valid_topologies.index(cast("TopologyName", current_topology))
+    current_index = valid_topologies.index(current_topology)
     return valid_topologies[(current_index + 1) % len(valid_topologies)]
 
 
@@ -313,7 +313,7 @@ def previous_valid_topology(
         return None
     if current_topology not in valid_topologies:
         return None
-    current_index = valid_topologies.index(cast("TopologyName", current_topology))
+    current_index = valid_topologies.index(current_topology)
     return valid_topologies[(current_index - 1) % len(valid_topologies)]
 
 

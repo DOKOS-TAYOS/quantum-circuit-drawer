@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import Event, MouseEvent
+from matplotlib.backend_bases import Event, MouseEvent, RendererBase
 
 from ..hover import HoverOptions
 from ..layout.scene import SceneHoverData
@@ -92,7 +92,7 @@ def _hover_text_for_payload(
 
 def _artist_visible_size_pixels(artist: Artist) -> tuple[float, float]:
     try:
-        renderer = artist.figure.canvas.get_renderer() if artist.figure.canvas is not None else None
+        renderer = _artist_renderer(artist)
         bbox = artist.get_window_extent(renderer=renderer)
     except (AttributeError, NotImplementedError, RuntimeError, ValueError):
         return (_DEFAULT_VISIBLE_HOVER_SIZE_PIXELS, _DEFAULT_VISIBLE_HOVER_SIZE_PIXELS)
@@ -100,3 +100,13 @@ def _artist_visible_size_pixels(artist: Artist) -> tuple[float, float]:
     if bbox.width <= 0.0 or bbox.height <= 0.0:
         return (_DEFAULT_VISIBLE_HOVER_SIZE_PIXELS, _DEFAULT_VISIBLE_HOVER_SIZE_PIXELS)
     return (float(bbox.width), float(bbox.height))
+
+
+def _artist_renderer(artist: Artist) -> RendererBase | None:
+    figure = artist.figure
+    canvas = figure.canvas if figure is not None else None
+    renderer_getter = getattr(canvas, "get_renderer", None)
+    if not callable(renderer_getter):
+        return None
+    renderer = renderer_getter()
+    return renderer if isinstance(renderer, RendererBase) else renderer

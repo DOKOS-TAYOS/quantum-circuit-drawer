@@ -24,6 +24,7 @@ These only apply if you install the corresponding extra, for example
 | Extra | Package (PyPI) | License | Primary source |
 |-------|----------------|---------|----------------|
 | `qiskit` | `qiskit` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/qiskit/) and [upstream license](https://github.com/Qiskit/qiskit/blob/main/LICENSE.txt) |
+| `qasm3` | `qiskit`, `qiskit-qasm3-import` | Apache-2.0 (both) | `qiskit` as above; [qiskit-qasm3-import on PyPI](https://pypi.org/project/qiskit-qasm3-import/) and [upstream license](https://github.com/Qiskit/qiskit-qasm3-import/blob/main/LICENSE) |
 | `cirq` | `cirq-core` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/cirq-core/) and [upstream license](https://github.com/quantumlib/Cirq/blob/main/LICENSE) |
 | `pennylane` | `pennylane` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/pennylane/) and [upstream license](https://github.com/PennyLaneAI/pennylane/blob/master/LICENSE) |
 | `cudaq` | `cudaq` | Apache-2.0. CUDA-Q also indicates that it uses the NVIDIA cuQuantum SDK under its own license. Review that separately if your release process redistributes or directly depends on that stack. | [PyPI metadata](https://pypi.org/project/cudaq/) and [upstream license](https://github.com/NVIDIA/cuda-quantum/blob/main/LICENSE) |
@@ -45,6 +46,7 @@ dependencies of the wheel published for end users.
 | `pytest-cov` | MIT |
 | `ruff` | MIT |
 | `mypy` | MIT |
+| `pyright` | MIT |
 | `build` | MIT |
 | `twine` | Apache-2.0 |
 

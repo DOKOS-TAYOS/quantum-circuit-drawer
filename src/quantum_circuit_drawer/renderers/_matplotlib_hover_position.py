@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from matplotlib.backend_bases import RendererBase
 from matplotlib.text import Annotation
+from matplotlib.transforms import Bbox
 
 _DEFAULT_HOVER_OFFSET_POINTS = 10.0
 _DEFAULT_VIEWPORT_PADDING_PIXELS = 4.0
@@ -54,8 +55,8 @@ def position_hover_annotation(
 
     x_offset_points = -offset_points if place_left else offset_points
     y_offset_points = -offset_points if place_below else offset_points
-    annotation.set_ha("right" if place_left else "left")
-    annotation.set_va("top" if place_below else "bottom")
+    annotation.set_horizontalalignment("right" if place_left else "left")
+    annotation.set_verticalalignment("top" if place_below else "bottom")
     annotation.set_position((x_offset_points, y_offset_points))
 
     clamped_x_points, clamped_y_points = _clamped_annotation_offset_points(
@@ -118,7 +119,7 @@ def _annotation_size_pixels(
 def _annotation_bbox(
     annotation: Annotation,
     renderer: RendererBase,
-):
+) -> Bbox:
     was_visible = annotation.get_visible()
     if not was_visible:
         annotation.set_visible(True)

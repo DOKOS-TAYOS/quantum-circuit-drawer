@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
-from typing import Protocol
+from typing import Protocol, cast
 
-from matplotlib.backend_bases import KeyEvent
+from matplotlib.backend_bases import FigureCanvasBase, KeyEvent
 
 from .exploration_2d import ExplorationCatalog, selected_block_action
 
@@ -118,9 +118,19 @@ def dispatch_managed_key_event(
 ) -> None:
     """Dispatch one synthetic managed key event through Matplotlib callbacks."""
 
-    if canvas is None or not hasattr(canvas, "callbacks"):
+    if canvas is None:
         return
-    KeyEvent("key_press_event", canvas, key=key_name, guiEvent=gui_event)._process()
+    callbacks = getattr(canvas, "callbacks", None)
+    process = getattr(callbacks, "process", None)
+    if not callable(process):
+        return
+    event = KeyEvent(
+        "key_press_event",
+        cast(FigureCanvasBase, canvas),
+        key=key_name,
+        guiEvent=gui_event,
+    )
+    process("key_press_event", event)
 
 
 def run_managed_canvas_action(canvas: object | None, action: Callable[[], None]) -> None:

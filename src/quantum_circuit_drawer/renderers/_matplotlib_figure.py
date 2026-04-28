@@ -9,6 +9,7 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure, SubFigure
+from matplotlib.text import Annotation
 
 if TYPE_CHECKING:
     from ..layout.scene import LayoutScene
@@ -60,7 +61,7 @@ class GateTextMetadata:
 
 @dataclass(slots=True)
 class HoverState:
-    annotation: object
+    annotation: Annotation
     callback_id: int | None = None
 
 
