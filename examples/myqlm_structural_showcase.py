@@ -2,26 +2,32 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
+
 from qat.lang.AQASM import CNOT, RX, H, Program, QRoutine
 
 try:
-    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
+    from examples._bootstrap import ensure_local_project_on_path
+    from examples._render_support import release_rendered_result
 except ImportError:
-    from _shared import ExampleRequest, build_draw_config, parse_example_args
+    from _bootstrap import ensure_local_project_on_path
+    from _render_support import release_rendered_result
 
-from quantum_circuit_drawer import draw_quantum_circuit
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
 
 
-def build_circuit(request: ExampleRequest) -> object:
+def build_circuit(*, qubit_count: int, motif_count: int) -> object:
     """Build a myQLM circuit that highlights reusable composite structure."""
 
-    qubit_count = max(4, request.qubits)
     program = Program()
     qbits = program.qalloc(qubit_count)
     cbits = program.calloc(qubit_count)
     routine = _build_showcase_routine()
 
-    for start in range(_motif_count(request)):
+    for start in range(motif_count):
         left = start % (qubit_count - 1)
         program.apply(routine, qbits[left], qbits[left + 1])
 
@@ -40,23 +46,40 @@ def _build_showcase_routine() -> QRoutine:
     return routine
 
 
-def _motif_count(request: ExampleRequest) -> int:
-    return max(2, min(request.columns, 5))
-
-
 def main() -> None:
-    request = parse_example_args(
-        description="Render a myQLM showcase centered on compact composite routines on the native adapter path.",
-        default_qubits=5,
-        default_columns=3,
-        columns_help="Composite routine applications to place across the myQLM circuit",
+    """Render a myQLM circuit centered on a reusable routine."""
+
+    args = _parse_args()
+    result = None
+    try:
+        result = draw_quantum_circuit(
+            build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            config=DrawConfig(
+                output=OutputOptions(output_path=args.output, show=args.show),
+            ),
+        )
+        if args.output is not None:
+            print(f"Saved myqlm-structural-showcase to {args.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(
+        description="Render a myQLM circuit that reuses one compact composite routine several times."
     )
-    draw_quantum_circuit(
-        build_circuit(request),
-        config=build_draw_config(request, framework="myqlm"),
+    parser.add_argument("--qubits", type=int, default=5, help="Number of qubits to allocate.")
+    parser.add_argument(
+        "--motifs",
+        type=int,
+        default=3,
+        help="How many times to apply the reusable routine across the circuit.",
     )
-    if request.output is not None:
-        print(f"Saved myqlm-structural-showcase to {request.output}")
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

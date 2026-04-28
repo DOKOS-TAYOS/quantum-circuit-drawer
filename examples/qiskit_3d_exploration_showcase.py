@@ -2,21 +2,39 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
+
 from qiskit import AncillaRegister, ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.circuit import Instruction
 
 try:
-    from examples._shared import ExampleRequest, run_example
+    from examples._bootstrap import ensure_local_project_on_path
+    from examples._render_support import release_rendered_result
 except ImportError:
-    from _shared import ExampleRequest, run_example
+    from _bootstrap import ensure_local_project_on_path
+    from _render_support import release_rendered_result
+
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import (  # noqa: E402
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+    draw_quantum_circuit,
+)
 
 
-def build_circuit(request: ExampleRequest) -> QuantumCircuit:
+def build_circuit(*, qubit_count: int, motif_count: int) -> QuantumCircuit:
     """Build a Qiskit circuit tailored for managed 3D exploration workflows."""
 
+    total_wires = max(10, qubit_count)
     source = QuantumRegister(2, "src")
     ancillas = AncillaRegister(2, "anc")
-    target = QuantumRegister(_target_register_size(request), "dst")
+    target = QuantumRegister(total_wires - 4, "dst")
     classical = ClassicalRegister(3, "c")
     circuit = QuantumCircuit(source, ancillas, target, classical, name="qiskit_3d_exploration")
 
@@ -25,7 +43,7 @@ def build_circuit(request: ExampleRequest) -> QuantumCircuit:
 
     focus_wire = target[1]
     edge_wire = target[-1]
-    for step in range(_motif_count(request)):
+    for step in range(motif_count):
         phase = 0.19 * float(step + 1)
         circuit.append(prep_block, [source[0], focus_wire, ancillas[0]])
         circuit.rzz(phase, focus_wire, edge_wire)
@@ -40,14 +58,6 @@ def build_circuit(request: ExampleRequest) -> QuantumCircuit:
     circuit.measure(focus_wire, classical[1])
     circuit.measure(edge_wire, classical[2])
     return circuit
-
-
-def _target_register_size(request: ExampleRequest) -> int:
-    return max(6, request.qubits - 2)
-
-
-def _motif_count(request: ExampleRequest) -> int:
-    return max(4, min(request.columns, 9))
 
 
 def _prep_instruction() -> Instruction:
@@ -69,24 +79,70 @@ def _relay_instruction() -> Instruction:
 
 
 def main() -> None:
-    """Run the 3D exploration showcase as a normal user-facing script."""
+    """Render a Qiskit workflow designed for managed 3D exploration."""
 
-    run_example(
-        build_circuit,
-        description=(
-            "Render a Qiskit workflow designed for managed 3D exploration, including "
-            "topology-aware hover, controlled interactions, ancilla toggles, and contextual "
-            "block controls."
-        ),
-        framework="qiskit",
-        saved_label="qiskit-3d-exploration-showcase",
-        default_qubits=25,
-        default_columns=6,
-        columns_help="Repeated composite motifs to place across the 3D exploration showcase",
-        default_mode="pages_controls",
-        default_view="3d",
-        default_topology="grid",
+    args = _parse_args()
+    result = None
+    try:
+        result = draw_quantum_circuit(
+            build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            config=DrawConfig(
+                side=DrawSideConfig(
+                    render=CircuitRenderOptions(
+                        view="3d",
+                        mode=DrawMode(args.mode),
+                        topology=args.topology,
+                        topology_menu=args.mode in {"pages_controls", "slider"},
+                        direct=False,
+                    ),
+                    appearance=CircuitAppearanceOptions(hover=True),
+                ),
+                output=OutputOptions(
+                    output_path=args.output,
+                    show=args.show,
+                    figsize=(9.8, 5.2),
+                ),
+            ),
+        )
+        if args.output is not None:
+            print(f"Saved qiskit-3d-exploration-showcase to {args.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(
+        description="Render a Qiskit circuit designed for 3D managed exploration."
     )
+    parser.add_argument(
+        "--qubits",
+        type=int,
+        default=12,
+        help="Approximate total quantum wires to show. Values below 10 use the minimum layout.",
+    )
+    parser.add_argument(
+        "--motifs",
+        type=int,
+        default=4,
+        help="How many composite motifs to place across the showcase circuit.",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("auto", "pages", "pages_controls", "slider", "full"),
+        default="pages_controls",
+        help="Draw mode to use for the rendered circuit.",
+    )
+    parser.add_argument(
+        "--topology",
+        choices=("line", "grid", "star", "star_tree", "honeycomb"),
+        default="grid",
+        help="Topology used by the managed 3D view.",
+    )
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

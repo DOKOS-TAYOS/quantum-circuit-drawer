@@ -22,6 +22,7 @@ from .drawing.runtime import (
     lru_cache,
     pyplot_backend_name,
     resolve_draw_config,
+    show_requested_without_interactive_backend_diagnostics,
     sys,
 )
 
@@ -45,5 +46,6 @@ __all__ = [
     "lru_cache",
     "pyplot_backend_name",
     "resolve_draw_config",
+    "show_requested_without_interactive_backend_diagnostics",
     "sys",
 ]

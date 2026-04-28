@@ -34,8 +34,11 @@ from .managed.topology_menu import (
     get_page_window,
     managed_3d_menu_bounds,
     managed_ui_palette,
+    next_valid_topology,
+    previous_valid_topology,
     replace,
     set_topology_menu_state,
+    valid_topologies_for_quantum_wires,
 )
 
 __all__ = [
@@ -70,6 +73,9 @@ __all__ = [
     "get_page_window",
     "managed_3d_menu_bounds",
     "managed_ui_palette",
+    "next_valid_topology",
+    "previous_valid_topology",
     "replace",
     "set_topology_menu_state",
+    "valid_topologies_for_quantum_wires",
 ]

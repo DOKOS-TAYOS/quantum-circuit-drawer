@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-try:
-    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
-except ImportError:
-    from _shared import ExampleRequest, build_draw_config, parse_example_args
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
-from quantum_circuit_drawer import draw_quantum_circuit
-from quantum_circuit_drawer.ir import (
+try:
+    from examples._bootstrap import ensure_local_project_on_path
+    from examples._render_support import release_rendered_result
+except ImportError:
+    from _bootstrap import ensure_local_project_on_path
+    from _render_support import release_rendered_result
+
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer.ir import (  # noqa: E402
     CircuitIR,
     LayerIR,
     MeasurementIR,
@@ -18,11 +25,12 @@ from quantum_circuit_drawer.ir import (
     WireKind,
 )
 
+DEFAULT_FIGSIZE: tuple[float, float] = (8.8, 4.8)
 
-def build_circuit(request: ExampleRequest) -> CircuitIR:
+
+def build_circuit(*, qubit_count: int, motif_count: int) -> CircuitIR:
     """Build a public IR circuit without using any external framework."""
 
-    qubit_count = max(3, request.qubits)
     quantum_wires = [
         WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
         for index in range(qubit_count)
@@ -52,7 +60,7 @@ def build_circuit(request: ExampleRequest) -> CircuitIR:
             ]
         ),
     ]
-    for step in range(_motif_count(request, qubit_count)):
+    for step in range(motif_count):
         target_wire = 1 + (step % max(1, qubit_count - 1))
         layers.append(
             LayerIR(
@@ -87,27 +95,46 @@ def build_circuit(request: ExampleRequest) -> CircuitIR:
     )
 
 
-def _motif_count(request: ExampleRequest, qubit_count: int) -> int:
-    return max(1, min(request.columns, qubit_count + 1))
-
-
 def main() -> None:
-    """Run the public IR workflow demo as a normal user-facing script."""
+    """Render a circuit built directly from the public IR types."""
 
-    request = parse_example_args(
-        description="Render a workflow built directly from the public CircuitIR types.",
-        default_qubits=4,
-        default_columns=3,
-        columns_help="Extra phase motifs to add to the public IR circuit",
+    args = _parse_args()
+    result = None
+    try:
+        result = draw_quantum_circuit(
+            build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            config=DrawConfig(
+                output=OutputOptions(
+                    output_path=args.output,
+                    show=args.show,
+                    figsize=DEFAULT_FIGSIZE,
+                ),
+            ),
+        )
+        if args.output is not None:
+            print(f"Saved ir-basic-workflow to {args.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(
+        description="Render a workflow built directly from the public CircuitIR types."
     )
-    result = draw_quantum_circuit(
-        build_circuit(request),
-        config=build_draw_config(request, framework="ir"),
+    parser.add_argument(
+        "--qubits", type=int, default=4, help="Number of qubits to include in the IR circuit."
     )
-    if hasattr(result.primary_figure, "set_label"):
-        result.primary_figure.set_label("ir-basic-workflow")
-    if request.output is not None:
-        print(f"Saved ir-basic-workflow to {request.output}")
+    parser.add_argument(
+        "--motifs",
+        type=int,
+        default=3,
+        help="Extra phase motifs to add after the first two logical layers.",
+    )
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

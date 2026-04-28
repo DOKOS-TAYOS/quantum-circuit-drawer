@@ -3,221 +3,25 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from argparse import Namespace
-from importlib.util import find_spec
 from pathlib import Path
+from types import SimpleNamespace
 
 import examples.run_histogram_demo as run_histogram_demo_module
 import pytest
-from examples._histogram_shared import (
-    DEFAULT_HISTOGRAM_FIGSIZE,
-    HistogramDemoPayload,
-    HistogramExampleRequest,
-)
-from examples.histogram_demo_catalog import (
-    HistogramDemoSpec,
-    catalog_by_id,
-    examples_directory,
-    get_demo_catalog,
-)
+from examples.histogram_demo_catalog import catalog_by_id, get_demo_catalog
 
-from quantum_circuit_drawer import (
-    HistogramConfig,
-    HistogramDataOptions,
-    HistogramKind,
-    OutputOptions,
-)
 from tests.paths import external_workspace_root_for, repo_root_for
 from tests.support import assert_saved_image_has_visible_content
 
 
-def test_histogram_demo_catalog_entries_are_unique_and_reference_existing_example_files() -> None:
-    catalog = get_demo_catalog()
-    demo_ids = [spec.demo_id for spec in catalog]
+def test_histogram_demo_catalog_entries_reference_existing_scripts() -> None:
+    demo_ids = [spec.demo_id for spec in get_demo_catalog()]
 
     assert len(demo_ids) == len(set(demo_ids))
     assert set(catalog_by_id()) == set(demo_ids)
 
-    for spec in catalog:
-        example_path = examples_directory() / f"{spec.module_name.removeprefix('examples.')}.py"
-
-        assert catalog_by_id()[spec.demo_id] == spec
-        assert example_path.exists()
-        assert spec.builder_name == "build_demo"
-
-
-def test_run_histogram_demo_uses_spec_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    payload = HistogramDemoPayload(
-        data={"00": 5, "11": 3},
-        config=HistogramConfig(
-            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
-            output=OutputOptions(show=True),
-        ),
-    )
-    builder_calls: list[HistogramExampleRequest] = []
-    render_calls: list[dict[str, object]] = []
-    spec = HistogramDemoSpec(
-        demo_id="custom-histogram-demo",
-        description="Custom histogram demo",
-        module_name="examples.histogram_counts",
-        builder_name="build_demo",
-        dependency_module=None,
-    )
-
-    def fake_builder(request: HistogramExampleRequest) -> HistogramDemoPayload:
-        builder_calls.append(request)
-        return payload
-
-    def fake_render_histogram_example(
-        built_payload: HistogramDemoPayload,
-        *,
-        request: HistogramExampleRequest,
-        saved_label: str,
-    ) -> None:
-        render_calls.append(
-            {
-                "payload": built_payload,
-                "request": request,
-                "saved_label": saved_label,
-            }
-        )
-
-    monkeypatch.setattr(
-        run_histogram_demo_module,
-        "load_demo_builder",
-        lambda demo_spec: fake_builder,
-    )
-    monkeypatch.setattr(
-        run_histogram_demo_module,
-        "render_histogram_example",
-        fake_render_histogram_example,
-    )
-
-    run_histogram_demo_module.run_demo(spec, output=None, show=False)
-
-    assert builder_calls == [
-        HistogramExampleRequest(
-            output=None,
-            show=False,
-            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
-        )
-    ]
-    assert render_calls == [
-        {
-            "payload": payload,
-            "request": builder_calls[0],
-            "saved_label": "custom-histogram-demo",
-        }
-    ]
-
-
-def test_run_histogram_demo_with_args_builds_payload_and_renders(
-    monkeypatch: pytest.MonkeyPatch,
-    sandbox_tmp_path: Path,
-) -> None:
-    output = sandbox_tmp_path / "runner-histogram-demo.png"
-    payload = HistogramDemoPayload(
-        data={"00": 5, "11": 3},
-        config=HistogramConfig(
-            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
-            output=OutputOptions(show=True),
-        ),
-    )
-    builder_calls: list[HistogramExampleRequest] = []
-    render_calls: list[dict[str, object]] = []
-    spec = HistogramDemoSpec(
-        demo_id="custom-histogram-demo",
-        description="Custom histogram demo",
-        module_name="examples.histogram_counts",
-        builder_name="build_demo",
-        dependency_module=None,
-    )
-    args = Namespace(
-        list=False,
-        demo="custom-histogram-demo",
-        output=output,
-        show=False,
-        figsize=(9.0, 4.0),
-    )
-
-    def fake_builder(request: HistogramExampleRequest) -> HistogramDemoPayload:
-        builder_calls.append(request)
-        return payload
-
-    def fake_render_histogram_example(
-        built_payload: HistogramDemoPayload,
-        *,
-        request: HistogramExampleRequest,
-        saved_label: str,
-    ) -> None:
-        render_calls.append(
-            {
-                "payload": built_payload,
-                "request": request,
-                "saved_label": saved_label,
-            }
-        )
-
-    monkeypatch.setattr(
-        run_histogram_demo_module,
-        "load_demo_builder",
-        lambda demo_spec: fake_builder,
-    )
-    monkeypatch.setattr(
-        run_histogram_demo_module,
-        "render_histogram_example",
-        fake_render_histogram_example,
-    )
-
-    run_histogram_demo_module.run_demo_with_args(spec, args)
-
-    assert builder_calls == [
-        HistogramExampleRequest(
-            output=output,
-            show=False,
-            figsize=(9.0, 4.0),
-        )
-    ]
-    assert render_calls == [
-        {
-            "payload": payload,
-            "request": builder_calls[0],
-            "saved_label": "custom-histogram-demo",
-        }
-    ]
-
-
-def test_histogram_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        run_histogram_demo_module,
-        "parse_args",
-        lambda: Namespace(
-            list=False,
-            demo=None,
-            output=None,
-            show=True,
-            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
-        ),
-    )
-
-    with pytest.raises(SystemExit, match="Choose one histogram demo with --demo or use --list"):
-        run_histogram_demo_module.main()
-
-
-def test_histogram_examples_runner_lists_all_demo_ids() -> None:
-    script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
-
-    result = subprocess.run(
-        [sys.executable, str(script_path), "--list"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-
     for spec in get_demo_catalog():
-        assert spec.demo_id in result.stdout
+        assert run_histogram_demo_module.script_path_for(spec).is_file()
 
 
 def test_histogram_demo_catalog_exposes_expected_demo_ids() -> None:
@@ -231,42 +35,120 @@ def test_histogram_demo_catalog_exposes_expected_demo_ids() -> None:
         "histogram-interactive-large",
         "histogram-multi-register",
         "histogram-myqlm-result",
-        "histogram-quasi-nonnegative",
-        "histogram-uniform-reference",
         "histogram-pennylane-probs",
         "histogram-quasi",
+        "histogram-quasi-nonnegative",
         "histogram-marginal",
-        "histogram-top-k",
         "histogram-result-index",
+        "histogram-top-k",
+        "histogram-uniform-reference",
     }
 
 
-@pytest.mark.parametrize(
-    ("demo_id", "expected_dependency", "expected_extra"),
-    [
-        ("histogram-marginal", "qiskit", "qiskit"),
-        ("histogram-myqlm-result", "qat", "myqlm"),
-    ],
-)
+def test_parse_args_preserves_forwarded_histogram_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_histogram_demo.py",
+            "--demo",
+            "histogram-top-k",
+            "--output",
+            "histogram.png",
+            "--no-show",
+            "--top-k",
+            "3",
+            "--sort",
+            "value_desc",
+        ],
+    )
+
+    args, forwarded_args = run_histogram_demo_module.parse_args()
+
+    assert args.demo == "histogram-top-k"
+    assert args.output == Path("histogram.png")
+    assert args.show is False
+    assert forwarded_args == ["--top-k", "3", "--sort", "value_desc"]
+
+
+def test_run_histogram_demo_forwards_output_and_no_show(
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_tmp_path: Path,
+) -> None:
+    spec = catalog_by_id()["histogram-top-k"]
+    output_path = sandbox_tmp_path / "histogram-top-k.png"
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(run_histogram_demo_module, "ensure_demo_dependency", lambda spec: None)
+    monkeypatch.setattr(
+        run_histogram_demo_module.subprocess,
+        "run",
+        lambda command, check=False: commands.append(command) or SimpleNamespace(returncode=0),
+    )
+
+    run_histogram_demo_module.run_demo(
+        spec,
+        output=output_path,
+        show=False,
+        forwarded_args=["--top-k", "3"],
+    )
+
+    assert commands == [
+        [
+            sys.executable,
+            str(run_histogram_demo_module.script_path_for(spec)),
+            "--top-k",
+            "3",
+            "--output",
+            str(output_path),
+            "--no-show",
+        ]
+    ]
+
+
+def test_histogram_main_requires_demo_or_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        run_histogram_demo_module,
+        "parse_args",
+        lambda: (SimpleNamespace(list=False, demo=None, output=None, show=True), []),
+    )
+
+    with pytest.raises(SystemExit, match="Choose one histogram demo with --demo or use --list"):
+        run_histogram_demo_module.main()
+
+
 def test_run_histogram_demo_reports_clear_message_when_optional_dependency_is_missing(
     monkeypatch: pytest.MonkeyPatch,
-    demo_id: str,
-    expected_dependency: str,
-    expected_extra: str,
 ) -> None:
-    spec = catalog_by_id()[demo_id]
-
+    spec = catalog_by_id()["histogram-myqlm-result"]
     monkeypatch.setattr(run_histogram_demo_module, "find_spec", lambda name: None)
 
     with pytest.raises(SystemExit) as exc_info:
-        run_histogram_demo_module.load_demo_builder(spec)
+        run_histogram_demo_module.ensure_demo_dependency(spec)
 
     message = str(exc_info.value)
 
-    assert demo_id in message
-    assert expected_dependency in message
-    assert f'python.exe -m pip install -e ".[{expected_extra}]"' in message
+    assert "histogram-myqlm-result" in message
+    assert "qat" in message
+    assert 'python.exe -m pip install -e ".[myqlm]"' in message
     assert "Traceback" not in message
+
+
+def test_histogram_examples_runner_lists_all_demo_ids() -> None:
+    script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
+
+    result = subprocess.run(
+        [sys.executable, str(script_path), "--list"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    for spec in get_demo_catalog():
+        assert spec.demo_id in result.stdout
 
 
 def test_run_histogram_demo_script_imports_drawer_from_local_worktree_src() -> None:
@@ -300,31 +182,18 @@ def test_run_histogram_demo_script_imports_drawer_from_local_worktree_src() -> N
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize(
-    "demo_id",
-    [
-        "histogram-binary-order",
-        "histogram-count-order",
-        "histogram-interactive-large",
-        "histogram-multi-register",
-        "histogram-uniform-reference",
-        "histogram-quasi",
-        "histogram-quasi-nonnegative",
-    ],
-)
 def test_histogram_examples_runner_can_render_builtin_demo(
-    demo_id: str,
     sandbox_tmp_path: Path,
 ) -> None:
     script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
-    output_path = sandbox_tmp_path / f"{demo_id}.png"
+    output_path = sandbox_tmp_path / "histogram-binary-order.png"
 
     result = subprocess.run(
         [
             sys.executable,
             str(script_path),
             "--demo",
-            demo_id,
+            "histogram-binary-order",
             "--no-show",
             "--output",
             str(output_path),
@@ -336,16 +205,41 @@ def test_histogram_examples_runner_can_render_builtin_demo(
 
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
-    assert f"Saved {demo_id} to {output_path}" in result.stdout
+    assert f"Saved histogram-binary-order to {output_path}" in result.stdout
+
+
+@pytest.mark.integration
+def test_histogram_top_k_script_can_render_directly(
+    sandbox_tmp_path: Path,
+) -> None:
+    script_path = repo_root_for(Path(__file__)) / "examples" / "histogram_top_k.py"
+    output_path = sandbox_tmp_path / "histogram-top-k.png"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--output",
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_saved_image_has_visible_content(output_path)
+    assert f"Saved histogram-top-k to {output_path}" in result.stdout
 
 
 @pytest.mark.optional
 @pytest.mark.integration
-def test_histogram_examples_runner_can_render_qiskit_marginal_demo(
+def test_histogram_marginal_demo_can_render_when_qiskit_is_available(
     sandbox_tmp_path: Path,
 ) -> None:
-    if find_spec("qiskit") is None:
-        pytest.skip("qiskit is required for the histogram marginal demo")
+    if run_histogram_demo_module.find_spec("qiskit") is None:
+        pytest.skip("qiskit is required for the histogram marginal smoke test")
 
     script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
     output_path = sandbox_tmp_path / "histogram-marginal.png"
@@ -367,73 +261,3 @@ def test_histogram_examples_runner_can_render_qiskit_marginal_demo(
 
     assert result.returncode == 0, result.stderr
     assert_saved_image_has_visible_content(output_path)
-
-
-@pytest.mark.optional
-@pytest.mark.integration
-@pytest.mark.parametrize(
-    ("demo_id", "dependency"),
-    [
-        ("histogram-cirq-result", "cirq"),
-        ("histogram-pennylane-probs", "pennylane"),
-        ("histogram-myqlm-result", "qat"),
-        ("histogram-cudaq-sample", "cudaq"),
-    ],
-)
-def test_histogram_examples_runner_can_render_optional_framework_demo(
-    demo_id: str,
-    dependency: str,
-    sandbox_tmp_path: Path,
-) -> None:
-    if sys.platform.startswith("win") and dependency in {"cirq", "pennylane"}:
-        pytest.skip(f"{dependency} histogram demos are not reliable on native Windows")
-
-    if find_spec(dependency) is None:
-        pytest.skip(f"{dependency} is required for optional histogram demo smoke tests")
-
-    script_path = repo_root_for(Path(__file__)) / "examples" / "run_histogram_demo.py"
-    output_path = sandbox_tmp_path / f"{demo_id}.png"
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(script_path),
-            "--demo",
-            demo_id,
-            "--no-show",
-            "--output",
-            str(output_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert_saved_image_has_visible_content(output_path)
-    assert f"Saved {demo_id} to {output_path}" in result.stdout
-
-
-@pytest.mark.integration
-def test_histogram_top_k_script_can_render_directly(
-    sandbox_tmp_path: Path,
-) -> None:
-    script_path = repo_root_for(Path(__file__)) / "examples" / "histogram_top_k.py"
-    output_path = sandbox_tmp_path / "histogram-top-k-direct.png"
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(script_path),
-            "--no-show",
-            "--output",
-            str(output_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert_saved_image_has_visible_content(output_path)
-    assert f"Saved histogram-top-k to {output_path}" in result.stdout

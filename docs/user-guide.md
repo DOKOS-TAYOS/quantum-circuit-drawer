@@ -9,6 +9,14 @@ The best way to think about `quantum-circuit-drawer` is:
 - the config objects let you steer rendering without changing your workflow
 - the result objects give you a stable handle back
 
+The most common user-facing tasks are:
+
+- draw a circuit from the object you already built
+- save that figure without opening a GUI window
+- export the same circuit with `circuit_to_latex(...)`
+- compare two circuit versions
+- plot or compare result distributions
+
 ## Circuit Workflows
 
 ### The normal script workflow
@@ -166,6 +174,28 @@ draw_quantum_circuit(
 ```
 
 This lets you use an interactive mode during work and still export a clean image without widget chrome.
+
+## LaTeX Export
+
+Use `circuit_to_latex(...)` when you want source text instead of a Matplotlib figure:
+
+```python
+from quantum_circuit_drawer import DrawMode, LatexBackend, circuit_to_latex
+
+latex_result = circuit_to_latex(
+    circuit,
+    backend=LatexBackend.QUANTIKZ,
+    mode=DrawMode.PAGES,
+)
+```
+
+Use this path when:
+
+- you are preparing a paper or report
+- you want `quantikz` snippets to edit by hand afterwards
+- you want paged 2D output that matches the normal draw flow without creating windows
+
+`LatexBackend.QUANTIKZ` is the main export backend. `LatexBackend.TIKZ` is available for simpler experimental `tikzpicture` output.
 
 ## 3D Workflows
 

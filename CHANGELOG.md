@@ -8,9 +8,13 @@
 
 ### Changed
 
+- Rewrote the bundled demo scripts so the primary path is now direct, self-contained user code inside each `.py`: build the circuit or result inline, call the public API directly, and run the file without depending on the old shared helper flow.
+- Repositioned `examples/run_demo.py`, `examples/run_histogram_demo.py`, and `examples/run_compare_demo.py` as lightweight catalog launchers that forward flags to the direct scripts instead of imposing a shared builder architecture.
+- Refreshed the README, getting-started guide, user guide, and examples catalog so the quickest path now emphasizes normal scripts, clearer copy-paste workflows, and `circuit_to_latex(...)` as a first-class public capability.
 - Changed the default circuit text behavior to `DrawStyle(use_mathtext="auto")`, keeping visible labels plain by default while still promoting symbolic parameter subtitles such as `theta`, `phi`, and `pi/2` to MathText when that improves notation.
 - Extended `DrawStyle.use_mathtext` to accept `True`, `False`, or `"auto"`, preserving explicit legacy behavior while making the default managed 2D render path noticeably faster than the old always-MathText default on large synthetic circuits.
-- Increased the default size of the `qiskit-2d-exploration-showcase` example so its managed `slider` mode demonstrates horizontal navigation more clearly without extra CLI flags.
+- Rebalanced the default exploration demos so `qiskit-2d-exploration-showcase` and `qiskit-3d-exploration-showcase` open with fewer visible wires by default and fit normal desktop screens better while still exercising the managed controls.
+- Tuned the direct example figure sizes by demo family so the standard circuit showcases open smaller, the histogram demos open a bit larger, and the tall managed 3D QAOA view uses a more horizontal screen-friendly default.
 - Clarified the PyPI install guidance for WSL2 so the user docs now explain that interactive Matplotlib windows may still require the Linux `python3-tk` system package even when the library itself is installed with `pip`.
 
 ### Fixed

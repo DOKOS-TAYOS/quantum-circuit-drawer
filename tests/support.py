@@ -11,6 +11,7 @@ import matplotlib.image as mpimg
 import numpy as np
 import pytest
 from matplotlib.axes import Axes
+from matplotlib.collections import PatchCollection
 from matplotlib.figure import Figure
 
 from quantum_circuit_drawer import (
@@ -405,9 +406,12 @@ def assert_axes_contains_circuit_artists(
     min_patches: int = 1,
 ) -> None:
     line_like_count = len(axes.lines) + len(axes.collections)
+    patch_like_count = len(axes.patches) + sum(
+        1 for collection in axes.collections if isinstance(collection, PatchCollection)
+    )
 
     assert line_like_count >= min_line_like_artists
-    assert len(axes.patches) >= min_patches
+    assert patch_like_count >= min_patches
 
     if expected_texts is not None:
         observed_texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}

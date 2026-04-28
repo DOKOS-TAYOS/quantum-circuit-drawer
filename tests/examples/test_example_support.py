@@ -1,940 +1,107 @@
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
-from argparse import Namespace
+import importlib
 from pathlib import Path
+from types import SimpleNamespace
 
-import pytest
-
-from tests.paths import external_workspace_root_for, repo_root_for
+from tests.support import flatten_operations
 
 
-def test_parse_example_args_reads_full_request(monkeypatch: pytest.MonkeyPatch) -> None:
-    from examples._shared import ExampleRequest, parse_example_args
+def test_ir_basic_workflow_builder_populates_rotation_parameters() -> None:
+    module = importlib.import_module("examples.ir_basic_workflow")
+    circuit = module.build_circuit(qubit_count=4, motif_count=3)
+
+    rotation_parameters = [
+        tuple(operation.parameters)
+        for operation in flatten_operations(circuit)
+        if operation.name == "RZ"
+    ]
+
+    assert rotation_parameters == [(0.2,), (0.4,), (0.6000000000000001,)]
+
+
+def test_public_api_utilities_showcase_writes_companion_exports(
+    sandbox_tmp_path: Path,
+) -> None:
+    module = importlib.import_module("examples.public_api_utilities_showcase")
+    output_path = sandbox_tmp_path / "public-api.png"
+
+    class FakeDrawResult:
+        def save_all_pages(self, output_dir: Path, *, filename_prefix: str) -> None:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / f"{filename_prefix}_page_1.png").write_text("page", encoding="utf-8")
+
+    class FakeHistogramResult:
+        def save(self, path: Path) -> None:
+            path.write_text("image", encoding="utf-8")
+
+        def to_csv(self, path: Path) -> None:
+            path.write_text("state,value\n00,1\n", encoding="utf-8")
+
+    module._save_related_outputs(
+        output_path=output_path,
+        draw_result=FakeDrawResult(),
+        histogram_result=FakeHistogramResult(),
+        latex_source="\\begin{quantikz}\n\\end{quantikz}\n",
+    )
+
+    pages_dir = output_path.with_name("public-api_pages")
+    histogram_path = output_path.with_name("public-api_histogram.png")
+    histogram_csv_path = output_path.with_name("public-api_histogram.csv")
+    latex_path = output_path.with_name("public-api_quantikz.tex")
+
+    assert pages_dir.is_dir()
+    assert histogram_path.is_file()
+    assert histogram_csv_path.read_text(encoding="utf-8").startswith("state,value")
+    assert "\\begin{quantikz}" in latex_path.read_text(encoding="utf-8")
+
+
+def test_caller_managed_axes_showcase_reserves_library_summary_panel() -> None:
+    module = importlib.import_module("examples.caller_managed_axes_showcase")
+    figure, layout = module.create_dashboard_layout()
+
+    try:
+        summary_subplotspec = layout.summary_axes.get_subplotspec()
+        panel_axes = (
+            layout.circuit_axes,
+            layout.histogram_axes,
+            *layout.compare_axes,
+            layout.summary_axes,
+        )
+
+        assert len({id(axes) for axes in panel_axes}) == 5
+        assert module.build_compare_config().compare.show_summary is True
+        assert summary_subplotspec.rowspan.start == 2
+        assert summary_subplotspec.rowspan.stop == 3
+        assert summary_subplotspec.colspan.start == 0
+        assert summary_subplotspec.colspan.stop == 2
+    finally:
+        figure.clf()
+
+
+def test_qiskit_backend_topology_showcase_enables_hover_in_3d(
+    monkeypatch,
+) -> None:
+    module = importlib.import_module("examples.qiskit_backend_topology_showcase")
+    captured: dict[str, object] = {}
 
     monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "example.py",
-            "--qubits",
-            "12",
-            "--columns",
-            "24",
-            "--mode",
-            "auto",
-            "--view",
-            "2d",
-            "--topology",
-            "grid",
-            "--seed",
-            "13",
-            "--preset",
-            "accessible",
-            "--composite-mode",
-            "expand",
-            "--unsupported-policy",
-            "placeholder",
-            "--output",
-            "demo.png",
-            "--figsize",
-            "9",
-            "4",
-            "--hover-matrix",
-            "always",
-            "--hover-matrix-max-qubits",
-            "3",
-            "--hover-show-size",
-            "--no-show",
-        ],
+        module,
+        "_parse_args",
+        lambda: SimpleNamespace(qubits=6, motifs=3, output=None, show=False),
     )
-
-    request = parse_example_args(
-        description="Render a demo.",
-        default_qubits=8,
-        default_columns=6,
-        columns_help="Random circuit columns to generate",
-    )
-
-    assert request == ExampleRequest(
-        qubits=12,
-        columns=24,
-        mode="auto",
-        view="2d",
-        topology="grid",
-        seed=13,
-        preset="accessible",
-        composite_mode="expand",
-        unsupported_policy="placeholder",
-        output=Path("demo.png"),
-        show=False,
-        figsize=(9.0, 4.0),
-        hover=True,
-        hover_matrix="always",
-        hover_matrix_max_qubits=3,
-        hover_show_size=True,
-    )
-
-
-def test_build_draw_config_forwards_public_option_overrides() -> None:
-    from examples._shared import ExampleRequest, build_draw_config
-
-    from quantum_circuit_drawer import DrawMode, StylePreset, UnsupportedPolicy
-
-    request = ExampleRequest(
-        qubits=8,
-        columns=12,
-        mode="auto",
-        view="2d",
-        topology="line",
-        seed=7,
-        preset="compact",
-        composite_mode="expand",
-        unsupported_policy="placeholder",
-        output=None,
-        show=False,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    config = build_draw_config(request, framework="qiskit")
-
-    assert config.mode is DrawMode.AUTO
-    assert config.preset is StylePreset.COMPACT
-    assert config.composite_mode == "expand"
-    assert config.unsupported_policy is UnsupportedPolicy.PLACEHOLDER
-
-
-def test_request_from_namespace_accepts_3d_slider() -> None:
-    from examples._shared import request_from_namespace
-
-    args = Namespace(
-        qubits=6,
-        columns=8,
-        mode="slider",
-        view="3d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=True,
-        figsize=(14.0, 8.0),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    request = request_from_namespace(args, default_qubits=4, default_columns=5)
-
-    assert request.mode == "slider"
-    assert request.view == "3d"
-    assert request.topology == "line"
-
-
-def test_request_from_namespace_accepts_2d_window() -> None:
-    from examples._shared import request_from_namespace
-
-    args = Namespace(
-        qubits=6,
-        columns=8,
-        mode="pages_controls",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=True,
-        figsize=(14.0, 8.0),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    request = request_from_namespace(args, default_qubits=4, default_columns=5)
-
-    assert request.mode == "pages_controls"
-    assert request.view == "2d"
-    assert request.topology == "line"
-
-
-def test_request_from_namespace_accepts_3d_pages_controls() -> None:
-    from examples._shared import request_from_namespace
-
-    args = Namespace(
-        qubits=6,
-        columns=8,
-        mode="pages_controls",
-        view="3d",
-        topology="grid",
-        seed=7,
-        output=None,
-        show=True,
-        figsize=(14.0, 8.0),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    request = request_from_namespace(args, default_qubits=4, default_columns=5)
-
-    assert request.mode == "pages_controls"
-    assert request.view == "3d"
-    assert request.topology == "grid"
-
-
-@pytest.mark.parametrize("topology", ["star_tree", "honeycomb"])
-def test_request_from_namespace_uses_demo_default_qubits_in_3d(
-    topology: str,
-) -> None:
-    from examples._shared import request_from_namespace
-
-    args = Namespace(
-        qubits=None,
-        columns=8,
-        mode="pages_controls",
-        view="3d",
-        topology=topology,
-        seed=7,
-        output=None,
-        show=True,
-        figsize=(14.0, 8.0),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    request = request_from_namespace(args, default_qubits=8, default_columns=5)
-
-    assert request.qubits == 8
-
-
-def test_request_from_namespace_rejects_non_positive_hover_matrix_max_qubits() -> None:
-    from examples._shared import request_from_namespace
-
-    args = Namespace(
-        qubits=6,
-        columns=8,
-        mode="pages",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=True,
-        figsize=(14.0, 8.0),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=0,
-        hover_show_size=False,
-    )
-
-    with pytest.raises(SystemExit, match="--hover-matrix-max-qubits must be at least 1"):
-        request_from_namespace(args, default_qubits=4, default_columns=5)
-
-
-def test_demo_style_scales_with_columns_and_clamps() -> None:
-    from examples._shared import DEFAULT_DEMO_FIGSIZE, demo_style
-
-    assert demo_style(columns=2) == {
-        "font_size": 12.0,
-        "show_params": True,
-        "max_page_width": 6.5,
-    }
-    assert demo_style(columns=20)["max_page_width"] > 8.5
-    assert demo_style(columns=80)["max_page_width"] == 12.0
-    assert DEFAULT_DEMO_FIGSIZE == (10.0, 5.5)
-
-
-def test_build_draw_config_enables_hover_in_2d() -> None:
-    from examples._shared import ExampleRequest, build_draw_config, demo_style
-
-    from quantum_circuit_drawer import DrawMode, HoverOptions
-
-    request = ExampleRequest(
-        qubits=8,
-        columns=10,
-        mode="pages",
-        view="2d",
-        topology="grid",
-        seed=7,
-        output=None,
-        show=True,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="always",
-        hover_matrix_max_qubits=1,
-        hover_show_size=True,
-    )
-
-    config = build_draw_config(request, framework="qiskit")
-
-    assert config.framework == "qiskit"
-    assert config.mode is DrawMode.PAGES
-    assert config.view == "2d"
-    assert config.topology == "grid"
-    assert config.topology_menu is False
-    assert config.direct is True
-    assert config.show is True
-    assert config.output_path is None
-    assert config.figsize == (10.0, 5.5)
-    assert config.style.font_size == demo_style(columns=10)["font_size"]
-    assert config.style.show_params is demo_style(columns=10)["show_params"]
-    assert config.style.max_page_width == pytest.approx(demo_style(columns=10)["max_page_width"])
-    assert config.hover == HoverOptions(
-        enabled=True,
-        show_size=True,
-        show_matrix="always",
-        matrix_max_qubits=1,
-    )
-
-
-def test_build_draw_config_enables_topology_menu_in_3d_interactive_modes() -> None:
-    from examples._shared import ExampleRequest, build_draw_config
-
-    from quantum_circuit_drawer import DrawMode, HoverOptions
-
-    request = ExampleRequest(
-        qubits=8,
-        columns=10,
-        mode="pages_controls",
-        view="3d",
-        topology="grid",
-        seed=7,
-        output=None,
-        show=True,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="always",
-        hover_matrix_max_qubits=1,
-        hover_show_size=True,
-    )
-
-    config = build_draw_config(request, framework=None)
-
-    assert config.framework is None
-    assert config.mode is DrawMode.PAGES_CONTROLS
-    assert config.view == "3d"
-    assert config.topology == "grid"
-    assert config.topology_menu is True
-    assert config.direct is False
-    assert config.hover == HoverOptions(
-        enabled=True,
-        show_size=True,
-        show_matrix="always",
-        matrix_max_qubits=1,
-    )
-
-
-def test_render_example_draws_and_reports_saved_output(
-    monkeypatch: pytest.MonkeyPatch,
-    sandbox_tmp_path: Path,
-    capsys,
-) -> None:
-    from examples._shared import ExampleRequest, render_example
-
-    from quantum_circuit_drawer import DrawConfig, DrawMode, HoverOptions
-
-    output = sandbox_tmp_path / "render-demo.png"
-    draw_calls: list[dict[str, object]] = []
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        *,
-        config: DrawConfig | None = None,
-        ax: object = None,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "config": config,
-                "ax": ax,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    request = ExampleRequest(
-        qubits=9,
-        columns=20,
-        mode="pages",
-        view="3d",
-        topology="grid",
-        seed=7,
-        output=output,
-        show=False,
-        figsize=(9.0, 3.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-    render_example(
-        {"kind": "demo"},
-        request=request,
-        framework="qiskit",
-        saved_label="qiskit-random",
-    )
-
-    captured = capsys.readouterr()
-
-    assert len(draw_calls) == 1
-    assert draw_calls[0]["circuit"] == {"kind": "demo"}
-    assert draw_calls[0]["ax"] is None
-    config = draw_calls[0]["config"]
-    assert isinstance(config, DrawConfig)
-    assert config.framework == "qiskit"
-    assert config.mode is DrawMode.PAGES
-    assert config.view == "3d"
-    assert config.topology == "grid"
-    assert config.topology_menu is False
-    assert config.direct is False
-    assert config.show is False
-    assert config.output_path == output
-    assert config.figsize == (9.0, 3.5)
-    assert config.style.max_page_width == pytest.approx(8.9)
-    assert config.hover == HoverOptions()
-    assert f"Saved qiskit-random to {output}" in captured.out
-
-
-def test_render_example_names_each_demo_figure_with_demo_and_page_context(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._shared import ExampleRequest, render_example
-
-    class _FakeManager:
-        def __init__(self) -> None:
-            self.window_titles: list[str] = []
-
-        def set_window_title(self, title: str) -> None:
-            self.window_titles.append(title)
-
-    class _FakeCanvas:
-        def __init__(self) -> None:
-            self.manager = _FakeManager()
-
-    class _FakeFigure:
-        def __init__(self) -> None:
-            self.label = ""
-            self.canvas = _FakeCanvas()
-
-        def set_label(self, label: str) -> None:
-            self.label = label
-
-    class _FakeResult:
-        def __init__(self, figures: tuple[_FakeFigure, ...]) -> None:
-            self.figures = figures
-
-    fake_figures = (_FakeFigure(), _FakeFigure())
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        *,
-        config: object = None,
-        ax: object = None,
-    ) -> _FakeResult:
-        del circuit, config, ax
-        return _FakeResult(fake_figures)
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    request = ExampleRequest(
-        qubits=9,
-        columns=20,
-        mode="pages",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(9.0, 3.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    render_example(
-        {"kind": "demo"},
-        request=request,
-        framework="qiskit",
-        saved_label="qiskit-random",
-    )
-
-    assert [figure.label for figure in fake_figures] == [
-        "qiskit-random - page 1/2",
-        "qiskit-random - page 2/2",
-    ]
-    assert [figure.canvas.manager.window_titles for figure in fake_figures] == [
-        ["qiskit-random - page 1/2"],
-        ["qiskit-random - page 2/2"],
-    ]
-
-
-def test_render_example_ignores_destroyed_window_title_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._shared import ExampleRequest, render_example
-
-    class TclError(RuntimeError):
-        pass
-
-    class _DestroyedManager:
-        def __init__(self) -> None:
-            self.window_titles: list[str] = []
-
-        def set_window_title(self, title: str) -> None:
-            self.window_titles.append(title)
-            raise TclError('can\'t invoke "wm" command: application has been destroyed')
-
-    class _FakeCanvas:
-        def __init__(self) -> None:
-            self.manager = _DestroyedManager()
-
-    class _FakeFigure:
-        def __init__(self) -> None:
-            self.label = ""
-            self.canvas = _FakeCanvas()
-
-        def set_label(self, label: str) -> None:
-            self.label = label
-
-    class _FakeResult:
-        def __init__(self, figures: tuple[_FakeFigure, ...]) -> None:
-            self.figures = figures
-
-    fake_figures = (_FakeFigure(),)
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        *,
-        config: object = None,
-        ax: object = None,
-    ) -> _FakeResult:
-        del circuit, config, ax
-        return _FakeResult(fake_figures)
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    request = ExampleRequest(
-        qubits=9,
-        columns=20,
-        mode="pages",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(9.0, 3.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    render_example(
-        {"kind": "demo"},
-        request=request,
-        framework="qiskit",
-        saved_label="qiskit-random",
-    )
-
-    assert fake_figures[0].label == "qiskit-random"
-    assert fake_figures[0].canvas.manager.window_titles == ["qiskit-random"]
-
-
-def test_render_example_reraises_unexpected_window_title_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._shared import ExampleRequest, render_example
-
-    class _BrokenManager:
-        def set_window_title(self, title: str) -> None:
-            del title
-            raise RuntimeError("unexpected title failure")
-
-    class _FakeCanvas:
-        def __init__(self) -> None:
-            self.manager = _BrokenManager()
-
-    class _FakeFigure:
-        def __init__(self) -> None:
-            self.canvas = _FakeCanvas()
-
-        def set_label(self, label: str) -> None:
-            del label
-
-    class _FakeResult:
-        def __init__(self, figures: tuple[_FakeFigure, ...]) -> None:
-            self.figures = figures
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        *,
-        config: object = None,
-        ax: object = None,
-    ) -> _FakeResult:
-        del circuit, config, ax
-        return _FakeResult((_FakeFigure(),))
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    request = ExampleRequest(
-        qubits=9,
-        columns=20,
-        mode="pages",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(9.0, 3.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    with pytest.raises(RuntimeError, match="unexpected title failure"):
-        render_example(
-            {"kind": "demo"},
-            request=request,
-            framework="qiskit",
-            saved_label="qiskit-random",
-        )
-
-
-def test_render_example_reports_unsupported_3d_topology_cleanly(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._shared import ExampleRequest, render_example
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        *,
-        config: object = None,
-        ax: object = None,
-    ) -> object:
-        del circuit, config, ax
-        raise ValueError("topology 'custom' has 5 nodes but circuit uses 10")
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    request = ExampleRequest(
-        qubits=10,
-        columns=16,
-        mode="pages_controls",
-        view="3d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    with pytest.raises(
-        SystemExit,
-        match=(
-            "3D topology 'custom' is not available for this demo with 10 qubits.*change --qubits"
+    monkeypatch.setattr(
+        module,
+        "draw_quantum_circuit",
+        lambda circuit, *, config: (
+            captured.update({"circuit": circuit, "config": config}) or SimpleNamespace()
         ),
-    ):
-        render_example(
-            {"kind": "demo"},
-            request=request,
-            framework="qiskit",
-            saved_label="qiskit-random",
-        )
-
-
-def test_render_example_forwards_page_slider_in_3d_slider_mode(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._shared import ExampleRequest, render_example
-
-    from quantum_circuit_drawer import DrawConfig, DrawMode, HoverOptions
-
-    draw_calls: list[dict[str, object]] = []
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        *,
-        config: DrawConfig | None = None,
-        ax: object = None,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "config": config,
-                "ax": ax,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    request = ExampleRequest(
-        qubits=12,
-        columns=20,
-        mode="slider",
-        view="3d",
-        topology="grid",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
     )
+    monkeypatch.setattr(module, "release_rendered_result", lambda result: None)
 
-    render_example(
-        {"kind": "demo"},
-        request=request,
-        framework="qiskit",
-        saved_label="qiskit-random",
-    )
+    module.main()
 
-    assert len(draw_calls) == 1
-    assert draw_calls[0]["circuit"] == {"kind": "demo"}
-    assert draw_calls[0]["ax"] is None
-    config = draw_calls[0]["config"]
-    assert isinstance(config, DrawConfig)
-    assert config.framework == "qiskit"
-    assert config.mode is DrawMode.SLIDER
-    assert config.view == "3d"
-    assert config.topology == "grid"
-    assert config.topology_menu is True
-    assert config.direct is False
-    assert config.show is False
-    assert config.output_path is None
-    assert config.figsize == (10.0, 5.5)
-    assert config.style.max_page_width == pytest.approx(8.9)
-    assert config.hover == HoverOptions()
-
-
-def test_render_example_forwards_pages_controls_in_2d_mode(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._shared import ExampleRequest, render_example
-
-    from quantum_circuit_drawer import DrawConfig, DrawMode, HoverOptions
-
-    draw_calls: list[dict[str, object]] = []
-
-    def fake_draw_quantum_circuit(
-        circuit: object,
-        *,
-        config: DrawConfig | None = None,
-        ax: object = None,
-    ) -> None:
-        draw_calls.append(
-            {
-                "circuit": circuit,
-                "config": config,
-                "ax": ax,
-            }
-        )
-
-    monkeypatch.setattr("examples._shared.draw_quantum_circuit", fake_draw_quantum_circuit)
-
-    request = ExampleRequest(
-        qubits=12,
-        columns=24,
-        mode="pages_controls",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    render_example(
-        {"kind": "demo"},
-        request=request,
-        framework="qiskit",
-        saved_label="qiskit-random-pages-controls",
-    )
-
-    assert len(draw_calls) == 1
-    assert draw_calls[0]["circuit"] == {"kind": "demo"}
-    assert draw_calls[0]["ax"] is None
-    config = draw_calls[0]["config"]
-    assert isinstance(config, DrawConfig)
-    assert config.framework == "qiskit"
-    assert config.mode is DrawMode.PAGES_CONTROLS
-    assert config.view == "2d"
-    assert config.topology == "line"
-    assert config.topology_menu is False
-    assert config.direct is True
-    assert config.show is False
-    assert config.output_path is None
-    assert config.figsize == (10.0, 5.5)
-    assert config.style.max_page_width == pytest.approx(9.78)
-    assert config.hover == HoverOptions()
-
-
-def test_demo_adapter_options_disables_explicit_matrices_for_cirq_on_windows(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import examples._shared as shared_module
-    from examples._shared import ExampleRequest, demo_adapter_options
-
-    monkeypatch.setattr(shared_module.sys, "platform", "win32")
-
-    request = ExampleRequest(
-        qubits=8,
-        columns=12,
-        mode="pages",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    assert demo_adapter_options(request, framework="cirq") == {"explicit_matrices": False}
-
-
-def test_demo_adapter_options_keeps_explicit_matrices_for_windows_hover_matrix_always(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import examples._shared as shared_module
-    from examples._shared import ExampleRequest, demo_adapter_options
-
-    monkeypatch.setattr(shared_module.sys, "platform", "win32")
-
-    request = ExampleRequest(
-        qubits=8,
-        columns=12,
-        mode="pages",
-        view="2d",
-        topology="line",
-        seed=7,
-        output=None,
-        show=False,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="always",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-
-    assert demo_adapter_options(request, framework="pennylane") == {"explicit_matrices": True}
-
-
-def test_run_example_builds_subject_from_parsed_request(monkeypatch: pytest.MonkeyPatch) -> None:
-    from examples._shared import ExampleRequest, run_example
-
-    request = ExampleRequest(
-        qubits=7,
-        columns=15,
-        mode="slider",
-        view="2d",
-        topology="star",
-        seed=11,
-        output=None,
-        show=False,
-        figsize=(10.0, 5.5),
-        hover=True,
-        hover_matrix="auto",
-        hover_matrix_max_qubits=2,
-        hover_show_size=False,
-    )
-    builder_calls: list[ExampleRequest] = []
-    render_calls: list[dict[str, object]] = []
-    built_subject = {"kind": "random-demo"}
-
-    def fake_parse_example_args(**_: object) -> ExampleRequest:
-        return request
-
-    def fake_render_example(
-        subject: object,
-        *,
-        request: ExampleRequest,
-        framework: str | None,
-        saved_label: str,
-    ) -> None:
-        render_calls.append(
-            {
-                "subject": subject,
-                "request": request,
-                "framework": framework,
-                "saved_label": saved_label,
-            }
-        )
-
-    def build_demo(parsed_request: ExampleRequest) -> object:
-        builder_calls.append(parsed_request)
-        return built_subject
-
-    monkeypatch.setattr("examples._shared.parse_example_args", fake_parse_example_args)
-    monkeypatch.setattr("examples._shared.render_example", fake_render_example)
-
-    run_example(
-        build_demo,
-        description="Render a shared example.",
-        framework="cirq",
-        saved_label="cirq-random",
-        default_qubits=10,
-        default_columns=18,
-        columns_help="Random circuit columns to generate",
-    )
-
-    assert builder_calls == [request]
-    assert render_calls == [
-        {
-            "subject": built_subject,
-            "request": request,
-            "framework": "cirq",
-            "saved_label": "cirq-random",
-        }
-    ]
-
-
-def test_shared_example_support_imports_drawer_from_local_worktree_src() -> None:
-    worktree_root = repo_root_for(Path(__file__))
-    workspace_root = external_workspace_root_for(Path(__file__))
-    examples_dir = worktree_root / "examples"
-    expected_module_path = worktree_root / "src" / "quantum_circuit_drawer" / "__init__.py"
-    environment = os.environ.copy()
-    environment.pop("PYTHONPATH", None)
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            (
-                "import pathlib, sys; "
-                f"sys.path.insert(0, r'{examples_dir}'); "
-                "import _shared, quantum_circuit_drawer; "
-                "print(pathlib.Path(quantum_circuit_drawer.__file__).resolve())"
-            ),
-        ],
-        cwd=workspace_root,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == str(expected_module_path.resolve())
+    config = captured["config"]
+    assert config.side.render.view == "3d"
+    assert config.side.render.topology_qubits == "all"
+    assert config.side.appearance.hover.enabled is True

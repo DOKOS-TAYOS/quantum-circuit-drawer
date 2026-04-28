@@ -13,7 +13,7 @@
 [![Windows%20%7C%20Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0A7BBB)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-`quantum-circuit-drawer` is a Matplotlib-based library for drawing quantum circuits, plotting measurement results, and comparing outputs across several quantum ecosystems with one consistent public API.
+`quantum-circuit-drawer` is a Matplotlib-based library for drawing quantum circuits, exporting them to LaTeX, plotting measurement results, and comparing outputs across several quantum ecosystems with one consistent public API.
 
 The main idea is simple:
 
@@ -23,15 +23,58 @@ The main idea is simple:
 
 ## What You Can Do
 
-The library is centered on four user workflows:
+The library is centered on a few practical workflows that match normal scripts:
 
 | Workflow | Public API | Typical use |
 | --- | --- | --- |
 | Analyze one circuit | `analyze_quantum_circuit(...)` | Inspect framework, size, mode, pages, operations, and diagnostics without rendering |
 | Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2/3, or IR circuit |
+| Export one circuit to LaTeX | `circuit_to_latex(...)` | Generate `quantikz` or basic `tikzpicture` snippets for papers, notes, or slides |
 | Compare circuits | `compare_circuits(...)` | Show before/after or multi-circuit structure, for example transpilation levels |
 | Plot one result distribution | `plot_histogram(...)` | Plot counts, quasi-probabilities, marginals, or framework-native result objects |
 | Compare result distributions | `compare_histograms(...)` | Overlay two or more ideal, sampled, baseline, or hardware distributions |
+
+## Quick Start
+
+These are the three most common patterns:
+
+### Draw a circuit
+
+```python
+from qiskit import QuantumCircuit
+
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+
+circuit = QuantumCircuit(2, 1)
+circuit.h(0)
+circuit.cx(0, 1)
+circuit.measure(1, 0)
+
+draw_quantum_circuit(
+    circuit,
+    config=DrawConfig(output=OutputOptions(output_path="bell.png", show=False)),
+)
+```
+
+### Export the same circuit to LaTeX
+
+```python
+from quantum_circuit_drawer import DrawMode, circuit_to_latex
+
+latex_result = circuit_to_latex(circuit, mode=DrawMode.PAGES)
+print(latex_result.source)
+```
+
+### Plot counts
+
+```python
+from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+
+plot_histogram(
+    {"00": 51, "01": 14, "10": 9, "11": 49},
+    config=HistogramConfig(output=OutputOptions(show=False)),
+)
+```
 
 The public configuration is also intentionally small:
 
@@ -142,6 +185,7 @@ This is the production support contract for the current release.
 | Draw OpenQASM 2/3 text or a `.qasm` / `.qasm3` file | [Draw OpenQASM](#draw-openqasm) |
 | Generate images from your terminal | [Command line](#command-line) |
 | Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file) |
+| Export LaTeX for papers or notes | [Export a circuit to LaTeX](#export-a-circuit-to-latex) |
 | Plot counts or probabilities | [Plot one histogram](#plot-one-histogram) |
 | Compare circuit versions | [Compare circuits](#compare-two-or-more-circuits) |
 | Compare distributions | [Compare histograms](#compare-two-or-more-histograms) |
@@ -321,6 +365,24 @@ draw_quantum_circuit(
 ```
 
 This is the most common script workflow when you want a deterministic export without opening a GUI window.
+
+## Export A Circuit To LaTeX
+
+Use `circuit_to_latex(...)` when you want the same circuit as source text instead of a Matplotlib figure:
+
+```python
+from quantum_circuit_drawer import DrawMode, LatexBackend, circuit_to_latex
+
+latex_result = circuit_to_latex(
+    circuit,
+    backend=LatexBackend.QUANTIKZ,
+    mode=DrawMode.PAGES,
+)
+
+print(latex_result.source)
+```
+
+This is useful for papers, lecture notes, or slide decks where you want to keep editing the diagram on the LaTeX side.
 
 ## Plot One Histogram
 
@@ -571,7 +633,7 @@ The fastest way to see the current strengths of the library is to run one of the
 | `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions on the same workflow |
 | `openqasm-showcase` | OpenQASM text input through the Qiskit parser path |
 | `ir-basic-workflow` | Framework-free rendering from the public `CircuitIR` types |
-| `public-api-utilities-showcase` | Analysis, result metadata, page exports, and histogram CSV export |
+| `public-api-utilities-showcase` | Analysis, result metadata, page exports, histogram CSV export, and `circuit_to_latex(...)` |
 | `caller-managed-axes-showcase` | Circuit, histogram, and comparison rendering on caller-managed axes |
 | `style-accessible-showcase` | Accessible circuit and histogram styling |
 | `diagnostics-showcase` | Diagnostics, warnings, and resolved-mode metadata |

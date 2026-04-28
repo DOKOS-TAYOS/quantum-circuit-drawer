@@ -10,7 +10,7 @@ Most user code has the same shape:
 
 1. build your circuit or result object as usual
 2. choose the public config object only if you need to override defaults
-3. call the public API
+3. call the public API or export helper you need
 4. keep the returned result object if you want figures, axes, metrics, or diagnostics
 
 ## Draw Your First Circuit
@@ -40,6 +40,28 @@ What happens by default:
 - the call returns `DrawResult` with the main figure, main axes, and any extra page figures
 
 If you want to see the managed 2D controls already set up around a circuit that makes them useful, run `qiskit-2d-exploration-showcase` from the bundled examples.
+
+## Export Your First Circuit To LaTeX
+
+If your next step is a paper, report, or slide deck, you can export source instead of opening a figure:
+
+```python
+from quantum_circuit_drawer import DrawMode, LatexBackend, circuit_to_latex
+
+latex_result = circuit_to_latex(
+    circuit,
+    backend=LatexBackend.QUANTIKZ,
+    mode=DrawMode.PAGES,
+)
+
+print(latex_result.source)
+```
+
+Useful defaults:
+
+- `LatexBackend.QUANTIKZ` is the main backend for normal LaTeX workflows.
+- `mode=DrawMode.PAGES` mirrors the normal paged 2D circuit flow.
+- `latex_result.pages` gives you one snippet per page when the circuit wraps.
 
 ## Draw OpenQASM 2 Or 3 Text Or A `.qasm` / `.qasm3` File
 
@@ -262,4 +284,4 @@ This is often the easiest way to generate small circuits in tests, docs, or prep
 - [Frameworks](frameworks.md): what changes across Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, and internal IR.
 - [API reference](api.md): exact fields, enums, return types, and extension-facing modules.
 - [Recipes](recipes.md): copy-paste tasks for common usage patterns.
-- [Examples](../examples/README.md): runnable scripts that reflect normal user workflows, including `qiskit-2d-exploration-showcase` for managed 2D exploration.
+- [Examples](../examples/README.md): runnable scripts that reflect normal user workflows, including `public-api-utilities-showcase` for exports and `qiskit-2d-exploration-showcase` for managed 2D exploration.

@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 try:
+    from examples._bootstrap import ensure_local_project_on_path
     from examples._render_support import release_rendered_result
-    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
 except ImportError:
+    from _bootstrap import ensure_local_project_on_path
     from _render_support import release_rendered_result
-    from _shared import ExampleRequest, build_draw_config, parse_example_args
 
-from quantum_circuit_drawer import (
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import (  # noqa: E402
+    CircuitAppearanceOptions,
     CircuitBuilder,
+    DrawConfig,
+    DrawSideConfig,
     HistogramAppearanceOptions,
     HistogramConfig,
     HistogramDrawStyle,
@@ -24,14 +30,15 @@ from quantum_circuit_drawer import (
     plot_histogram,
 )
 
+DEFAULT_CIRCUIT_FIGSIZE: tuple[float, float] = (8.8, 4.8)
 
-def build_circuit(request: ExampleRequest) -> object:
+
+def build_circuit(*, qubit_count: int, motif_count: int) -> object:
     """Build a compact circuit with varied gate shapes for the accessible preset."""
 
-    qubit_count = max(4, request.qubits)
     builder = CircuitBuilder(qubit_count, qubit_count, name="style_accessible")
     builder.h(0).cx(0, 1).rz(0.4, 2).swap(2, 3)
-    for step in range(max(1, request.columns)):
+    for step in range(motif_count):
         target = step % qubit_count
         partner = (target + 2) % qubit_count
         builder.ry(0.22 * float(step + 1), target)
@@ -56,21 +63,24 @@ def demo_counts() -> dict[str, int]:
 
 
 def main() -> None:
-    """Run the accessible style showcase."""
+    """Render accessible circuit and histogram styling side by side in spirit."""
 
-    request = parse_example_args(
-        description="Render accessible circuit and histogram styling.",
-        default_qubits=5,
-        default_columns=3,
-        columns_help="Accessible style motifs to append before measurement",
-    )
-    styled_request = _with_accessible_preset(request)
+    args = _parse_args()
     circuit_result = None
     histogram_result = None
     try:
         circuit_result = draw_quantum_circuit(
-            build_circuit(styled_request),
-            config=build_draw_config(styled_request, framework="ir"),
+            build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            config=DrawConfig(
+                side=DrawSideConfig(
+                    appearance=CircuitAppearanceOptions(preset=StylePreset.ACCESSIBLE),
+                ),
+                output=OutputOptions(
+                    output_path=args.output,
+                    show=args.show,
+                    figsize=DEFAULT_CIRCUIT_FIGSIZE,
+                ),
+            ),
         )
         histogram_result = plot_histogram(
             demo_counts(),
@@ -84,9 +94,9 @@ def main() -> None:
                 output=OutputOptions(show=False, figsize=(8.4, 4.6)),
             ),
         )
-        _save_companion_histogram(request.output, histogram_result)
-        if request.output is not None:
-            print(f"Saved style-accessible-showcase to {request.output}")
+        _save_companion_histogram(args.output, histogram_result)
+        if args.output is not None:
+            print(f"Saved style-accessible-showcase to {args.output}")
     finally:
         if circuit_result is not None:
             release_rendered_result(circuit_result)
@@ -94,32 +104,32 @@ def main() -> None:
             release_rendered_result(histogram_result)
 
 
-def _with_accessible_preset(request: ExampleRequest) -> ExampleRequest:
-    return ExampleRequest(
-        qubits=request.qubits,
-        columns=request.columns,
-        mode=request.mode,
-        view=request.view,
-        topology=request.topology,
-        seed=request.seed,
-        output=request.output,
-        show=request.show,
-        figsize=request.figsize,
-        hover=request.hover,
-        hover_matrix=request.hover_matrix,
-        hover_matrix_max_qubits=request.hover_matrix_max_qubits,
-        hover_show_size=request.hover_show_size,
-        preset="accessible",
-        composite_mode=request.composite_mode,
-        unsupported_policy=request.unsupported_policy,
-    )
-
-
 def _save_companion_histogram(output_path: Path | None, histogram_result: object) -> None:
     if output_path is None:
         return
     histogram_path = output_path.with_name(f"{output_path.stem}_histogram{output_path.suffix}")
     histogram_result.save(histogram_path)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(
+        description="Render the accessible preset on both a circuit and a histogram."
+    )
+    parser.add_argument(
+        "--qubits", type=int, default=5, help="Number of qubits in the demo circuit."
+    )
+    parser.add_argument(
+        "--motifs",
+        type=int,
+        default=3,
+        help="Extra motifs to append before the final measurements.",
+    )
+    parser.add_argument(
+        "--output", type=Path, help="Optional output image path for the circuit render."
+    )
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

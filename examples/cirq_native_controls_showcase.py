@@ -2,22 +2,28 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
+
 from cirq.circuits import Circuit, CircuitOperation, FrozenCircuit, Moment
 from cirq.devices import LineQubit
 from cirq.ops import CNOT, H, X, Z, measure, rx
 
 try:
-    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
+    from examples._bootstrap import ensure_local_project_on_path
+    from examples._render_support import release_rendered_result
 except ImportError:
-    from _shared import ExampleRequest, build_draw_config, parse_example_args
+    from _bootstrap import ensure_local_project_on_path
+    from _render_support import release_rendered_result
 
-from quantum_circuit_drawer import draw_quantum_circuit
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
 
 
-def build_circuit(request: ExampleRequest) -> Circuit:
+def build_circuit(*, qubit_count: int, motif_count: int) -> Circuit:
     """Build a Cirq circuit that highlights native controls and provenance."""
 
-    qubit_count = max(4, request.qubits)
     qubits = LineQubit.range(qubit_count)
     moments: list[Moment] = [
         Moment(H(qubits[0]), H(qubits[1]), rx(0.35)(qubits[2])),
@@ -28,7 +34,7 @@ def build_circuit(request: ExampleRequest) -> Circuit:
         Moment(_build_circuit_operation(qubits[2], qubits[3])),
     ]
 
-    for step in range(_motif_count(request)):
+    for step in range(motif_count):
         target = 2 + (step % max(1, qubit_count - 2))
         moments.append(Moment(rx(0.18 * float(step + 1))(qubits[target])))
 
@@ -41,23 +47,40 @@ def _build_circuit_operation(control: LineQubit, target: LineQubit) -> CircuitOp
     return CircuitOperation(nested)
 
 
-def _motif_count(request: ExampleRequest) -> int:
-    return max(1, min(request.columns, 5))
-
-
 def main() -> None:
-    request = parse_example_args(
-        description="Render a Cirq showcase with open controls, classical control, and CircuitOperation provenance.",
-        default_qubits=4,
-        default_columns=3,
-        columns_help="Additional native-control motifs to append after the structural showcase",
+    """Render a Cirq circuit with open controls and classical control."""
+
+    args = _parse_args()
+    result = None
+    try:
+        result = draw_quantum_circuit(
+            build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            config=DrawConfig(
+                output=OutputOptions(output_path=args.output, show=args.show),
+            ),
+        )
+        if args.output is not None:
+            print(f"Saved cirq-native-controls-showcase to {args.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(
+        description="Render a Cirq circuit with native controls, classical control, and CircuitOperation provenance."
     )
-    draw_quantum_circuit(
-        build_circuit(request),
-        config=build_draw_config(request, framework="cirq"),
+    parser.add_argument("--qubits", type=int, default=4, help="Number of qubits to allocate.")
+    parser.add_argument(
+        "--motifs",
+        type=int,
+        default=3,
+        help="Additional native-control motifs to append after the structural core.",
     )
-    if request.output is not None:
-        print(f"Saved cirq-native-controls-showcase to {request.output}")
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

@@ -2,70 +2,101 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser, Namespace
 from math import pi
+from pathlib import Path
 
 from cirq.circuits import Circuit, Moment
 from cirq.devices import LineQubit
 from cirq.ops import H, ZZPowGate, measure, rx
 
 try:
-    from examples._families import QaoaLayerSpec, build_cycle_edges, build_qaoa_layers
-    from examples._shared import ExampleRequest, run_example
+    from examples._bootstrap import ensure_local_project_on_path
+    from examples._render_support import release_rendered_result
 except ImportError:
-    from _families import QaoaLayerSpec, build_cycle_edges, build_qaoa_layers
-    from _shared import ExampleRequest, run_example
+    from _bootstrap import ensure_local_project_on_path
+    from _render_support import release_rendered_result
+
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
 
 
-def build_circuit(request: ExampleRequest) -> Circuit:
+def build_circuit(*, qubit_count: int, layer_count: int) -> Circuit:
     """Build a ring-QAOA Cirq circuit."""
 
-    qubits = LineQubit.range(request.qubits)
+    qubits = LineQubit.range(qubit_count)
     moments: list[Moment] = [Moment(H(qubit) for qubit in qubits)]
-    edges = build_cycle_edges(request.qubits)
+    edges = _build_cycle_edges(qubit_count)
 
-    for layer in build_qaoa_layers(layers=request.columns):
-        moments.extend(_cost_moments(qubits, edges, layer))
-        moments.append(Moment(rx(2.0 * layer.beta)(qubit) for qubit in qubits))
+    for gamma, beta in _build_qaoa_layers(layer_count):
+        even_edges = edges[::2]
+        odd_edges = edges[1::2]
+        if even_edges:
+            moments.append(
+                Moment(
+                    ZZPowGate(exponent=gamma / pi)(qubits[left], qubits[right])
+                    for left, right in even_edges
+                )
+            )
+        if odd_edges:
+            moments.append(
+                Moment(
+                    ZZPowGate(exponent=gamma / pi)(qubits[left], qubits[right])
+                    for left, right in odd_edges
+                )
+            )
+        moments.append(Moment(rx(2.0 * beta)(qubit) for qubit in qubits))
 
     moments.append(Moment(measure(qubit, key=f"c{index}") for index, qubit in enumerate(qubits)))
     return Circuit(*moments)
 
 
-def _cost_moments(
-    qubits: list[LineQubit],
-    edges: tuple[tuple[int, int], ...],
-    layer: QaoaLayerSpec,
-) -> list[Moment]:
-    even_edges = edges[::2]
-    odd_edges = edges[1::2]
-    moments: list[Moment] = []
-    if even_edges:
-        moments.append(
-            Moment(
-                ZZPowGate(exponent=layer.gamma / pi)(qubits[left], qubits[right])
-                for left, right in even_edges
-            )
-        )
-    if odd_edges:
-        moments.append(
-            Moment(
-                ZZPowGate(exponent=layer.gamma / pi)(qubits[left], qubits[right])
-                for left, right in odd_edges
-            )
-        )
-    return moments
+def _build_cycle_edges(qubit_count: int) -> tuple[tuple[int, int], ...]:
+    if qubit_count < 2:
+        return ()
+    if qubit_count == 2:
+        return ((0, 1),)
+    return tuple((wire, (wire + 1) % qubit_count) for wire in range(qubit_count))
+
+
+def _build_qaoa_layers(layer_count: int) -> tuple[tuple[float, float], ...]:
+    layers: list[tuple[float, float]] = []
+    for layer_index in range(layer_count):
+        position = (layer_index + 1) / (layer_count + 1)
+        gamma = round(0.35 + (0.55 * position), 2)
+        beta = round(0.62 - (0.26 * position), 2)
+        layers.append((gamma, beta))
+    return tuple(layers)
 
 
 def main() -> None:
-    run_example(
-        build_circuit,
-        description="Render a configurable QAOA MaxCut circuit in Cirq.",
-        framework="cirq",
-        saved_label="Cirq QAOA demo",
-        default_qubits=8,
-        default_columns=6,
-        columns_help="QAOA layers to generate",
-    )
+    """Render a structured QAOA circuit in Cirq."""
+
+    args = _parse_args()
+    result = None
+    try:
+        result = draw_quantum_circuit(
+            build_circuit(qubit_count=args.qubits, layer_count=args.layers),
+            config=DrawConfig(
+                output=OutputOptions(output_path=args.output, show=args.show),
+            ),
+        )
+        if args.output is not None:
+            print(f"Saved cirq-qaoa to {args.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(description="Render a structured QAOA / MaxCut circuit in Cirq.")
+    parser.add_argument("--qubits", type=int, default=8, help="Number of qubits in the QAOA ring.")
+    parser.add_argument("--layers", type=int, default=6, help="How many QAOA layers to apply.")
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

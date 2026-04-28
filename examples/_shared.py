@@ -52,7 +52,7 @@ SUPPORTED_TOPOLOGIES: tuple[TopologyMode, ...] = (
     "star_tree",
     "honeycomb",
 )
-DEFAULT_DEMO_FIGSIZE = (10.0, 5.5)
+DEFAULT_DEMO_FIGSIZE = (8.4, 4.6)
 
 
 @dataclass(frozen=True, slots=True)

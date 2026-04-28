@@ -2,21 +2,29 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
+
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import XGate
 
 try:
-    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
+    from examples._bootstrap import ensure_local_project_on_path
+    from examples._render_support import release_rendered_result
 except ImportError:
-    from _shared import ExampleRequest, build_draw_config, parse_example_args
+    from _bootstrap import ensure_local_project_on_path
+    from _render_support import release_rendered_result
 
-from quantum_circuit_drawer import draw_quantum_circuit
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
+
+DEFAULT_FIGSIZE: tuple[float, float] = (9.2, 4.8)
 
 
-def build_circuit(request: ExampleRequest) -> QuantumCircuit:
+def build_circuit(*, qubit_count: int, loop_span: int) -> QuantumCircuit:
     """Build a Qiskit circuit that highlights compact control-flow rendering."""
 
-    qubit_count = max(5, request.qubits)
     quantum = QuantumRegister(qubit_count, "q")
     classical = ClassicalRegister(qubit_count, "c")
     circuit = QuantumCircuit(quantum, classical, name="qiskit_control_flow_showcase")
@@ -48,7 +56,7 @@ def build_circuit(request: ExampleRequest) -> QuantumCircuit:
 
     loop_body = QuantumCircuit(1, name="phase_step")
     loop_body.rz(0.22, 0)
-    circuit.for_loop(range(_loop_span(request)), None, loop_body, [quantum[4]], ())
+    circuit.for_loop(range(loop_span), None, loop_body, [quantum[4]], ())
 
     while_body = QuantumCircuit(1, 1, name="echo_step")
     while_body.x(0)
@@ -59,23 +67,44 @@ def build_circuit(request: ExampleRequest) -> QuantumCircuit:
     return circuit
 
 
-def _loop_span(request: ExampleRequest) -> int:
-    return max(2, min(request.columns, 7))
-
-
 def main() -> None:
-    request = parse_example_args(
-        description="Render a Qiskit control-flow showcase with compact native boxes and open controls.",
-        default_qubits=5,
-        default_columns=4,
-        columns_help="Loop span to show in the compact Qiskit control-flow box",
+    """Render a Qiskit control-flow showcase with native control structures."""
+
+    args = _parse_args()
+    result = None
+    try:
+        result = draw_quantum_circuit(
+            build_circuit(qubit_count=args.qubits, loop_span=args.loop_span),
+            config=DrawConfig(
+                output=OutputOptions(
+                    output_path=args.output,
+                    show=args.show,
+                    figsize=DEFAULT_FIGSIZE,
+                ),
+            ),
+        )
+        if args.output is not None:
+            print(f"Saved qiskit-control-flow-showcase to {args.output}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(
+        description="Render a Qiskit circuit with if/else, switch, for_loop, and while_loop blocks."
     )
-    draw_quantum_circuit(
-        build_circuit(request),
-        config=build_draw_config(request, framework="qiskit"),
+    parser.add_argument("--qubits", type=int, default=5, help="Number of qubits to allocate.")
+    parser.add_argument(
+        "--loop-span",
+        type=int,
+        default=4,
+        help="How many iterations to show in the compact for-loop box.",
     )
-    if request.output is not None:
-        print(f"Saved qiskit-control-flow-showcase to {request.output}")
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

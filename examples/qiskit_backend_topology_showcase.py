@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
+from pathlib import Path
 
 try:
+    from examples._bootstrap import ensure_local_project_on_path
     from examples._render_support import release_rendered_result
-    from examples._shared import ExampleRequest, build_draw_config, parse_example_args
 except ImportError:
+    from _bootstrap import ensure_local_project_on_path
     from _render_support import release_rendered_result
-    from _shared import ExampleRequest, build_draw_config, parse_example_args
 
-from quantum_circuit_drawer import (
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import (  # noqa: E402
+    CircuitAppearanceOptions,
     CircuitBuilder,
     CircuitRenderOptions,
     DrawConfig,
@@ -21,6 +26,8 @@ from quantum_circuit_drawer import (
     OutputOptions,
     draw_quantum_circuit,
 )
+
+DEFAULT_FIGSIZE: tuple[float, float] = (9.4, 4.8)
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,15 +39,14 @@ class DemoBackend:
     coupling_map: tuple[tuple[int, int], ...]
 
 
-def build_circuit(request: ExampleRequest) -> object:
+def build_circuit(*, qubit_count: int, motif_count: int) -> object:
     """Build a circuit that is easy to read on a backend-derived topology."""
 
-    qubit_count = max(5, request.qubits)
     builder = CircuitBuilder(qubit_count, qubit_count, name="qiskit_backend_topology")
     builder.h(0)
     for index in range(qubit_count - 1):
         builder.cx(index, index + 1)
-    for step in range(max(1, request.columns)):
+    for step in range(motif_count):
         target = step % qubit_count
         partner = (target + 2) % qubit_count
         remote = (target + 3) % qubit_count
@@ -63,48 +69,54 @@ def build_backend(qubit_count: int) -> DemoBackend:
 
 
 def main() -> None:
-    """Run the Qiskit backend topology showcase."""
+    """Render a backend-derived topology in 3D."""
 
-    request = parse_example_args(
-        description=(
-            "Render a public IR circuit on a Qiskit backend-derived topology with long-range "
-            "multi-qubit hovers and SWAP estimates."
-        ),
-        default_qubits=6,
-        default_columns=3,
-        columns_help="Backend-topology motifs to append before measurement",
-        default_view="3d",
-        default_mode="pages",
-    )
-    topology = HardwareTopology.from_qiskit_backend(build_backend(max(5, request.qubits)))
-    circuit = build_circuit(request)
-    base_config = build_draw_config(request, framework="ir")
-    config = DrawConfig(
-        side=DrawSideConfig(
-            render=CircuitRenderOptions(
-                framework="ir",
-                view="3d",
-                mode=DrawMode.PAGES,
-                topology=topology,
-                topology_qubits="all",
-                direct=False,
-            ),
-            appearance=base_config.side.appearance,
-        ),
-        output=OutputOptions(
-            show=request.show,
-            output_path=request.output,
-            figsize=request.figsize,
-        ),
-    )
+    args = _parse_args()
+    topology = HardwareTopology.from_qiskit_backend(build_backend(args.qubits))
     result = None
     try:
-        result = draw_quantum_circuit(circuit, config=config)
-        if request.output is not None:
-            print(f"Saved qiskit-backend-topology-showcase to {request.output}")
+        result = draw_quantum_circuit(
+            build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            config=DrawConfig(
+                side=DrawSideConfig(
+                    render=CircuitRenderOptions(
+                        view="3d",
+                        mode=DrawMode.PAGES,
+                        topology=topology,
+                        topology_qubits="all",
+                        direct=False,
+                    ),
+                    appearance=CircuitAppearanceOptions(hover=True),
+                ),
+                output=OutputOptions(
+                    output_path=args.output,
+                    show=args.show,
+                    figsize=DEFAULT_FIGSIZE,
+                ),
+            ),
+        )
+        if args.output is not None:
+            print(f"Saved qiskit-backend-topology-showcase to {args.output}")
     finally:
         if result is not None:
             release_rendered_result(result)
+
+
+def _parse_args() -> Namespace:
+    parser = ArgumentParser(description="Render a circuit on a backend-derived 3D topology.")
+    parser.add_argument(
+        "--qubits", type=int, default=6, help="Number of qubits in the topology and circuit."
+    )
+    parser.add_argument(
+        "--motifs",
+        type=int,
+        default=3,
+        help="Extra long-range motifs to append before the measurements.",
+    )
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

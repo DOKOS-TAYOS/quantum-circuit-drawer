@@ -2,62 +2,32 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser
+from pathlib import Path
+
 from qiskit import QuantumCircuit
 from qiskit.synthesis.qft import synth_qft_full
 
 try:
-    from examples._compare_shared import (
-        CompareDemoPayload,
-        CompareExampleRequest,
-        run_compare_example,
-    )
+    from examples._bootstrap import ensure_local_project_on_path
+    from examples._render_support import release_rendered_result
 except ImportError:
-    from _compare_shared import (
-        CompareDemoPayload,
-        CompareExampleRequest,
-        run_compare_example,
-    )
+    from _bootstrap import ensure_local_project_on_path
+    from _render_support import release_rendered_result
 
-from quantum_circuit_drawer import (
+ensure_local_project_on_path(__file__)
+
+from quantum_circuit_drawer import (  # noqa: E402
     CircuitAppearanceOptions,
     CircuitCompareConfig,
     CircuitCompareOptions,
     CircuitRenderOptions,
     DrawSideConfig,
     OutputOptions,
+    compare_circuits,
 )
 
-
-def build_demo(request: CompareExampleRequest) -> CompareDemoPayload:
-    """Build a compare payload for compact and expanded composite rendering."""
-
-    del request
-    circuit = build_workflow_circuit()
-    return CompareDemoPayload(
-        compare_kind="circuits",
-        left_data=circuit,
-        right_data=circuit,
-        config=CircuitCompareConfig(
-            shared=DrawSideConfig(
-                appearance=CircuitAppearanceOptions(
-                    hover=True,
-                )
-            ),
-            left_render=CircuitRenderOptions(
-                framework="qiskit",
-                composite_mode="compact",
-            ),
-            right_render=CircuitRenderOptions(
-                framework="qiskit",
-                composite_mode="expand",
-            ),
-            compare=CircuitCompareOptions(
-                left_title="Compact composites",
-                right_title="Expanded composites",
-            ),
-            output=OutputOptions(show=False),
-        ),
-    )
+DEFAULT_COMPARE_FIGSIZE: tuple[float, float] = (8.6, 4.6)
 
 
 def build_workflow_circuit() -> QuantumCircuit:
@@ -72,14 +42,59 @@ def build_workflow_circuit() -> QuantumCircuit:
     return circuit
 
 
-def main() -> None:
-    """Run the composite-modes compare demo as a normal user-facing script."""
+def build_config(*, output: Path | None, show: bool) -> CircuitCompareConfig:
+    """Build the compare config used by this demo."""
 
-    run_compare_example(
-        build_demo,
-        description="Compare compact and expanded composite handling in Qiskit.",
-        saved_label="compare-circuits-composite-modes",
+    return CircuitCompareConfig(
+        shared=DrawSideConfig(
+            appearance=CircuitAppearanceOptions(
+                hover=True,
+            )
+        ),
+        left_render=CircuitRenderOptions(
+            framework="qiskit",
+            composite_mode="compact",
+        ),
+        right_render=CircuitRenderOptions(
+            framework="qiskit",
+            composite_mode="expand",
+        ),
+        compare=CircuitCompareOptions(
+            left_title="Compact composites",
+            right_title="Expanded composites",
+        ),
+        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_COMPARE_FIGSIZE),
     )
+
+
+def main() -> None:
+    """Compare compact and expanded composite handling in Qiskit."""
+
+    output_path, show = _parse_args()
+    circuit = build_workflow_circuit()
+    result = None
+    try:
+        result = compare_circuits(
+            circuit,
+            circuit,
+            config=build_config(output=output_path, show=show),
+        )
+        if output_path is not None:
+            print(f"Saved compare-circuits-composite-modes to {output_path}")
+    finally:
+        if result is not None:
+            release_rendered_result(result)
+
+
+def _parse_args() -> tuple[Path | None, bool]:
+    parser = ArgumentParser(
+        description="Compare compact and expanded composite handling in Qiskit."
+    )
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    args = parser.parse_args()
+    return args.output, bool(args.show)
 
 
 if __name__ == "__main__":

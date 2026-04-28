@@ -10,7 +10,16 @@ If you want the longer explanation of what each mode, config block, managed cont
 
 OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantum-circuit-drawer[qiskit]`, then pass text starting with `OPENQASM` or a `.qasm` path to `draw_quantum_circuit(...)`; use `framework="qasm"` when you want the parser path to be explicit.
 
-The direct utility demos are the best copy-paste examples when you want to use result helpers, caller-managed axes, accessible styling, diagnostics, CLI exports, or Qiskit backend topology objects from normal scripts.
+The direct utility demos are the best copy-paste examples when you want to use result helpers, `circuit_to_latex(...)`, caller-managed axes, accessible styling, diagnostics, CLI exports, or Qiskit backend topology objects from normal scripts.
+
+## Copy-Paste First
+
+If you want one file to open and adapt, start with a direct script:
+
+- `examples/public_api_utilities_showcase.py`: draw, analyze, save extra pages, export histogram CSV, and export `quantikz` LaTeX from one small workflow.
+- `examples/ir_basic_workflow.py`: build a circuit with the public IR only, with no external quantum framework.
+- `examples/histogram_top_k.py`: start from plain counts and tune how the histogram is ordered and filtered.
+- `examples/compare_histograms_ideal_vs_sampled.py`: compare two result distributions with the smallest possible compare script.
 
 ## Start Here
 
@@ -23,7 +32,7 @@ The direct utility demos are the best copy-paste examples when you want to use r
 | `qiskit-composite-modes-showcase`     | Compact versus expanded composite instructions                                                                             | Windows and Linux            |
 | `openqasm-showcase`                   | OpenQASM text input through the Qiskit parser path                                                                          | Windows and Linux            |
 | `ir-basic-workflow`                   | Framework-free example built directly from `CircuitIR`                                                                     | Windows and Linux            |
-| `public-api-utilities-showcase`       | `analyze_quantum_circuit`, result metadata, page exports, histogram CSV export                                              | Windows and Linux            |
+| `public-api-utilities-showcase`       | `analyze_quantum_circuit`, result metadata, page exports, histogram CSV export, and `circuit_to_latex(...)`                 | Windows and Linux            |
 | `caller-managed-axes-showcase`        | Caller-managed axes for circuit, histogram, and circuit comparison panels                                                   | Windows and Linux            |
 | `style-accessible-showcase`           | The shared `accessible` preset on circuit and histogram output                                                              | Windows and Linux            |
 | `diagnostics-showcase`                | Diagnostics, warnings, `to_dict()`, and non-rendering analysis                                                              | Windows and Linux            |

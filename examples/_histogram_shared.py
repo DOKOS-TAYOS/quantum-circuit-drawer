@@ -29,7 +29,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     plot_histogram,
 )
 
-DEFAULT_HISTOGRAM_FIGSIZE = (10.5, 5.6)
+DEFAULT_HISTOGRAM_FIGSIZE = (8.4, 4.6)
 HistogramModeName = Literal["auto", "static", "interactive"]
 HistogramSortName = Literal["state", "state_desc", "value_desc", "value_asc"]
 HistogramDrawStyleName = Literal["solid", "outline", "soft"]

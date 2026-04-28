@@ -1,432 +1,48 @@
 from __future__ import annotations
 
-import sys
-from argparse import Namespace
-from pathlib import Path
+import importlib
 
-import matplotlib.pyplot as plt
-import pytest
+from quantum_circuit_drawer import HistogramDrawStyle, HistogramKind, HistogramSort
 
 
-def test_parse_histogram_example_args_reads_request(monkeypatch: pytest.MonkeyPatch) -> None:
-    from examples._histogram_shared import HistogramExampleRequest, parse_histogram_example_args
+def test_histogram_binary_order_demo_uses_full_counts_payload() -> None:
+    module = importlib.import_module("examples.histogram_binary_order")
+    counts = module.build_counts_data()
+    config = module.build_config(output=None, show=False)
 
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "histogram_example.py",
-            "--mode",
-            "static",
-            "--sort",
-            "value_desc",
-            "--top-k",
-            "4",
-            "--qubits",
-            "0",
-            "2",
-            "--result-index",
-            "1",
-            "--data-key",
-            "counts",
-            "--preset",
-            "accessible",
-            "--theme",
-            "accessible",
-            "--draw-style",
-            "outline",
-            "--state-label-mode",
-            "decimal",
-            "--no-hover",
-            "--uniform-reference",
-            "--output",
-            "histogram-demo.png",
-            "--figsize",
-            "8",
-            "4",
-            "--no-show",
-        ],
-    )
-
-    request = parse_histogram_example_args(description="Render a histogram demo.")
-
-    assert request == HistogramExampleRequest(
-        mode="static",
-        sort="value_desc",
-        top_k=4,
-        qubits=(0, 2),
-        result_index=1,
-        data_key="counts",
-        preset="accessible",
-        theme="accessible",
-        draw_style="outline",
-        state_label_mode="decimal",
-        hover=False,
-        show_uniform_reference=True,
-        output=Path("histogram-demo.png"),
-        show=False,
-        figsize=(8.0, 4.0),
-    )
+    assert len(counts) == 16
+    assert counts["0000"] == 41
+    assert counts["1111"] == 95
+    assert config.data.kind is HistogramKind.COUNTS
+    assert config.view.sort is HistogramSort.STATE
 
 
-def test_request_from_namespace_accepts_histogram_request() -> None:
-    from examples._histogram_shared import HistogramExampleRequest, request_from_namespace
+def test_histogram_interactive_large_demo_covers_full_seven_bit_space() -> None:
+    module = importlib.import_module("examples.histogram_interactive_large")
+    counts = module.build_counts_data()
+    config = module.build_config(output=None, show=False)
 
-    args = Namespace(
-        mode="interactive",
-        sort="state_desc",
-        top_k=5,
-        qubits=(1, 3),
-        result_index=2,
-        data_key="alpha",
-        preset="compact",
-        theme="paper",
-        draw_style="soft",
-        state_label_mode="binary",
-        hover=True,
-        show_uniform_reference=False,
-        output=Path("counts.png"),
-        show=False,
-        figsize=(9.0, 4.5),
-    )
-
-    assert request_from_namespace(args) == HistogramExampleRequest(
-        mode="interactive",
-        sort="state_desc",
-        top_k=5,
-        qubits=(1, 3),
-        result_index=2,
-        data_key="alpha",
-        preset="compact",
-        theme="paper",
-        draw_style="soft",
-        state_label_mode="binary",
-        hover=True,
-        show_uniform_reference=False,
-        output=Path("counts.png"),
-        show=False,
-        figsize=(9.0, 4.5),
-    )
+    assert len(counts) == 128
+    assert counts["0000000"] >= 3
+    assert counts["1111111"] >= 3
+    assert config.appearance.show_uniform_reference is True
 
 
-def test_render_histogram_example_plots_and_reports_saved_output(
-    monkeypatch: pytest.MonkeyPatch,
-    sandbox_tmp_path: Path,
-    capsys,
-) -> None:
-    from examples._histogram_shared import (
-        HistogramDemoPayload,
-        HistogramExampleRequest,
-        render_histogram_example,
-    )
+def test_histogram_quasi_demo_uses_negative_values_and_soft_style() -> None:
+    module = importlib.import_module("examples.histogram_quasi")
+    distribution = module.build_quasi_distribution()
+    config = module.build_config(output=None, show=False)
 
-    from quantum_circuit_drawer import (
-        HistogramConfig,
-        HistogramDataOptions,
-        HistogramKind,
-        HistogramResult,
-        OutputOptions,
-    )
-
-    output = sandbox_tmp_path / "render-histogram-demo.png"
-    plot_calls: list[dict[str, object]] = []
-
-    class _FakeManager:
-        def __init__(self) -> None:
-            self.window_titles: list[str] = []
-
-        def set_window_title(self, title: str) -> None:
-            self.window_titles.append(title)
-
-    class _FakeCanvas:
-        def __init__(self) -> None:
-            self.manager = _FakeManager()
-
-    class _FakeFigure:
-        def __init__(self) -> None:
-            self.label = ""
-            self.canvas = _FakeCanvas()
-
-        def set_label(self, label: str) -> None:
-            self.label = label
-
-    fake_figure = _FakeFigure()
-
-    def fake_plot_histogram(
-        data: object,
-        *,
-        config: HistogramConfig | None = None,
-        ax: object = None,
-    ) -> HistogramResult:
-        plot_calls.append(
-            {
-                "data": data,
-                "config": config,
-                "ax": ax,
-            }
-        )
-        return HistogramResult(
-            figure=fake_figure,  # type: ignore[arg-type]
-            axes=object(),  # type: ignore[arg-type]
-            kind=HistogramKind.COUNTS,
-            state_labels=("00", "11"),
-            values=(5.0, 3.0),
-            qubits=None,
-        )
-
-    monkeypatch.setattr("examples._histogram_shared.plot_histogram", fake_plot_histogram)
-
-    request = HistogramExampleRequest(
-        mode="static",
-        sort="value_desc",
-        top_k=3,
-        qubits=(0, 1),
-        result_index=1,
-        data_key="counts",
-        preset="paper",
-        theme="dark",
-        draw_style="outline",
-        state_label_mode="decimal",
-        hover=False,
-        show_uniform_reference=True,
-        output=output,
-        show=False,
-        figsize=(8.0, 4.0),
-    )
-    payload = HistogramDemoPayload(
-        data={"00": 5, "11": 3},
-        config=HistogramConfig(
-            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
-            output=OutputOptions(show=True),
-        ),
-    )
-
-    render_histogram_example(
-        payload,
-        request=request,
-        saved_label="histogram-counts",
-    )
-
-    captured = capsys.readouterr()
-
-    assert len(plot_calls) == 1
-    assert plot_calls[0]["data"] == {"00": 5, "11": 3}
-    assert plot_calls[0]["ax"] is None
-    config = plot_calls[0]["config"]
-    assert isinstance(config, HistogramConfig)
-    assert config.kind is HistogramKind.COUNTS
-    assert config.mode.value == "static"
-    assert config.sort.value == "value_desc"
-    assert config.top_k == 3
-    assert config.qubits == (0, 1)
-    assert config.result_index == 1
-    assert config.data_key == "counts"
-    assert str(config.preset) == "paper"
-    assert config.theme.name == "dark"
-    assert config.output_path == output
-    assert config.show is False
-    assert config.figsize == (8.0, 4.0)
-    assert config.hover is False
-    assert config.show_uniform_reference is True
-    assert fake_figure.label == "histogram-counts"
-    assert fake_figure.canvas.manager.window_titles == ["histogram-counts"]
-    assert f"Saved histogram-counts to {output}" in captured.out
+    assert any(value < 0 for value in distribution.values())
+    assert config.data.kind is HistogramKind.QUASI
+    assert config.appearance.draw_style is HistogramDrawStyle.SOFT
 
 
-def test_render_histogram_example_closes_rendered_figure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._histogram_shared import (
-        HistogramDemoPayload,
-        HistogramExampleRequest,
-        render_histogram_example,
-    )
+def test_histogram_result_index_demo_selects_the_second_payload() -> None:
+    module = importlib.import_module("examples.histogram_result_index")
+    payload = module.build_payload()
+    config = module.build_config(output=None, show=False)
 
-    from quantum_circuit_drawer import (
-        HistogramConfig,
-        HistogramDataOptions,
-        HistogramKind,
-        HistogramResult,
-        OutputOptions,
-    )
-
-    def fake_plot_histogram(
-        data: object,
-        *,
-        config: HistogramConfig | None = None,
-        ax: object = None,
-    ) -> HistogramResult:
-        del data, config, ax
-        figure, axes = plt.subplots()
-        return HistogramResult(
-            figure=figure,
-            axes=axes,
-            kind=HistogramKind.COUNTS,
-            state_labels=("00", "11"),
-            values=(5.0, 3.0),
-            qubits=None,
-        )
-
-    monkeypatch.setattr("examples._histogram_shared.plot_histogram", fake_plot_histogram)
-
-    request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
-    payload = HistogramDemoPayload(
-        data={"00": 5, "11": 3},
-        config=HistogramConfig(
-            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
-            output=OutputOptions(show=False),
-        ),
-    )
-
-    plt.close("all")
-    try:
-        render_histogram_example(
-            payload,
-            request=request,
-            saved_label="histogram-counts",
-        )
-
-        assert tuple(plt.get_fignums()) == ()
-    finally:
-        plt.close("all")
-
-
-def test_render_histogram_example_ignores_destroyed_window_title_errors_and_closes_figure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._histogram_shared import (
-        HistogramDemoPayload,
-        HistogramExampleRequest,
-        render_histogram_example,
-    )
-
-    from quantum_circuit_drawer import (
-        HistogramConfig,
-        HistogramDataOptions,
-        HistogramKind,
-        HistogramResult,
-        OutputOptions,
-    )
-
-    class TclError(RuntimeError):
-        pass
-
-    figure, axes = plt.subplots()
-    manager = figure.canvas.manager
-    assert manager is not None
-    titles: list[str] = []
-
-    def failing_set_window_title(title: str) -> None:
-        titles.append(title)
-        raise TclError('can\'t invoke "wm" command: application has been destroyed')
-
-    monkeypatch.setattr(manager, "set_window_title", failing_set_window_title)
-
-    def fake_plot_histogram(
-        data: object,
-        *,
-        config: HistogramConfig | None = None,
-        ax: object = None,
-    ) -> HistogramResult:
-        del data, config, ax
-        return HistogramResult(
-            figure=figure,
-            axes=axes,
-            kind=HistogramKind.COUNTS,
-            state_labels=("00", "11"),
-            values=(5.0, 3.0),
-            qubits=None,
-        )
-
-    monkeypatch.setattr("examples._histogram_shared.plot_histogram", fake_plot_histogram)
-
-    request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
-    payload = HistogramDemoPayload(
-        data={"00": 5, "11": 3},
-        config=HistogramConfig(
-            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
-            output=OutputOptions(show=False),
-        ),
-    )
-
-    plt.close("all")
-    try:
-        render_histogram_example(
-            payload,
-            request=request,
-            saved_label="histogram-counts",
-        )
-
-        assert figure.get_label() == "histogram-counts"
-        assert titles == ["histogram-counts"]
-        assert tuple(plt.get_fignums()) == ()
-    finally:
-        plt.close("all")
-
-
-def test_render_histogram_example_reraises_unexpected_window_title_errors_and_closes_figure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from examples._histogram_shared import (
-        HistogramDemoPayload,
-        HistogramExampleRequest,
-        render_histogram_example,
-    )
-
-    from quantum_circuit_drawer import (
-        HistogramConfig,
-        HistogramDataOptions,
-        HistogramKind,
-        HistogramResult,
-        OutputOptions,
-    )
-
-    figure, axes = plt.subplots()
-    manager = figure.canvas.manager
-    assert manager is not None
-
-    def failing_set_window_title(title: str) -> None:
-        del title
-        raise RuntimeError("unexpected title failure")
-
-    monkeypatch.setattr(manager, "set_window_title", failing_set_window_title)
-
-    def fake_plot_histogram(
-        data: object,
-        *,
-        config: HistogramConfig | None = None,
-        ax: object = None,
-    ) -> HistogramResult:
-        del data, config, ax
-        return HistogramResult(
-            figure=figure,
-            axes=axes,
-            kind=HistogramKind.COUNTS,
-            state_labels=("00", "11"),
-            values=(5.0, 3.0),
-            qubits=None,
-        )
-
-    monkeypatch.setattr("examples._histogram_shared.plot_histogram", fake_plot_histogram)
-
-    request = HistogramExampleRequest(output=None, show=False, figsize=(8.0, 4.0))
-    payload = HistogramDemoPayload(
-        data={"00": 5, "11": 3},
-        config=HistogramConfig(
-            data=HistogramDataOptions(kind=HistogramKind.COUNTS),
-            output=OutputOptions(show=False),
-        ),
-    )
-
-    plt.close("all")
-    try:
-        with pytest.raises(RuntimeError, match="unexpected title failure"):
-            render_histogram_example(
-                payload,
-                request=request,
-                saved_label="histogram-counts",
-            )
-
-        assert tuple(plt.get_fignums()) == ()
-    finally:
-        plt.close("all")
+    assert len(payload) == 3
+    assert payload[1]["11"] == 23
+    assert config.data.result_index == 1
