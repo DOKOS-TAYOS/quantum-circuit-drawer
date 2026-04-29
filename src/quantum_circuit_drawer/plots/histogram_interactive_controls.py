@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .._logging import InteractionSource
 from ..managed.controls import _style_control_axes, _style_slider, _style_text_box
 from ..managed.ui_palette import managed_ui_palette
 from .histogram_interactive_hover import attach_usage_hover
@@ -43,7 +44,7 @@ def attach_histogram_controls(
         hovercolor=palette.surface_hover_facecolor,
     )
     order_button.label.set_color(palette.text_color)
-    order_button.on_clicked(lambda _event: state.cycle_sort())
+    order_button.on_clicked(lambda _event: state.cycle_sort(source=InteractionSource.BUTTON))
     state.order_axes = order_axes
     state.order_button = order_button
 
@@ -59,7 +60,9 @@ def attach_histogram_controls(
         hovercolor=palette.surface_hover_facecolor,
     )
     label_mode_button.label.set_color(palette.text_color)
-    label_mode_button.on_clicked(lambda _event: state.toggle_label_mode())
+    label_mode_button.on_clicked(
+        lambda _event: state.toggle_label_mode(source=InteractionSource.BUTTON)
+    )
     state.label_mode_axes = label_mode_axes
     state.label_mode_button = label_mode_button
 
@@ -76,7 +79,9 @@ def attach_histogram_controls(
             hovercolor=palette.surface_hover_facecolor,
         )
         kind_toggle_button.label.set_color(palette.text_color)
-        kind_toggle_button.on_clicked(lambda _event: state.toggle_kind())
+        kind_toggle_button.on_clicked(
+            lambda _event: state.toggle_kind(source=InteractionSource.BUTTON)
+        )
         state.kind_toggle_axes = kind_toggle_axes
         state.kind_toggle_button = kind_toggle_button
 
@@ -99,7 +104,13 @@ def attach_histogram_controls(
         border_color=palette.surface_edgecolor,
         facecolor=palette.surface_facecolor,
     )
-    marginal_text_box.on_submit(lambda text: handle_marginal_submit(state, text))
+    marginal_text_box.on_submit(
+        lambda text: handle_marginal_submit(
+            state,
+            text,
+            source=InteractionSource.TEXTBOX,
+        )
+    )
     state.marginal_axes = marginal_axes
     state.marginal_text_box = marginal_text_box
     if config.hover:
@@ -139,7 +150,9 @@ def ensure_slider_toggle_control(
         hovercolor=palette.surface_hover_facecolor,
     )
     slider_toggle_button.label.set_color(palette.text_color)
-    slider_toggle_button.on_clicked(lambda _event: state.toggle_slider())
+    slider_toggle_button.on_clicked(
+        lambda _event: state.toggle_slider(source=InteractionSource.BUTTON)
+    )
     state.slider_toggle_axes = slider_toggle_axes
     state.slider_toggle_button = slider_toggle_button
 
@@ -201,7 +214,12 @@ def ensure_slider_control(
         },
     )
     _style_slider(horizontal_slider, palette=palette)
-    horizontal_slider.on_changed(lambda value: state.set_window_start(round(float(value))))
+    horizontal_slider.on_changed(
+        lambda value: state.set_window_start(
+            round(float(value)),
+            source=InteractionSource.SLIDER,
+        )
+    )
     state.horizontal_slider = horizontal_slider
     state.slider_axes = slider_axes
 
@@ -255,12 +273,17 @@ def refresh_histogram_controls(state: HistogramInteractiveState) -> None:
         state.slider_toggle_button.label.set_text(f"Slider {slider_label}")
 
 
-def handle_marginal_submit(state: HistogramInteractiveState, text: str) -> None:
+def handle_marginal_submit(
+    state: HistogramInteractiveState,
+    text: str,
+    *,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+) -> None:
     """Handle one text-box submit event unless the control is syncing itself."""
 
     if state.is_syncing_marginal_text:
         return
-    state.submit_marginal_text(text)
+    state.submit_marginal_text(text, source=source)
 
 
 def marginal_text(qubits: tuple[int, ...] | None) -> str:

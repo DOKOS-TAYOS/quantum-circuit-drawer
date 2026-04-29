@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -10,6 +11,8 @@ from matplotlib.backend_bases import KeyEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
+from .._interactive_logging import ensure_interactive_log_session
+from .._logging import InteractionSource, InteractiveLogSession, log_interaction
 from ..managed.shortcut_help import (
     create_shortcut_help_button,
     create_shortcut_help_text,
@@ -64,6 +67,7 @@ _SORT_CYCLE: tuple[HistogramSort, ...] = (
     HistogramSort.VALUE_ASC,
     HistogramSort.VALUE_DESC,
 )
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -121,61 +125,167 @@ class HistogramInteractiveState:
     resize_callback_id: int | None = None
     key_callback_id: int | None = None
     is_syncing_marginal_text: bool = False
+    log_session: InteractiveLogSession | None = None
 
-    def cycle_sort(self) -> None:
+    def cycle_sort(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Advance to the next public histogram sort mode and redraw."""
 
         cycle = tuple(self._resolved_sort_cycle())
         current_index = cycle.index(self.current_sort)
+        previous_sort = self.current_sort
         self.current_sort = cycle[(current_index + 1) % len(cycle)]
         self._set_message("")
         self.redraw()
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.sort.changed",
+            "Updated interactive histogram sort order.",
+            source=source,
+            before=previous_sort,
+            after=self.current_sort,
+            sort=self.current_sort,
+        )
 
-    def toggle_label_mode(self) -> None:
+    def toggle_label_mode(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle the visible state-label format between binary and decimal."""
 
+        previous_label_mode = self.label_mode
         if self.label_mode is HistogramStateLabelMode.BINARY:
             self.label_mode = HistogramStateLabelMode.DECIMAL
         else:
             self.label_mode = HistogramStateLabelMode.BINARY
         self._set_message("")
         self.redraw()
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.label_mode.changed",
+            "Updated interactive histogram label mode.",
+            source=source,
+            before=previous_label_mode,
+            after=self.label_mode,
+            label_mode=self.label_mode,
+        )
 
-    def toggle_kind(self) -> None:
+    def toggle_kind(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle between counts and quasi-probability views when both are available."""
 
         if not self.kind_toggle_available():
             return
+        previous_kind = self.kind
         if self.kind is HistogramKind.COUNTS:
             self.kind = HistogramKind.QUASI
         else:
             self.kind = HistogramKind.COUNTS
         self._set_message("")
         self.redraw()
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.kind.changed",
+            "Updated interactive histogram value mode.",
+            source=source,
+            before=previous_kind,
+            after=self.kind,
+            kind=self.kind,
+        )
 
-    def toggle_slider(self) -> None:
+    def toggle_slider(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle the windowed slider viewport without losing the current state."""
 
+        previous_slider_enabled = self.slider_enabled
         self.slider_enabled = not self.slider_enabled
         if not self.slider_enabled:
             self.window_start = 0
         self._set_message("")
         self.redraw()
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.slider_visibility.changed",
+            "Updated interactive histogram slider visibility.",
+            source=source,
+            before=previous_slider_enabled,
+            after=self.slider_enabled,
+            slider_enabled=self.slider_enabled,
+        )
 
-    def toggle_uniform_reference(self) -> None:
+    def toggle_uniform_reference(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle the uniform-reference line and redraw the current histogram view."""
 
+        previous_show_uniform_reference = self.show_uniform_reference
         self.show_uniform_reference = not self.show_uniform_reference
         self._set_message("")
         self.redraw()
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.uniform_reference.changed",
+            "Updated interactive histogram uniform reference visibility.",
+            source=source,
+            before=previous_show_uniform_reference,
+            after=self.show_uniform_reference,
+            show_uniform_reference=self.show_uniform_reference,
+        )
 
-    def set_window_start(self, start: int) -> None:
+    def set_window_start(
+        self,
+        start: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Move the active histogram window to one new starting bin."""
 
+        previous_window_start = self.window_start
         self.window_start = min(max(0, int(start)), self.max_window_start)
         self.redraw()
+        level = logging.INFO if self.window_start != previous_window_start else logging.DEBUG
+        _log_histogram_interaction(
+            self,
+            level,
+            "interactive.window.changed",
+            "Updated interactive histogram window."
+            if level == logging.INFO
+            else "Ignored unchanged interactive histogram window update.",
+            source=source,
+            before=previous_window_start,
+            after=self.window_start,
+            requested=int(start),
+            max_window_start=self.max_window_start,
+            reason=(
+                None
+                if level == logging.INFO
+                else ("already_active" if int(start) == previous_window_start else "clamped")
+            ),
+        )
 
-    def submit_marginal_text(self, text: str) -> None:
+    def submit_marginal_text(
+        self,
+        text: str,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Apply one marginal-qubits text submission if valid."""
 
         try:
@@ -188,12 +298,32 @@ class HistogramInteractiveState:
         except ValueError as exc:
             sync_marginal_text_box(self)
             self._set_message(str(exc), error=True)
+            _log_histogram_interaction(
+                self,
+                logging.WARNING,
+                "interactive.input.invalid",
+                "Rejected interactive histogram marginal input.",
+                source=source,
+                error=str(exc),
+                input_text=text,
+            )
             return
 
+        previous_active_qubits = self.active_qubits
         self.active_qubits = requested_qubits
         self.window_start = 0
         self._set_message("")
         self.redraw(precomputed_values_by_state=current_values_by_state)
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.marginal.changed",
+            "Updated interactive histogram marginal qubits.",
+            source=source,
+            before=previous_active_qubits,
+            after=self.active_qubits,
+            active_qubits=self.active_qubits,
+        )
 
     def redraw(
         self,
@@ -352,13 +482,26 @@ class HistogramInteractiveState:
         if canvas is not None:
             canvas.draw_idle()
 
-    def restore_initial_view(self) -> None:
+    def restore_initial_view(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Restore the interactive histogram state to its original defaults."""
 
         if self.marginal_text_box is not None and bool(
             getattr(self.marginal_text_box, "capturekeystrokes", False)
         ):
             self.marginal_text_box.stop_typing()
+        previous_state = (
+            self.current_sort,
+            self.label_mode,
+            self.kind,
+            self.active_qubits,
+            self.slider_enabled,
+            self.show_uniform_reference,
+            self.window_start,
+        )
         self.current_sort = self.initial_sort
         self.label_mode = self.initial_label_mode
         self.kind = self.initial_kind
@@ -368,11 +511,48 @@ class HistogramInteractiveState:
         self.window_start = 0
         self._set_message("")
         self.redraw()
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.view.reset",
+            "Reset interactive histogram view.",
+            source=source,
+            before=previous_state,
+            after=(
+                self.current_sort,
+                self.label_mode,
+                self.kind,
+                self.active_qubits,
+                self.slider_enabled,
+                self.show_uniform_reference,
+                self.window_start,
+            ),
+        )
 
-    def toggle_shortcut_help(self) -> None:
+    def toggle_shortcut_help(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle the interactive histogram shortcut-help overlay."""
 
+        previous_visible = bool(
+            self.shortcut_help_text is not None and self.shortcut_help_text.get_visible()
+        )
         toggle_shortcut_help_text(self.shortcut_help_text, figure=self.figure)
+        next_visible = bool(
+            self.shortcut_help_text is not None and self.shortcut_help_text.get_visible()
+        )
+        _log_histogram_interaction(
+            self,
+            logging.INFO,
+            "interactive.help_toggled",
+            "Toggled interactive histogram shortcut help.",
+            source=source,
+            before=previous_visible,
+            after=next_visible,
+            help_visible=next_visible,
+        )
 
     def remove(self) -> None:
         """Disconnect callbacks and remove interactive artists."""
@@ -528,7 +708,7 @@ def attach_histogram_interactivity(
         figure,
         palette=managed_ui_palette(theme),
         bounds=(0.02, 0.025, 0.045, 0.06),
-        on_click=lambda _event: state.toggle_shortcut_help(),
+        on_click=lambda _event: state.toggle_shortcut_help(source=InteractionSource.BUTTON),
         zorder=2.0,
     )
     attach_histogram_controls(state=state, config=config)
@@ -541,6 +721,17 @@ def attach_histogram_interactivity(
         _attach_histogram_key_shortcuts(state)
 
     set_histogram_state(figure, state)
+    state.log_session = ensure_interactive_log_session(
+        figure=figure,
+        surface="histogram",
+        logger=logger,
+        state=state,
+        sort=state.current_sort,
+        label_mode=state.label_mode,
+        kind=state.kind,
+        slider_enabled=state.slider_enabled,
+        show_uniform_reference=state.show_uniform_reference,
+    )
     state.redraw()
     if config.output_path is not None:
         state.save_current_view(output_path=config.output_path)
@@ -574,36 +765,75 @@ def _attach_histogram_key_shortcuts(state: HistogramInteractiveState) -> None:
             return
         key_name = _histogram_key_name(event)
         if key_name == "left":
-            state.set_window_start(state.window_start - 1)
+            state.set_window_start(state.window_start - 1, source=InteractionSource.KEYBOARD)
             return
         if key_name == "right":
-            state.set_window_start(state.window_start + 1)
+            state.set_window_start(state.window_start + 1, source=InteractionSource.KEYBOARD)
             return
         if key_name == "o":
-            state.toggle_slider()
+            state.toggle_slider(source=InteractionSource.KEYBOARD)
             return
         if key_name == "u":
-            state.toggle_uniform_reference()
+            state.toggle_uniform_reference(source=InteractionSource.KEYBOARD)
             return
         if key_name == "c":
-            state.cycle_sort()
+            state.cycle_sort(source=InteractionSource.KEYBOARD)
             return
         if key_name == "b":
-            state.toggle_label_mode()
+            state.toggle_label_mode(source=InteractionSource.KEYBOARD)
             return
         if key_name == "d":
-            state.toggle_kind()
+            state.toggle_kind(source=InteractionSource.KEYBOARD)
             return
         if key_name == "m":
             state.focus_marginal_text_input()
             return
         if key_name in {"?", "shift+/"}:
-            state.toggle_shortcut_help()
+            state.toggle_shortcut_help(source=InteractionSource.KEYBOARD)
             return
         if key_name == "0":
-            state.restore_initial_view()
+            state.restore_initial_view(source=InteractionSource.KEYBOARD)
 
     state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))
+
+
+def _log_histogram_interaction(
+    state: HistogramInteractiveState,
+    level: int,
+    event: str,
+    message: str,
+    *,
+    source: InteractionSource | str,
+    **fields: object,
+) -> None:
+    session = state.log_session or ensure_interactive_log_session(
+        figure=state.figure,
+        surface="histogram",
+        logger=logger,
+        state=state,
+    )
+    state.log_session = session
+    payload: dict[str, object] = {
+        "sort": state.current_sort,
+        "label_mode": state.label_mode,
+        "kind": state.kind,
+        "slider_enabled": state.slider_enabled,
+        "window_start": state.window_start,
+        "max_window_start": state.max_window_start,
+        "active_qubits": state.active_qubits,
+        "top_k": state.top_k,
+        "show_uniform_reference": state.show_uniform_reference,
+    }
+    payload.update(fields)
+    log_interaction(
+        logger,
+        level,
+        event,
+        message,
+        session=session,
+        source=source,
+        **payload,
+    )
 
 
 def _histogram_key_name(event: KeyEvent) -> str:

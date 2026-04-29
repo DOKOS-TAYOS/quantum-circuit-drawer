@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
@@ -10,6 +11,8 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
+from .._interactive_logging import ensure_interactive_log_session
+from .._logging import InteractionSource, InteractiveLogSession, log_interaction
 from ..ir.lowering import lower_semantic_circuit
 from ..ir.semantic import semantic_operation_id
 from ..layout._layering import normalized_draw_circuit
@@ -68,6 +71,8 @@ from .page_window_3d_render import _render_current_window
 from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .viewport import _figure_size_inches
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from matplotlib.text import Text
@@ -133,6 +138,7 @@ class Managed3DPageWindowState:
     key_callback_id: int | None = None
     resize_callback_id: int | None = None
     pending_click: tuple[float, float, Axes3D, bool] | None = None
+    log_session: InteractiveLogSession | None = None
 
     @property
     def current_scene(self) -> LayoutScene3D:
@@ -140,9 +146,15 @@ class Managed3DPageWindowState:
 
         return self.page_scenes[self.start_page]
 
-    def select_topology(self, topology: TopologyName) -> None:
+    def select_topology(
+        self,
+        topology: TopologyName,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Switch topology while preserving the current window state."""
 
+        previous_topology = self.pipeline.draw_options.topology
         updated_draw_options = replace(self.pipeline.draw_options, topology=topology)
         updated_pipeline = replace(self.pipeline, draw_options=updated_draw_options)
         updated_page_scenes = windowed_3d_page_scenes(
@@ -163,8 +175,29 @@ class Managed3DPageWindowState:
         )
         _render_current_window(self)
         _sync_inputs(self)
+        if topology == previous_topology:
+            _log_3d_page_window_topology_change(
+                self,
+                logging.DEBUG,
+                source=source,
+                before=previous_topology,
+                after=topology,
+                reason="already_active",
+            )
+            return
+        _log_3d_page_window_topology_change(
+            self,
+            logging.INFO,
+            source=source,
+            before=previous_topology,
+            after=topology,
+        )
 
-    def cycle_topology(self) -> None:
+    def cycle_topology(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Switch to the next supported built-in topology."""
 
         from .topology_menu import next_valid_topology
@@ -177,11 +210,15 @@ class Managed3DPageWindowState:
             return
         topology_menu_state = get_topology_menu_state(self.figure)
         if hasattr(topology_menu_state, "select_topology"):
-            topology_menu_state.select_topology(next_topology)
+            topology_menu_state.select_topology(next_topology, source=source)
             return
-        self.select_topology(next_topology)
+        self.select_topology(next_topology, source=source)
 
-    def previous_topology(self) -> None:
+    def previous_topology(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Switch to the previous supported built-in topology."""
 
         from .topology_menu import previous_valid_topology
@@ -194,9 +231,9 @@ class Managed3DPageWindowState:
             return
         topology_menu_state = get_topology_menu_state(self.figure)
         if hasattr(topology_menu_state, "select_topology"):
-            topology_menu_state.select_topology(previous_topology)
+            topology_menu_state.select_topology(previous_topology, source=source)
             return
-        self.select_topology(previous_topology)
+        self.select_topology(previous_topology, source=source)
 
     def select_operation(self, operation_id: str | None) -> None:
         """Update the contextual selection and redraw the current window."""
@@ -474,6 +511,16 @@ def configure_3d_page_window(
         controls_enabled=attach_controls,
     )
     set_page_window(figure, state)
+    state.log_session = ensure_interactive_log_session(
+        figure=figure,
+        surface="3d_page_window",
+        logger=logger,
+        state=state,
+        start_page=state.start_page,
+        visible_page_count=state.visible_page_count,
+        total_pages=state.total_pages,
+        topology=state.pipeline.draw_options.topology,
+    )
     if attach_controls:
         _attach_controls(state)
     state.shortcut_help_text = create_shortcut_help_text(
@@ -510,6 +557,44 @@ def configure_3d_page_window(
     _render_current_window(state)
     _sync_inputs(state)
     return state
+
+
+def _log_3d_page_window_topology_change(
+    state: Managed3DPageWindowState,
+    level: int,
+    *,
+    source: InteractionSource | str,
+    before: TopologyName,
+    after: TopologyName,
+    reason: str | None = None,
+) -> None:
+    session = state.log_session or ensure_interactive_log_session(
+        figure=state.figure,
+        surface="3d_page_window",
+        logger=logger,
+        state=state,
+    )
+    state.log_session = session
+    payload: dict[str, object] = {
+        "topology": after,
+        "before": before,
+        "after": after,
+        "start_page": state.start_page,
+        "visible_page_count": state.visible_page_count,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    log_interaction(
+        logger,
+        level,
+        "interactive.topology.changed",
+        "Updated managed 3D page-window topology."
+        if level == logging.INFO
+        else "Ignored unchanged managed 3D page-window topology update.",
+        session=session,
+        source=source,
+        **payload,
+    )
 
 
 def _refresh_3d_page_window_exploration_context(state: Managed3DPageWindowState) -> None:
@@ -674,10 +759,10 @@ def _attach_3d_window_key_shortcuts(state: Managed3DPageWindowState) -> None:
             _run(state.reset_exploration_view)
             return
         if is_cycle_topology_key(event):
-            _run(state.cycle_topology)
+            _run(lambda: state.cycle_topology(source=InteractionSource.KEYBOARD))
             return
         if is_previous_topology_key(event):
-            _run(state.previous_topology)
+            _run(lambda: state.previous_topology(source=InteractionSource.KEYBOARD))
             return
         if is_toggle_wire_filter_key(event):
             _run(state.toggle_wire_filter)

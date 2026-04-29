@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .._logging import InteractionSource
 from .exploration_2d import (
     WireFilterMode,
     exploration_control_availability,
     selected_block_action,
 )
-from .page_window_render import _render_current_window
-from .page_window_windowing import _clamp_page_index, _clamp_visible_page_count
 from .shortcut_help import create_shortcut_help_button
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 
@@ -56,7 +55,7 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         state.figure,
         palette=palette,
         bounds=_HELP_BUTTON_BOUNDS,
-        on_click=lambda _event: state.toggle_shortcut_help(),
+        on_click=lambda _event: state.toggle_shortcut_help(source=InteractionSource.BUTTON),
         zorder=_CONTROL_AXES_ZORDER,
     )
     state.help_button_axes = help_button_axes
@@ -75,7 +74,9 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         hovercolor=palette.surface_hover_facecolor,
     )
     _style_button(previous_page_button, palette=palette)
-    previous_page_button.on_clicked(lambda _: _step_page(state, delta=-1))
+    previous_page_button.on_clicked(
+        lambda _: _step_page(state, delta=-1, source=InteractionSource.BUTTON)
+    )
 
     page_axes = state.figure.add_axes(_PAGE_BOX_BOUNDS, facecolor=palette.surface_facecolor)
     page_axes.set_zorder(_CONTROL_AXES_ZORDER)
@@ -94,7 +95,9 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         border_color=palette.surface_edgecolor,
         facecolor=palette.surface_facecolor,
     )
-    page_box.on_submit(lambda text: _handle_page_submit(state, text))
+    page_box.on_submit(
+        lambda text: _handle_page_submit(state, text, source=InteractionSource.TEXTBOX)
+    )
 
     next_page_button_axes = state.figure.add_axes(
         _NEXT_PAGE_BUTTON_BOUNDS,
@@ -109,7 +112,9 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         hovercolor=palette.surface_hover_facecolor,
     )
     _style_button(next_page_button, palette=palette)
-    next_page_button.on_clicked(lambda _: _step_page(state, delta=1))
+    next_page_button.on_clicked(
+        lambda _: _step_page(state, delta=1, source=InteractionSource.BUTTON)
+    )
 
     visible_pages_axes = state.figure.add_axes(
         _VISIBLE_PAGES_BOX_BOUNDS,
@@ -131,7 +136,13 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         border_color=palette.surface_edgecolor,
         facecolor=palette.surface_facecolor,
     )
-    visible_pages_box.on_submit(lambda text: _handle_visible_pages_submit(state, text))
+    visible_pages_box.on_submit(
+        lambda text: _handle_visible_pages_submit(
+            state,
+            text,
+            source=InteractionSource.TEXTBOX,
+        )
+    )
 
     visible_pages_increment_axes = state.figure.add_axes(
         _VISIBLE_PAGES_INCREMENT_BOUNDS,
@@ -146,7 +157,9 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         hovercolor=palette.surface_hover_facecolor,
     )
     _style_stepper_button(visible_pages_increment_button, palette=palette)
-    visible_pages_increment_button.on_clicked(lambda _: _step_visible_pages(state, delta=1))
+    visible_pages_increment_button.on_clicked(
+        lambda _: _step_visible_pages(state, delta=1, source=InteractionSource.BUTTON)
+    )
 
     visible_pages_decrement_axes = state.figure.add_axes(
         _VISIBLE_PAGES_DECREMENT_BOUNDS,
@@ -161,7 +174,9 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         hovercolor=palette.surface_hover_facecolor,
     )
     _style_stepper_button(visible_pages_decrement_button, palette=palette)
-    visible_pages_decrement_button.on_clicked(lambda _: _step_visible_pages(state, delta=-1))
+    visible_pages_decrement_button.on_clicked(
+        lambda _: _step_visible_pages(state, delta=-1, source=InteractionSource.BUTTON)
+    )
 
     state.page_box = page_box
     state.visible_pages_box = visible_pages_box
@@ -284,7 +299,12 @@ def _sync_navigation_button_states(state: Managed2DPageWindowState) -> None:
         )
 
 
-def _handle_page_submit(state: Managed2DPageWindowState, text: str) -> None:
+def _handle_page_submit(
+    state: Managed2DPageWindowState,
+    text: str,
+    *,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+) -> None:
     if state.is_syncing_inputs:
         return
 
@@ -298,10 +318,16 @@ def _handle_page_submit(state: Managed2DPageWindowState, text: str) -> None:
         state,
         requested_page=requested_page,
         requested_visible_pages=state.visible_page_count,
+        source=source,
     )
 
 
-def _handle_visible_pages_submit(state: Managed2DPageWindowState, text: str) -> None:
+def _handle_visible_pages_submit(
+    state: Managed2DPageWindowState,
+    text: str,
+    *,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+) -> None:
     if state.is_syncing_inputs:
         return
 
@@ -315,23 +341,26 @@ def _handle_visible_pages_submit(state: Managed2DPageWindowState, text: str) -> 
         state,
         requested_page=state.start_page + 1,
         requested_visible_pages=requested_visible_pages,
+        source=source,
     )
 
 
-def _step_page(state: Managed2DPageWindowState, *, delta: int) -> None:
-    _show_page_window(
-        state,
-        requested_page=(state.start_page + 1) + delta,
-        requested_visible_pages=state.visible_page_count,
-    )
+def _step_page(
+    state: Managed2DPageWindowState,
+    *,
+    delta: int,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+) -> None:
+    state.step_page(delta, source=source)
 
 
-def _step_visible_pages(state: Managed2DPageWindowState, *, delta: int) -> None:
-    _show_page_window(
-        state,
-        requested_page=state.start_page + 1,
-        requested_visible_pages=state.visible_page_count + delta,
-    )
+def _step_visible_pages(
+    state: Managed2DPageWindowState,
+    *,
+    delta: int,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+) -> None:
+    state.step_visible_pages(delta, source=source)
 
 
 def _show_page_window(
@@ -339,15 +368,15 @@ def _show_page_window(
     *,
     requested_page: int,
     requested_visible_pages: int,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
 ) -> None:
-    state.start_page = _clamp_page_index(requested_page, state.total_pages)
-    state.visible_page_count = _clamp_visible_page_count(
-        requested_visible_pages,
-        total_pages=state.total_pages,
-        start_page=state.start_page,
-    )
-    _render_current_window(state)
-    _sync_inputs(state)
+    current_page = state.start_page + 1
+    requested_page_delta = requested_page - current_page
+    requested_visible_delta = requested_visible_pages - state.visible_page_count
+    if requested_page_delta != 0:
+        state.step_page(requested_page_delta, source=source)
+    if requested_visible_delta != 0:
+        state.step_visible_pages(requested_visible_delta, source=source)
 
 
 def _sync_inputs(state: Managed2DPageWindowState) -> None:
@@ -447,7 +476,9 @@ def _ensure_exploration_controls(state: Managed2DPageWindowState) -> None:
             hovercolor=state.ui_palette.surface_hover_facecolor,
         )
         _style_stepper_button(wire_filter_button, palette=state.ui_palette)
-        wire_filter_button.on_clicked(lambda _: state.toggle_wire_filter())
+        wire_filter_button.on_clicked(
+            lambda _: state.toggle_wire_filter(source=InteractionSource.BUTTON)
+        )
         state.wire_filter_axes = wire_filter_axes
         state.wire_filter_button = wire_filter_button
     elif state.wire_filter_axes is not None:
@@ -467,7 +498,9 @@ def _ensure_exploration_controls(state: Managed2DPageWindowState) -> None:
             hovercolor=state.ui_palette.surface_hover_facecolor,
         )
         _style_stepper_button(ancilla_toggle_button, palette=state.ui_palette)
-        ancilla_toggle_button.on_clicked(lambda _: state.toggle_ancillas())
+        ancilla_toggle_button.on_clicked(
+            lambda _: state.toggle_ancillas(source=InteractionSource.BUTTON)
+        )
         state.ancilla_toggle_axes = ancilla_toggle_axes
         state.ancilla_toggle_button = ancilla_toggle_button
     elif state.ancilla_toggle_axes is not None:
@@ -487,7 +520,9 @@ def _ensure_exploration_controls(state: Managed2DPageWindowState) -> None:
             hovercolor=state.ui_palette.surface_hover_facecolor,
         )
         _style_stepper_button(block_toggle_button, palette=state.ui_palette)
-        block_toggle_button.on_clicked(lambda _: state.toggle_selected_block())
+        block_toggle_button.on_clicked(
+            lambda _: state.toggle_selected_block(source=InteractionSource.BUTTON)
+        )
         state.block_toggle_axes = block_toggle_axes
         state.block_toggle_button = block_toggle_button
     elif state.block_toggle_axes is not None:

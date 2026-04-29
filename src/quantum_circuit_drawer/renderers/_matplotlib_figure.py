@@ -12,6 +12,7 @@ from matplotlib.figure import Figure, SubFigure
 from matplotlib.text import Annotation
 
 if TYPE_CHECKING:
+    from .._logging import InteractiveLogSession
     from ..layout.scene import LayoutScene
     from ..layout.scene_3d import LayoutScene3D
 
@@ -34,6 +35,7 @@ class _ManagedFigureMetadata:
     page_window: object | None = None
     topology_menu_state: object | None = None
     histogram_state: object | None = None
+    interactive_log_session: InteractiveLogSession | None = None
 
 
 @dataclass(slots=True)
@@ -170,6 +172,21 @@ def get_histogram_state(figure: Figure | SubFigure) -> object | None:
     """Return managed histogram state attached to a figure, if any."""
 
     return _metadata_for(figure).histogram_state
+
+
+def set_interactive_log_session(
+    figure: Figure | SubFigure,
+    session: InteractiveLogSession | None,
+) -> None:
+    """Store one persistent interactive logging session on the figure metadata."""
+
+    _metadata_for(figure).interactive_log_session = session
+
+
+def get_interactive_log_session(figure: Figure | SubFigure) -> InteractiveLogSession | None:
+    """Return the persistent interactive logging session attached to the figure, if any."""
+
+    return _metadata_for(figure).interactive_log_session
 
 
 def clear_topology_menu_state(figure: Figure | SubFigure) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
@@ -10,6 +11,8 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
+from .._interactive_logging import ensure_interactive_log_session
+from .._logging import InteractionSource, InteractiveLogSession, log_interaction
 from ..ir.circuit import CircuitIR
 from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_ir
 from ..ir.semantic import semantic_operation_id
@@ -60,7 +63,6 @@ from .interaction import (
     managed_text_boxes_capture_keys,
     next_visible_operation_selection,
     run_managed_canvas_action,
-    toggle_operation_with_selection,
     visible_expandable_operation_ids,
 )
 from .shortcut_help import (
@@ -92,6 +94,7 @@ _BLOCK_TOGGLE_BUTTON_WIDTH = _WIRE_FILTER_BUTTON_WIDTH
 _MAIN_AXES_ZORDER = 3.0
 _SLIDER_CONTROL_ZORDER = 2.0
 _OPTIONAL_BUTTON_ZORDER = 1.0
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "_DEFAULT_VISIBLE_QUBITS",
@@ -191,58 +194,162 @@ class Managed2DPageSliderState:
     click_callback_id: int | None = None
     key_callback_id: int | None = None
     resize_callback_id: int | None = None
+    log_session: InteractiveLogSession | None = None
 
-    def show_start_column(self, start_column: int) -> None:
+    def show_start_column(
+        self,
+        start_column: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Render the requested horizontal start column."""
 
+        previous_start_column = self.start_column
         self.start_column = int(start_column)
         _apply_2d_slider_state(self)
+        _log_2d_slider_viewport_change(
+            self,
+            source=source,
+            field_name="start_column",
+            before=previous_start_column,
+            requested=int(start_column),
+            after=self.start_column,
+            max_value=self.max_start_column,
+        )
 
-    def show_start_row(self, start_row: int) -> None:
+    def show_start_row(
+        self,
+        start_row: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Render the requested vertical start row."""
 
+        previous_start_row = self.start_row
         self.start_row = int(start_row)
         _apply_2d_slider_state(self)
+        _log_2d_slider_viewport_change(
+            self,
+            source=source,
+            field_name="start_row",
+            before=previous_start_row,
+            requested=int(start_row),
+            after=self.start_row,
+            max_value=self.max_start_row,
+        )
 
-    def select_operation(self, operation_id: str | None) -> None:
+    def select_operation(
+        self,
+        operation_id: str | None,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Update the contextual selection and redraw the current window."""
 
         if self.exploration is None:
             return
+        previous_operation_id = self.exploration.selected_operation_id
         self.exploration.selected_operation_id = operation_id
         _apply_2d_slider_state(self)
+        if self.exploration.selected_operation_id == previous_operation_id:
+            _log_2d_slider_interaction(
+                self,
+                logging.DEBUG,
+                "interactive.selection.changed",
+                "Ignored unchanged managed slider selection.",
+                source=source,
+                reason="already_active",
+                selected_operation_id=self.exploration.selected_operation_id,
+                before=previous_operation_id,
+                after=self.exploration.selected_operation_id,
+            )
+            return
+        _log_2d_slider_interaction(
+            self,
+            logging.INFO,
+            "interactive.selection.changed",
+            "Updated managed slider selection.",
+            source=source,
+            selected_operation_id=self.exploration.selected_operation_id,
+            before=previous_operation_id,
+            after=self.exploration.selected_operation_id,
+        )
 
-    def toggle_wire_filter(self) -> None:
+    def toggle_wire_filter(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle between showing all wires and only active wires."""
 
         if self.exploration is None:
             return
+        previous_mode = self.exploration.wire_filter_mode
         self.exploration.wire_filter_mode = toggle_wire_filter_mode(
             self.exploration.wire_filter_mode
         )
         _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
+        _log_2d_slider_interaction(
+            self,
+            logging.INFO,
+            "interactive.wire_filter.changed",
+            "Updated managed slider wire filter.",
+            source=source,
+            before=previous_mode,
+            after=self.exploration.wire_filter_mode,
+            wire_filter_mode=self.exploration.wire_filter_mode,
+        )
 
-    def toggle_ancillas(self) -> None:
+    def toggle_ancillas(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle whether ancilla-like quantum wires remain visible."""
 
         if self.exploration is None:
             return
+        previous_show_ancillas = self.exploration.show_ancillas
         self.exploration.show_ancillas = not self.exploration.show_ancillas
         _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
+        _log_2d_slider_interaction(
+            self,
+            logging.INFO,
+            "interactive.ancillas.changed",
+            "Updated managed slider ancilla visibility.",
+            source=source,
+            before=previous_show_ancillas,
+            after=self.exploration.show_ancillas,
+            show_ancillas=self.exploration.show_ancillas,
+        )
 
-    def toggle_selected_block(self) -> None:
+    def toggle_selected_block(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Expand or collapse the block that owns the current selection."""
 
         if self.exploration is None:
             return
+        previous_selection = self.exploration.selected_operation_id
         block_action = selected_block_action(
             self.exploration.catalog,
             selected_operation_id=self.exploration.selected_operation_id,
             collapsed_block_ids=self.exploration.collapsed_block_ids,
         )
         if block_action is None:
+            _log_2d_slider_interaction(
+                self,
+                logging.DEBUG,
+                "interactive.block.changed",
+                "Ignored managed slider block toggle without a valid selection.",
+                source=source,
+                reason="no_selection",
+                selected_operation_id=self.exploration.selected_operation_id,
+            )
             return
         if block_action.action == "expand":
             self.exploration.collapsed_block_ids.discard(block_action.block_id)
@@ -254,59 +361,158 @@ class Managed2DPageSliderState:
         )
         _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
+        _log_2d_slider_interaction(
+            self,
+            logging.INFO,
+            "interactive.block.changed",
+            "Updated managed slider block state.",
+            source=source,
+            block_action=block_action.action,
+            block_id=block_action.block_id,
+            before=previous_selection,
+            after=self.exploration.selected_operation_id,
+            selected_operation_id=self.exploration.selected_operation_id,
+        )
 
-    def clear_selection(self) -> None:
+    def clear_selection(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Clear the current contextual selection."""
 
-        self.select_operation(None)
+        self.select_operation(None, source=source)
 
-    def reset_exploration_view(self) -> None:
+    def reset_exploration_view(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Restore the managed exploration state to its original defaults."""
 
         if self.exploration is None:
             return
+        previous_state = (
+            self.exploration.selected_operation_id,
+            self.exploration.wire_filter_mode,
+            self.exploration.show_ancillas,
+            tuple(sorted(self.exploration.collapsed_block_ids)),
+        )
         reset_exploration_state(self.exploration)
         _refresh_2d_slider_exploration_context(self)
         _apply_2d_slider_state(self)
+        next_state = (
+            self.exploration.selected_operation_id,
+            self.exploration.wire_filter_mode,
+            self.exploration.show_ancillas,
+            tuple(sorted(self.exploration.collapsed_block_ids)),
+        )
+        level = logging.INFO if next_state != previous_state else logging.DEBUG
+        _log_2d_slider_interaction(
+            self,
+            level,
+            "interactive.view.reset",
+            "Reset managed slider exploration view."
+            if level == logging.INFO
+            else "Ignored managed slider reset because the view was already at defaults.",
+            source=source,
+            reason=None if level == logging.INFO else "already_active",
+            before=previous_state,
+            after=next_state,
+            selected_operation_id=self.exploration.selected_operation_id,
+            wire_filter_mode=self.exploration.wire_filter_mode,
+            show_ancillas=self.exploration.show_ancillas,
+        )
 
-    def toggle_shortcut_help(self) -> None:
+    def toggle_shortcut_help(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle the managed shortcut-help overlay."""
 
+        previous_visible = bool(
+            self.shortcut_help_text is not None and self.shortcut_help_text.get_visible()
+        )
         toggle_shortcut_help_text(self.shortcut_help_text, figure=self.figure)
+        next_visible = bool(
+            self.shortcut_help_text is not None and self.shortcut_help_text.get_visible()
+        )
+        _log_2d_slider_interaction(
+            self,
+            logging.INFO,
+            "interactive.help_toggled",
+            "Toggled managed slider shortcut help.",
+            source=source,
+            before=previous_visible,
+            after=next_visible,
+            help_visible=next_visible,
+        )
 
-    def step_start_column(self, delta: int) -> None:
+    def step_start_column(
+        self,
+        delta: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Move the horizontal window by one managed step."""
 
-        self.show_start_column(self.start_column + delta)
+        self.show_start_column(self.start_column + delta, source=source)
 
-    def step_start_row(self, delta: int) -> None:
+    def step_start_row(
+        self,
+        delta: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Move the vertical window by one managed step when it exists."""
 
-        self.show_start_row(self.start_row + delta)
+        self.show_start_row(self.start_row + delta, source=source)
 
-    def show_first_window(self) -> None:
+    def show_first_window(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Jump to the absolute beginning of the horizontal slider window."""
 
-        self.show_start_column(0)
+        self.show_start_column(0, source=source)
 
-    def show_last_window(self) -> None:
+    def show_last_window(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Jump to the absolute end of the horizontal slider window."""
 
-        self.show_start_column(self.max_start_column)
+        self.show_start_column(self.max_start_column, source=source)
 
-    def step_start_column_large(self, delta: int) -> None:
+    def step_start_column_large(
+        self,
+        delta: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Move the horizontal window by approximately one visible window."""
 
         if not self.scene.pages:
-            self.step_start_column(delta)
+            self.step_start_column(delta, source=source)
             return
         visible_column_count = max(
             1,
             self.scene.pages[0].end_column - self.scene.pages[0].start_column + 1,
         )
-        self.show_start_column(self.start_column + (delta * max(1, visible_column_count - 1)))
+        self.show_start_column(
+            self.start_column + (delta * max(1, visible_column_count - 1)),
+            source=source,
+        )
 
-    def step_expandable_selection(self, *, backwards: bool = False) -> None:
+    def step_expandable_selection(
+        self,
+        *,
+        backwards: bool = False,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Move the selection across visible expandable blocks in visual order."""
 
         if self.exploration is None:
@@ -323,7 +529,7 @@ class Managed2DPageSliderState:
         )
         if next_operation_id is None:
             return
-        self.select_operation(next_operation_id)
+        self.select_operation(next_operation_id, source=source)
 
     def managed_text_boxes(self) -> tuple[object | None, ...]:
         """Return the managed text inputs that can capture keyboard input."""
@@ -526,6 +732,17 @@ def configure_page_slider(
         double_click_toggle_enabled=double_click_toggle_enabled,
     )
     set_page_slider(figure, state)
+    state.log_session = ensure_interactive_log_session(
+        figure=figure,
+        surface="2d_slider",
+        logger=logger,
+        state=state,
+        start_column=state.start_column,
+        max_start_column=state.max_start_column,
+        start_row=state.start_row,
+        max_start_row=state.max_start_row,
+        visible_qubits=state.visible_qubits,
+    )
     state.shortcut_help_text = create_shortcut_help_text(
         figure,
         palette=managed_ui_palette(current_full_scene.style.theme),
@@ -708,7 +925,7 @@ def _attach_2d_controls(
         state.figure,
         palette=palette,
         bounds=_HELP_BUTTON_BOUNDS,
-        on_click=lambda _event: state.toggle_shortcut_help(),
+        on_click=lambda _event: state.toggle_shortcut_help(source=InteractionSource.BUTTON),
         zorder=_SLIDER_CONTROL_ZORDER,
     )
     state.help_button_axes = help_button_axes
@@ -737,7 +954,12 @@ def _attach_2d_controls(
             },
         )
         _style_slider(horizontal_slider, palette=palette)
-        horizontal_slider.on_changed(lambda value: state.show_start_column(round(float(value))))
+        horizontal_slider.on_changed(
+            lambda value: state.show_start_column(
+                round(float(value)),
+                source=InteractionSource.SLIDER,
+            )
+        )
         state.horizontal_slider = horizontal_slider
         state.horizontal_axes = horizontal_axes
 
@@ -766,7 +988,10 @@ def _attach_2d_controls(
         )
         _style_slider(vertical_slider, palette=palette)
         vertical_slider.on_changed(
-            lambda value: state.show_start_row(_start_row_for_vertical_slider_value(state, value))
+            lambda value: state.show_start_row(
+                _start_row_for_vertical_slider_value(state, value),
+                source=InteractionSource.SLIDER,
+            )
         )
         state.vertical_slider = vertical_slider
         state.vertical_axes = vertical_axes
@@ -792,7 +1017,13 @@ def _attach_2d_controls(
             border_color=palette.surface_edgecolor,
             facecolor=palette.surface_facecolor,
         )
-        visible_qubits_box.on_submit(lambda text: _handle_visible_qubits_submit(state, text))
+        visible_qubits_box.on_submit(
+            lambda text: _handle_visible_qubits_submit(
+                state,
+                text,
+                source=InteractionSource.TEXTBOX,
+            )
+        )
         state.visible_qubits_box = visible_qubits_box
         state.visible_qubits_axes = visible_qubits_axes
         if layout.visible_qubits_increment_axes_bounds is not None:
@@ -810,7 +1041,11 @@ def _attach_2d_controls(
             )
             _style_stepper_button(visible_qubits_increment_button, palette=palette)
             visible_qubits_increment_button.on_clicked(
-                lambda _: _set_visible_qubits(state, state.visible_qubits + 1)
+                lambda _: _set_visible_qubits(
+                    state,
+                    state.visible_qubits + 1,
+                    source=InteractionSource.BUTTON,
+                )
             )
             state.visible_qubits_increment_button = visible_qubits_increment_button
             state.visible_qubits_increment_axes = visible_qubits_increment_axes
@@ -829,7 +1064,11 @@ def _attach_2d_controls(
             )
             _style_stepper_button(visible_qubits_decrement_button, palette=palette)
             visible_qubits_decrement_button.on_clicked(
-                lambda _: _set_visible_qubits(state, state.visible_qubits - 1)
+                lambda _: _set_visible_qubits(
+                    state,
+                    state.visible_qubits - 1,
+                    source=InteractionSource.BUTTON,
+                )
             )
             state.visible_qubits_decrement_button = visible_qubits_decrement_button
             state.visible_qubits_decrement_axes = visible_qubits_decrement_axes
@@ -849,7 +1088,9 @@ def _attach_2d_controls(
             hovercolor=palette.surface_hover_facecolor,
         )
         _style_stepper_button(wire_filter_button, palette=palette)
-        wire_filter_button.on_clicked(lambda _: state.toggle_wire_filter())
+        wire_filter_button.on_clicked(
+            lambda _: state.toggle_wire_filter(source=InteractionSource.BUTTON)
+        )
         state.wire_filter_button = wire_filter_button
         state.wire_filter_axes = wire_filter_axes
 
@@ -867,7 +1108,9 @@ def _attach_2d_controls(
             hovercolor=palette.surface_hover_facecolor,
         )
         _style_stepper_button(ancilla_toggle_button, palette=palette)
-        ancilla_toggle_button.on_clicked(lambda _: state.toggle_ancillas())
+        ancilla_toggle_button.on_clicked(
+            lambda _: state.toggle_ancillas(source=InteractionSource.BUTTON)
+        )
         state.ancilla_toggle_button = ancilla_toggle_button
         state.ancilla_toggle_axes = ancilla_toggle_axes
 
@@ -885,7 +1128,9 @@ def _attach_2d_controls(
             hovercolor=palette.surface_hover_facecolor,
         )
         _style_stepper_button(block_toggle_button, palette=palette)
-        block_toggle_button.on_clicked(lambda _: state.toggle_selected_block())
+        block_toggle_button.on_clicked(
+            lambda _: state.toggle_selected_block(source=InteractionSource.BUTTON)
+        )
         state.block_toggle_button = block_toggle_button
         state.block_toggle_axes = block_toggle_axes
 
@@ -940,9 +1185,91 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
     state.layout = None
 
 
+def _log_2d_slider_interaction(
+    state: Managed2DPageSliderState,
+    level: int,
+    event: str,
+    message: str,
+    *,
+    source: InteractionSource | str,
+    **fields: object,
+) -> None:
+    session = state.log_session or ensure_interactive_log_session(
+        figure=state.figure,
+        surface="2d_slider",
+        logger=logger,
+        state=state,
+    )
+    state.log_session = session
+    payload: dict[str, object] = {
+        "start_column": state.start_column,
+        "max_start_column": state.max_start_column,
+        "start_row": state.start_row,
+        "max_start_row": state.max_start_row,
+        "visible_qubits": state.visible_qubits,
+        "selected_operation_id": (
+            None if state.exploration is None else state.exploration.selected_operation_id
+        ),
+        "wire_filter_mode": (
+            None if state.exploration is None else state.exploration.wire_filter_mode
+        ),
+        "show_ancillas": None if state.exploration is None else state.exploration.show_ancillas,
+    }
+    payload.update(fields)
+    log_interaction(
+        logger,
+        level,
+        event,
+        message,
+        session=session,
+        source=source,
+        **payload,
+    )
+
+
+def _log_2d_slider_viewport_change(
+    state: Managed2DPageSliderState,
+    *,
+    source: InteractionSource | str,
+    field_name: str,
+    before: int,
+    requested: int,
+    after: int,
+    max_value: int,
+) -> None:
+    if after == before:
+        _log_2d_slider_interaction(
+            state,
+            logging.DEBUG,
+            "interactive.viewport.changed",
+            "Ignored unchanged managed slider viewport update.",
+            source=source,
+            viewport_field=field_name,
+            before=before,
+            after=after,
+            requested=requested,
+            reason="already_active" if requested == before else "clamped",
+        )
+        return
+    _log_2d_slider_interaction(
+        state,
+        logging.INFO,
+        "interactive.viewport.changed",
+        "Updated managed slider viewport.",
+        source=source,
+        viewport_field=field_name,
+        before=before,
+        after=after,
+        requested=requested,
+        max_value=max_value,
+    )
+
+
 def _handle_visible_qubits_submit(
     state: Managed2DPageSliderState,
     text: str,
+    *,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
 ) -> None:
     if state.is_syncing_visible_qubits:
         return
@@ -953,13 +1280,16 @@ def _handle_visible_qubits_submit(
         _sync_visible_qubits_box(state, state.visible_qubits)
         return
 
-    _set_visible_qubits(state, requested_visible_qubits)
+    _set_visible_qubits(state, requested_visible_qubits, source=source)
 
 
 def _set_visible_qubits(
     state: Managed2DPageSliderState,
     requested_visible_qubits: int,
+    *,
+    source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
 ) -> None:
+    previous_visible_qubits = state.visible_qubits
     resolved_visible_qubits = _clamp_visible_qubits(
         requested_visible_qubits,
         state.total_visible_rows,
@@ -986,6 +1316,15 @@ def _set_visible_qubits(
         state.figure.set_size_inches(figure_width, figure_height, forward=True)
     _apply_2d_slider_state(state)
     _sync_visible_qubits_box(state, resolved_visible_qubits)
+    _log_2d_slider_viewport_change(
+        state,
+        source=source,
+        field_name="visible_qubits",
+        before=previous_visible_qubits,
+        requested=requested_visible_qubits,
+        after=state.visible_qubits,
+        max_value=state.total_visible_rows,
+    )
 
 
 def _sync_visible_qubits_box(
@@ -1217,9 +1556,10 @@ def _attach_slider_selection_clicks(state: Managed2DPageSliderState) -> None:
             return
         operation_id = clicked_operation_id(state.axes, state.scene, event)
         if state.double_click_toggle_enabled and event.dblclick:
-            toggle_operation_with_selection(state, operation_id)
+            state.select_operation(operation_id, source=InteractionSource.MOUSE)
+            state.toggle_selected_block(source=InteractionSource.MOUSE)
             return
-        state.select_operation(operation_id)
+        state.select_operation(operation_id, source=InteractionSource.MOUSE)
 
     state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
 
@@ -1243,57 +1583,74 @@ def _attach_slider_key_shortcuts(state: Managed2DPageSliderState) -> None:
 
         key_name = managed_key_name(event)
         if is_home_key(event):
-            _run(state.show_first_window)
+            _run(lambda: state.show_first_window(source=InteractionSource.KEYBOARD))
             return
         if is_end_key(event):
-            _run(state.show_last_window)
+            _run(lambda: state.show_last_window(source=InteractionSource.KEYBOARD))
             return
         if is_page_up_key(event):
-            _run(lambda: state.step_start_column_large(-1))
+            _run(lambda: state.step_start_column_large(-1, source=InteractionSource.KEYBOARD))
             return
         if is_page_down_key(event):
-            _run(lambda: state.step_start_column_large(1))
+            _run(lambda: state.step_start_column_large(1, source=InteractionSource.KEYBOARD))
             return
         if is_plus_key(event):
-            _run(lambda: _set_visible_qubits(state, state.visible_qubits + 1))
+            _run(
+                lambda: _set_visible_qubits(
+                    state,
+                    state.visible_qubits + 1,
+                    source=InteractionSource.KEYBOARD,
+                )
+            )
             return
         if is_minus_key(event):
-            _run(lambda: _set_visible_qubits(state, state.visible_qubits - 1))
+            _run(
+                lambda: _set_visible_qubits(
+                    state,
+                    state.visible_qubits - 1,
+                    source=InteractionSource.KEYBOARD,
+                )
+            )
             return
         if is_next_selection_key(event):
-            _run(state.step_expandable_selection)
+            _run(lambda: state.step_expandable_selection(source=InteractionSource.KEYBOARD))
             return
         if is_previous_selection_key(event):
-            _run(lambda: state.step_expandable_selection(backwards=True))
+            _run(
+                lambda: state.step_expandable_selection(
+                    backwards=True,
+                    source=InteractionSource.KEYBOARD,
+                )
+            )
             return
         if is_clear_selection_key(event):
-            _run(state.clear_selection)
+            _run(lambda: state.clear_selection(source=InteractionSource.KEYBOARD))
             return
         if is_reset_view_key(event):
-            _run(state.reset_exploration_view)
+            _run(lambda: state.reset_exploration_view(source=InteractionSource.KEYBOARD))
             return
         if is_toggle_wire_filter_key(event):
-            _run(state.toggle_wire_filter)
+            _run(lambda: state.toggle_wire_filter(source=InteractionSource.KEYBOARD))
             return
         if is_shortcut_help_key(event):
-            _run(state.toggle_shortcut_help)
+            _run(lambda: state.toggle_shortcut_help(source=InteractionSource.KEYBOARD))
             return
         if key_name == "left":
-            _run(lambda: state.step_start_column(-1))
+            _run(lambda: state.step_start_column(-1, source=InteractionSource.KEYBOARD))
             return
         if key_name == "right":
-            _run(lambda: state.step_start_column(1))
+            _run(lambda: state.step_start_column(1, source=InteractionSource.KEYBOARD))
             return
         if key_name == "up":
             if state.max_start_row > 0:
-                _run(lambda: state.step_start_row(-1))
+                _run(lambda: state.step_start_row(-1, source=InteractionSource.KEYBOARD))
             return
         if key_name == "down":
             if state.max_start_row > 0:
-                _run(lambda: state.step_start_row(1))
+                _run(lambda: state.step_start_row(1, source=InteractionSource.KEYBOARD))
             return
         if is_block_toggle_key(event):
-            _run(state.toggle_selected_block)
+            _run(lambda: state.toggle_selected_block(source=InteractionSource.KEYBOARD))
 
     state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))
 

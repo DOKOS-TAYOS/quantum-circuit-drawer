@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from matplotlib.axes import Axes
 from matplotlib.widgets import RadioButtons
 
+from .._interactive_logging import ensure_interactive_log_session
+from .._logging import InteractionSource, InteractiveLogSession, log_interaction
 from ..drawing.pipeline import PreparedDrawPipeline, _compute_3d_scene
 from ..layout.topology_3d import TopologyName, build_topology
 from ..renderers._matplotlib_figure import (
@@ -43,6 +46,7 @@ _ALL_TOPOLOGIES: tuple[TopologyName, ...] = (
 _MENU_LABEL_FONT_SIZE = 8.6
 _MENU_RADIO_MARKER_SIZE = 72.0
 _PAGE_WINDOW_MENU_BOUNDS = (0.86, 0.215, 0.12, 0.29)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -60,13 +64,19 @@ class TopologyMenuState:
     menu_axes: Axes | None = None
     radio: RadioButtons | None = None
     resize_callback_id: int | None = None
+    log_session: InteractiveLogSession | None = None
 
     def is_enabled(self, topology: TopologyName) -> bool:
         """Return whether the requested topology is available for this circuit."""
 
         return topology in self.valid_topologies
 
-    def select_topology(self, topology: TopologyName) -> None:
+    def select_topology(
+        self,
+        topology: TopologyName,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Switch to a new valid topology and redraw the managed 3D axes."""
 
         if not self.is_enabled(topology) or topology == self.active_topology:
@@ -79,13 +89,14 @@ class TopologyMenuState:
 
         page_slider_state = get_page_slider(self.figure)
         page_window_state = get_page_window(self.figure)
+        previous_topology = self.active_topology
         if isinstance(page_slider_state, Managed3DPageSliderState):
-            page_slider_state.select_topology(topology)
+            page_slider_state.select_topology(topology, source=source)
             self.pipeline = page_slider_state.pipeline
             self.scene = page_slider_state.current_scene
             self.active_topology = topology
         elif isinstance(page_window_state, Managed3DPageWindowState):
-            page_window_state.select_topology(topology)
+            page_window_state.select_topology(topology, source=source)
             self.pipeline = page_window_state.pipeline
             self.scene = page_window_state.current_scene
             self.axes = page_window_state.display_axes[0]
@@ -101,6 +112,13 @@ class TopologyMenuState:
             self.axes.clear()
             apply_managed_3d_axes_bounds(self.axes, has_page_slider=False)
             self.pipeline.renderer.render(updated_scene, ax=self.axes)
+            _log_topology_menu_interaction(
+                self,
+                logging.INFO,
+                source=source,
+                before=previous_topology,
+                after=topology,
+            )
         _set_radio_selection(self, topology)
         _refresh_radio_styles(self)
 
@@ -154,6 +172,21 @@ def attach_topology_menu(
         valid_topologies=valid_topologies,
         ui_palette=managed_ui_palette(scene.style.theme),
     )
+    state.log_session = ensure_interactive_log_session(
+        figure=figure,
+        surface=(
+            "3d_page_window"
+            if isinstance(page_window_state, Managed3DPageWindowState)
+            else (
+                "3d_slider"
+                if isinstance(page_slider_state, Managed3DPageSliderState)
+                else "3d_view"
+            )
+        ),
+        logger=logger,
+        state=state,
+        topology=active_topology,
+    )
     if not isinstance(page_window_state, Managed3DPageWindowState):
         apply_managed_3d_axes_bounds(
             axes,
@@ -175,7 +208,12 @@ def attach_topology_menu(
         activecolor=state.ui_palette.accent_color,
         useblit=False,
     )
-    state.radio.on_clicked(lambda selected: state.select_topology(cast("TopologyName", selected)))
+    state.radio.on_clicked(
+        lambda selected: state.select_topology(
+            cast("TopologyName", selected),
+            source=InteractionSource.RADIO,
+        )
+    )
     _refresh_radio_styles(state)
     canvas = getattr(figure, "canvas", None)
     if canvas is not None:
@@ -292,6 +330,36 @@ def _pipeline_for_topology(
         pipeline,
         paged_scene=scene,
         draw_options=draw_options,
+    )
+
+
+def _log_topology_menu_interaction(
+    state: TopologyMenuState,
+    level: int,
+    *,
+    source: InteractionSource | str,
+    before: TopologyName,
+    after: TopologyName,
+) -> None:
+    session = state.log_session or ensure_interactive_log_session(
+        figure=state.figure,
+        surface="3d_view",
+        logger=logger,
+        state=state,
+    )
+    state.log_session = session
+    log_interaction(
+        logger,
+        level,
+        "interactive.topology.changed",
+        "Updated managed 3D topology."
+        if level == logging.INFO
+        else "Ignored unchanged managed 3D topology update.",
+        session=session,
+        source=source,
+        topology=after,
+        before=before,
+        after=after,
     )
 
 
