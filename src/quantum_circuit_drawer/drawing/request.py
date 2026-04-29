@@ -6,6 +6,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from .._validation import (
+    is_positive_dimension as _is_positive_dimension,
+)
+from .._validation import (
+    validate_bool as _validate_bool,
+)
+from .._validation import (
+    validate_choice as _validate_choice,
+)
+from .._validation import (
+    validate_figsize as _validate_figsize,
+)
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import UnsupportedBackendError
 from ..hover import HoverOptions, disable_hover, normalize_hover
@@ -242,33 +254,6 @@ def validate_public_options(
     _validate_bool("keyboard_shortcuts", keyboard_shortcuts)
     _validate_bool("double_click_toggle", double_click_toggle)
     _validate_figsize(figsize)
-
-
-def _validate_choice(name: str, value: object, allowed_values: frozenset[str]) -> None:
-    if isinstance(value, str) and value in allowed_values:
-        return
-    choices = ", ".join(sorted(allowed_values))
-    raise ValueError(f"{name} must be one of: {choices}")
-
-
-def _validate_bool(name: str, value: object) -> None:
-    if isinstance(value, bool):
-        return
-    raise ValueError(f"{name} must be a boolean")
-
-
-def _validate_figsize(value: object) -> None:
-    if value is None:
-        return
-    if not isinstance(value, tuple | list) or len(value) != 2:
-        raise ValueError("figsize must be a 2-item tuple of positive numbers")
-    width, height = value
-    if not _is_positive_dimension(width) or not _is_positive_dimension(height):
-        raise ValueError("figsize must be a 2-item tuple of positive numbers")
-
-
-def _is_positive_dimension(value: object) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
 
 
 def validate_draw_request(request: DrawRequest) -> None:

@@ -8,6 +8,21 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from .._validation import (
+    is_non_negative_integer as _is_non_negative_integer,
+)
+from .._validation import (
+    is_positive_integer as _is_positive_integer,
+)
+from .._validation import (
+    validate_bool as _validate_bool,
+)
+from .._validation import (
+    validate_instance as _validate_instance,
+)
+from .._validation import (
+    validate_str_tuple as _validate_str_tuple,
+)
 from ..config import OutputOptions, validate_output_options
 from ..export.figures import save_matplotlib_figure
 from ..presets import (
@@ -17,7 +32,7 @@ from ..presets import (
     histogram_theme_for_preset,
     normalize_style_preset,
 )
-from ..result import diagnostics_to_dicts
+from ..result import _resolved_output_path, diagnostics_to_dicts
 from ..style.theme import resolve_theme
 from ..typing import OutputPath
 
@@ -135,8 +150,8 @@ class HistogramAppearanceOptions:
         object.__setattr__(self, "preset", normalized_preset)
         object.__setattr__(self, "theme", resolve_theme(preset_theme))
         object.__setattr__(self, "draw_style", _normalize_draw_style(preset_draw_style))
-        _validate_hover(self.hover)
-        _validate_show_uniform_reference(self.show_uniform_reference)
+        _validate_bool("hover", self.hover)
+        _validate_bool("show_uniform_reference", self.show_uniform_reference)
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,7 +176,7 @@ class HistogramCompareOptions:
         object.__setattr__(self, "theme", resolve_theme(preset_theme))
         if self.series_labels is not None:
             _validate_str_tuple("series_labels", self.series_labels)
-        _validate_hover(self.hover)
+        _validate_bool("hover", self.hover)
 
 
 @dataclass(frozen=True, slots=True)
@@ -458,10 +473,6 @@ class HistogramCompareResult:
         return self.series_values or (self.left_values, self.right_values)
 
 
-def _resolved_output_path(path: OutputPath) -> str:
-    return str(Path(path).resolve())
-
-
 def _normalize_kind(value: HistogramKind | str) -> HistogramKind:
     try:
         return value if isinstance(value, HistogramKind) else HistogramKind(str(value))
@@ -541,38 +552,6 @@ def _validate_result_index(value: int) -> None:
     if _is_non_negative_integer(value):
         return
     raise ValueError("result_index must be a non-negative integer")
-
-
-def _validate_show_uniform_reference(value: bool) -> None:
-    if isinstance(value, bool):
-        return
-    raise ValueError("show_uniform_reference must be a boolean")
-
-
-def _validate_hover(value: bool) -> None:
-    if isinstance(value, bool):
-        return
-    raise ValueError("hover must be a boolean")
-
-
-def _validate_instance(name: str, value: object, expected_type: type[object]) -> None:
-    if isinstance(value, expected_type):
-        return
-    raise TypeError(f"{name} must be a {expected_type.__name__}")
-
-
-def _validate_str_tuple(name: str, value: object) -> None:
-    if isinstance(value, tuple) and all(isinstance(item, str) for item in value):
-        return
-    raise ValueError(f"{name} must be a tuple of strings")
-
-
-def _is_non_negative_integer(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
-
-
-def _is_positive_integer(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 __all__ = [

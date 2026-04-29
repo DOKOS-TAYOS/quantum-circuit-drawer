@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
+from dataclasses import dataclass
 from typing import Protocol, cast
 
-from matplotlib.backend_bases import FigureCanvasBase, KeyEvent
+from matplotlib.backend_bases import FigureCanvasBase, KeyEvent, key_press_handler
 
 from .exploration_2d import ExplorationCatalog, selected_block_action
 
@@ -28,6 +29,15 @@ _MANAGED_KEY_ALIASES: dict[str, str] = {
 _MANAGED_TAB_BINDINGS_INSTALLED_ATTR = (
     "_quantum_circuit_drawer_managed_tab_focus_bindings_installed"
 )
+_MANAGED_DEFAULT_KEY_HANDLER_FILTER_ATTR = (
+    "_quantum_circuit_drawer_managed_default_key_handler_filter"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _ManagedDefaultKeyHandlerFilterState:
+    callback_id: int
+    blocked_keys: frozenset[str]
 
 
 def managed_key_name(event: KeyEvent) -> str:
@@ -108,6 +118,58 @@ def install_managed_tab_focus_bindings(canvas: object | None) -> None:
         add="+",
     )
     setattr(canvas, _MANAGED_TAB_BINDINGS_INSTALLED_ATTR, True)
+
+
+def install_managed_default_key_handler_filter(
+    canvas: object | None,
+    *,
+    blocked_keys: Collection[str],
+) -> None:
+    """Prevent managed shortcuts from colliding with Matplotlib toolbar key bindings."""
+
+    if canvas is None:
+        return
+    mpl_connect = getattr(canvas, "mpl_connect", None)
+    mpl_disconnect = getattr(canvas, "mpl_disconnect", None)
+    manager = getattr(canvas, "manager", None)
+    if not callable(mpl_connect) or not callable(mpl_disconnect) or manager is None:
+        return
+
+    resolved_blocked_keys = frozenset(str(key).lower() for key in blocked_keys)
+    if not resolved_blocked_keys:
+        return
+
+    existing_filter = getattr(canvas, _MANAGED_DEFAULT_KEY_HANDLER_FILTER_ATTR, None)
+    if isinstance(existing_filter, _ManagedDefaultKeyHandlerFilterState):
+        if resolved_blocked_keys.issubset(existing_filter.blocked_keys):
+            return
+        resolved_blocked_keys = existing_filter.blocked_keys | resolved_blocked_keys
+        mpl_disconnect(existing_filter.callback_id)
+    else:
+        default_handler_id = getattr(manager, "key_press_handler_id", None)
+        if isinstance(default_handler_id, int):
+            mpl_disconnect(default_handler_id)
+
+    toolbar = getattr(manager, "toolbar", None)
+
+    def _filtered_default_key_handler(event: KeyEvent) -> None:
+        if managed_key_name(event) in resolved_blocked_keys:
+            return
+        key_press_handler(event, canvas=cast(FigureCanvasBase, canvas), toolbar=toolbar)
+
+    callback_id = int(mpl_connect("key_press_event", _filtered_default_key_handler))
+    try:
+        manager.key_press_handler_id = callback_id
+    except Exception:
+        pass
+    setattr(
+        canvas,
+        _MANAGED_DEFAULT_KEY_HANDLER_FILTER_ATTR,
+        _ManagedDefaultKeyHandlerFilterState(
+            callback_id=callback_id,
+            blocked_keys=resolved_blocked_keys,
+        ),
+    )
 
 
 def dispatch_managed_key_event(
@@ -448,6 +510,7 @@ def next_visible_column_selection(
 
 __all__ = [
     "dispatch_managed_key_event",
+    "install_managed_default_key_handler_filter",
     "is_block_toggle_key",
     "is_cycle_topology_key",
     "is_clear_selection_key",

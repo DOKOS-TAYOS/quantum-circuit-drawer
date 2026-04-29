@@ -1,5 +1,6 @@
 # ruff: noqa: F403, F405
 import math
+from collections import Counter
 
 import quantum_circuit_drawer.managed._adaptive_paging as adaptive_paging_module
 import quantum_circuit_drawer.managed.slider_2d_windowing as slider_windowing_module
@@ -498,6 +499,59 @@ def test_draw_quantum_circuit_qiskit_exploration_slider_uses_reduced_useful_stop
     assert not isinstance(page_slider.horizontal_slider.valstep, float)
     assert len(page_slider.horizontal_slider.valstep) < page_slider.max_start_column + 1
 
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_qiskit_exploration_slider_restores_initial_texts_after_backtracking() -> (
+    None
+):
+    pytest.importorskip("qiskit")
+    from examples.qiskit_2d_exploration_showcase import build_circuit
+
+    from quantum_circuit_drawer import (
+        CircuitAppearanceOptions,
+        CircuitRenderOptions,
+        DrawConfig,
+        DrawMode,
+        DrawSideConfig,
+        OutputOptions,
+    )
+    from quantum_circuit_drawer import (
+        draw_quantum_circuit as public_draw_quantum_circuit,
+    )
+
+    result = public_draw_quantum_circuit(
+        build_circuit(qubit_count=12, motif_count=9),
+        config=DrawConfig(
+            side=DrawSideConfig(
+                render=CircuitRenderOptions(mode=DrawMode("slider"), topology="grid"),
+                appearance=CircuitAppearanceOptions(hover=True),
+            ),
+            output=OutputOptions(show=False, figsize=(11.8, 6.2)),
+        ),
+    )
+    figure = result.primary_figure
+    axes = result.primary_axes
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+
+    figure.canvas.draw()
+    initial_texts = Counter(
+        normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts
+    )
+
+    for start_column in (1.0, 2.0, 3.0, 2.0, 1.0, 0.0):
+        page_slider.horizontal_slider.set_val(start_column)
+        figure.canvas.draw()
+
+    final_texts = Counter(
+        normalize_rendered_text(text_artist.get_text()) for text_artist in axes.texts
+    )
+
+    assert page_slider.start_column == 0
+    assert final_texts == initial_texts
     plt.close(figure)
 
 

@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ._validation import (
+    validate_bool as _validate_bool,
+)
+from ._validation import (
+    validate_instance as _validate_instance,
+)
+from ._validation import (
+    validate_str_tuple as _validate_str_tuple,
+)
 from .config import (
     CircuitAppearanceOptions,
     CircuitRenderOptions,
@@ -14,7 +22,7 @@ from .config import (
     validate_output_options,
 )
 from .export.figures import save_matplotlib_figure
-from .result import DrawResult, diagnostics_to_dicts
+from .result import DrawResult, _resolved_output_path, diagnostics_to_dicts
 from .typing import OutputPath
 
 if TYPE_CHECKING:
@@ -163,7 +171,7 @@ class CircuitCompareResult:
         """Save the comparison figure and return the absolute saved path."""
 
         save_matplotlib_figure(self.figure, path)
-        return str(Path(path).resolve())
+        return _resolved_output_path(path)
 
     def to_dict(self) -> dict[str, object]:
         """Return comparison metadata without Matplotlib figure or axes objects."""
@@ -210,24 +218,6 @@ def compare_circuits(
         axes=axes,
         summary_ax=summary_ax,
     )
-
-
-def _validate_bool(name: str, value: object) -> None:
-    if isinstance(value, bool):
-        return
-    raise ValueError(f"{name} must be a boolean")
-
-
-def _validate_instance(name: str, value: object, expected_type: type[object]) -> None:
-    if isinstance(value, expected_type):
-        return
-    raise TypeError(f"{name} must be a {expected_type.__name__}")
-
-
-def _validate_str_tuple(name: str, value: object) -> None:
-    if isinstance(value, tuple) and all(isinstance(item, str) for item in value):
-        return
-    raise ValueError(f"{name} must be a tuple of strings")
 
 
 __all__ = [

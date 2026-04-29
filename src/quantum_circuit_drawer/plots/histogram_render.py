@@ -309,6 +309,14 @@ def reference_line_color(theme: DrawTheme) -> str:
     return theme.ui_secondary_text_color or theme.barrier_color
 
 
+def format_histogram_value(value: float, kind: HistogramKind) -> str:
+    """Return a compact user-facing histogram number string."""
+
+    if kind is HistogramKind.COUNTS and float(value).is_integer():
+        return str(int(value))
+    return f"{float(value):.6g}"
+
+
 def negative_bar_color(theme: DrawTheme) -> str:
     """Resolve the negative-value color for quasi histograms."""
 

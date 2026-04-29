@@ -47,6 +47,7 @@ from .exploration_2d import (
     transform_semantic_circuit,
 )
 from .interaction import (
+    install_managed_default_key_handler_filter,
     install_managed_tab_focus_bindings,
     is_block_toggle_key,
     is_clear_selection_key,
@@ -635,6 +636,10 @@ def _attach_3d_slider_key_shortcuts(state: Managed3DPageSliderState) -> None:
         return
     if state.key_callback_id is not None:
         canvas.mpl_disconnect(state.key_callback_id)
+    install_managed_default_key_handler_filter(
+        canvas,
+        blocked_keys={"home", "left", "right"},
+    )
     install_managed_tab_focus_bindings(canvas)
 
     def _handle_key(event: KeyEvent) -> None:

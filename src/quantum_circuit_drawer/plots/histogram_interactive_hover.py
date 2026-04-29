@@ -10,7 +10,7 @@ from matplotlib.patches import Rectangle
 from ..renderers._matplotlib_figure import HoverState, set_hover_state
 from ..renderers._matplotlib_hover_position import position_hover_annotation
 from .histogram_models import HistogramKind, HistogramStateLabelMode
-from .histogram_render import display_state_label
+from .histogram_render import display_state_label, format_histogram_value
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -211,7 +211,7 @@ def _histogram_hover_text(
         state_label_name = "Decimal"
     return (
         f"{state_label_name}: {displayed_state_label}\n"
-        f"{value_label}: {_formatted_histogram_value(value, kind)}"
+        f"{value_label}: {format_histogram_value(value, kind)}"
     )
 
 
@@ -237,19 +237,13 @@ def _uniform_reference_hover_text(
     if uniform_reference_value is None or bit_width is None:
         return "Uniform reference"
     if kind is HistogramKind.COUNTS and reference_total is not None:
-        total_text = _formatted_histogram_value(reference_total, HistogramKind.COUNTS)
-        reference_text = _formatted_histogram_value(uniform_reference_value, kind)
+        total_text = format_histogram_value(reference_total, HistogramKind.COUNTS)
+        reference_text = format_histogram_value(uniform_reference_value, kind)
         return (
             f"Uniform reference\nExpected counts: {total_text} / 2^{bit_width} = {reference_text}"
         )
-    reference_text = _formatted_histogram_value(uniform_reference_value, kind)
+    reference_text = format_histogram_value(uniform_reference_value, kind)
     return f"Uniform reference\nUniform probability: 1 / 2^{bit_width} = {reference_text}"
-
-
-def _formatted_histogram_value(value: float, kind: HistogramKind) -> str:
-    if kind is HistogramKind.COUNTS and float(value).is_integer():
-        return str(int(value))
-    return f"{float(value):.6g}"
 
 
 __all__ = ["attach_histogram_hover", "attach_usage_hover"]

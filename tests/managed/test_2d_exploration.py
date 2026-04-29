@@ -5,7 +5,7 @@ from typing import cast
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import KeyEvent, MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent, key_press_handler
 from matplotlib.figure import Figure
 
 import quantum_circuit_drawer.managed.rendering as managed_module
@@ -1923,6 +1923,82 @@ def test_page_window_block_toggle_recovers_single_interleaved_collapsed_block() 
         assert page_window.exploration.selected_operation_id == "op:1"
         assert [gate.operation_id for gate in page_window.scene.gates].count("op:1") == 1
         assert [gate.label for gate in page_window.scene.gates].count("PREP") == 1
+    finally:
+        plt.close(figure)
+
+
+def test_slider_keyboard_navigation_does_not_trigger_toolbar_history_actions() -> None:
+    circuit = build_wrapped_ir()
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=4.0)
+    scene = managed_module.build_continuous_slider_scene(
+        circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=3.2,
+        figure_height=2.8,
+        use_agg=True,
+    )
+
+    class _DummyToolbar:
+        def __init__(self) -> None:
+            self.back_calls = 0
+            self.forward_calls = 0
+            self.home_calls = 0
+
+        def back(self) -> None:
+            self.back_calls += 1
+
+        def forward(self) -> None:
+            self.forward_calls += 1
+
+        def home(self) -> None:
+            self.home_calls += 1
+
+    class _DummyManager:
+        def __init__(self, toolbar: _DummyToolbar) -> None:
+            self.toolbar = toolbar
+            self.key_press_handler_id = int(
+                figure.canvas.callbacks.connect(
+                    "key_press_event",
+                    lambda event: key_press_handler(event, canvas=figure.canvas, toolbar=toolbar),
+                )
+            )
+
+    toolbar = _DummyToolbar()
+    setattr(figure.canvas, "manager", _DummyManager(toolbar))
+
+    try:
+        managed_module.configure_page_slider(
+            figure=figure,
+            axes=axes,
+            scene=scene,
+            viewport_width=scene.width,
+            set_page_slider=set_page_slider,
+            circuit=circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            normalized_style=style,
+        )
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+        assert page_slider is not None
+
+        _dispatch_key_press(figure, "right")
+        assert page_slider.start_column == 1
+        assert toolbar.forward_calls == 0
+
+        _dispatch_key_press(figure, "left")
+        assert page_slider.start_column == 0
+        assert toolbar.back_calls == 0
+
+        _dispatch_key_press(figure, "home")
+        assert page_slider.start_column == 0
+        assert toolbar.home_calls == 0
     finally:
         plt.close(figure)
 

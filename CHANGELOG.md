@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Reduced redundant internal validation, path-resolution, and histogram-value formatting helpers by centralizing the shared implementations used across drawing, comparison, hover, and histogram modules.
 - Clarified the examples documentation so `examples/README.md` now explains the difference between runner `demo_id` values and direct script filenames, highlights editable-install extra commands for local `.venv` workflows, and includes `logging_showcase.py` alongside the other copy-paste utility examples.
 - Enlarged the default Matplotlib windows used by the demo scripts by about 20% so the examples open a bit roomier across circuit, histogram, and compare showcases.
 - Added the `u` keyboard shortcut to interactive histograms so the uniform reference line can be shown or hidden without reopening the figure, and made the histogram reset action restore that line to its original config state.
@@ -29,6 +30,8 @@
 
 ### Fixed
 
+- Fixed managed keyboard navigation so the 2D slider, 2D/3D page-window modes, 3D slider, and interactive histogram now keep their `Left` / `Right` / `Home` shortcuts for circuit or histogram navigation without also triggering Matplotlib toolbar history actions, avoiding erratic back/forward jumps in interactive desktop windows.
+- Fixed the managed 2D slider redraw cache so revisiting earlier windows in dense circuits no longer reuses a stale projected page with the same page metadata, which had made the slider show the wrong columns after mixed left/right navigation or dragging.
 - Fixed the managed 2D exploration slider so dense Qiskit showcase circuits now snap the horizontal slider to distinct visible windows instead of walking every raw internal column, avoiding sticky-feeling regions where dragging appeared to move the wrong content.
 - Fixed managed 2D page revisits so gate-label base font sizes now stay stable when returning from narrower windows, while matching gate families such as `P/RZ/RX/RY`, `RXY`-style multi-axis rotations, `H/X/Y/Z/T/S`, and `SX/SY/SZ` now share one per-page fitted font size based on the tightest member of the group.
 - Fixed managed menu controls so page-window, 2D/3D slider, and topology-menu button labels now scale with the final figure size, keep one stable font per button across its label states by fitting against the longest message, tighten the page/visible navigation geometry, narrow the topology panel to reduce right-side dead space, and enlarge compare-summary table text for easier reading.

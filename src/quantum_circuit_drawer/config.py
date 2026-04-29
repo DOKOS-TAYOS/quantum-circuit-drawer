@@ -7,6 +7,21 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal, cast
 
+from ._validation import (
+    validate_bool as _validate_bool,
+)
+from ._validation import (
+    validate_choice as _validate_choice,
+)
+from ._validation import (
+    validate_figsize as _validate_figsize,
+)
+from ._validation import (
+    validate_instance as _validate_instance,
+)
+from ._validation import (
+    validate_mapping as _validate_mapping,
+)
 from .diagnostics import RenderDiagnostic
 from .hover import HoverOptions, normalize_hover
 from .presets import StylePreset, apply_draw_style_preset, normalize_style_preset
@@ -259,45 +274,6 @@ def validate_output_options(output: OutputOptions) -> None:
     """Validate one shared output block instance."""
 
     _validate_instance("output", output, OutputOptions)
-
-
-def _validate_choice(name: str, value: object, allowed_values: set[str]) -> None:
-    if isinstance(value, str) and value in allowed_values:
-        return
-    choices = ", ".join(sorted(allowed_values))
-    raise ValueError(f"{name} must be one of: {choices}")
-
-
-def _validate_bool(name: str, value: object) -> None:
-    if isinstance(value, bool):
-        return
-    raise ValueError(f"{name} must be a boolean")
-
-
-def _validate_figsize(value: object) -> None:
-    if value is None:
-        return
-    if not isinstance(value, tuple | list) or len(value) != 2:
-        raise ValueError("figsize must be a 2-item tuple of positive numbers")
-    width, height = value
-    if not _is_positive_dimension(width) or not _is_positive_dimension(height):
-        raise ValueError("figsize must be a 2-item tuple of positive numbers")
-
-
-def _validate_instance(name: str, value: object, expected_type: type[object]) -> None:
-    if isinstance(value, expected_type):
-        return
-    raise TypeError(f"{name} must be a {expected_type.__name__}")
-
-
-def _validate_mapping(name: str, value: object) -> None:
-    if isinstance(value, Mapping):
-        return
-    raise TypeError(f"{name} must be a mapping")
-
-
-def _is_positive_dimension(value: object) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) > 0.0
 
 
 __all__ = [

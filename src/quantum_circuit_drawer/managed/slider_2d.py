@@ -18,7 +18,11 @@ from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_
 from ..ir.semantic import semantic_operation_id
 from ..layout._layering import normalized_draw_circuit
 from ..layout.scene import LayoutScene
-from ..renderers._matplotlib_figure import clear_hover_state, set_viewport_width
+from ..renderers._matplotlib_figure import (
+    clear_hover_state,
+    clear_text_scaling_state,
+    set_viewport_width,
+)
 from ..renderers.matplotlib_primitives import _GateTextCache
 from ..style import DrawStyle
 from ..typing import LayoutEngineLike
@@ -45,6 +49,7 @@ from .exploration_2d import (
     transform_semantic_circuit,
 )
 from .interaction import (
+    install_managed_default_key_handler_filter,
     install_managed_tab_focus_bindings,
     is_block_toggle_key,
     is_clear_selection_key,
@@ -864,6 +869,7 @@ def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     _clear_hidden_slider_selection(state, window_scene)
     state.scene = _styled_slider_scene(state, window_scene)
     clear_hover_state(state.axes)
+    clear_text_scaling_state(state.axes)
     state.axes.clear()
     state.axes.set_position(layout.main_axes_bounds)
     state.axes.set_zorder(_MAIN_AXES_ZORDER)
@@ -1608,6 +1614,10 @@ def _attach_slider_key_shortcuts(state: Managed2DPageSliderState) -> None:
         return
     if state.key_callback_id is not None:
         canvas.mpl_disconnect(state.key_callback_id)
+    install_managed_default_key_handler_filter(
+        canvas,
+        blocked_keys={"home", "left", "right"},
+    )
     install_managed_tab_focus_bindings(canvas)
 
     def _handle_key(event: KeyEvent) -> None:

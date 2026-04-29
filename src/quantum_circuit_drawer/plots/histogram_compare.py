@@ -22,6 +22,7 @@ from .histogram_normalize import _state_sort_key
 from .histogram_render import (
     apply_histogram_theme,
     comparison_secondary_color,
+    format_histogram_value,
     reference_line_color,
     resolved_histogram_y_limits,
     tick_labels_for_states,
@@ -386,20 +387,14 @@ def _compare_histogram_hover_text(
         if not visible_series.get(series_key(series_index), True):
             continue
         visible_values.append(value)
-        lines.append(f"{label} {value_label}: {_formatted_histogram_value(value, kind)}")
+        lines.append(f"{label} {value_label}: {format_histogram_value(value, kind)}")
     if len(visible_values) == 2 and len(values) == 2:
         delta_value = visible_values[0] - visible_values[1]
-        lines.append(f"Delta: {_formatted_histogram_value(delta_value, kind)}")
+        lines.append(f"Delta: {format_histogram_value(delta_value, kind)}")
     elif len(visible_values) > 1:
         spread_value = max(visible_values) - min(visible_values)
-        lines.append(f"Range: {_formatted_histogram_value(spread_value, kind)}")
+        lines.append(f"Range: {format_histogram_value(spread_value, kind)}")
     return "\n".join(lines)
-
-
-def _formatted_histogram_value(value: float, kind: HistogramKind) -> str:
-    if kind is HistogramKind.COUNTS and float(value).is_integer():
-        return str(int(value))
-    return f"{float(value):.6g}"
 
 
 def _style_compare_legend(*, legend: Legend | None, theme: DrawTheme) -> None:

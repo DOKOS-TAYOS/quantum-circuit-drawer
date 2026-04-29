@@ -6,6 +6,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Literal, cast
 
+from ._validation import (
+    is_positive_integer as _is_positive_integer,
+)
+from ._validation import (
+    validate_bool as _validate_bool,
+)
+from ._validation import (
+    validate_choice as _validate_choice,
+)
+
 HoverMatrixMode = Literal["never", "auto", "always"]
 _HOVER_ALLOWED_KEYS = {
     "enabled",
@@ -40,17 +50,9 @@ class HoverOptions:
 
     def __post_init__(self) -> None:
         for field_name in _BOOLEAN_HOVER_FIELDS:
-            value = getattr(self, field_name)
-            if not isinstance(value, bool):
-                raise ValueError(f"hover.{field_name} must be a boolean")
+            _validate_bool(f"hover.{field_name}", getattr(self, field_name))
 
-        if (
-            not isinstance(self.show_matrix, str)
-            or self.show_matrix not in _VALID_SHOW_MATRIX_VALUES
-        ):
-            choices = ", ".join(sorted(_VALID_SHOW_MATRIX_VALUES))
-            raise ValueError(f"hover.show_matrix must be one of: {choices}")
-
+        _validate_choice("hover.show_matrix", self.show_matrix, _VALID_SHOW_MATRIX_VALUES)
         if not _is_positive_integer(self.matrix_max_qubits):
             raise ValueError("hover.matrix_max_qubits must be a positive integer")
 
@@ -88,8 +90,7 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
         if field_name not in hover:
             continue
         value = hover[field_name]
-        if not isinstance(value, bool):
-            raise ValueError(f"hover.{field_name} must be a boolean")
+        _validate_bool(f"hover.{field_name}", value)
         if field_name == "enabled":
             resolved = replace(resolved, enabled=value)
         elif field_name == "show_name":
@@ -103,9 +104,7 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
 
     if "show_matrix" in hover:
         value = hover["show_matrix"]
-        if not isinstance(value, str) or value not in _VALID_SHOW_MATRIX_VALUES:
-            choices = ", ".join(sorted(_VALID_SHOW_MATRIX_VALUES))
-            raise ValueError(f"hover.show_matrix must be one of: {choices}")
+        _validate_choice("hover.show_matrix", value, _VALID_SHOW_MATRIX_VALUES)
         resolved = replace(resolved, show_matrix=cast(HoverMatrixMode, value))
 
     if "matrix_max_qubits" in hover:
@@ -123,7 +122,3 @@ def disable_hover(hover: HoverOptions) -> HoverOptions:
     if not hover.enabled:
         return hover
     return replace(hover, enabled=False)
-
-
-def _is_positive_integer(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value > 0

@@ -47,8 +47,19 @@ _SceneColumnItem = TypeVar(
 def projection_cache_key(scene: LayoutScene) -> tuple[object, ...]:
     """Return a stable cache key for one scene's projected-page structure."""
 
+    # Managed slider redraws can build short-lived scene wrappers that share the
+    # same page metadata across different windows. Keying only by ``id(scene)``
+    # can then alias stale projected pages if Python later reuses that object id.
     return (
-        id(scene),
+        id(scene.pages),
+        id(scene.barriers),
+        id(scene.connections),
+        id(scene.gates),
+        id(scene.gate_annotations),
+        id(scene.group_highlights),
+        id(scene.measurements),
+        id(scene.controls),
+        id(scene.swaps),
         tuple(
             (
                 page.index,

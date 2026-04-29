@@ -13,6 +13,7 @@ from matplotlib.figure import Figure
 
 from .._interactive_logging import ensure_interactive_log_session
 from .._logging import InteractionSource, InteractiveLogSession, log_interaction
+from ..managed.interaction import install_managed_default_key_handler_filter
 from ..managed.shortcut_help import (
     create_shortcut_help_button,
     create_shortcut_help_text,
@@ -757,6 +758,10 @@ def _attach_histogram_key_shortcuts(state: HistogramInteractiveState) -> None:
         return
     if state.key_callback_id is not None:
         canvas.mpl_disconnect(state.key_callback_id)
+    install_managed_default_key_handler_filter(
+        canvas,
+        blocked_keys={"left", "right"},
+    )
 
     def _handle_key(event: KeyEvent) -> None:
         if state.marginal_text_box is not None and bool(
