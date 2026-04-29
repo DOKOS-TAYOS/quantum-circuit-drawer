@@ -276,6 +276,29 @@ def test_public_api_utilities_showcase_script_exports_companion_files(
     assert f"Saved public-api-utilities-showcase to {output_path}" in result.stdout
 
 
+@pytest.mark.integration
+def test_logging_showcase_script_reports_programmatic_capture() -> None:
+    script_path = repo_root_for(Path(__file__)) / "examples" / "logging_showcase.py"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--no-show",
+            "--profile",
+            "summary",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Logging configured with profile=summary" in result.stdout
+    assert "Captured " in result.stdout
+    assert "First event=" in result.stdout
+
+
 @pytest.mark.optional
 @pytest.mark.integration
 def test_qiskit_2d_exploration_showcase_script_can_render_directly(

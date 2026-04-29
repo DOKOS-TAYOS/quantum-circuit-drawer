@@ -22,9 +22,11 @@ from quantum_circuit_drawer import (  # noqa: E402
     HistogramConfig,
     HistogramMode,
     HistogramViewOptions,
+    LogCapture,
     LogFormat,
     LogProfile,
     OutputOptions,
+    capture_logs,
     configure_logging,
     draw_quantum_circuit,
     plot_histogram,
@@ -74,31 +76,36 @@ def main() -> None:
     draw_result = None
     histogram_result = None
     try:
-        draw_result = draw_quantum_circuit(
-            circuit,
-            config=DrawConfig(
-                side=DrawSideConfig(
-                    render=CircuitRenderOptions(
-                        mode=DrawMode.PAGES_CONTROLS,
-                        view="2d",
-                    )
+        with capture_logs(
+            level=args.level,
+            profile=args.profile,
+        ) as capture:
+            draw_result = draw_quantum_circuit(
+                circuit,
+                config=DrawConfig(
+                    side=DrawSideConfig(
+                        render=CircuitRenderOptions(
+                            mode=DrawMode.PAGES_CONTROLS,
+                            view="2d",
+                        )
+                    ),
+                    output=OutputOptions(
+                        show=args.show,
+                        figsize=DEFAULT_CIRCUIT_FIGSIZE,
+                    ),
                 ),
-                output=OutputOptions(
-                    show=args.show,
-                    figsize=DEFAULT_CIRCUIT_FIGSIZE,
+            )
+            histogram_result = plot_histogram(
+                build_counts(bit_width=args.histogram_bits),
+                config=HistogramConfig(
+                    view=HistogramViewOptions(mode=HistogramMode.INTERACTIVE),
+                    output=OutputOptions(
+                        show=args.show,
+                        figsize=DEFAULT_HISTOGRAM_FIGSIZE,
+                    ),
                 ),
-            ),
-        )
-        histogram_result = plot_histogram(
-            build_counts(bit_width=args.histogram_bits),
-            config=HistogramConfig(
-                view=HistogramViewOptions(mode=HistogramMode.INTERACTIVE),
-                output=OutputOptions(
-                    show=args.show,
-                    figsize=DEFAULT_HISTOGRAM_FIGSIZE,
-                ),
-            ),
-        )
+            )
+        _print_capture_summary(capture)
         if args.show:
             print(
                 "Interact with the circuit and histogram windows to see "
@@ -114,6 +121,21 @@ def main() -> None:
             release_rendered_result(draw_result)
         if histogram_result is not None:
             release_rendered_result(histogram_result)
+
+
+def _print_capture_summary(capture: LogCapture) -> None:
+    entry_count = len(capture.entries)
+    record_count = len(capture.records)
+    if not capture.entries:
+        print(f"Captured {record_count} raw record(s) and 0 structured event(s).")
+        return
+    first_entry = capture.entries[0]
+    print(
+        f"Captured {record_count} raw record(s) and {entry_count} structured event(s). "
+        f"First event={first_entry.event}, request_id={first_entry.request_id}."
+    )
+    first_payload = capture.to_dicts()[0]
+    print("First structured payload keys: " + ", ".join(sorted(first_payload.keys())))
 
 
 def _parse_args() -> Namespace:

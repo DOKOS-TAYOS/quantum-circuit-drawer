@@ -7,10 +7,10 @@ import logging as stdlib_logging
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from os import PathLike
 from time import perf_counter
-from typing import TextIO
+from typing import TextIO, cast
 from uuid import uuid4
 
 from ._compat import StrEnum
@@ -54,6 +54,79 @@ class LogProfile(StrEnum):
     SUMMARY = "summary"
     DETAIL = "detail"
     INTERACTIVE = "interactive"
+
+
+@dataclass(frozen=True, slots=True)
+class CapturedLogEntry:
+    """Stable JSON-friendly representation of one structured package log event."""
+
+    event: str
+    level: str
+    logger: str
+    message: str
+    timestamp: str
+    request_id: str | None = None
+    api: str | None = None
+    view: str | None = None
+    mode: str | None = None
+    framework: str | None = None
+    backend: str | None = None
+    scope: str | None = None
+    session_id: str | None = None
+    surface: str | None = None
+    fields: Mapping[str, object] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return one stable JSON-ready dictionary for this structured event."""
+
+        return {
+            "event": self.event,
+            "level": self.level,
+            "logger": self.logger,
+            "message": self.message,
+            "timestamp": self.timestamp,
+            "request_id": self.request_id,
+            "api": self.api,
+            "view": self.view,
+            "mode": self.mode,
+            "framework": self.framework,
+            "backend": self.backend,
+            "scope": self.scope,
+            "session_id": self.session_id,
+            "surface": self.surface,
+            "fields": dict(self.fields),
+        }
+
+
+class LogCapture:
+    """In-memory capture result for one ``capture_logs(...)`` block."""
+
+    def __init__(self) -> None:
+        self._records: list[stdlib_logging.LogRecord] = []
+        self._entries: list[CapturedLogEntry] = []
+
+    @property
+    def records(self) -> tuple[stdlib_logging.LogRecord, ...]:
+        """Return raw captured log records, including manual non-structured logs."""
+
+        return tuple(self._records)
+
+    @property
+    def entries(self) -> tuple[CapturedLogEntry, ...]:
+        """Return only captured structured events with a valid ``event`` field."""
+
+        return tuple(self._entries)
+
+    def to_dicts(self) -> tuple[dict[str, object], ...]:
+        """Return stable JSON-ready dictionaries for captured structured events."""
+
+        return tuple(entry.to_dict() for entry in self._entries)
+
+    def _append_record(self, record: stdlib_logging.LogRecord) -> None:
+        self._records.append(record)
+        entry = _captured_log_entry_from_record(record)
+        if entry is not None:
+            self._entries.append(entry)
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,21 +190,7 @@ class _JsonLogFormatter(stdlib_logging.Formatter):
     """JSON formatter for machine-readable package logs."""
 
     def format(self, record: stdlib_logging.LogRecord) -> str:
-        payload = {
-            "event": getattr(record, "event", None),
-            **{field: getattr(record, field, None) for field in _CONTEXT_FIELDS},
-        }
-        payload.update(_custom_record_fields(record))
-        payload.update(
-            {
-                "timestamp": self.formatTime(record, datefmt="%Y-%m-%dT%H:%M:%S"),
-                "level": record.levelname,
-                "logger": record.name,
-                "message": record.getMessage(),
-            }
-        )
-        if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+        payload = _structured_record_payload(record)
         return json.dumps(payload, ensure_ascii=True, sort_keys=True)
 
 
@@ -155,6 +214,17 @@ class _LogProfileFilter(stdlib_logging.Filter):
         return event.startswith("api.") or event == "diagnostic.emitted" or event == "output.saved"
 
 
+class _LogCaptureHandler(stdlib_logging.Handler):
+    """Temporary handler that stores records in one ``LogCapture`` container."""
+
+    def __init__(self, capture: LogCapture) -> None:
+        super().__init__()
+        self._capture = capture
+
+    def emit(self, record: stdlib_logging.LogRecord) -> None:
+        self._capture._append_record(stdlib_logging.makeLogRecord(record.__dict__.copy()))
+
+
 def configure_logging(
     *,
     level: int | str = "INFO",
@@ -176,6 +246,33 @@ def configure_logging(
     logger.addHandler(handler)
     logger.setLevel(_normalize_log_level(level))
     return logger
+
+
+@contextmanager
+def capture_logs(
+    *,
+    level: int | str = "INFO",
+    profile: LogProfile | str = LogProfile.INTERACTIVE,
+    logger_name: str = _PACKAGE_LOGGER_NAME,
+) -> Iterator[LogCapture]:
+    """Temporarily capture package logs in memory without reconfiguring visible handlers."""
+
+    logger = stdlib_logging.getLogger(logger_name)
+    requested_level = _normalize_log_level(level)
+    handler = _LogCaptureHandler(LogCapture())
+    handler.setLevel(requested_level)
+    handler.addFilter(_LogProfileFilter(_normalize_log_profile(profile)))
+    original_logger_level = logger.level
+    restore_logger_level = logger.getEffectiveLevel() > requested_level
+    if restore_logger_level:
+        logger.setLevel(requested_level)
+    logger.addHandler(handler)
+    try:
+        yield handler._capture
+    finally:
+        logger.removeHandler(handler)
+        if restore_logger_level:
+            logger.setLevel(original_logger_level)
 
 
 def package_logger() -> stdlib_logging.Logger:
@@ -441,6 +538,54 @@ def _custom_record_fields(record: stdlib_logging.LogRecord) -> dict[str, object]
     }
 
 
+def _structured_record_payload(record: stdlib_logging.LogRecord) -> dict[str, object]:
+    custom_fields = _custom_record_fields(record)
+    custom_fields.pop("event", None)
+    for context_field in _CONTEXT_FIELDS:
+        custom_fields.pop(context_field, None)
+    if record.exc_info:
+        custom_fields["exception"] = stdlib_logging.Formatter().formatException(record.exc_info)
+    payload = {
+        "event": getattr(record, "event", None),
+        "level": record.levelname,
+        "logger": record.name,
+        "message": record.getMessage(),
+        "timestamp": stdlib_logging.Formatter().formatTime(
+            record,
+            datefmt="%Y-%m-%dT%H:%M:%S",
+        ),
+        **{field: getattr(record, field, None) for field in _CONTEXT_FIELDS},
+        "fields": custom_fields,
+    }
+    return payload
+
+
+def _captured_log_entry_from_record(
+    record: stdlib_logging.LogRecord,
+) -> CapturedLogEntry | None:
+    payload = _structured_record_payload(record)
+    event = payload.get("event")
+    if not isinstance(event, str) or not event:
+        return None
+    return CapturedLogEntry(
+        event=event,
+        level=str(payload["level"]),
+        logger=str(payload["logger"]),
+        message=str(payload["message"]),
+        timestamp=str(payload["timestamp"]),
+        request_id=_string_or_none(payload.get("request_id")),
+        api=_string_or_none(payload.get("api")),
+        view=_string_or_none(payload.get("view")),
+        mode=_string_or_none(payload.get("mode")),
+        framework=_string_or_none(payload.get("framework")),
+        backend=_string_or_none(payload.get("backend")),
+        scope=_string_or_none(payload.get("scope")),
+        session_id=_string_or_none(payload.get("session_id")),
+        surface=_string_or_none(payload.get("surface")),
+        fields=dict(cast("Mapping[str, object]", payload["fields"])),
+    )
+
+
 def _ordered_custom_record_fields(record: stdlib_logging.LogRecord) -> dict[str, object]:
     custom_fields = _custom_record_fields(record)
     ordered_fields: dict[str, object] = {}
@@ -490,14 +635,23 @@ def _normalize_interaction_source(value: InteractionSource | str) -> str:
     return str(_normalize_log_value(value))
 
 
+def _string_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
 package_logger()
 
 
 __all__ = [
+    "CapturedLogEntry",
     "InteractionSource",
     "InteractiveLogSession",
     "LogFormat",
+    "LogCapture",
     "LogProfile",
+    "capture_logs",
     "configure_logging",
     "create_interactive_log_session",
     "current_log_context",

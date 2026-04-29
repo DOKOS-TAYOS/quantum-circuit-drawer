@@ -35,7 +35,14 @@ from .exceptions import (
 )
 from .hover import HoverOptions
 from .latex import LatexBackend, LatexMode, LatexResult
-from .logging import LogFormat, LogProfile, configure_logging
+from .logging import (
+    CapturedLogEntry,
+    LogCapture,
+    LogFormat,
+    LogProfile,
+    capture_logs,
+    configure_logging,
+)
 from .presets import StylePreset
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
@@ -191,6 +198,7 @@ __all__ = [
     "CircuitBuilder",
     "CircuitAppearanceOptions",
     "CircuitAnalysisResult",
+    "CapturedLogEntry",
     "CircuitCompareConfig",
     "CircuitCompareMetrics",
     "CircuitCompareOptions",
@@ -226,6 +234,7 @@ __all__ = [
     "LatexMode",
     "LatexResult",
     "LayoutError",
+    "LogCapture",
     "LogFormat",
     "LogProfile",
     "OutputOptions",
@@ -242,6 +251,7 @@ __all__ = [
     "UnsupportedPolicy",
     "__version__",
     "analyze_quantum_circuit",
+    "capture_logs",
     "circuit_to_latex",
     "compare_circuits",
     "compare_histograms",

@@ -14,13 +14,16 @@ from matplotlib.figure import Figure
 import quantum_circuit_drawer
 import quantum_circuit_drawer.managed.rendering as managed_module
 from quantum_circuit_drawer import (
+    CapturedLogEntry,
     CircuitAppearanceOptions,
     CircuitRenderOptions,
     DrawConfig,
     DrawMode,
     DrawSideConfig,
+    LogCapture,
     OutputOptions,
     analyze_quantum_circuit,
+    capture_logs,
     circuit_to_latex,
     compare_circuits,
     compare_histograms,
@@ -34,7 +37,11 @@ from quantum_circuit_drawer._logging import (
 )
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.layout.engine import LayoutEngine
-from quantum_circuit_drawer.logging import LogFormat, LogProfile, configure_logging
+from quantum_circuit_drawer.logging import (
+    LogFormat,
+    LogProfile,
+    configure_logging,
+)
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_histogram_state,
@@ -106,6 +113,9 @@ def test_public_package_exports_logging_api() -> None:
     assert quantum_circuit_drawer.configure_logging is configure_logging
     assert quantum_circuit_drawer.LogFormat is LogFormat
     assert quantum_circuit_drawer.LogProfile is LogProfile
+    assert quantum_circuit_drawer.capture_logs is capture_logs
+    assert quantum_circuit_drawer.CapturedLogEntry is CapturedLogEntry
+    assert quantum_circuit_drawer.LogCapture is LogCapture
 
 
 def test_configure_logging_is_idempotent_and_writes_human_logs() -> None:
@@ -281,6 +291,251 @@ def test_configure_logging_profile_does_not_filter_manual_records_without_event(
     logger.info("manual message without event")
 
     assert "manual message without event" in stream.getvalue()
+
+
+def test_capture_logs_collects_structured_entries_and_preserves_manual_records() -> None:
+    logger_name = "quantum_circuit_drawer.tests.capture_basic"
+    logger = logging.getLogger(logger_name)
+
+    with capture_logs(level="DEBUG", logger_name=logger_name) as capture:
+        logger.info("manual message without event")
+        log_event(logger, logging.INFO, "api.start", "Starting draw.")
+
+    assert len(capture.records) == 2
+    assert len(capture.entries) == 1
+    assert capture.records[0].getMessage() == "manual message without event"
+    assert capture.entries[0].event == "api.start"
+    assert capture.entries[0].message == "Starting draw."
+    assert capture.to_dicts()[0]["event"] == "api.start"
+
+
+def test_capture_logs_summary_profile_filters_internal_and_interactive_info() -> None:
+    logger_name = "quantum_circuit_drawer.tests.capture_summary"
+    logger = logging.getLogger(logger_name)
+
+    with capture_logs(
+        level="DEBUG",
+        profile=LogProfile.SUMMARY,
+        logger_name=logger_name,
+    ) as capture:
+        log_event(logger, logging.INFO, "api.start", "Starting draw.")
+        log_event(logger, logging.INFO, "runtime.resolved", "Resolved runtime.")
+        log_event(logger, logging.INFO, "diagnostic.emitted", "Emitted diagnostic.")
+        log_event(logger, logging.INFO, "output.saved", "Saved output.")
+        log_event(logger, logging.INFO, "interactive.help_toggled", "Toggled help.")
+        log_event(
+            logger,
+            logging.WARNING,
+            "interactive.input.invalid",
+            "Invalid interactive input.",
+        )
+
+    events = [entry.event for entry in capture.entries]
+
+    assert "api.start" in events
+    assert "diagnostic.emitted" in events
+    assert "output.saved" in events
+    assert "runtime.resolved" not in events
+    assert "interactive.help_toggled" not in events
+    assert "interactive.input.invalid" in events
+
+
+def test_capture_logs_detail_profile_filters_interactive_info_only() -> None:
+    logger_name = "quantum_circuit_drawer.tests.capture_detail"
+    logger = logging.getLogger(logger_name)
+
+    with capture_logs(
+        level="DEBUG",
+        profile=LogProfile.DETAIL,
+        logger_name=logger_name,
+    ) as capture:
+        log_event(logger, logging.INFO, "runtime.resolved", "Resolved runtime.")
+        log_event(logger, logging.INFO, "layout.completed", "Completed layout.")
+        log_event(logger, logging.INFO, "interactive.help_toggled", "Toggled help.")
+        log_event(
+            logger,
+            logging.WARNING,
+            "interactive.input.invalid",
+            "Invalid interactive input.",
+        )
+
+    events = [entry.event for entry in capture.entries]
+
+    assert "runtime.resolved" in events
+    assert "layout.completed" in events
+    assert "interactive.help_toggled" not in events
+    assert "interactive.input.invalid" in events
+
+
+def test_capture_logs_exposes_stable_entry_shape_for_interactive_events() -> None:
+    logger_name = "quantum_circuit_drawer.tests.capture_interactive"
+    logger = logging.getLogger(logger_name)
+    session = create_interactive_log_session(
+        surface="histogram",
+        request_id="req-1",
+        session_id="sess-1",
+        api="plot_histogram",
+        scope="left",
+    )
+
+    with capture_logs(level="DEBUG", logger_name=logger_name) as capture:
+        log_interaction(
+            logger,
+            logging.INFO,
+            "interactive.sort.changed",
+            "Changed histogram sort.",
+            session=session,
+            source="button",
+            before="binary_asc",
+            after="value_desc",
+        )
+
+    assert len(capture.entries) == 1
+    entry = capture.entries[0]
+    payload = entry.to_dict()
+
+    assert entry.event == "interactive.sort.changed"
+    assert entry.request_id == "req-1"
+    assert entry.session_id == "sess-1"
+    assert entry.api == "plot_histogram"
+    assert entry.scope == "left"
+    assert entry.surface == "histogram"
+    assert entry.fields["interaction_source"] == "button"
+    assert payload["fields"]["interaction_source"] == "button"
+    assert payload["surface"] == "histogram"
+
+
+def test_capture_logs_json_payload_matches_json_formatter_output() -> None:
+    stream = io.StringIO()
+    logger_name = "quantum_circuit_drawer.tests.capture_json_equivalence"
+    logger = configure_logging(
+        level="INFO",
+        format=LogFormat.JSON,
+        stream=stream,
+        logger_name=logger_name,
+    )
+
+    with capture_logs(level="INFO", logger_name=logger_name) as capture:
+        log_event(
+            logger,
+            logging.INFO,
+            "api.completed",
+            "Completed draw.",
+            duration_ms=12.5,
+            page_count=2,
+        )
+
+    json_payload = json.loads(stream.getvalue().strip())
+
+    assert capture.to_dicts() == (json_payload,)
+
+
+def test_capture_logs_can_coexist_with_configure_logging_without_duplicates() -> None:
+    stream = io.StringIO()
+    logger_name = "quantum_circuit_drawer.tests.capture_with_visible_logging"
+    logger = configure_logging(
+        level="INFO",
+        profile=LogProfile.DETAIL,
+        stream=stream,
+        logger_name=logger_name,
+    )
+
+    with capture_logs(level="INFO", logger_name=logger_name) as capture:
+        log_event(logger, logging.INFO, "api.start", "Starting draw.")
+
+    output_lines = [line for line in stream.getvalue().splitlines() if line.strip()]
+
+    assert len(capture.entries) == 1
+    assert capture.entries[0].event == "api.start"
+    assert len(output_lines) == 1
+
+
+def test_capture_logs_with_draw_quantum_circuit_keeps_shared_request_id() -> None:
+    with capture_logs(level="DEBUG") as capture:
+        result = draw_quantum_circuit(
+            build_sample_ir(),
+            config=DrawConfig(output=OutputOptions(show=False)),
+        )
+
+    request_ids = {entry.request_id for entry in capture.entries}
+    events = {entry.event for entry in capture.entries}
+
+    assert {
+        "api.start",
+        "runtime.resolved",
+        "adapter.resolved",
+        "ir.resolved",
+        "layout.completed",
+        "render.completed",
+        "api.completed",
+    }.issubset(events)
+    assert len(request_ids) == 1
+    plt.close(result.primary_figure)
+
+
+def test_capture_logs_with_interactive_histogram_keeps_session_context() -> None:
+    with capture_logs(level="DEBUG") as capture:
+        result = plot_histogram(
+            _dense_histogram_counts(),
+            config=build_public_histogram_config(
+                mode="interactive",
+                show=False,
+                figsize=(8.0, 4.0),
+            ),
+        )
+        state = cast(object | None, get_histogram_state(result.figure))
+        assert state is not None
+        state.cycle_sort()
+        state.submit_marginal_text("0, bad")
+
+    interactive_entries = [
+        entry for entry in capture.entries if entry.event.startswith("interactive.")
+    ]
+
+    assert interactive_entries
+    assert len({entry.session_id for entry in interactive_entries}) == 1
+    assert all(entry.surface == "histogram" for entry in interactive_entries)
+    assert any(
+        entry.fields.get("interaction_source") == "programmatic" for entry in interactive_entries
+    )
+    plt.close(result.figure)
+
+
+def test_capture_logs_with_compare_circuits_preserves_scope() -> None:
+    config = build_public_compare_config(
+        show=False,
+        shared=DrawSideConfig(
+            render=CircuitRenderOptions(
+                mode=DrawMode.PAGES_CONTROLS,
+                view="2d",
+            ),
+            appearance=CircuitAppearanceOptions(
+                style={"max_page_width": 4.0},
+            ),
+        ),
+    )
+    with capture_logs(level="DEBUG") as capture:
+        result = compare_circuits(
+            build_dense_rotation_ir(layer_count=18, wire_count=4),
+            build_dense_rotation_ir(layer_count=18, wire_count=4),
+            config=config,
+        )
+        left_state = cast(object | None, get_page_window(result.side_results[0].primary_figure))
+        right_state = cast(object | None, get_page_window(result.side_results[1].primary_figure))
+        assert left_state is not None
+        assert right_state is not None
+        left_state.step_page(1)
+        right_state.step_page(1)
+
+    viewport_entries = [
+        entry for entry in capture.entries if entry.event == "interactive.viewport.changed"
+    ]
+
+    assert {entry.scope for entry in viewport_entries} >= {"left", "right"}
+    assert len({entry.request_id for entry in viewport_entries}) == 1
+    for side_result in result.side_results:
+        plt.close(side_result.primary_figure)
+    plt.close(result.figure)
 
 
 def test_draw_quantum_circuit_logs_structured_events_with_shared_request_id(

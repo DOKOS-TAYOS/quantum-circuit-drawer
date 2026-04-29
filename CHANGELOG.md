@@ -9,6 +9,7 @@
 - Added `quantum_circuit_drawer.logging.configure_logging(...)` plus `LogFormat`, and introduced request-scoped structured logging across draw, analysis, LaTeX, histogram, and comparison public APIs.
 - Added persistent structured logging for managed 2D/3D interactions and interactive histograms, with per-figure `session_id` correlation, `interaction_source` tagging, and normalized events for viewport, selection, topology, help, and histogram state changes.
 - Added `LogProfile` plus profile-based filtering for `configure_logging(...)`, with `summary`, `detail`, and `interactive` presets, refreshed logging docs, and a runnable `examples/logging_showcase.py`.
+- Added `capture_logs(...)`, `LogCapture`, and `CapturedLogEntry` for stable in-memory capture of structured logs, plus JSON-shape parity between programmatic capture and the JSON formatter.
 
 ### Changed
 
