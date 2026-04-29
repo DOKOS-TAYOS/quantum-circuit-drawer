@@ -706,10 +706,8 @@ def test_slider_expanded_block_keeps_group_highlight_without_selection() -> None
         assert all(
             gate.visual_state is SceneVisualState.DEFAULT for gate in page_slider.scene.gates
         )
-        assert any(
-            getattr(artist, "get_gid", lambda: None)() == "decomposition-group-highlight"
-            for artist in [*axes.patches, *axes.collections]
-        )
+        assert page_slider.scene.group_highlights
+        assert {highlight.column for highlight in page_slider.scene.group_highlights} == {0, 1}
     finally:
         plt.close(figure)
 

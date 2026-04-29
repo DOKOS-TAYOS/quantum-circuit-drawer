@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from ._compat import StrEnum
+from ._logging import (
+    duration_ms,
+    emit_render_diagnostics,
+    log_event,
+    logged_api_call,
+    push_log_context,
+)
 from .config import DrawConfig, DrawMode, DrawSideConfig, OutputOptions
 from .diagnostics import RenderDiagnostic
 from .ir.circuit import CircuitIR, LayerIR
@@ -20,6 +28,8 @@ from .result import diagnostics_to_dicts
 
 if TYPE_CHECKING:
     from .drawing.pipeline import PreparedDrawPipeline
+
+logger = logging.getLogger(__name__)
 
 
 class LatexBackend(StrEnum):
@@ -69,28 +79,46 @@ def circuit_to_latex(
 ) -> LatexResult:
     """Return LaTeX source for a supported 2D circuit input."""
 
-    normalized_backend = normalize_latex_backend(backend)
-    latex_mode = resolve_latex_mode(mode, config=config)
-    prepared_config = _latex_draw_config(config, mode=latex_mode)
-
     from .drawing.preparation import prepare_draw_call
 
-    prepared = prepare_draw_call(circuit, config=prepared_config, ax=None)
-    pipeline = prepared.pipeline
-    if normalized_backend is LatexBackend.QUANTIKZ:
-        pages = _quantikz_pages(pipeline, mode=latex_mode)
-    else:
-        pages = _tikz_pages(pipeline, mode=latex_mode)
-    source = _joined_pages(pages, mode=latex_mode)
-    return LatexResult(
-        source=source,
-        pages=pages,
-        backend=normalized_backend,
-        mode=latex_mode,
-        page_count=len(pages),
-        detected_framework=pipeline.detected_framework,
-        diagnostics=prepared.diagnostics,
-    )
+    with logged_api_call(logger, api="circuit_to_latex") as started_at:
+        normalized_backend = normalize_latex_backend(backend)
+        latex_mode = resolve_latex_mode(mode, config=config)
+        prepared_config = _latex_draw_config(config, mode=latex_mode)
+        prepared = prepare_draw_call(circuit, config=prepared_config, ax=None)
+        pipeline = prepared.pipeline
+        if normalized_backend is LatexBackend.QUANTIKZ:
+            pages = _quantikz_pages(pipeline, mode=latex_mode)
+        else:
+            pages = _tikz_pages(pipeline, mode=latex_mode)
+        source = _joined_pages(pages, mode=latex_mode)
+        with push_log_context(
+            view=prepared.resolved_config.config.view,
+            mode=latex_mode.value,
+            framework=pipeline.detected_framework,
+            backend=normalized_backend.value,
+        ):
+            result = LatexResult(
+                source=source,
+                pages=pages,
+                backend=normalized_backend,
+                mode=latex_mode,
+                page_count=len(pages),
+                detected_framework=pipeline.detected_framework,
+                diagnostics=prepared.diagnostics,
+            )
+            emit_render_diagnostics(logger, result.diagnostics)
+            log_event(
+                logger,
+                logging.INFO,
+                "api.completed",
+                "Completed circuit_to_latex.",
+                duration_ms=duration_ms(started_at),
+                page_count=result.page_count,
+                detected_framework=result.detected_framework,
+                diagnostic_count=len(result.diagnostics),
+            )
+            return result
 
 
 def normalize_latex_backend(value: LatexBackend | str) -> LatexBackend:

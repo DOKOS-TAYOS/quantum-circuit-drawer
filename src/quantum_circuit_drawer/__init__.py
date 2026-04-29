@@ -35,6 +35,7 @@ from .exceptions import (
 )
 from .hover import HoverOptions
 from .latex import LatexBackend, LatexMode, LatexResult
+from .logging import LogFormat, configure_logging
 from .presets import StylePreset
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
@@ -225,6 +226,7 @@ __all__ = [
     "LatexMode",
     "LatexResult",
     "LayoutError",
+    "LogFormat",
     "OutputOptions",
     "PeriodicTopology1D",
     "PeriodicTopology2D",
@@ -242,6 +244,7 @@ __all__ = [
     "circuit_to_latex",
     "compare_circuits",
     "compare_histograms",
+    "configure_logging",
     "draw_quantum_circuit",
     "grid_topology",
     "honeycomb_topology",

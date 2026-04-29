@@ -123,7 +123,8 @@ def test_draw_quantum_circuit_adds_discrete_page_slider_for_wrapped_managed_figu
     horizontal_slider = page_slider.horizontal_slider
     assert horizontal_slider is not None
 
-    assert len(figure.axes) == 2
+    assert page_slider.help_button_axes is not None
+    assert len(figure.axes) == 3
     assert page_slider.vertical_slider is None
     assert page_slider.start_column == 0
     assert page_slider.wire_filter_button is None
@@ -262,7 +263,10 @@ def test_draw_quantum_circuit_saves_paged_figure_before_adding_continuous_slider
     assert axes.figure is figure
     assert_saved_image_has_visible_content(output)
     assert saved_axes_counts == [1]
-    assert len(figure.axes) == 2
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+    assert page_slider is not None
+    assert page_slider.help_button_axes is not None
+    assert len(figure.axes) == 3
     plt.close(figure)
 
 
@@ -719,7 +723,8 @@ def test_draw_quantum_circuit_adds_vertical_page_slider_for_tall_managed_figures
     )
     assert page_slider.vertical_slider.label.get_text() == ""
     assert page_slider.start_row == 0
-    assert len(figure.axes) == 6
+    assert page_slider.help_button_axes is not None
+    assert len(figure.axes) == 7
     assert page_slider.wire_filter_button is not None
     assert page_slider.ancilla_toggle_button is None
     assert page_slider.block_toggle_button is None
@@ -807,7 +812,8 @@ def test_draw_quantum_circuit_adds_horizontal_and_vertical_page_sliders_for_dens
     assert page_slider.visible_qubits_box is not None
     assert page_slider.visible_qubits_decrement_button is not None
     assert page_slider.visible_qubits_increment_button is not None
-    assert len(figure.axes) == 6
+    assert page_slider.help_button_axes is not None
+    assert len(figure.axes) == 7
     assert page_slider.wire_filter_button is None
     assert page_slider.ancilla_toggle_button is None
     assert page_slider.block_toggle_button is None

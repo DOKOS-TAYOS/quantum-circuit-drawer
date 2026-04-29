@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
+from .._logging import (
+    duration_ms,
+    emit_render_diagnostics,
+    log_event,
+    logged_api_call,
+    push_log_context,
+)
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..drawing.results import normalized_saved_path
 from ..drawing.runtime import (
@@ -53,6 +61,8 @@ from .histogram_render import (
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
+logger = logging.getLogger(__name__)
+
 
 def plot_histogram(
     data: object,
@@ -62,128 +72,168 @@ def plot_histogram(
 ) -> HistogramResult:
     """Plot a histogram from counts or quasi-probability data."""
 
-    resolved_config = config or HistogramConfig()
-    if ax is not None and resolved_config.figsize is not None:
-        raise ValueError("figsize cannot be used with ax")
-    runtime_context = detect_runtime_context()
-    resolved_mode = _resolve_histogram_mode(
-        resolved_config.mode,
-        runtime_context=runtime_context,
-        ax=ax,
-    )
-    diagnostics: list[RenderDiagnostic] = []
-    if resolved_config.mode is HistogramMode.AUTO:
-        diagnostics.append(
-            RenderDiagnostic(
-                code="auto_mode_resolved",
-                message=f"Resolved histogram mode {resolved_mode.value!r} from mode='auto'.",
-                severity=DiagnosticSeverity.INFO,
-            )
+    with logged_api_call(logger, api="plot_histogram") as started_at:
+        resolved_config = config or HistogramConfig()
+        if ax is not None and resolved_config.figsize is not None:
+            raise ValueError("figsize cannot be used with ax")
+        runtime_context = detect_runtime_context()
+        resolved_mode = _resolve_histogram_mode(
+            resolved_config.mode,
+            runtime_context=runtime_context,
+            ax=ax,
         )
-        if runtime_context.is_notebook and not runtime_context.notebook_backend_active:
-            diagnostics.append(
-                RenderDiagnostic(
-                    code="histogram_auto_mode_fallback_static",
-                    message=(
-                        "Fell back to static histogram mode because the notebook backend is not "
-                        "widget-interactive."
-                    ),
-                    severity=DiagnosticSeverity.INFO,
+        diagnostics: list[RenderDiagnostic] = []
+        with push_log_context(mode=resolved_mode.value, backend=runtime_context.pyplot_backend):
+            log_event(
+                logger,
+                logging.INFO,
+                "runtime.resolved",
+                "Resolved histogram runtime configuration.",
+                caller_axes=ax is not None,
+                notebook_backend_active=runtime_context.notebook_backend_active,
+            )
+            if resolved_config.mode is HistogramMode.AUTO:
+                diagnostics.append(
+                    RenderDiagnostic(
+                        code="auto_mode_resolved",
+                        message=f"Resolved histogram mode {resolved_mode.value!r} from mode='auto'.",
+                        severity=DiagnosticSeverity.INFO,
+                    )
+                )
+                if runtime_context.is_notebook and not runtime_context.notebook_backend_active:
+                    diagnostics.append(
+                        RenderDiagnostic(
+                            code="histogram_auto_mode_fallback_static",
+                            message=(
+                                "Fell back to static histogram mode because the notebook backend is not "
+                                "widget-interactive."
+                            ),
+                            severity=DiagnosticSeverity.INFO,
+                        )
+                    )
+            diagnostics.extend(
+                show_requested_without_interactive_backend_diagnostics(
+                    show=resolved_config.show,
+                    runtime_context=runtime_context,
+                    caller_axes=ax,
                 )
             )
-    diagnostics.extend(
-        show_requested_without_interactive_backend_diagnostics(
-            show=resolved_config.show,
-            runtime_context=runtime_context,
-            caller_axes=ax,
-        )
-    )
-    if (
-        resolved_mode is HistogramMode.INTERACTIVE
-        and runtime_context.is_notebook
-        and not runtime_context.notebook_backend_active
-    ):
-        raise ValueError(
-            "mode='interactive' requires a notebook widget backend such as nbagg, ipympl, or widget"
-        )
-    if ax is not None and resolved_mode is HistogramMode.INTERACTIVE:
-        raise ValueError(
-            "mode='interactive' requires a Matplotlib-managed figure and cannot be used with ax"
-        )
+            if (
+                resolved_mode is HistogramMode.INTERACTIVE
+                and runtime_context.is_notebook
+                and not runtime_context.notebook_backend_active
+            ):
+                raise ValueError(
+                    "mode='interactive' requires a notebook widget backend such as nbagg, ipympl, or widget"
+                )
+            if ax is not None and resolved_mode is HistogramMode.INTERACTIVE:
+                raise ValueError(
+                    "mode='interactive' requires a Matplotlib-managed figure and cannot be used with ax"
+                )
 
-    normalized = normalize_histogram_data(
-        data,
-        requested_kind=resolved_config.kind,
-        result_index=resolved_config.result_index,
-        data_key=resolved_config.data_key,
-    )
-    values_by_state = apply_joint_marginal(
-        normalized.values_by_state,
-        qubits=resolved_config.qubits,
-        bit_width=normalized.bit_width,
-    )
-    theme = resolve_theme(resolved_config.theme)
-    uniform_reference = uniform_reference_value(
-        values_by_state,
-        kind=normalized.kind,
-        bit_width=resolved_histogram_bit_width(
-            bit_width=normalized.bit_width,
-            qubits=resolved_config.qubits,
-        ),
-        show_uniform_reference=resolved_config.show_uniform_reference,
-    )
-    ordered_values_by_state = order_histogram_values(
-        values_by_state,
-        sort=resolved_config.sort,
-        top_k=resolved_config.top_k,
-    )
-    state_labels = tuple(ordered_values_by_state)
-    values = tuple(float(value) for value in ordered_values_by_state.values())
-    figure, axes = resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
+            normalized = normalize_histogram_data(
+                data,
+                requested_kind=resolved_config.kind,
+                result_index=resolved_config.result_index,
+                data_key=resolved_config.data_key,
+            )
+            values_by_state = apply_joint_marginal(
+                normalized.values_by_state,
+                qubits=resolved_config.qubits,
+                bit_width=normalized.bit_width,
+            )
+            theme = resolve_theme(resolved_config.theme)
+            uniform_reference = uniform_reference_value(
+                values_by_state,
+                kind=normalized.kind,
+                bit_width=resolved_histogram_bit_width(
+                    bit_width=normalized.bit_width,
+                    qubits=resolved_config.qubits,
+                ),
+                show_uniform_reference=resolved_config.show_uniform_reference,
+            )
+            ordered_values_by_state = order_histogram_values(
+                values_by_state,
+                sort=resolved_config.sort,
+                top_k=resolved_config.top_k,
+            )
+            state_labels = tuple(ordered_values_by_state)
+            values = tuple(float(value) for value in ordered_values_by_state.values())
+            figure, axes = resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
 
-    if resolved_mode is HistogramMode.INTERACTIVE:
-        from .histogram_interactive import attach_histogram_interactivity
+            if resolved_mode is HistogramMode.INTERACTIVE:
+                from .histogram_interactive import attach_histogram_interactivity
 
-        attach_histogram_interactivity(
-            figure=figure,
-            axes=axes,
-            values_by_state=normalized.values_by_state,
-            bit_width=normalized.bit_width,
-            kind=normalized.kind,
-            config=resolved_config,
-        )
-    else:
-        draw_histogram_axes(
-            figure=figure,
-            axes=axes,
-            state_labels=state_labels,
-            display_labels=display_labels_for_states(
-                state_labels,
-                mode=resolved_config.state_label_mode,
-            ),
-            values=values,
-            kind=normalized.kind,
-            theme=theme,
-            draw_style=resolved_config.draw_style,
-            uniform_reference_value=uniform_reference,
-            thin_xlabels=False,
-        )
-        save_histogram_if_requested(figure, output_path=resolved_config.output_path)
-    if resolved_config.show:
-        from ..renderers._render_support import show_figure_if_supported
+                attach_histogram_interactivity(
+                    figure=figure,
+                    axes=axes,
+                    values_by_state=normalized.values_by_state,
+                    bit_width=normalized.bit_width,
+                    kind=normalized.kind,
+                    config=resolved_config,
+                )
+            else:
+                draw_histogram_axes(
+                    figure=figure,
+                    axes=axes,
+                    state_labels=state_labels,
+                    display_labels=display_labels_for_states(
+                        state_labels,
+                        mode=resolved_config.state_label_mode,
+                    ),
+                    values=values,
+                    kind=normalized.kind,
+                    theme=theme,
+                    draw_style=resolved_config.draw_style,
+                    uniform_reference_value=uniform_reference,
+                    thin_xlabels=False,
+                )
+                save_histogram_if_requested(figure, output_path=resolved_config.output_path)
+            if resolved_config.show:
+                from ..renderers._render_support import show_figure_if_supported
 
-        show_figure_if_supported(figure, show=True)
+                show_figure_if_supported(figure, show=True)
 
-    return HistogramResult(
-        figure=figure,
-        axes=axes,
-        kind=normalized.kind,
-        state_labels=state_labels,
-        values=values,
-        qubits=resolved_config.qubits,
-        diagnostics=tuple(diagnostics),
-        saved_path=normalized_saved_path(resolved_config.output_path),
-    )
+            result = HistogramResult(
+                figure=figure,
+                axes=axes,
+                kind=normalized.kind,
+                state_labels=state_labels,
+                values=values,
+                qubits=resolved_config.qubits,
+                diagnostics=tuple(diagnostics),
+                saved_path=normalized_saved_path(resolved_config.output_path),
+            )
+            log_event(
+                logger,
+                logging.INFO,
+                "render.completed",
+                "Completed histogram rendering.",
+                histogram_kind=result.kind.value,
+                state_count=len(result.state_labels),
+                saved_path=result.saved_path,
+            )
+            emit_render_diagnostics(logger, result.diagnostics)
+            if result.saved_path is not None:
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "output.saved",
+                    "Saved histogram output.",
+                    output_path=result.saved_path,
+                )
+            log_event(
+                logger,
+                logging.INFO,
+                "api.completed",
+                "Completed plot_histogram.",
+                duration_ms=duration_ms(started_at),
+                histogram_kind=result.kind.value,
+                state_count=len(result.state_labels),
+                diagnostic_count=len(result.diagnostics),
+                saved_path=result.saved_path,
+            )
+            return result
 
 
 def compare_histograms(
@@ -195,109 +245,154 @@ def compare_histograms(
 ) -> HistogramCompareResult:
     """Overlay two or more histograms on the same bins and return aligned values."""
 
-    resolved_config = config or HistogramCompareConfig()
-    if ax is not None and resolved_config.figsize is not None:
-        raise ValueError("figsize cannot be used with ax")
-    runtime_context = detect_runtime_context()
-    diagnostics = list(
-        show_requested_without_interactive_backend_diagnostics(
-            show=resolved_config.show,
-            runtime_context=runtime_context,
-            caller_axes=ax,
+    with logged_api_call(logger, api="compare_histograms") as started_at:
+        resolved_config = config or HistogramCompareConfig()
+        if ax is not None and resolved_config.figsize is not None:
+            raise ValueError("figsize cannot be used with ax")
+        runtime_context = detect_runtime_context()
+        diagnostics = list(
+            show_requested_without_interactive_backend_diagnostics(
+                show=resolved_config.show,
+                runtime_context=runtime_context,
+                caller_axes=ax,
+            )
         )
-    )
+        with push_log_context(backend=runtime_context.pyplot_backend):
+            log_event(
+                logger,
+                logging.INFO,
+                "runtime.resolved",
+                "Resolved histogram comparison runtime configuration.",
+                caller_axes=ax is not None,
+                notebook_backend_active=runtime_context.notebook_backend_active,
+            )
+            data_series = (left_data, right_data, *additional_data)
+            series_labels = _resolve_compare_series_labels(
+                resolved_config,
+                series_count=len(data_series),
+            )
+            normalized_series = tuple(
+                normalize_histogram_data(
+                    data,
+                    requested_kind=resolved_config.kind,
+                    result_index=resolved_config.result_index,
+                    data_key=resolved_config.data_key,
+                )
+                for data in data_series
+            )
+            values_by_state_series = tuple(
+                apply_joint_marginal(
+                    normalized.values_by_state,
+                    qubits=resolved_config.qubits,
+                    bit_width=normalized.bit_width,
+                )
+                for normalized in normalized_series
+            )
+            comparison_kind = resolve_comparison_kind(
+                requested_kind=resolved_config.kind,
+                series_kinds=tuple(normalized.kind for normalized in normalized_series),
+            )
+            ordered_state_labels = ordered_comparison_state_labels(
+                values_by_state_series=values_by_state_series,
+                sort=resolved_config.sort,
+                top_k=resolved_config.top_k,
+            )
+            series_values = tuple(
+                tuple(
+                    float(values_by_state.get(state_label, 0.0))
+                    for state_label in ordered_state_labels
+                )
+                for values_by_state in values_by_state_series
+            )
+            left_values = series_values[0]
+            right_values = series_values[1]
+            delta_values = tuple(
+                float(left_value - right_value)
+                for left_value, right_value in zip(left_values, right_values, strict=True)
+            )
+            metrics = build_compare_metrics(delta_values)
 
-    data_series = (left_data, right_data, *additional_data)
-    series_labels = _resolve_compare_series_labels(
-        resolved_config,
-        series_count=len(data_series),
-    )
-    normalized_series = tuple(
-        normalize_histogram_data(
-            data,
-            requested_kind=resolved_config.kind,
-            result_index=resolved_config.result_index,
-            data_key=resolved_config.data_key,
-        )
-        for data in data_series
-    )
-    values_by_state_series = tuple(
-        apply_joint_marginal(
-            normalized.values_by_state,
-            qubits=resolved_config.qubits,
-            bit_width=normalized.bit_width,
-        )
-        for normalized in normalized_series
-    )
-    comparison_kind = resolve_comparison_kind(
-        requested_kind=resolved_config.kind,
-        series_kinds=tuple(normalized.kind for normalized in normalized_series),
-    )
-    ordered_state_labels = ordered_comparison_state_labels(
-        values_by_state_series=values_by_state_series,
-        sort=resolved_config.sort,
-        top_k=resolved_config.top_k,
-    )
-    series_values = tuple(
-        tuple(float(values_by_state.get(state_label, 0.0)) for state_label in ordered_state_labels)
-        for values_by_state in values_by_state_series
-    )
-    left_values = series_values[0]
-    right_values = series_values[1]
-    delta_values = tuple(
-        float(left_value - right_value)
-        for left_value, right_value in zip(left_values, right_values, strict=True)
-    )
-    metrics = build_compare_metrics(delta_values)
+            figure, axes = resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
+            theme = resolve_theme(resolved_config.theme)
+            artists = draw_histogram_compare_axes(
+                figure=figure,
+                axes=axes,
+                state_labels=ordered_state_labels,
+                series_values=series_values,
+                kind=comparison_kind,
+                theme=theme,
+                series_labels=series_labels,
+            )
+            if resolved_config.hover:
+                attach_histogram_compare_hover(
+                    axes,
+                    artists=artists,
+                    state_labels=ordered_state_labels,
+                    series_values=series_values,
+                    kind=comparison_kind,
+                    theme=theme,
+                    series_labels=series_labels,
+                )
+            attach_histogram_compare_legend_toggle(
+                axes,
+                artists=artists,
+                series_values=series_values,
+                kind=comparison_kind,
+            )
+            save_histogram_if_requested(figure, output_path=resolved_config.output_path)
+            if resolved_config.show:
+                from ..renderers._render_support import show_figure_if_supported
 
-    figure, axes = resolve_figure_and_axes(ax=ax, figsize=resolved_config.figsize)
-    theme = resolve_theme(resolved_config.theme)
-    artists = draw_histogram_compare_axes(
-        figure=figure,
-        axes=axes,
-        state_labels=ordered_state_labels,
-        series_values=series_values,
-        kind=comparison_kind,
-        theme=theme,
-        series_labels=series_labels,
-    )
-    if resolved_config.hover:
-        attach_histogram_compare_hover(
-            axes,
-            artists=artists,
-            state_labels=ordered_state_labels,
-            series_values=series_values,
-            kind=comparison_kind,
-            theme=theme,
-            series_labels=series_labels,
-        )
-    attach_histogram_compare_legend_toggle(
-        axes,
-        artists=artists,
-        series_values=series_values,
-        kind=comparison_kind,
-    )
-    save_histogram_if_requested(figure, output_path=resolved_config.output_path)
-    if resolved_config.show:
-        from ..renderers._render_support import show_figure_if_supported
+                show_figure_if_supported(figure, show=True)
 
-        show_figure_if_supported(figure, show=True)
-
-    return HistogramCompareResult(
-        figure=figure,
-        axes=axes,
-        kind=comparison_kind,
-        state_labels=ordered_state_labels,
-        left_values=left_values,
-        right_values=right_values,
-        delta_values=delta_values,
-        metrics=metrics,
-        qubits=resolved_config.qubits,
-        series_labels=series_labels,
-        series_values=series_values,
-        diagnostics=tuple(diagnostics),
-        saved_path=normalized_saved_path(resolved_config.output_path),
-    )
+            result = HistogramCompareResult(
+                figure=figure,
+                axes=axes,
+                kind=comparison_kind,
+                state_labels=ordered_state_labels,
+                left_values=left_values,
+                right_values=right_values,
+                delta_values=delta_values,
+                metrics=metrics,
+                qubits=resolved_config.qubits,
+                series_labels=series_labels,
+                series_values=series_values,
+                diagnostics=tuple(diagnostics),
+                saved_path=normalized_saved_path(resolved_config.output_path),
+            )
+            series_count = len(result.series_values or (result.left_values, result.right_values))
+            log_event(
+                logger,
+                logging.INFO,
+                "render.completed",
+                "Completed histogram comparison rendering.",
+                histogram_kind=result.kind.value,
+                state_count=len(result.state_labels),
+                series_count=series_count,
+                saved_path=result.saved_path,
+            )
+            emit_render_diagnostics(logger, result.diagnostics)
+            if result.saved_path is not None:
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "output.saved",
+                    "Saved histogram comparison output.",
+                    output_path=result.saved_path,
+                )
+            log_event(
+                logger,
+                logging.INFO,
+                "api.completed",
+                "Completed compare_histograms.",
+                duration_ms=duration_ms(started_at),
+                histogram_kind=result.kind.value,
+                state_count=len(result.state_labels),
+                series_count=series_count,
+                diagnostic_count=len(result.diagnostics),
+                saved_path=result.saved_path,
+            )
+            return result
 
 
 def _resolve_compare_series_labels(

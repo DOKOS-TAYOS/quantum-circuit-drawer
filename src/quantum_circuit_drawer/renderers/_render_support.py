@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from .._logging import log_event
 from ..export.figures import save_matplotlib_figure
 from ..typing import OutputPath
 
@@ -47,7 +48,14 @@ def close_figure_best_effort(
         )
         plt.close(root_figure)
     except Exception:
-        logger.warning("Failed best-effort cleanup for %s.", context, exc_info=True)
+        log_event(
+            logger,
+            logging.WARNING,
+            "cleanup.failed",
+            "Failed best-effort cleanup for %s.",
+            context,
+            exc_info=True,
+        )
 
 
 def show_figure_if_supported(figure: Figure | SubFigure, *, show: bool) -> None:

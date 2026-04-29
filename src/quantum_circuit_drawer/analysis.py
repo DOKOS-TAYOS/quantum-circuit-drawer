@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 
+from ._logging import (
+    duration_ms,
+    emit_render_diagnostics,
+    log_event,
+    logged_api_call,
+    push_log_context,
+)
 from .config import DrawConfig, DrawMode, OutputOptions
 from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 from .ir.circuit import CircuitIR
 from .ir.operations import OperationIR, OperationKind
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,32 +85,53 @@ def analyze_quantum_circuit(
 
     from .drawing.preparation import prepare_draw_call
 
-    prepared = prepare_draw_call(
-        circuit,
-        config=_without_rendered_output(config),
-        ax=None,
-    )
-    pipeline = prepared.pipeline
-    ir = pipeline.ir
-    operation_counts = _operation_counts(ir)
-    return CircuitAnalysisResult(
-        detected_framework=pipeline.detected_framework,
-        mode=prepared.resolved_config.mode,
-        view=prepared.resolved_config.config.view,
-        page_count=_analysis_page_count(pipeline.paged_scene),
-        quantum_wire_count=ir.quantum_wire_count,
-        classical_wire_count=ir.classical_wire_count,
-        total_wire_count=ir.total_wire_count,
-        layer_count=len(ir.layers),
-        operation_count=operation_counts.operation_count,
-        gate_count=operation_counts.gate_count,
-        controlled_gate_count=operation_counts.controlled_gate_count,
-        multi_qubit_operation_count=operation_counts.multi_qubit_operation_count,
-        measurement_count=operation_counts.measurement_count,
-        swap_count=operation_counts.swap_count,
-        barrier_count=operation_counts.barrier_count,
-        diagnostics=prepared.diagnostics,
-    )
+    with logged_api_call(logger, api="analyze_quantum_circuit") as started_at:
+        prepared = prepare_draw_call(
+            circuit,
+            config=_without_rendered_output(config),
+            ax=None,
+        )
+        pipeline = prepared.pipeline
+        ir = pipeline.ir
+        operation_counts = _operation_counts(ir)
+        with push_log_context(
+            view=prepared.resolved_config.config.view,
+            mode=prepared.resolved_config.mode.value,
+            framework=pipeline.detected_framework,
+            backend=prepared.resolved_config.config.backend,
+        ):
+            result = CircuitAnalysisResult(
+                detected_framework=pipeline.detected_framework,
+                mode=prepared.resolved_config.mode,
+                view=prepared.resolved_config.config.view,
+                page_count=_analysis_page_count(pipeline.paged_scene),
+                quantum_wire_count=ir.quantum_wire_count,
+                classical_wire_count=ir.classical_wire_count,
+                total_wire_count=ir.total_wire_count,
+                layer_count=len(ir.layers),
+                operation_count=operation_counts.operation_count,
+                gate_count=operation_counts.gate_count,
+                controlled_gate_count=operation_counts.controlled_gate_count,
+                multi_qubit_operation_count=operation_counts.multi_qubit_operation_count,
+                measurement_count=operation_counts.measurement_count,
+                swap_count=operation_counts.swap_count,
+                barrier_count=operation_counts.barrier_count,
+                diagnostics=prepared.diagnostics,
+            )
+            emit_render_diagnostics(logger, result.diagnostics)
+            log_event(
+                logger,
+                logging.INFO,
+                "api.completed",
+                "Completed analyze_quantum_circuit.",
+                duration_ms=duration_ms(started_at),
+                page_count=result.page_count,
+                detected_framework=result.detected_framework,
+                operation_count=result.operation_count,
+                layer_count=result.layer_count,
+                diagnostic_count=len(result.diagnostics),
+            )
+            return result
 
 
 @dataclass(frozen=True, slots=True)

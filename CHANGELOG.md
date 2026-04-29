@@ -6,6 +6,7 @@
 
 - Added `circuit_to_latex(...)` with `quantikz` and basic `tikzpicture` export backends, returning typed `LatexResult` objects for full-circuit and paged 2D LaTeX snippets.
 - Added a persistent circular `?` help button to the interactive histogram controls and managed circuit viewers so the same shortcut overlay opened by `?` is also reachable from the visible UI.
+- Added `quantum_circuit_drawer.logging.configure_logging(...)` plus `LogFormat`, and introduced request-scoped structured logging across draw, analysis, LaTeX, histogram, and comparison public APIs.
 
 ### Changed
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
+from .._logging import log_event, push_log_context
 from ..config import DrawConfig, DrawMode, ResolvedDrawConfig
 from ..diagnostics import RenderDiagnostic
 from ..managed.viewport import build_continuous_slider_scene
@@ -19,6 +21,7 @@ if TYPE_CHECKING:
     from ..typing import LayoutEngineLike
 
 INTERACTIVE_COMPARE_MODES = frozenset({DrawMode.SLIDER, DrawMode.PAGES_CONTROLS})
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +43,21 @@ def prepare_draw_call(
     """Resolve one public draw call into validated rendering inputs."""
 
     resolved_config = resolve_draw_config(config, ax=ax)
+    with push_log_context(
+        view=resolved_config.config.view,
+        mode=resolved_config.mode.value,
+        framework=resolved_config.config.framework,
+        backend=resolved_config.config.backend,
+    ):
+        log_event(
+            logger,
+            logging.INFO,
+            "runtime.resolved",
+            "Resolved draw runtime configuration.",
+            interactive_mode_allowed=resolved_config.interactive_mode_allowed,
+            notebook_backend_active=resolved_config.notebook_backend_active,
+            caller_axes=ax is not None,
+        )
     if not resolved_config.interactive_mode_allowed:
         raise ValueError(
             f"mode={resolved_config.mode.value!r} requires a notebook widget backend "
