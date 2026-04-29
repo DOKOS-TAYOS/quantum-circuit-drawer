@@ -33,6 +33,37 @@ The main entry points are:
 
 The package also installs the `qcd` command for quick image exports from the terminal.
 
+## Structured Logging For Debugging
+
+When a render resolves to an unexpected mode, a backend does not behave the way you thought, or a managed view seems to react oddly, the quickest next step is usually to enable structured logs:
+
+```python
+from quantum_circuit_drawer import LogProfile, configure_logging
+
+configure_logging(level="INFO", profile=LogProfile.DETAIL)
+```
+
+Use `level` and `profile` for different jobs:
+
+- `level` controls severity in the normal Python logging sense
+- `profile` controls which structured event families are visible
+
+The built-in profiles are:
+
+- `summary`: public API lifecycle, `diagnostic.emitted`, `output.saved`, and all warnings/errors
+- `detail`: everything in `summary` plus internal non-interactive events such as runtime resolution, adapter choice, IR lowering, layout, and render completion
+- `interactive`: everything in `detail` plus `interactive.*` events from managed 2D/3D views and interactive histograms
+
+For normal script debugging, start with `profile="summary"` or `profile="detail"` and `level="INFO"`.
+For interactive debugging, use `profile="interactive"` and `level="DEBUG"` so ignored actions or no-op transitions can also surface.
+
+The most useful correlation fields are:
+
+- `request_id`: one public API call, such as one `draw_quantum_circuit(...)` or `compare_circuits(...)`
+- `session_id`: one interactive figure session, so different managed figures from the same request can still be separated cleanly
+
+In comparisons, the logs also preserve `scope` such as `left`, `right`, or `extra[n]`, which makes it easier to tell which side produced a given event.
+
 ## Installation Choices
 
 The base package includes the Matplotlib renderer, framework-free IR support, circuit comparison, histogram plotting, and histogram comparison.

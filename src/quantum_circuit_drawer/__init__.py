@@ -35,7 +35,7 @@ from .exceptions import (
 )
 from .hover import HoverOptions
 from .latex import LatexBackend, LatexMode, LatexResult
-from .logging import LogFormat, configure_logging
+from .logging import LogFormat, LogProfile, configure_logging
 from .presets import StylePreset
 from .result import DrawResult
 from .style import DrawStyle, DrawTheme
@@ -227,6 +227,7 @@ __all__ = [
     "LatexResult",
     "LayoutError",
     "LogFormat",
+    "LogProfile",
     "OutputOptions",
     "PeriodicTopology1D",
     "PeriodicTopology2D",

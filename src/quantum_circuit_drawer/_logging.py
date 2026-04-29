@@ -17,6 +17,14 @@ from ._compat import StrEnum
 from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 
 _PACKAGE_LOGGER_NAME = "quantum_circuit_drawer"
+_HUMAN_CONTEXT_PRIORITY = (
+    "request_id",
+    "session_id",
+    "api",
+    "scope",
+    "surface",
+    "interaction_source",
+)
 _CONTEXT_FIELDS = (
     "request_id",
     "api",
@@ -38,6 +46,14 @@ class LogFormat(StrEnum):
 
     HUMAN = "human"
     JSON = "json"
+
+
+class LogProfile(StrEnum):
+    """Supported verbosity profiles for ``configure_logging``."""
+
+    SUMMARY = "summary"
+    DETAIL = "detail"
+    INTERACTIVE = "interactive"
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,11 +104,11 @@ class _HumanLogFormatter(stdlib_logging.Formatter):
 
         context_parts = [
             f"{field}={value}"
-            for field, value in _custom_record_fields(record).items()
+            for field, value in _ordered_custom_record_fields(record).items()
             if value is not None and field != "event"
         ]
         line = " ".join((*pieces, *context_parts, message))
-        if record.exc_info is not None:
+        if record.exc_info:
             return f"{line}\n{self.formatException(record.exc_info)}"
         return line
 
@@ -114,19 +130,40 @@ class _JsonLogFormatter(stdlib_logging.Formatter):
                 "message": record.getMessage(),
             }
         )
-        if record.exc_info is not None:
+        if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=True, sort_keys=True)
+
+
+class _LogProfileFilter(stdlib_logging.Filter):
+    """Filter structured package events according to one configured profile."""
+
+    def __init__(self, profile: LogProfile) -> None:
+        super().__init__()
+        self._profile = profile
+
+    def filter(self, record: stdlib_logging.LogRecord) -> bool:
+        if record.levelno >= stdlib_logging.WARNING:
+            return True
+        event = getattr(record, "event", None)
+        if not isinstance(event, str) or not event:
+            return True
+        if self._profile is LogProfile.INTERACTIVE:
+            return True
+        if self._profile is LogProfile.DETAIL:
+            return not event.startswith("interactive.")
+        return event.startswith("api.") or event == "diagnostic.emitted" or event == "output.saved"
 
 
 def configure_logging(
     *,
     level: int | str = "INFO",
     format: LogFormat | str = LogFormat.HUMAN,
+    profile: LogProfile | str = LogProfile.INTERACTIVE,
     stream: TextIO | None = None,
     logger_name: str = _PACKAGE_LOGGER_NAME,
 ) -> stdlib_logging.Logger:
-    """Configure one package logger with a single managed stream handler."""
+    """Configure one package logger with one managed stream handler and profile filter."""
 
     logger = stdlib_logging.getLogger(logger_name)
     _remove_managed_handlers(logger)
@@ -134,6 +171,7 @@ def configure_logging(
     handler = stdlib_logging.StreamHandler(stream)
     handler.setLevel(_normalize_log_level(level))
     handler.setFormatter(_formatter_for_format(format))
+    handler.addFilter(_LogProfileFilter(_normalize_log_profile(profile)))
     setattr(handler, "_quantum_circuit_drawer_handler_type", "configured")
     logger.addHandler(handler)
     logger.setLevel(_normalize_log_level(level))
@@ -376,6 +414,14 @@ def _normalize_log_format(value: LogFormat | str) -> LogFormat:
         raise ValueError(f"format must be one of: {choices}") from exc
 
 
+def _normalize_log_profile(value: LogProfile | str) -> LogProfile:
+    try:
+        return value if isinstance(value, LogProfile) else LogProfile(str(value).lower())
+    except ValueError as exc:
+        choices = ", ".join(item.value for item in LogProfile)
+        raise ValueError(f"profile must be one of: {choices}") from exc
+
+
 def _normalize_log_level(value: int | str) -> int:
     if isinstance(value, int):
         return value
@@ -393,6 +439,16 @@ def _custom_record_fields(record: stdlib_logging.LogRecord) -> dict[str, object]
         for key, value in record.__dict__.items()
         if key not in _STANDARD_RECORD_ATTRS and not key.startswith("_")
     }
+
+
+def _ordered_custom_record_fields(record: stdlib_logging.LogRecord) -> dict[str, object]:
+    custom_fields = _custom_record_fields(record)
+    ordered_fields: dict[str, object] = {}
+    for field_name in _HUMAN_CONTEXT_PRIORITY:
+        if field_name in custom_fields:
+            ordered_fields[field_name] = custom_fields.pop(field_name)
+    ordered_fields.update(custom_fields)
+    return ordered_fields
 
 
 def _normalize_log_value(value: object) -> object:
@@ -441,6 +497,7 @@ __all__ = [
     "InteractionSource",
     "InteractiveLogSession",
     "LogFormat",
+    "LogProfile",
     "configure_logging",
     "create_interactive_log_session",
     "current_log_context",

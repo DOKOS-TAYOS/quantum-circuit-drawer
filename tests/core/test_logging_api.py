@@ -27,9 +27,14 @@ from quantum_circuit_drawer import (
     draw_quantum_circuit,
     plot_histogram,
 )
+from quantum_circuit_drawer._logging import (
+    create_interactive_log_session,
+    log_event,
+    log_interaction,
+)
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.layout.engine import LayoutEngine
-from quantum_circuit_drawer.logging import LogFormat, configure_logging
+from quantum_circuit_drawer.logging import LogFormat, LogProfile, configure_logging
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
     get_histogram_state,
@@ -100,6 +105,7 @@ def _dense_histogram_counts(*, bit_width: int = 7) -> dict[str, int]:
 def test_public_package_exports_logging_api() -> None:
     assert quantum_circuit_drawer.configure_logging is configure_logging
     assert quantum_circuit_drawer.LogFormat is LogFormat
+    assert quantum_circuit_drawer.LogProfile is LogProfile
 
 
 def test_configure_logging_is_idempotent_and_writes_human_logs() -> None:
@@ -143,6 +149,138 @@ def test_configure_logging_writes_json_records() -> None:
     assert payload["logger"] == "quantum_circuit_drawer.tests.logging_json"
     assert payload["message"] == "json message"
     assert "event" in payload
+
+
+def test_configure_logging_rejects_invalid_profile() -> None:
+    with pytest.raises(ValueError, match="profile must be one of:"):
+        configure_logging(
+            profile="nope",
+            logger_name="quantum_circuit_drawer.tests.logging_invalid_profile",
+        )
+
+
+def test_configure_logging_summary_profile_filters_internal_and_interactive_info() -> None:
+    stream = io.StringIO()
+    logger = configure_logging(
+        level="DEBUG",
+        profile=LogProfile.SUMMARY,
+        stream=stream,
+        logger_name="quantum_circuit_drawer.tests.logging_summary",
+    )
+
+    log_event(logger, logging.INFO, "api.start", "Starting draw.")
+    log_event(logger, logging.INFO, "runtime.resolved", "Resolved runtime.")
+    log_event(logger, logging.INFO, "diagnostic.emitted", "Emitted diagnostic.")
+    log_event(logger, logging.INFO, "output.saved", "Saved output.")
+    log_event(
+        logger,
+        logging.INFO,
+        "interactive.help_toggled",
+        "Toggled help.",
+    )
+    log_event(
+        logger,
+        logging.WARNING,
+        "interactive.input.invalid",
+        "Invalid interactive input.",
+    )
+
+    output_lines = [line for line in stream.getvalue().splitlines() if line.strip()]
+
+    assert any("[api.start]" in line for line in output_lines)
+    assert any("[diagnostic.emitted]" in line for line in output_lines)
+    assert any("[output.saved]" in line for line in output_lines)
+    assert not any("[runtime.resolved]" in line for line in output_lines)
+    assert not any("[interactive.help_toggled]" in line for line in output_lines)
+    assert any("[interactive.input.invalid]" in line for line in output_lines)
+
+
+def test_configure_logging_detail_profile_filters_interactive_info_only() -> None:
+    stream = io.StringIO()
+    logger = configure_logging(
+        level="DEBUG",
+        profile=LogProfile.DETAIL,
+        stream=stream,
+        logger_name="quantum_circuit_drawer.tests.logging_detail",
+    )
+
+    log_event(logger, logging.INFO, "runtime.resolved", "Resolved runtime.")
+    log_event(logger, logging.INFO, "layout.completed", "Completed layout.")
+    log_event(
+        logger,
+        logging.INFO,
+        "interactive.help_toggled",
+        "Toggled help.",
+    )
+    log_event(
+        logger,
+        logging.WARNING,
+        "interactive.input.invalid",
+        "Invalid interactive input.",
+    )
+
+    output_lines = [line for line in stream.getvalue().splitlines() if line.strip()]
+
+    assert any("[runtime.resolved]" in line for line in output_lines)
+    assert any("[layout.completed]" in line for line in output_lines)
+    assert not any("[interactive.help_toggled]" in line for line in output_lines)
+    assert any("[interactive.input.invalid]" in line for line in output_lines)
+
+
+def test_configure_logging_defaults_to_interactive_profile_and_keeps_context_order() -> None:
+    stream = io.StringIO()
+    logger = configure_logging(
+        level="DEBUG",
+        stream=stream,
+        logger_name="quantum_circuit_drawer.tests.logging_interactive",
+    )
+    session = create_interactive_log_session(
+        surface="histogram",
+        request_id="req-1",
+        session_id="sess-1",
+        api="plot_histogram",
+        scope="left",
+    )
+
+    log_interaction(
+        logger,
+        logging.INFO,
+        "interactive.sort.changed",
+        "Changed histogram sort.",
+        session=session,
+        source="button",
+        before="binary_asc",
+        after="value_desc",
+    )
+
+    output_line = stream.getvalue().strip()
+
+    assert "[interactive.sort.changed]" in output_line
+    assert "request_id=req-1" in output_line
+    assert "session_id=sess-1" in output_line
+    assert "api=plot_histogram" in output_line
+    assert "scope=left" in output_line
+    assert "surface=histogram" in output_line
+    assert "interaction_source=button" in output_line
+    assert output_line.index("request_id=req-1") < output_line.index("session_id=sess-1")
+    assert output_line.index("session_id=sess-1") < output_line.index("api=plot_histogram")
+    assert output_line.index("api=plot_histogram") < output_line.index("scope=left")
+    assert output_line.index("scope=left") < output_line.index("surface=histogram")
+    assert output_line.index("surface=histogram") < output_line.index("interaction_source=button")
+
+
+def test_configure_logging_profile_does_not_filter_manual_records_without_event() -> None:
+    stream = io.StringIO()
+    logger = configure_logging(
+        level="INFO",
+        profile=LogProfile.SUMMARY,
+        stream=stream,
+        logger_name="quantum_circuit_drawer.tests.logging_manual",
+    )
+
+    logger.info("manual message without event")
+
+    assert "manual message without event" in stream.getvalue()
 
 
 def test_draw_quantum_circuit_logs_structured_events_with_shared_request_id(

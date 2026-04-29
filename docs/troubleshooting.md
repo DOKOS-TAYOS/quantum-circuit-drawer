@@ -3,6 +3,16 @@
 This page is organized by symptom so you can get to the likely fix quickly.
 For broader usage context before debugging a specific symptom, see the [Extended guide](extended_guide.md).
 
+Before diving into a harder rendering or interactivity problem, it is often worth turning on structured logs once:
+
+```python
+from quantum_circuit_drawer import LogProfile, configure_logging
+
+configure_logging(level="INFO", profile=LogProfile.DETAIL)
+```
+
+If the problem only appears while you interact with managed controls or histogram widgets, switch to `profile="interactive"` and `level="DEBUG"` so `interactive.*` events become visible too.
+
 ## Optional framework import fails
 
 Typical symptoms:

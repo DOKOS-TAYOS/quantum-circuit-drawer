@@ -17,6 +17,7 @@ The direct utility demos are the best copy-paste examples when you want to use r
 If you want one file to open and adapt, start with a direct script:
 
 - `examples/public_api_utilities_showcase.py`: draw, analyze, save extra pages, export histogram CSV, and export `quantikz` LaTeX from one small workflow.
+- `examples/logging_showcase.py`: turn on `configure_logging(...)`, compare `summary` / `detail` / `interactive`, and use one small circuit plus one histogram workflow.
 - `examples/ir_basic_workflow.py`: build a circuit with the public IR only, with no external quantum framework.
 - `examples/histogram_top_k.py`: start from plain counts and tune how the histogram is ordered and filtered.
 - `examples/compare_histograms_ideal_vs_sampled.py`: compare two result distributions with the smallest possible compare script.
@@ -33,6 +34,7 @@ If you want one file to open and adapt, start with a direct script:
 | `openqasm-showcase`                   | OpenQASM text input through the Qiskit parser path                                                                          | Windows and Linux            |
 | `ir-basic-workflow`                   | Framework-free example built directly from `CircuitIR`                                                                     | Windows and Linux            |
 | `public-api-utilities-showcase`       | `analyze_quantum_circuit`, result metadata, page exports, histogram CSV export, and `circuit_to_latex(...)`                 | Windows and Linux            |
+| `logging-showcase`                    | Structured logging profiles for summary, detail, and interactive debugging                                                 | Windows and Linux            |
 | `caller-managed-axes-showcase`        | Caller-managed axes for circuit, histogram, and circuit comparison panels                                                   | Windows and Linux            |
 | `style-accessible-showcase`           | The shared `accessible` preset on circuit and histogram output                                                              | Windows and Linux            |
 | `diagnostics-showcase`                | Diagnostics, warnings, `to_dict()`, and non-rendering analysis                                                              | Windows and Linux            |
@@ -79,6 +81,7 @@ This block avoids CUDA-Q and the Cirq/PennyLane demos that are documented as les
 .\.venv\Scripts\python.exe examples\qiskit_3d_exploration_showcase.py
 .\.venv\Scripts\python.exe examples\ir_basic_workflow.py
 .\.venv\Scripts\python.exe examples\public_api_utilities_showcase.py
+.\.venv\Scripts\python.exe examples\logging_showcase.py --profile detail --no-show
 .\.venv\Scripts\python.exe examples\caller_managed_axes_showcase.py
 .\.venv\Scripts\python.exe examples\style_accessible_showcase.py
 .\.venv\Scripts\python.exe examples\diagnostics_showcase.py
@@ -122,6 +125,7 @@ This block includes the full curated catalog.
 .venv/bin/python examples/qiskit_3d_exploration_showcase.py
 .venv/bin/python examples/ir_basic_workflow.py
 .venv/bin/python examples/public_api_utilities_showcase.py
+.venv/bin/python examples/logging_showcase.py --profile detail --no-show
 .venv/bin/python examples/caller_managed_axes_showcase.py
 .venv/bin/python examples/style_accessible_showcase.py
 .venv/bin/python examples/diagnostics_showcase.py
