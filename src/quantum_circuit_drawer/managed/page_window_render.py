@@ -17,6 +17,7 @@ from ..renderers.matplotlib_primitives import (
     prepare_axes,
     trim_gate_text_fit_cache,
 )
+from ..typing import UseMathTextMode
 from .page_window_windowing import (
     _project_page,
     _visible_page_indexes,
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
     from ..renderers.matplotlib_primitives import _PreparedGateText
     from .page_window import Managed2DPageWindowState
 
-_PreparedGateTextCacheKey = tuple[object, str, str | None, bool]
+_PreparedGateTextCacheKey = tuple[object, str, str | None, UseMathTextMode]
 
 
 def _render_current_window(state: Managed2DPageWindowState) -> None:

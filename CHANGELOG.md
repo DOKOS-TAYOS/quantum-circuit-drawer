@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Fixed the CUDA-Q random example builder so it again accepts the shared `ExampleRequest` shape used by the example harness and Linux integration smoke test, while also tightening several internal type annotations that had been breaking the `mypy` job around hover normalization, structured logging, managed slider helpers, Matplotlib text caching, and LaTeX export helpers.
 - Fixed managed keyboard navigation so the 2D slider, 2D/3D page-window modes, 3D slider, and interactive histogram now keep their `Left` / `Right` / `Home` shortcuts for circuit or histogram navigation without also triggering Matplotlib toolbar history actions, avoiding erratic back/forward jumps in interactive desktop windows.
 - Fixed the managed 2D slider redraw cache so revisiting earlier windows in dense circuits no longer reuses a stale projected page with the same page metadata, which had made the slider show the wrong columns after mixed left/right navigation or dragging.
 - Fixed the managed 2D exploration slider so dense Qiskit showcase circuits now snap the horizontal slider to distinct visible windows instead of walking every raw internal column, avoiding sticky-feeling regions where dragging appeared to move the wrong content.

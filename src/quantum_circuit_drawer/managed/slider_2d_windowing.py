@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from ..ir.circuit import CircuitIR
 from ..layout.scene import (
     LayoutScene,
     SceneBarrier,
@@ -19,6 +20,7 @@ from ..layout.scene import (
     SceneWireFoldMarker,
 )
 from ..style import DrawStyle
+from ..typing import LayoutEngineLike
 
 if TYPE_CHECKING:
     from .slider_2d import Managed2DPageSliderState
@@ -26,12 +28,23 @@ if TYPE_CHECKING:
 _VIEWPORT_EPSILON = 1e-6
 
 
-def build_continuous_slider_scene(*args: object, **kwargs: object) -> LayoutScene:
+def build_continuous_slider_scene(
+    circuit: CircuitIR,
+    layout_engine: LayoutEngineLike,
+    style: DrawStyle,
+    *,
+    hover_enabled: bool = True,
+) -> LayoutScene:
     """Compatibility proxy kept for tests that instrument the old call site."""
 
     from .viewport import build_continuous_slider_scene as _build_continuous_slider_scene
 
-    return _build_continuous_slider_scene(*args, **kwargs)
+    return _build_continuous_slider_scene(
+        circuit,
+        layout_engine,
+        style,
+        hover_enabled=hover_enabled,
+    )
 
 
 def _scene_for_current_window(state: Managed2DPageSliderState) -> LayoutScene:

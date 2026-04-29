@@ -26,6 +26,7 @@ from ..renderers._matplotlib_figure import (
     get_topology_menu_state,
 )
 from ..style import DrawStyle
+from ..topology import is_builtin_topology
 from ..typing import LayoutEngine3DLike
 from .controls import (
     _style_control_axes,
@@ -169,6 +170,8 @@ class Managed3DPageSliderState:
         """Switch topology while keeping the current column window."""
 
         previous_topology = self.pipeline.draw_options.topology
+        if not is_builtin_topology(previous_topology):
+            raise ValueError("Managed 3D slider only supports built-in topologies.")
         updated_draw_options = replace(self.pipeline.draw_options, topology=topology)
         self.pipeline = replace(self.pipeline, draw_options=updated_draw_options)
         self.scene_cache.clear()
@@ -732,7 +735,7 @@ def _log_3d_slider_topology_change(
         else "Ignored unchanged managed 3D slider topology update.",
         session=session,
         source=source,
-        **payload,
+        fields=payload,
     )
 
 

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
+from numbers import Real
 from typing import TYPE_CHECKING
 
 from matplotlib.axes import Axes
@@ -1232,7 +1233,7 @@ def _log_2d_slider_interaction(
         message,
         session=session,
         source=source,
-        **payload,
+        fields=payload,
     )
 
 
@@ -1478,13 +1479,29 @@ def _needs_2d_control_rebuild(
         return True
     if (
         state.horizontal_slider is not None
-        and tuple(int(round(float(value))) for value in state.horizontal_slider.valstep or ())
+        and _normalized_slider_step_stops(state.horizontal_slider.valstep)
         != state.horizontal_slider_stops
     ):
         return True
 
     return state.vertical_slider is not None and state.vertical_slider.valmax != float(
         state.max_start_row
+    )
+
+
+def _normalized_slider_step_stops(values: object) -> tuple[int, ...]:
+    if values is None:
+        return ()
+    if isinstance(values, Real) and not isinstance(values, bool):
+        return (int(round(float(values))),)
+    if isinstance(values, str | bytes):
+        return ()
+    if not isinstance(values, Iterable):
+        return ()
+    return tuple(
+        int(round(float(value)))
+        for value in values
+        if isinstance(value, Real) and not isinstance(value, bool)
     )
 
 

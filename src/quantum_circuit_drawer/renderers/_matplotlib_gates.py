@@ -27,6 +27,7 @@ from ..style import (
     resolved_gate_edge_line_width,
     resolved_measurement_line_width,
 )
+from ..typing import UseMathTextMode
 from ..utils.formatting import format_gate_text_block, format_visible_label
 from ._matplotlib_axes import (
     OCCLUSION_LAYER_ZORDER,
@@ -67,7 +68,11 @@ class _PreparedGateText:
     is_stacked: bool
 
 
-def _prepared_gate_text(gate: SceneGate, *, use_mathtext: bool) -> _PreparedGateText | None:
+def _prepared_gate_text(
+    gate: SceneGate,
+    *,
+    use_mathtext: UseMathTextMode,
+) -> _PreparedGateText | None:
     if gate.render_style is GateRenderStyle.X_TARGET:
         return None
     if gate.subtitle:

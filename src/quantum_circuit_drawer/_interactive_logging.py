@@ -44,7 +44,7 @@ def ensure_interactive_log_session(
             "Started interactive session.",
             session=session,
             source=source,
-            **fields,
+            fields=fields,
         )
         return session
 

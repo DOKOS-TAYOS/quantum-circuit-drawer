@@ -70,6 +70,11 @@ class HoverOptions:
         }
 
 
+def _validated_hover_bool(name: str, value: object) -> bool:
+    _validate_bool(name, value)
+    return cast("bool", value)
+
+
 def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverOptions:
     """Normalize hover input into a validated ``HoverOptions`` instance."""
 
@@ -89,8 +94,7 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
     for field_name in _BOOLEAN_HOVER_FIELDS:
         if field_name not in hover:
             continue
-        value = hover[field_name]
-        _validate_bool(f"hover.{field_name}", value)
+        value = _validated_hover_bool(f"hover.{field_name}", hover[field_name])
         if field_name == "enabled":
             resolved = replace(resolved, enabled=value)
         elif field_name == "show_name":
@@ -103,15 +107,15 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
             resolved = replace(resolved, show_qubits=value)
 
     if "show_matrix" in hover:
-        value = hover["show_matrix"]
-        _validate_choice("hover.show_matrix", value, _VALID_SHOW_MATRIX_VALUES)
-        resolved = replace(resolved, show_matrix=cast(HoverMatrixMode, value))
+        matrix_value = hover["show_matrix"]
+        _validate_choice("hover.show_matrix", matrix_value, _VALID_SHOW_MATRIX_VALUES)
+        resolved = replace(resolved, show_matrix=cast(HoverMatrixMode, matrix_value))
 
     if "matrix_max_qubits" in hover:
-        value = hover["matrix_max_qubits"]
-        if not _is_positive_integer(value):
+        max_qubits_value = hover["matrix_max_qubits"]
+        if not _is_positive_integer(max_qubits_value):
             raise ValueError("hover.matrix_max_qubits must be a positive integer")
-        resolved = replace(resolved, matrix_max_qubits=cast("int", value))
+        resolved = replace(resolved, matrix_max_qubits=cast("int", max_qubits_value))
 
     return resolved
 

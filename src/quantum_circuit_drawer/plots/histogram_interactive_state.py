@@ -837,7 +837,7 @@ def _log_histogram_interaction(
         message,
         session=session,
         source=source,
-        **payload,
+        fields=payload,
     )
 
 

@@ -9,6 +9,7 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.textpath import TextPath
 
 from .ui_palette import ManagedUiPalette
+from .viewport import _figure_size_inches
 
 if TYPE_CHECKING:
     from matplotlib.widgets import Button, Slider, TextBox
@@ -460,10 +461,10 @@ def _text_size_at_unit_font(
 
 
 def _axes_size_points(axes: Axes) -> tuple[float, float]:
-    figure = axes.figure
+    width_inches, height_inches = _figure_size_inches(axes.figure)
     bounds = axes.get_position().bounds
-    width_points = figure.get_figwidth() * 72.0 * bounds[2]
-    height_points = figure.get_figheight() * 72.0 * bounds[3]
+    width_points = width_inches * 72.0 * bounds[2]
+    height_points = height_inches * 72.0 * bounds[3]
     return (
         max(_VIEWPORT_EPSILON, width_points),
         max(_VIEWPORT_EPSILON, height_points),

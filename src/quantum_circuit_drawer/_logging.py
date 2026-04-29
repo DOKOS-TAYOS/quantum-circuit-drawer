@@ -10,7 +10,8 @@ from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
 from os import PathLike
 from time import perf_counter
-from typing import TextIO, cast
+from types import TracebackType
+from typing import TextIO, TypeAlias, cast
 from uuid import uuid4
 
 from ._compat import StrEnum
@@ -37,8 +38,13 @@ _CONTEXT_FIELDS = (
     "surface",
 )
 _STANDARD_RECORD_ATTRS = frozenset(stdlib_logging.makeLogRecord({}).__dict__)
-_REQUEST_CONTEXT = ContextVar("quantum_circuit_drawer_request_context", default=None)
-_INTERACTIVE_CONTEXT = ContextVar("quantum_circuit_drawer_interactive_context", default=None)
+LogExcInfo: TypeAlias = (
+    bool
+    | BaseException
+    | tuple[type[BaseException], BaseException, TracebackType | None]
+    | tuple[None, None, None]
+    | None
+)
 
 
 class LogFormat(StrEnum):
@@ -163,6 +169,16 @@ class InteractionSource(StrEnum):
     RADIO = "radio"
     MOUSE = "mouse"
     PROGRAMMATIC = "programmatic"
+
+
+_REQUEST_CONTEXT: ContextVar[_RequestLogContext | None] = ContextVar(
+    "quantum_circuit_drawer_request_context",
+    default=None,
+)
+_INTERACTIVE_CONTEXT: ContextVar[InteractiveLogSession | None] = ContextVar(
+    "quantum_circuit_drawer_interactive_context",
+    default=None,
+)
 
 
 class _HumanLogFormatter(stdlib_logging.Formatter):
@@ -410,8 +426,9 @@ def log_event(
     event: str,
     message: str,
     *args: object,
-    exc_info: bool | BaseException | tuple[type[BaseException], BaseException, object] = False,
-    **fields: object,
+    exc_info: LogExcInfo = False,
+    fields: Mapping[str, object] | None = None,
+    **extra_fields: object,
 ) -> None:
     """Emit one structured package log event."""
 
@@ -423,7 +440,9 @@ def log_event(
     if interactive_session is not None:
         extra.update(asdict(interactive_session))
     extra["event"] = event
-    for field_name, value in fields.items():
+    resolved_fields: dict[str, object] = {} if fields is None else dict(fields)
+    resolved_fields.update(extra_fields)
+    for field_name, value in resolved_fields.items():
         extra[field_name] = _normalize_log_value(value)
     logger.log(level, message, *args, extra=extra, exc_info=exc_info)
 
@@ -436,11 +455,15 @@ def log_interaction(
     *,
     session: InteractiveLogSession,
     source: InteractionSource | str,
-    exc_info: bool | BaseException | tuple[type[BaseException], BaseException, object] = False,
-    **fields: object,
+    exc_info: LogExcInfo = False,
+    fields: Mapping[str, object] | None = None,
+    **extra_fields: object,
 ) -> None:
     """Emit one interactive package event under the provided persistent session."""
 
+    interaction_fields: dict[str, object] = {} if fields is None else dict(fields)
+    interaction_fields.update(extra_fields)
+    interaction_fields["interaction_source"] = _normalize_interaction_source(source)
     with push_interactive_log_session(session):
         log_event(
             logger,
@@ -448,8 +471,7 @@ def log_interaction(
             event,
             message,
             exc_info=exc_info,
-            interaction_source=_normalize_interaction_source(source),
-            **fields,
+            fields=interaction_fields,
         )
 
 

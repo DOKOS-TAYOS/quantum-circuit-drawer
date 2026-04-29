@@ -18,6 +18,7 @@ from ..ir.semantic import semantic_operation_id
 from ..layout._layering import normalized_draw_circuit
 from ..layout.topology_3d import TopologyName
 from ..renderers._matplotlib_figure import clicked_artist_operation_id, get_topology_menu_state
+from ..topology import is_builtin_topology
 from .exploration_2d import (
     Managed2DExplorationState,
     apply_scene_visual_state_3d,
@@ -156,6 +157,8 @@ class Managed3DPageWindowState:
         """Switch topology while preserving the current window state."""
 
         previous_topology = self.pipeline.draw_options.topology
+        if not is_builtin_topology(previous_topology):
+            raise ValueError("Managed 3D page window only supports built-in topologies.")
         updated_draw_options = replace(self.pipeline.draw_options, topology=topology)
         updated_pipeline = replace(self.pipeline, draw_options=updated_draw_options)
         updated_page_scenes = windowed_3d_page_scenes(
@@ -594,7 +597,7 @@ def _log_3d_page_window_topology_change(
         else "Ignored unchanged managed 3D page-window topology update.",
         session=session,
         source=source,
-        **payload,
+        fields=payload,
     )
 
 

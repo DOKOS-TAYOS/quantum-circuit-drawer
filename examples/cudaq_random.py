@@ -5,33 +5,74 @@ from __future__ import annotations
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from random import Random
+from typing import overload
 
 import cudaq
 
 try:
     from examples._bootstrap import ensure_local_project_on_path
     from examples._render_support import release_rendered_result
+    from examples._shared import ExampleRequest
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
     from _render_support import release_rendered_result
+    from _shared import ExampleRequest
 
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
 
 
-def build_kernel(*, qubit_count: int, column_count: int, seed: int) -> object:
+def _resolved_build_kernel_inputs(
+    request: ExampleRequest | None,
+    *,
+    qubit_count: int | None,
+    column_count: int | None,
+    seed: int | None,
+) -> tuple[int, int, int]:
+    if request is not None:
+        return request.qubits, request.columns, request.seed
+    if qubit_count is None or column_count is None or seed is None:
+        raise TypeError(
+            "build_kernel() requires either an ExampleRequest or qubit_count, column_count, and seed"
+        )
+    return qubit_count, column_count, seed
+
+
+@overload
+def build_kernel(request: ExampleRequest, /) -> object: ...
+
+
+@overload
+def build_kernel(*, qubit_count: int, column_count: int, seed: int) -> object: ...
+
+
+def build_kernel(
+    request: ExampleRequest | None = None,
+    /,
+    *,
+    qubit_count: int | None = None,
+    column_count: int | None = None,
+    seed: int | None = None,
+) -> object:
     """Build a deterministic random-looking closed CUDA-Q kernel."""
 
+    resolved_qubit_count, resolved_column_count, resolved_seed = _resolved_build_kernel_inputs(
+        request,
+        qubit_count=qubit_count,
+        column_count=column_count,
+        seed=seed,
+    )
+
     kernel = cudaq.make_kernel()
-    qubits = kernel.qalloc(qubit_count)
-    rng = Random(seed)
+    qubits = kernel.qalloc(resolved_qubit_count)
+    rng = Random(resolved_seed)
     single_qubit_gates = ("h", "x", "rx", "ry", "rz")
     two_qubit_gates = ("cx", "cz", "swap")
 
-    for column_index in range(column_count):
+    for column_index in range(resolved_column_count):
         if column_index % 2 == 0:
-            for wire in range(qubit_count):
+            for wire in range(resolved_qubit_count):
                 gate_name = single_qubit_gates[
                     (column_index + wire + rng.randrange(len(single_qubit_gates)))
                     % len(single_qubit_gates)
@@ -44,15 +85,15 @@ def build_kernel(*, qubit_count: int, column_count: int, seed: int) -> object:
                     angle=_angle_for(rng, column_index, wire),
                 )
         else:
-            shuffled_wires = list(range(qubit_count))
+            shuffled_wires = list(range(resolved_qubit_count))
             rng.shuffle(shuffled_wires)
             for pair_index in range(0, len(shuffled_wires) - 1, 2):
                 left = shuffled_wires[pair_index]
                 right = shuffled_wires[pair_index + 1]
                 gate_name = two_qubit_gates[
-                    (column_index + pair_index + seed) % len(two_qubit_gates)
+                    (column_index + pair_index + resolved_seed) % len(two_qubit_gates)
                 ]
-                if gate_name != "swap" and (column_index + pair_index + seed) % 2 == 1:
+                if gate_name != "swap" and (column_index + pair_index + resolved_seed) % 2 == 1:
                     left, right = right, left
                 _apply_two_qubit_gate(
                     kernel, qubits=qubits, gate_name=gate_name, left=left, right=right

@@ -68,6 +68,89 @@ def install_fake_cudaq(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     return fake_module
 
 
+class FakeCudaqExampleKernel:
+    def __init__(self) -> None:
+        self.operations: list[tuple[str, tuple[object, ...]]] = []
+
+    def qalloc(self, qubit_count: int) -> list[int]:
+        self.operations.append(("qalloc", (qubit_count,)))
+        return list(range(qubit_count))
+
+    def h(self, qubit: int) -> None:
+        self.operations.append(("h", (qubit,)))
+
+    def x(self, qubit: int) -> None:
+        self.operations.append(("x", (qubit,)))
+
+    def rx(self, angle: float, qubit: int) -> None:
+        self.operations.append(("rx", (angle, qubit)))
+
+    def ry(self, angle: float, qubit: int) -> None:
+        self.operations.append(("ry", (angle, qubit)))
+
+    def rz(self, angle: float, qubit: int) -> None:
+        self.operations.append(("rz", (angle, qubit)))
+
+    def cx(self, left: int, right: int) -> None:
+        self.operations.append(("cx", (left, right)))
+
+    def cz(self, left: int, right: int) -> None:
+        self.operations.append(("cz", (left, right)))
+
+    def swap(self, left: int, right: int) -> None:
+        self.operations.append(("swap", (left, right)))
+
+    def mz(self, qubits: list[int]) -> None:
+        self.operations.append(("mz", tuple(qubits)))
+
+
+def test_cudaq_random_example_build_kernel_accepts_example_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples._shared import ExampleRequest
+
+    fake_cudaq = install_fake_cudaq(monkeypatch)
+    created_kernels: list[FakeCudaqExampleKernel] = []
+
+    def fake_make_kernel() -> FakeCudaqExampleKernel:
+        kernel = FakeCudaqExampleKernel()
+        created_kernels.append(kernel)
+        return kernel
+
+    setattr(fake_cudaq, "make_kernel", fake_make_kernel)
+    sys.modules.pop("examples.cudaq_random", None)
+
+    try:
+        module = importlib.import_module("examples.cudaq_random")
+        request = ExampleRequest(
+            qubits=4,
+            columns=6,
+            mode="pages",
+            view="2d",
+            topology="line",
+            seed=7,
+            output=None,
+            show=False,
+            figsize=(8.0, 3.0),
+            hover=True,
+            hover_matrix="auto",
+            hover_matrix_max_qubits=2,
+            hover_show_size=False,
+        )
+
+        from_request = module.build_kernel(request)
+        from_kwargs = module.build_kernel(qubit_count=4, column_count=6, seed=7)
+    finally:
+        sys.modules.pop("examples.cudaq_random", None)
+
+    assert len(created_kernels) == 2
+    assert from_request is created_kernels[0]
+    assert from_kwargs is created_kernels[1]
+    assert from_request.operations == from_kwargs.operations
+    assert from_request.operations[0] == ("qalloc", (4,))
+    assert from_request.operations[-1] == ("mz", (0, 1, 2, 3))
+
+
 def build_supported_quake_mlir() -> str:
     return """
 module {

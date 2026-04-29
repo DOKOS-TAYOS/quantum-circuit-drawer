@@ -778,7 +778,7 @@ def _log_2d_page_window_interaction(
         message,
         session=session,
         source=source,
-        **payload,
+        fields=payload,
     )
 
 

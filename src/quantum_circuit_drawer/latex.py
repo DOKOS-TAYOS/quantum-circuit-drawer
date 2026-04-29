@@ -25,6 +25,7 @@ from .layout._layering import normalize_draw_layers
 from .layout.scene import LayoutScene
 from .layout.spacing import operation_label_parts
 from .result import diagnostics_to_dicts
+from .style import DrawStyle
 
 if TYPE_CHECKING:
     from .drawing.pipeline import PreparedDrawPipeline
@@ -174,6 +175,7 @@ def _latex_draw_config(config: DrawConfig | None, *, mode: LatexMode) -> DrawCon
 
 def _quantikz_pages(pipeline: PreparedDrawPipeline, *, mode: LatexMode) -> tuple[str, ...]:
     layers = normalize_draw_layers(pipeline.ir)
+    page_ranges: tuple[tuple[int, int], ...]
     if mode is LatexMode.FULL:
         page_ranges = ((0, max(0, len(layers) - 1)),)
     else:
@@ -197,7 +199,7 @@ def _render_quantikz_page(
     *,
     start_column: int,
     end_column: int,
-    style: object,
+    style: DrawStyle,
 ) -> str:
     wires = circuit.all_wires
     wire_indices = {wire.id: index for index, wire in enumerate(wires)}
@@ -221,7 +223,7 @@ def _render_quantikz_page(
     for row_index, wire in enumerate(wires):
         prefix = (
             rf"\lstick{{{_latex_text(wire.label or wire.id)}}}"
-            if getattr(style, "show_wire_labels", True)
+            if style.show_wire_labels
             else _empty_wire_command(wire.kind)
         )
         rows.append(" & ".join((prefix, *cells[row_index])) + r" \\")
@@ -245,7 +247,7 @@ def _place_quantikz_operation(
     *,
     column: int,
     wire_indices: dict[str, int],
-    style: object,
+    style: DrawStyle,
 ) -> None:
     if isinstance(operation, MeasurementIR) or operation.kind is OperationKind.MEASUREMENT:
         _place_measurement(cells, operation, column=column, wire_indices=wire_indices)
@@ -270,7 +272,7 @@ def _place_gate(
     *,
     column: int,
     wire_indices: dict[str, int],
-    style: object,
+    style: DrawStyle,
 ) -> None:
     target_rows = _operation_rows(operation.target_wires, wire_indices)
     if not target_rows:
@@ -292,7 +294,7 @@ def _place_controlled_gate(
     *,
     column: int,
     wire_indices: dict[str, int],
-    style: object,
+    style: DrawStyle,
 ) -> None:
     target_rows = _operation_rows(operation.target_wires, wire_indices)
     control_rows = _operation_rows(operation.control_wires, wire_indices)
@@ -365,7 +367,7 @@ def _operation_rows(wire_ids: Iterable[str], wire_indices: dict[str, int]) -> li
     return [wire_indices[wire_id] for wire_id in wire_ids if wire_id in wire_indices]
 
 
-def _operation_label(operation: OperationIR, style: object) -> str:
+def _operation_label(operation: OperationIR, style: DrawStyle) -> str:
     label, subtitle = operation_label_parts(operation, style)
     if subtitle:
         return rf"{_latex_text(label)}\\{_latex_text(subtitle)}"

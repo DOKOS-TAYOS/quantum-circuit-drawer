@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from collections.abc import Sequence
 from math import fabs
 from typing import Any, TypeVar
 
@@ -24,7 +25,7 @@ from ..layout.scene import (
 )
 from ..layout.scene_3d import LayoutScene3D
 from ..style import resolved_connection_line_width
-from ..typing import OutputPath, RenderResult
+from ..typing import OutputPath, RenderResult, UseMathTextMode
 from ._matplotlib_figure import clear_hover_state, create_managed_figure
 from ._matplotlib_hover import _HoverTarget2D, add_hover_target, attach_hover
 from ._matplotlib_page_projection import (
@@ -70,7 +71,7 @@ _PROJECTED_PAGES_CACHE_SIZE = 8
 _CONNECTION_HOVER_LINE_WIDTH_MULTIPLIER = 1.5
 _CONNECTION_HOVER_MIN_HALF_WIDTH_PIXELS = 4.0
 _CONNECTION_HOVER_MIN_HALF_WIDTH_DATA = 1e-6
-_PreparedGateTextCacheKey = tuple[object, str, str | None, bool]
+_PreparedGateTextCacheKey = tuple[object, str, str | None, UseMathTextMode]
 
 _SceneColumnItem = TypeVar(
     "_SceneColumnItem",
@@ -388,7 +389,7 @@ class MatplotlibRenderer(BaseRenderer):
 
     def _grouped_gate_label_font_sizes(
         self,
-        gates: list[SceneGate],
+        gates: Sequence[SceneGate],
         *,
         scene: LayoutScene,
         gate_text_context: Any,
