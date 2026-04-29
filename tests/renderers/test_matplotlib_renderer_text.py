@@ -640,6 +640,40 @@ def test_matplotlib_renderer_reuses_prepared_gate_text_for_repeated_labels(
     assert gate_text_block_calls == 1
 
 
+def test_matplotlib_renderer_uses_one_font_size_for_grouped_sqrt_pauli_gate_labels() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name=gate_name,
+                        target_wires=("q0",),
+                    )
+                ]
+            )
+            for gate_name in ("SX", "SY", "SZ") * 12
+        ],
+    )
+    scene = LayoutEngine().compute(
+        circuit,
+        DrawStyle(max_page_width=200.0, show_params=False, use_mathtext=False),
+    )
+    figure, axes = plt.subplots(figsize=(2.2, 1.4))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    grouped_font_sizes = {
+        gate_name: _find_axis_text(axes, gate_name).get_fontsize()
+        for gate_name in ("SX", "SY", "SZ")
+    }
+
+    assert len(set(round(font_size, 6) for font_size in grouped_font_sizes.values())) == 1
+    plt.close(figure)
+
+
 def test_draw_gate_label_centers_label_and_subtitle_block() -> None:
     scene = LayoutEngine().compute(
         build_dense_rotation_ir(layer_count=1, wire_count=1),

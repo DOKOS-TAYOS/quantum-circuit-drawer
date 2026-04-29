@@ -39,6 +39,7 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
 
     window_scene = _window_scene(state)
     state.window_scene = window_scene
+    set_viewport_width(state.figure, viewport_width=window_scene.width)
     state.figure.patch.set_facecolor(window_scene.style.theme.figure_facecolor)
     prepare_axes(state.axes, window_scene)
     gate_text_context = _build_gate_text_fitting_context(state.axes, window_scene)
@@ -73,7 +74,6 @@ def _render_current_window(state: Managed2DPageWindowState) -> None:
     finalize_axes(state.axes)
 
     configure_zoom_text_scaling(state.axes, scene=window_scene)
-    set_viewport_width(state.figure, viewport_width=window_scene.width)
     trim_gate_text_fit_cache(state.text_fit_cache)
     canvas = getattr(state.figure, "canvas", None)
     if canvas is not None:

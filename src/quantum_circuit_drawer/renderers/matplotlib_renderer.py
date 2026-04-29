@@ -188,6 +188,13 @@ class MatplotlibRenderer(BaseRenderer):
         resolved_prepared_gate_text_cache = (
             {} if prepared_gate_text_cache is None else prepared_gate_text_cache
         )
+        grouped_label_font_sizes = self._grouped_gate_label_font_sizes(
+            projected_page.gates,
+            scene=scene,
+            gate_text_context=gate_text_context,
+            gate_text_cache=gate_text_cache,
+            prepared_gate_text_cache=resolved_prepared_gate_text_cache,
+        )
 
         draw_wires(
             axes,
@@ -269,15 +276,17 @@ class MatplotlibRenderer(BaseRenderer):
                     cache=resolved_prepared_gate_text_cache,
                 )
                 if prepared_text is not None:
-                    label_font_size = _fit_gate_text_font_size_with_context(
-                        context=gate_text_context,
-                        width=gate.width,
-                        height=gate.height,
-                        text=prepared_text.text,
-                        default_font_size=scene.style.font_size,
-                        height_fraction=prepared_text.height_fraction,
-                        cache=gate_text_cache,
-                    )
+                    label_font_size = grouped_label_font_sizes.get(id(gate))
+                    if label_font_size is None:
+                        label_font_size = _fit_gate_text_font_size_with_context(
+                            context=gate_text_context,
+                            width=gate.width,
+                            height=gate.height,
+                            text=prepared_text.text,
+                            default_font_size=scene.style.font_size,
+                            height_fraction=prepared_text.height_fraction,
+                            cache=gate_text_cache,
+                        )
                     draw_gate_label(
                         axes,
                         gate,
@@ -376,6 +385,73 @@ class MatplotlibRenderer(BaseRenderer):
             text_fit_context=gate_text_context,
             text_fit_cache=gate_text_cache,
         )
+
+    def _grouped_gate_label_font_sizes(
+        self,
+        gates: list[SceneGate],
+        *,
+        scene: LayoutScene,
+        gate_text_context: Any,
+        gate_text_cache: _GateTextCache,
+        prepared_gate_text_cache: dict[_PreparedGateTextCacheKey, _PreparedGateText | None],
+    ) -> dict[int, float]:
+        grouped_gates: dict[
+            tuple[str, float, float, float], list[tuple[SceneGate, _PreparedGateText]]
+        ] = {}
+        for gate in gates:
+            prepared_text = self._prepared_gate_text_for_render(
+                gate,
+                scene=scene,
+                cache=prepared_gate_text_cache,
+            )
+            if prepared_text is None:
+                continue
+            group_key = (
+                self._gate_label_group_key(gate.label),
+                round(gate.width, 9),
+                round(gate.height, 9),
+                round(prepared_text.height_fraction, 9),
+            )
+            grouped_gates.setdefault(group_key, []).append((gate, prepared_text))
+
+        resolved_font_sizes: dict[int, float] = {}
+        for grouped_entries in grouped_gates.values():
+            minimum_font_size: float | None = None
+            for gate, prepared_text in grouped_entries:
+                fitted_font_size = _fit_gate_text_font_size_with_context(
+                    context=gate_text_context,
+                    width=gate.width,
+                    height=gate.height,
+                    text=prepared_text.text,
+                    default_font_size=scene.style.font_size,
+                    height_fraction=prepared_text.height_fraction,
+                    cache=gate_text_cache,
+                )
+                minimum_font_size = (
+                    fitted_font_size
+                    if minimum_font_size is None
+                    else min(minimum_font_size, fitted_font_size)
+                )
+            if minimum_font_size is None:
+                continue
+            for gate, _prepared_text in grouped_entries:
+                resolved_font_sizes[id(gate)] = minimum_font_size
+        return resolved_font_sizes
+
+    def _gate_label_group_key(self, label: str) -> str:
+        if label in {"P", "RZ", "RX", "RY"}:
+            return "rotation_single_axis"
+        if (
+            label.startswith("R")
+            and len(label) >= 3
+            and all(axis in {"X", "Y", "Z"} for axis in label[1:])
+        ):
+            return "rotation_multi_axis"
+        if label in {"H", "X", "Y", "Z", "T", "S"}:
+            return "single_letter_pauli_phase"
+        if label in {"SX", "SY", "SZ"}:
+            return "sqrt_pauli"
+        return f"label:{label}"
 
     def _prepared_gate_text_for_render(
         self,

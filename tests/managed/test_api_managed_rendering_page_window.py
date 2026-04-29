@@ -7,6 +7,17 @@ import quantum_circuit_drawer.managed._adaptive_paging as adaptive_paging_module
 import quantum_circuit_drawer.managed.controls as managed_controls_module
 import quantum_circuit_drawer.managed.page_window as page_window_module
 import quantum_circuit_drawer.renderers._matplotlib_text as matplotlib_text_module
+from quantum_circuit_drawer import (
+    CircuitAppearanceOptions,
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawMode,
+    DrawSideConfig,
+    OutputOptions,
+)
+from quantum_circuit_drawer import (
+    draw_quantum_circuit as public_draw_quantum_circuit,
+)
 from quantum_circuit_drawer.ir.lowering import (
     lower_semantic_circuit,
     semantic_circuit_from_circuit_ir,
@@ -275,6 +286,104 @@ def test_draw_quantum_circuit_page_window_reuses_text_fit_cache_between_redraws(
     page_window.page_box.set_val("1")
 
     assert len(cache_ids) == 1
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_restores_cached_gate_font_sizes_when_returning_to_page() -> (
+    None
+):
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZZ",
+                        target_wires=("q0",),
+                        parameters=(layer_index / 10.0,),
+                    )
+                ]
+            )
+            for layer_index in range(7)
+        ],
+    )
+    figure, axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 4.0, "show_params": True},
+        figsize=(2.6, 2.6),
+        page_window=True,
+        show=False,
+    )
+    figure.canvas.draw()
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+    assert page_window.total_pages >= 2
+
+    initial_font_size = _text_artist_by_text(axes, "RZZ\n0").get_fontsize()
+
+    page_window.page_box.set_val(str(page_window.total_pages))
+    figure.canvas.draw()
+    page_window.page_box.set_val("1")
+    figure.canvas.draw()
+
+    restored_font_size = _text_artist_by_text(axes, "RZZ\n0").get_fontsize()
+
+    assert restored_font_size == pytest.approx(initial_font_size)
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_restores_qiskit_showcase_font_sizes_when_returning_to_page() -> (
+    None
+):
+    pytest.importorskip("qiskit")
+    from examples.qiskit_2d_exploration_showcase import build_circuit
+
+    result = public_draw_quantum_circuit(
+        build_circuit(qubit_count=12, motif_count=6),
+        config=DrawConfig(
+            side=DrawSideConfig(
+                render=CircuitRenderOptions(
+                    mode=DrawMode("pages_controls"),
+                    topology="grid",
+                ),
+                appearance=CircuitAppearanceOptions(hover=True),
+            ),
+            output=OutputOptions(
+                show=False,
+                figsize=(11.8, 6.2),
+            ),
+        ),
+    )
+    figure = result.primary_figure
+    axes = result.primary_axes
+    page_window = get_page_window(figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+    assert page_window.total_pages == 2
+
+    figure.canvas.draw()
+    initial_font_size = next(
+        text_artist.get_fontsize()
+        for text_artist in axes.texts
+        if text_artist.get_text() == "Relay"
+    )
+
+    page_window.page_box.set_val("2")
+    figure.canvas.draw()
+    page_window.page_box.set_val("1")
+    figure.canvas.draw()
+
+    restored_font_size = next(
+        text_artist.get_fontsize()
+        for text_artist in axes.texts
+        if text_artist.get_text() == "Relay"
+    )
+
+    assert restored_font_size == pytest.approx(initial_font_size)
     plt.close(figure)
 
 

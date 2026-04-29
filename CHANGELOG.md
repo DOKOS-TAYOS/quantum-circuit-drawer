@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Fixed managed 2D page revisits so gate-label base font sizes now stay stable when returning from narrower windows, while matching gate families such as `P/RZ/RX/RY`, `RXY`-style multi-axis rotations, `H/X/Y/Z/T/S`, and `SX/SY/SZ` now share one per-page fitted font size based on the tightest member of the group.
 - Fixed managed menu controls so page-window, 2D/3D slider, and topology-menu button labels now scale with the final figure size, keep one stable font per button across its label states by fitting against the longest message, tighten the page/visible navigation geometry, narrow the topology panel to reduce right-side dead space, and enlarge compare-summary table text for easier reading.
 - Reduced repeated text-resolution work across the Matplotlib circuit render path by caching resolved visible-label and gate-label text before artist creation, improving default 2D rendering performance without changing circuit layout geometry.
 - Reduced repeated 2D managed paging work by reusing adaptive paging inputs and metrics across `pages_controls`, plus cached horizontal subscenes in `slider`, cutting redraw recomputation without changing the public API.
