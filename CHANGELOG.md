@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-29
+
+Stable **1.0.0** release with PyPI trove classifier `Development Status :: 5 - Production/Stable`; public API versioning follows semantic versioning from this release onward.
+
 ### Added
 
 - Added `circuit_to_latex(...)` with `quantikz` and basic `tikzpicture` export backends, returning typed `LatexResult` objects for full-circuit and paged 2D LaTeX snippets.
@@ -336,7 +340,8 @@
 - Unused autodetection helper from `utils`
 - Generated artifacts and cache directories from the intended versioned repo surface
 
-[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.6.0...v1.0.0
 [0.6.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.3.0...v0.4.0
