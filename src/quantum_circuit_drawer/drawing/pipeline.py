@@ -11,6 +11,7 @@ from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
+from .._logging import log_event, push_log_context
 from ..adapters.base import BaseAdapter
 from ..diagnostics import DiagnosticSeverity, RenderDiagnostic
 from ..exceptions import LayoutError, UnsupportedFrameworkError
@@ -135,6 +136,28 @@ def prepare_draw_pipeline(
         adapter_name = resolved_ir.adapter_name
         detected_framework = resolved_ir.detected_framework
         pipeline_diagnostics = list(resolved_ir.diagnostics)
+    with push_log_context(framework=detected_framework):
+        log_event(
+            logger,
+            logging.INFO,
+            "adapter.resolved",
+            "Resolved circuit adapter.",
+            adapter_name=adapter_name,
+            detected_framework=detected_framework,
+            explicit_framework=framework,
+        )
+        log_event(
+            logger,
+            logging.INFO,
+            "ir.resolved",
+            "Resolved normalized circuit IR.",
+            quantum_wire_count=ir.quantum_wire_count,
+            classical_wire_count=ir.classical_wire_count,
+            total_wire_count=ir.total_wire_count,
+            layer_count=len(ir.layers),
+            semantic_layer_count=len(semantic_ir.layers),
+            diagnostic_count=len(pipeline_diagnostics),
+        )
     paged_scene: LayoutScene | LayoutScene3D
     layout_engine: LayoutEngineLike | LayoutEngine3DLike
     renderer: BaseRenderer
@@ -164,6 +187,16 @@ def prepare_draw_pipeline(
             len(ir.layers),
             topology_display_name(topology),
         )
+        log_event(
+            logger,
+            logging.INFO,
+            "layout.completed",
+            "Prepared 3D layout scene.",
+            layer_count=len(ir.layers),
+            column_count=len(ir.layers),
+            topology=topology_display_name(topology),
+            hover_enabled=hover_enabled,
+        )
     else:
         layout_engine_2d = resolve_layout_engine(layout)
         scene_2d = _compute_2d_scene(
@@ -186,6 +219,15 @@ def prepare_draw_pipeline(
             ir.quantum_wire_count,
             len(ir.layers),
             len(scene_2d.pages),
+        )
+        log_event(
+            logger,
+            logging.INFO,
+            "layout.completed",
+            "Prepared 2D layout scene.",
+            page_count=len(scene_2d.pages),
+            layer_count=len(ir.layers),
+            hover_enabled=draw_options.hover.enabled,
         )
     return PreparedDrawPipeline(
         normalized_style=normalized_style,

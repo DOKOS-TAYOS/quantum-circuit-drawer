@@ -6,6 +6,7 @@ import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
+from .._logging import log_event
 from ..config import DrawMode
 from ..diagnostics import RenderDiagnostic
 from ..managed.rendering import (
@@ -44,7 +45,7 @@ def draw_result_from_prepared_call(
 
     if request.ax is None:
         if resolved_config.mode is DrawMode.PAGES and request.pipeline_options.view == "2d":
-            return _render_managed_2d_pages_result(
+            result = _render_managed_2d_pages_result(
                 pipeline,
                 output=request.output,
                 show=request.show,
@@ -55,8 +56,12 @@ def draw_result_from_prepared_call(
                 mode=resolved_config.mode,
                 diagnostics=prepared.diagnostics,
             )
+            _log_render_completed(
+                result, pipeline=pipeline, mode=resolved_config.mode, managed=True
+            )
+            return result
         if resolved_config.mode is DrawMode.PAGES and request.pipeline_options.view == "3d":
-            return _render_managed_3d_pages_result(
+            result = _render_managed_3d_pages_result(
                 pipeline,
                 output=request.output,
                 show=request.show,
@@ -65,11 +70,15 @@ def draw_result_from_prepared_call(
                 mode=resolved_config.mode,
                 diagnostics=prepared.diagnostics,
             )
+            _log_render_completed(
+                result, pipeline=pipeline, mode=resolved_config.mode, managed=True
+            )
+            return result
         if (
             resolved_config.mode is DrawMode.PAGES_CONTROLS
             and request.pipeline_options.view == "3d"
         ):
-            return _render_managed_3d_page_controls_result(
+            result = _render_managed_3d_page_controls_result(
                 pipeline,
                 output=request.output,
                 show=request.show,
@@ -78,6 +87,10 @@ def draw_result_from_prepared_call(
                 mode=resolved_config.mode,
                 diagnostics=prepared.diagnostics,
             )
+            _log_render_completed(
+                result, pipeline=pipeline, mode=resolved_config.mode, managed=True
+            )
+            return result
         figure, axes = render_managed_draw_pipeline(
             pipeline,
             output=request.output,
@@ -87,7 +100,7 @@ def draw_result_from_prepared_call(
             page_slider=request.page_slider,
             page_window=request.page_window,
         )
-        return build_draw_result(
+        result = build_draw_result(
             primary_figure=figure,
             primary_axes=axes,
             figures=(figure,),
@@ -98,6 +111,8 @@ def draw_result_from_prepared_call(
             pipeline=pipeline,
             output=request.output,
         )
+        _log_render_completed(result, pipeline=pipeline, mode=resolved_config.mode, managed=True)
+        return result
 
     if request.pipeline_options.view == "3d" and not is_3d_axes(request.ax):
         raise ValueError("view='3d' requires a 3D Matplotlib axes")
@@ -108,7 +123,7 @@ def draw_result_from_prepared_call(
         output=request.output,
     )
     figure = cast("Figure", axes.figure)
-    return build_draw_result(
+    result = build_draw_result(
         primary_figure=figure,
         primary_axes=axes,
         figures=(figure,),
@@ -118,6 +133,30 @@ def draw_result_from_prepared_call(
         diagnostics=prepared.diagnostics,
         pipeline=pipeline,
         output=request.output,
+    )
+    _log_render_completed(result, pipeline=pipeline, mode=resolved_config.mode, managed=False)
+    return result
+
+
+def _log_render_completed(
+    result: DrawResult,
+    *,
+    pipeline: PreparedDrawPipeline,
+    mode: DrawMode,
+    managed: bool,
+) -> None:
+    log_event(
+        logger,
+        logging.INFO,
+        "render.completed",
+        "Completed circuit rendering.",
+        view=pipeline.draw_options.view,
+        mode=mode.value,
+        managed=managed,
+        page_count=result.page_count,
+        interactive_enabled=result.interactive_enabled,
+        hover_enabled=result.hover_enabled,
+        saved_path=result.saved_path,
     )
 
 

@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from matplotlib.patches import FancyBboxPatch, Rectangle
 from matplotlib.transforms import blended_transform_factory
 
+from .._logging import (
+    duration_ms,
+    emit_render_diagnostics,
+    log_event,
+    logged_api_call,
+    push_log_context,
+)
 from ..circuit_compare import (
     CircuitCompareConfig,
     CircuitCompareMetrics,
@@ -42,6 +50,7 @@ if TYPE_CHECKING:
 
     from ..layout.scene import LayoutScene
     from ..result import DrawResult
+    from .preparation import PreparedDrawCall
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +78,7 @@ _SUMMARY_CARD_HEADER_OFFSET = 0.065
 _SUMMARY_CARD_ROW_BOTTOM_PADDING = 0.12
 _SUMMARY_BEST_COLOR = "#16a34a"
 _SUMMARY_WORST_COLOR = "#dc2626"
+logger = logging.getLogger(__name__)
 
 
 def compare_circuits(
@@ -81,135 +91,166 @@ def compare_circuits(
 ) -> CircuitCompareResult:
     """Render two or more circuits side by side and return structural comparison data."""
 
-    resolved_compare_config = config or CircuitCompareConfig()
-    if axes is not None and resolved_compare_config.figsize is not None:
-        raise ValueError("figsize cannot be used with axes in compare_circuits")
-    if axes is None and summary_ax is not None:
-        raise ValueError("summary_ax can only be used with caller-managed compare axes")
+    with logged_api_call(logger, api="compare_circuits") as started_at:
+        resolved_compare_config = config or CircuitCompareConfig()
+        if axes is not None and resolved_compare_config.figsize is not None:
+            raise ValueError("figsize cannot be used with axes in compare_circuits")
+        if axes is None and summary_ax is not None:
+            raise ValueError("summary_ax can only be used with caller-managed compare axes")
 
-    circuits = (left_circuit, right_circuit, *additional_circuits)
-    titles = resolve_compare_titles(resolved_compare_config, circuit_count=len(circuits))
-    if axes is not None and len(axes) != len(circuits):
-        raise ValueError(
-            "compare_circuits requires one axes object for each circuit when axes are provided"
-        )
+        circuits = (left_circuit, right_circuit, *additional_circuits)
+        titles = resolve_compare_titles(resolved_compare_config, circuit_count=len(circuits))
+        if axes is not None and len(axes) != len(circuits):
+            raise ValueError(
+                "compare_circuits requires one axes object for each circuit when axes are provided"
+            )
 
-    normalized_side_configs = tuple(
-        normalize_compare_draw_config(
-            merge_compare_side_config(resolved_compare_config, side_label=_side_label(index)),
-            side_label=_side_label(index),
-            auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
+        normalized_side_configs = tuple(
+            normalize_compare_draw_config(
+                merge_compare_side_config(resolved_compare_config, side_label=_side_label(index)),
+                side_label=_side_label(index),
+                auto_mode=DrawMode.FULL if axes is not None else DrawMode.PAGES_CONTROLS,
+            )
+            for index in range(len(circuits))
         )
-        for index in range(len(circuits))
-    )
-    uses_non_full_compare_mode = any(
-        normalized_side_config.mode is not DrawMode.FULL
-        for normalized_side_config in normalized_side_configs
-    )
-    if axes is not None and uses_non_full_compare_mode:
-        raise ValueError(
-            "compare_circuits managed modes require separate Matplotlib-managed figures "
-            "and cannot be used with axes"
+        uses_non_full_compare_mode = any(
+            normalized_side_config.mode is not DrawMode.FULL
+            for normalized_side_config in normalized_side_configs
         )
-    if axes is None:
-        return _compare_circuits_with_managed_side_figures(
-            circuits,
-            config=resolved_compare_config,
-            side_configs=normalized_side_configs,
-            titles=titles,
-        )
+        if axes is not None and uses_non_full_compare_mode:
+            raise ValueError(
+                "compare_circuits managed modes require separate Matplotlib-managed figures "
+                "and cannot be used with axes"
+            )
+        if axes is None:
+            result = _compare_circuits_with_managed_side_figures(
+                circuits,
+                config=resolved_compare_config,
+                side_configs=normalized_side_configs,
+                titles=titles,
+            )
+        else:
+            figure = shared_figure_for_compare_axes(
+                *((*axes, summary_ax) if summary_ax is not None else axes)
+            )
+            prepared_calls = tuple(
+                _prepare_compare_draw_call(
+                    circuit,
+                    config=side_config,
+                    ax=side_axes,
+                    scope=_side_label(index),
+                )
+                for index, (circuit, side_config, side_axes) in enumerate(
+                    zip(
+                        circuits,
+                        normalized_side_configs,
+                        axes,
+                        strict=True,
+                    )
+                )
+            )
+            rendered_axes = tuple(
+                _render_compare_axes(
+                    prepared,
+                    axes=side_axes,
+                    scope=_side_label(index),
+                )
+                for index, (prepared, side_axes) in enumerate(
+                    zip(prepared_calls, axes, strict=True)
+                )
+            )
+            metrics, diff_summary = circuit_compare_metrics(
+                prepared_calls[0].pipeline.ir,
+                prepared_calls[1].pipeline.ir,
+                left_semantic=prepared_calls[0].pipeline.semantic_ir,
+                right_semantic=prepared_calls[1].pipeline.semantic_ir,
+            )
+            if resolved_compare_config.highlight_differences and len(circuits) == 2:
+                highlight_compare_columns(
+                    rendered_axes[0],
+                    cast("LayoutScene", prepared_calls[0].pipeline.paged_scene),
+                    diff_summary.left_columns,
+                )
+                highlight_compare_columns(
+                    rendered_axes[1],
+                    cast("LayoutScene", prepared_calls[1].pipeline.paged_scene),
+                    diff_summary.right_columns,
+                )
+            side_metrics = tuple(
+                circuit_compare_side_metrics(
+                    title=title,
+                    circuit=prepared.pipeline.semantic_ir,
+                )
+                for title, prepared in zip(titles, prepared_calls, strict=True)
+            )
 
-    figure = shared_figure_for_compare_axes(
-        *((*axes, summary_ax) if summary_ax is not None else axes)
-    )
-    prepared_calls = tuple(
-        prepare_draw_call(circuit, config=side_config, ax=side_axes)
-        for circuit, side_config, side_axes in zip(
-            circuits,
-            normalized_side_configs,
-            axes,
-            strict=True,
-        )
-    )
-    rendered_axes = tuple(
-        render_draw_pipeline_on_axes(
-            prepared.pipeline,
-            axes=side_axes,
-            output=None,
-            respect_precomputed_scene=True,
-        )
-        for prepared, side_axes in zip(prepared_calls, axes, strict=True)
-    )
-    metrics, diff_summary = circuit_compare_metrics(
-        prepared_calls[0].pipeline.ir,
-        prepared_calls[1].pipeline.ir,
-        left_semantic=prepared_calls[0].pipeline.semantic_ir,
-        right_semantic=prepared_calls[1].pipeline.semantic_ir,
-    )
-    if resolved_compare_config.highlight_differences and len(circuits) == 2:
-        highlight_compare_columns(
-            rendered_axes[0],
-            cast("LayoutScene", prepared_calls[0].pipeline.paged_scene),
-            diff_summary.left_columns,
-        )
-        highlight_compare_columns(
-            rendered_axes[1],
-            cast("LayoutScene", prepared_calls[1].pipeline.paged_scene),
-            diff_summary.right_columns,
-        )
-    side_metrics = tuple(
-        circuit_compare_side_metrics(
-            title=title,
-            circuit=prepared.pipeline.semantic_ir,
-        )
-        for title, prepared in zip(titles, prepared_calls, strict=True)
-    )
+            apply_compare_titles(
+                axes=rendered_axes,
+                summary_ax=summary_ax,
+                config=resolved_compare_config,
+                metrics=metrics,
+                side_metrics=side_metrics,
+                titles=titles,
+                text_color=prepared_calls[0].pipeline.normalized_style.theme.text_color,
+                summary_facecolor=(
+                    prepared_calls[0].pipeline.normalized_style.theme.ui_surface_facecolor
+                    or prepared_calls[0].pipeline.normalized_style.theme.axes_facecolor
+                ),
+            )
+            if resolved_compare_config.output_path is not None:
+                save_rendered_figure(figure, resolved_compare_config.output_path)
+            if resolved_compare_config.show:
+                show_figure_if_supported(figure, show=True)
 
-    apply_compare_titles(
-        axes=rendered_axes,
-        summary_ax=summary_ax,
-        config=resolved_compare_config,
-        metrics=metrics,
-        side_metrics=side_metrics,
-        titles=titles,
-        text_color=prepared_calls[0].pipeline.normalized_style.theme.text_color,
-        summary_facecolor=(
-            prepared_calls[0].pipeline.normalized_style.theme.ui_surface_facecolor
-            or prepared_calls[0].pipeline.normalized_style.theme.axes_facecolor
-        ),
-    )
-    if resolved_compare_config.output_path is not None:
-        save_rendered_figure(figure, resolved_compare_config.output_path)
-    if resolved_compare_config.show:
-        show_figure_if_supported(figure, show=True)
+            side_results = tuple(
+                build_draw_result(
+                    primary_figure=figure,
+                    primary_axes=rendered_axis,
+                    figures=(figure,),
+                    axes=(rendered_axis,),
+                    mode=prepared.resolved_config.mode,
+                    page_count=1,
+                    diagnostics=prepared.diagnostics,
+                    pipeline=prepared.pipeline,
+                    output=None,
+                )
+                for prepared, rendered_axis in zip(prepared_calls, rendered_axes, strict=True)
+            )
+            result = CircuitCompareResult(
+                figure=figure,
+                axes=rendered_axes,
+                left_result=side_results[0],
+                right_result=side_results[1],
+                metrics=metrics,
+                side_results=side_results,
+                side_metrics=side_metrics,
+                titles=titles,
+                summary_axes=summary_ax,
+                diagnostics=(),
+                saved_path=normalized_saved_path(resolved_compare_config.output_path),
+            )
 
-    side_results = tuple(
-        build_draw_result(
-            primary_figure=figure,
-            primary_axes=rendered_axis,
-            figures=(figure,),
-            axes=(rendered_axis,),
-            mode=prepared.resolved_config.mode,
-            page_count=1,
-            diagnostics=prepared.diagnostics,
-            pipeline=prepared.pipeline,
-            output=None,
-        )
-        for prepared, rendered_axis in zip(prepared_calls, rendered_axes, strict=True)
-    )
-    return CircuitCompareResult(
-        figure=figure,
-        axes=rendered_axes,
-        left_result=side_results[0],
-        right_result=side_results[1],
-        metrics=metrics,
-        side_results=side_results,
-        side_metrics=side_metrics,
-        titles=titles,
-        summary_axes=summary_ax,
-        diagnostics=(),
-        saved_path=normalized_saved_path(resolved_compare_config.output_path),
-    )
+        with push_log_context(scope=None):
+            emit_render_diagnostics(logger, result.diagnostics)
+            if result.saved_path is not None:
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "output.saved",
+                    "Saved circuit comparison output.",
+                    output_path=result.saved_path,
+                )
+            log_event(
+                logger,
+                logging.INFO,
+                "api.completed",
+                "Completed compare_circuits.",
+                duration_ms=duration_ms(started_at),
+                side_count=len(result.side_results or (result.left_result, result.right_result)),
+                diagnostic_count=len(result.diagnostics),
+                saved_path=result.saved_path,
+            )
+            return result
 
 
 def _compare_circuits_with_managed_side_figures(
@@ -226,8 +267,13 @@ def _compare_circuits_with_managed_side_figures(
         for side_config in side_configs
     )
     prepared_calls = tuple(
-        prepare_draw_call(circuit, config=side_config, ax=None)
-        for circuit, side_config in zip(circuits, configured_sides, strict=True)
+        _prepare_compare_draw_call(
+            circuit,
+            config=side_config,
+            ax=None,
+            scope=_side_label(index),
+        )
+        for index, (circuit, side_config) in enumerate(zip(circuits, configured_sides, strict=True))
     )
     metrics, _diff_summary = circuit_compare_metrics(
         prepared_calls[0].pipeline.ir,
@@ -243,7 +289,11 @@ def _compare_circuits_with_managed_side_figures(
         for title, prepared in zip(titles, prepared_calls, strict=True)
     )
     side_results = tuple(
-        draw_result_from_prepared_call(prepared, defer_show=True) for prepared in prepared_calls
+        _draw_compare_side_result(
+            prepared,
+            scope=_side_label(index),
+        )
+        for index, prepared in enumerate(prepared_calls)
     )
     left_text_color = prepared_calls[0].pipeline.normalized_style.theme.text_color
     for side_result, title in zip(side_results, titles, strict=True):
@@ -287,6 +337,57 @@ def _compare_circuits_with_managed_side_figures(
             else None
         ),
     )
+
+
+def _prepare_compare_draw_call(
+    circuit: object,
+    *,
+    config: DrawConfig,
+    ax: Axes | None,
+    scope: str,
+) -> PreparedDrawCall:
+    with push_log_context(scope=scope):
+        return prepare_draw_call(circuit, config=config, ax=ax)
+
+
+def _render_compare_axes(
+    prepared: PreparedDrawCall,
+    *,
+    axes: Axes,
+    scope: str,
+) -> Axes:
+    with push_log_context(
+        scope=scope,
+        view=prepared.resolved_config.config.view,
+        mode=prepared.resolved_config.mode.value,
+        framework=prepared.pipeline.detected_framework,
+        backend=prepared.resolved_config.config.backend,
+    ):
+        rendered_axes = render_draw_pipeline_on_axes(
+            prepared.pipeline,
+            axes=axes,
+            output=None,
+            respect_precomputed_scene=True,
+        )
+        log_event(
+            logger,
+            logging.INFO,
+            "render.completed",
+            "Completed circuit comparison side rendering.",
+            page_count=1,
+            managed=False,
+            saved_path=None,
+        )
+        return rendered_axes
+
+
+def _draw_compare_side_result(
+    prepared: PreparedDrawCall,
+    *,
+    scope: str,
+) -> DrawResult:
+    with push_log_context(scope=scope):
+        return draw_result_from_prepared_call(prepared, defer_show=True)
 
 
 def _with_compare_side_output(
