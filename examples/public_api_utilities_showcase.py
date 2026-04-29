@@ -25,6 +25,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     HistogramDataOptions,
     HistogramMode,
     HistogramResult,
+    HistogramSort,
     HistogramViewOptions,
     LatexBackend,
     OutputOptions,
@@ -94,7 +95,10 @@ def main() -> None:
             demo_counts(),
             config=HistogramConfig(
                 data=HistogramDataOptions(top_k=6),
-                view=HistogramViewOptions(mode=HistogramMode.STATIC, sort="value_desc"),
+                view=HistogramViewOptions(
+                    mode=HistogramMode.STATIC,
+                    sort=HistogramSort.VALUE_DESC,
+                ),
                 output=OutputOptions(show=False, figsize=(8.6, 4.8)),
             ),
         )

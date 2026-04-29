@@ -48,6 +48,10 @@ Stable **1.0.0** release with PyPI trove classifier `Development Status :: 5 - P
 - Fixed the managed 2D vertical slider window geometry so row-window subscenes now keep a stable viewport height across scroll positions, avoiding inconsistent vertical movement when mixed quantum/classical row spacing is present.
 - Fixed managed 2D slider selection styling so moving the window now clears a selected operation as soon as it leaves the visible slider viewport, avoiding fully dimmed scenes with no visible highlighted gate.
 - Fixed `show=True` diagnostics for circuits and histograms so non-interactive Matplotlib backends now report a clear warning, including WSL2 guidance that points users to `python3-tk` instead of leaving the missing GUI dependency implicit.
+- Fixed `examples/qiskit_random.py` so it again accepts and applies the documented shared render flags, including `--hover-matrix`, instead of failing with `argparse` errors before the demo starts.
+- Fixed `quantikz` LaTeX export for parametric gate labels so multi-line subtitles are emitted with a safe stacked label form instead of a raw `\\` inside `\gate{...}`, which could break downstream LaTeX compilation in snippets exported by `circuit_to_latex(...)` and `examples/public_api_utilities_showcase.py`.
+- Fixed exported `quantikz` snippets so they no longer rely on the unsupported `\barrier` command, avoid a trailing `\\` on the last matrix row when slices are present, and now default to a width-scaled `adjustbox` wrapper at `\linewidth` for easier copy-paste resizing in user LaTeX documents.
+
 
 ## [0.6.0] - 2026-04-28
 

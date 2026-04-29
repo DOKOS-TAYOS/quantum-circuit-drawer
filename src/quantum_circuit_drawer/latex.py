@@ -226,17 +226,20 @@ def _render_quantikz_page(
             if style.show_wire_labels
             else _empty_wire_command(wire.kind)
         )
-        rows.append(" & ".join((prefix, *cells[row_index])) + r" \\")
+        row = " & ".join((prefix, *cells[row_index]))
+        if row_index < len(wires) - 1:
+            row += r" \\"
+        rows.append(row)
 
     body = "\n".join(rows)
     return "\n".join(
         (
-            r"\begin{figure}[htbp]",
-            r"\centering",
+            r"% Requires \usepackage{adjustbox}",
+            r"\begin{adjustbox}{width=\linewidth,center}",
             r"\begin{quantikz}",
             body,
             r"\end{quantikz}",
-            r"\end{figure}",
+            r"\end{adjustbox}",
         )
     )
 
@@ -360,7 +363,7 @@ def _place_barrier(
     if not target_rows:
         return
     top_row = min(target_rows)
-    cells[top_row][column] = rf"\barrier[{len(target_rows)}]{{}}"
+    cells[top_row][column] += r"\slice{}"
 
 
 def _operation_rows(wire_ids: Iterable[str], wire_indices: dict[str, int]) -> list[int]:
@@ -370,7 +373,7 @@ def _operation_rows(wire_ids: Iterable[str], wire_indices: dict[str, int]) -> li
 def _operation_label(operation: OperationIR, style: DrawStyle) -> str:
     label, subtitle = operation_label_parts(operation, style)
     if subtitle:
-        return rf"{_latex_text(label)}\\{_latex_text(subtitle)}"
+        return rf"\shortstack{{{_latex_text(label)}\\{_latex_text(subtitle)}}}"
     return _latex_text(label)
 
 

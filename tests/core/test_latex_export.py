@@ -36,6 +36,8 @@ def test_circuit_to_latex_returns_quantikz_full_source_for_basic_circuit() -> No
     assert result.mode is LatexMode.FULL
     assert result.page_count == 1
     assert result.pages == (result.source,)
+    assert r"\begin{adjustbox}{width=\linewidth,center}" in result.source
+    assert r"\end{adjustbox}" in result.source
     assert "\\begin{quantikz}" in result.source
     assert "\\lstick{q0}" in result.source
     assert "\\gate{H}" in result.source
@@ -43,6 +45,7 @@ def test_circuit_to_latex_returns_quantikz_full_source_for_basic_circuit() -> No
     assert "\\targ{}" in result.source
     assert "\\meter{}" in result.source
     assert "\\cw" in result.source
+    assert "\\begin{figure}" not in result.source
     assert result.detected_framework == "ir"
     assert result.to_dict()["backend"] == "quantikz"
 
@@ -63,6 +66,7 @@ def test_circuit_to_latex_pages_mode_returns_one_source_per_wrapped_page() -> No
     assert "% Page 1" in result.source
     assert "% Page 2" in result.source
     assert result.source.count("\\begin{quantikz}") == 2
+    assert result.source.count(r"\begin{adjustbox}{width=\linewidth,center}") == 2
     assert "\\gate{Z}" in result.pages[1]
     assert "\\gate{Y}" in result.pages[1]
 
@@ -88,6 +92,29 @@ def test_circuit_to_latex_escapes_special_label_characters() -> None:
 
     assert "\\lstick{q\\_0 \\& main}" in result.source
     assert "\\gate{R\\_\\#\\%}" in result.source
+
+
+def test_circuit_to_latex_wraps_parametric_gate_subtitles_safely_for_quantikz() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RZ",
+                        target_wires=("q0",),
+                        parameters=(0.5,),
+                    )
+                ]
+            )
+        ],
+    )
+
+    result = circuit_to_latex(circuit, mode="full")
+
+    assert "\\gate{RZ\\\\0.5}" not in result.source
+    assert "\\gate{\\shortstack{RZ\\\\0.5}}" in result.source
 
 
 @pytest.mark.parametrize("backend", ["bad", object()])
@@ -173,4 +200,9 @@ def test_circuit_to_latex_quantikz_supports_open_controls_and_swap_barriers() ->
     assert "\\targ{}" in result.source
     assert "\\swap{1}" in result.source
     assert "\\targX{}" in result.source
-    assert "\\barrier[2]{}" in result.source
+    assert "\\barrier" not in result.source
+    assert "\\slice{}" in result.source
+
+    quantikz_lines = result.source.splitlines()
+    quantikz_end_index = quantikz_lines.index(r"\end{quantikz}")
+    assert not quantikz_lines[quantikz_end_index - 1].endswith(r"\\")
