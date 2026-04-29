@@ -22,7 +22,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     plot_histogram,
 )
 
-DEFAULT_HISTOGRAM_FIGSIZE: tuple[float, float] = (9.0, 5.1)
+DEFAULT_HISTOGRAM_FIGSIZE: tuple[float, float] = (10.8, 6.1)
 
 
 def build_payload() -> tuple[dict[str, int], ...]:

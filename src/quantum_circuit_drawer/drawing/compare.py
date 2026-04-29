@@ -941,11 +941,11 @@ def _summary_font_sizes(
     side_count: int = 2,
 ) -> tuple[float, float]:
     if card_height < 0.18:
-        header_fontsize, row_fontsize = (8.2, 7.6) if multi else (8.8, 8.0)
+        header_fontsize, row_fontsize = (9.0, 8.2) if multi else (9.6, 8.6)
     elif card_height < 0.28:
-        header_fontsize, row_fontsize = (9.2, 8.5) if multi else (9.8, 8.9)
+        header_fontsize, row_fontsize = (10.4, 9.6) if multi else (11.0, 10.0)
     else:
-        header_fontsize, row_fontsize = (10.5, 9.4) if multi else (11.0, 10.0)
+        header_fontsize, row_fontsize = (11.6, 10.6) if multi else (12.2, 11.0)
 
     if multi and side_count > 3:
         shrink = min(1.2, 0.3 * float(side_count - 3))

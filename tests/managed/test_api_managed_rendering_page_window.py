@@ -1,7 +1,10 @@
 # ruff: noqa: F403, F405
 import math
 
+from matplotlib.widgets import Button
+
 import quantum_circuit_drawer.managed._adaptive_paging as adaptive_paging_module
+import quantum_circuit_drawer.managed.controls as managed_controls_module
 import quantum_circuit_drawer.managed.page_window as page_window_module
 import quantum_circuit_drawer.renderers._matplotlib_text as matplotlib_text_module
 from quantum_circuit_drawer.ir.lowering import (
@@ -18,6 +21,48 @@ def test_draw_quantum_circuit_rejects_page_window_with_existing_axes() -> None:
 
     with pytest.raises(ValueError, match="page_window"):
         draw_quantum_circuit(build_sample_ir(), ax=axes, page_window=True)
+
+    plt.close(figure)
+
+
+def test_fit_button_label_to_width_keeps_long_text_inside_button_bounds() -> None:
+    figure = plt.figure(figsize=(3.2, 2.4))
+    button_axes = figure.add_axes((0.1, 0.1, 0.2, 0.1))
+    button = Button(button_axes, "Ancillas: Hide")
+
+    managed_controls_module._fit_button_label_font_size(button)
+    figure.canvas.draw()
+    renderer = figure.canvas.get_renderer()
+    label_bbox = button.label.get_window_extent(renderer=renderer)
+    button_bbox = button_axes.get_window_extent(renderer=renderer)
+
+    assert label_bbox.x0 >= button_bbox.x0
+    assert label_bbox.x1 <= button_bbox.x1
+
+    plt.close(figure)
+
+
+def test_fit_button_label_uses_same_font_size_for_all_registered_button_states() -> None:
+    figure = plt.figure(figsize=(3.2, 2.4))
+    button_axes = figure.add_axes((0.1, 0.1, 0.2, 0.1))
+    button = Button(button_axes, "Wires: All")
+
+    managed_controls_module._fit_button_label_font_size(
+        button,
+        possible_labels=("Wires: All", "Wires: Active"),
+    )
+    font_size_for_short_label = button.label.get_fontsize()
+    button.label.set_text("Wires: Active")
+    managed_controls_module._fit_button_label_font_size(button)
+    figure.canvas.draw()
+
+    renderer = figure.canvas.get_renderer()
+    label_bbox = button.label.get_window_extent(renderer=renderer)
+    button_bbox = button_axes.get_window_extent(renderer=renderer)
+
+    assert button.label.get_fontsize() == pytest.approx(font_size_for_short_label)
+    assert label_bbox.x0 >= button_bbox.x0
+    assert label_bbox.x1 <= button_bbox.x1
 
     plt.close(figure)
 
@@ -96,7 +141,45 @@ def test_draw_quantum_circuit_page_window_hides_noop_exploration_buttons_and_kee
         assert page_width <= 0.064
         assert visible_width <= 0.064
         assert visible_gap <= 0.22
-        assert len(figure.axes) == 7
+        assert len(figure.axes) == 8
+    finally:
+        plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_uses_narrow_page_arrows_and_tighter_visible_steppers() -> (
+    None
+):
+    figure, _ = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = get_page_window(figure)
+
+        assert page_window is not None
+        assert page_window.previous_page_button_axes is not None
+        assert page_window.next_page_button_axes is not None
+        assert page_window.page_axes is not None
+        assert page_window.visible_pages_axes is not None
+        assert page_window.visible_pages_decrement_axes is not None
+
+        page_gap = (
+            page_window.page_axes.get_position().x0
+            - page_window.previous_page_button_axes.get_position().x1
+        )
+        visible_gap = (
+            page_window.visible_pages_decrement_axes.get_position().x0
+            - page_window.visible_pages_axes.get_position().x1
+        )
+
+        assert page_window.previous_page_button_axes.get_position().width == pytest.approx(0.023)
+        assert page_window.next_page_button_axes.get_position().width == pytest.approx(0.023)
+        assert page_gap == pytest.approx(0.004)
+        assert visible_gap == pytest.approx(page_gap)
     finally:
         plt.close(figure)
 
@@ -133,6 +216,30 @@ def test_draw_quantum_circuit_page_window_clamps_inputs_and_reuses_cached_pages(
     assert page_window.start_page == 0
     assert len(page_window.page_cache) == 2
     plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_visible_suffix_tracks_remaining_page_capacity() -> None:
+    figure, _ = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = get_page_window(figure)
+
+        assert page_window is not None
+        assert page_window.page_box is not None
+        assert page_window.visible_suffix_text is not None
+        assert page_window.total_pages >= 2
+
+        page_window.page_box.set_val("2")
+
+        assert page_window.visible_suffix_text.get_text() == f"/ {page_window.total_pages - 1}"
+    finally:
+        plt.close(figure)
 
 
 def test_draw_quantum_circuit_page_window_reuses_text_fit_cache_between_redraws(
@@ -267,6 +374,57 @@ def test_draw_quantum_circuit_page_window_navigation_buttons_step_between_pages(
 
     assert page_window.start_page == 0
     plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_uses_larger_page_and_visible_labels() -> None:
+    figure, _ = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        labels_by_text = {
+            text_artist.get_text(): text_artist
+            for text_artist in figure.texts
+            if text_artist.get_text() in {"Page", "Visible"}
+        }
+
+        assert labels_by_text["Page"].get_fontsize() == pytest.approx(12.0)
+        assert labels_by_text["Visible"].get_fontsize() == pytest.approx(12.0)
+    finally:
+        plt.close(figure)
+
+
+def test_draw_quantum_circuit_page_window_resizes_navigation_button_font_with_figure() -> None:
+    figure, _ = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = get_page_window(figure)
+
+        assert page_window is not None
+        assert page_window.next_page_button is not None
+
+        figure.canvas.draw()
+        initial_font_size = page_window.next_page_button.label.get_fontsize()
+
+        figure.set_size_inches(10.0, 6.0, forward=True)
+        _dispatch_resize_event(figure)
+        figure.canvas.draw()
+
+        resized_font_size = page_window.next_page_button.label.get_fontsize()
+
+        assert resized_font_size > initial_font_size
+    finally:
+        plt.close(figure)
 
 
 def test_draw_quantum_circuit_page_window_uses_viewport_adaptive_initial_paging() -> None:

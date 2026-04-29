@@ -42,7 +42,7 @@ from quantum_circuit_drawer.histogram import (  # noqa: E402
 CompareKind = Literal["circuits", "histograms"]
 HistogramCompareSortName = Literal["state", "state_desc", "delta_desc"]
 CircuitCompareModeName = Literal["auto", "pages", "pages_controls", "slider", "full"]
-DEFAULT_COMPARE_FIGSIZE = (8.8, 4.8)
+DEFAULT_COMPARE_FIGSIZE = (10.6, 5.8)
 
 
 @dataclass(frozen=True, slots=True)

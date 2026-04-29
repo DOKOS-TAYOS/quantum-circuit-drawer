@@ -64,7 +64,11 @@ from .interaction import (
     toggle_operation_with_selection,
     visible_expandable_operation_ids,
 )
-from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
+from .shortcut_help import (
+    create_shortcut_help_button,
+    create_shortcut_help_text,
+    toggle_shortcut_help_text,
+)
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .view_state_3d import (
     _MANAGED_3D_FIXED_VIEW_STATE_ATTR,
@@ -80,13 +84,14 @@ if TYPE_CHECKING:
     from ..layout.topology_3d import TopologyName
 
 _MANAGED_3D_SLIDER_BOUNDS = (0.18, 0.09, 0.72, 0.05)
+_HELP_BUTTON_BOUNDS = (0.035, 0.025, 0.045, 0.045)
 _OPTIONAL_CONTROL_BOTTOM = 0.025
 _OPTIONAL_CONTROL_HEIGHT = 0.045
 _OPTIONAL_CONTROL_RIGHT = 0.97
 _OPTIONAL_CONTROL_GAP = 0.01
 _WIRE_FILTER_BUTTON_WIDTH = 0.13
 _ANCILLA_BUTTON_WIDTH = 0.13
-_BLOCK_TOGGLE_BUTTON_WIDTH = 0.18
+_BLOCK_TOGGLE_BUTTON_WIDTH = _WIRE_FILTER_BUTTON_WIDTH
 _SLIDER_CONTROL_ZORDER = 2.0
 _OPTIONAL_BUTTON_ZORDER = 1.0
 _CLICK_RELEASE_MAX_DRAG_PIXELS = 6.0
@@ -112,9 +117,11 @@ class Managed3DPageSliderState:
     wire_filter_button: Button | None = None
     ancilla_toggle_button: Button | None = None
     block_toggle_button: Button | None = None
+    help_button: Button | None = None
     wire_filter_axes: Axes | None = None
     ancilla_toggle_axes: Axes | None = None
     block_toggle_axes: Axes | None = None
+    help_button_axes: Axes | None = None
     shortcut_help_text: Text | None = None
     exploration: Managed2DExplorationState | None = None
     keyboard_shortcuts_enabled: bool = True
@@ -122,6 +129,7 @@ class Managed3DPageSliderState:
     click_press_callback_id: int | None = None
     click_release_callback_id: int | None = None
     key_callback_id: int | None = None
+    resize_callback_id: int | None = None
     pending_click: tuple[float, float, bool] | None = None
 
     def show_start_column(self, start_column: int) -> None:
@@ -427,8 +435,24 @@ def configure_3d_page_slider(
             "?: Show/hide this help",
         ),
     )
+    state.help_button_axes, state.help_button = create_shortcut_help_button(
+        figure,
+        palette=palette,
+        bounds=_HELP_BUTTON_BOUNDS,
+        on_click=lambda _event: state.toggle_shortcut_help(),
+        zorder=_SLIDER_CONTROL_ZORDER,
+    )
     _attach_3d_slider_selection_clicks(state)
     _attach_3d_slider_key_shortcuts(state)
+    canvas = getattr(figure, "canvas", None)
+    if canvas is not None:
+        if state.resize_callback_id is not None:
+            canvas.mpl_disconnect(state.resize_callback_id)
+        state.resize_callback_id = int(
+            canvas.mpl_connect(
+                "resize_event", lambda _event: _sync_3d_slider_control_typography(state)
+            )
+        )
     _ensure_3d_slider_exploration_controls(state)
     _sync_3d_slider_exploration_buttons(state)
     set_page_slider(figure, state)
@@ -775,6 +799,8 @@ def _remove_3d_slider_exploration_controls(state: Managed3DPageSliderState) -> N
 
 
 def _sync_3d_slider_exploration_buttons(state: Managed3DPageSliderState) -> None:
+    from .controls import _fit_button_label_font_size
+
     if state.ui_palette is None or state.exploration is None:
         return
 
@@ -784,13 +810,19 @@ def _sync_3d_slider_exploration_buttons(state: Managed3DPageSliderState) -> None
             if state.exploration.wire_filter_mode is WireFilterMode.ACTIVE
             else "Wires: All"
         )
-        state.wire_filter_button.label.set_fontsize(8.8)
+        _fit_button_label_font_size(
+            state.wire_filter_button,
+            possible_labels=("Wires: All", "Wires: Active"),
+        )
 
     if state.ancilla_toggle_button is not None:
         state.ancilla_toggle_button.label.set_text(
             "Ancillas: Show" if state.exploration.show_ancillas else "Ancillas: Hide"
         )
-        state.ancilla_toggle_button.label.set_fontsize(8.2)
+        _fit_button_label_font_size(
+            state.ancilla_toggle_button,
+            possible_labels=("Ancillas: Show", "Ancillas: Hide"),
+        )
 
     block_action = selected_block_action(
         state.exploration.catalog,
@@ -799,4 +831,26 @@ def _sync_3d_slider_exploration_buttons(state: Managed3DPageSliderState) -> None
     )
     if state.block_toggle_button is not None:
         state.block_toggle_button.label.set_text("" if block_action is None else block_action.label)
-        state.block_toggle_button.label.set_fontsize(8.2)
+        if block_action is None:
+            _fit_button_label_font_size(state.block_toggle_button, possible_labels=("",))
+        else:
+            block_label_root = block_action.label.removeprefix("Expand ").removeprefix("Collapse ")
+            _fit_button_label_font_size(
+                state.block_toggle_button,
+                possible_labels=(
+                    f"Expand {block_label_root}",
+                    f"Collapse {block_label_root}",
+                ),
+            )
+
+
+def _sync_3d_slider_control_typography(state: Managed3DPageSliderState) -> None:
+    from .controls import _fit_button_label_font_size
+
+    for button in (
+        state.wire_filter_button,
+        state.ancilla_toggle_button,
+        state.block_toggle_button,
+    ):
+        if button is not None:
+            _fit_button_label_font_size(button)

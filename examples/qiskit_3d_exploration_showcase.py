@@ -100,7 +100,7 @@ def main() -> None:
                 output=OutputOptions(
                     output_path=args.output,
                     show=args.show,
-                    figsize=(9.8, 5.2),
+                    figsize=(11.8, 6.2),
                 ),
             ),
         )

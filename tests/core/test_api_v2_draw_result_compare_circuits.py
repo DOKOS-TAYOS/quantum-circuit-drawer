@@ -1035,6 +1035,34 @@ def test_compare_circuits_can_render_summary_into_caller_managed_axes() -> None:
     plt.close(figure)
 
 
+def test_compare_circuits_summary_uses_larger_text() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        config=CircuitCompareConfig(output=OutputOptions(show=False)),
+    )
+
+    try:
+        header_fonts = [
+            text.get_fontsize()
+            for text in result.figure.texts
+            if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-header"
+        ]
+        row_fonts = [
+            text.get_fontsize()
+            for text in result.figure.texts
+            if getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+        ]
+
+        assert header_fonts
+        assert row_fonts
+        assert min(header_fonts) >= 12.0
+        assert min(row_fonts) >= 10.8
+    finally:
+        for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+            plt.close(figure)
+
+
 @pytest.mark.optional
 @pytest.mark.integration
 def test_compare_circuits_supports_mixed_qiskit_and_ir_inputs() -> None:

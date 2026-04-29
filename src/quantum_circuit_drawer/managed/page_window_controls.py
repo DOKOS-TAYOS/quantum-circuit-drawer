@@ -11,6 +11,7 @@ from .exploration_2d import (
 )
 from .page_window_render import _render_current_window
 from .page_window_windowing import _clamp_page_index, _clamp_visible_page_count
+from .shortcut_help import create_shortcut_help_button
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 
 if TYPE_CHECKING:
@@ -19,25 +20,27 @@ if TYPE_CHECKING:
     from .page_window import Managed2DPageWindowState
 
 _MAIN_AXES_BOUNDS = (0.02, 0.18, 0.96, 0.8)
-_PREVIOUS_PAGE_BUTTON_BOUNDS = (0.132, 0.05, 0.046, 0.06)
+_HELP_BUTTON_BOUNDS = (0.02, 0.05, 0.04, 0.06)
+_PREVIOUS_PAGE_BUTTON_BOUNDS = (0.155, 0.05, 0.023, 0.06)
 _PAGE_BOX_BOUNDS = (0.182, 0.05, 0.062, 0.06)
-_NEXT_PAGE_BUTTON_BOUNDS = (0.248, 0.05, 0.046, 0.06)
+_NEXT_PAGE_BUTTON_BOUNDS = (0.248, 0.05, 0.023, 0.06)
 _VISIBLE_PAGES_BOX_BOUNDS = (0.46, 0.05, 0.062, 0.06)
-_VISIBLE_PAGES_DECREMENT_BOUNDS = (0.53, 0.05, 0.03, 0.028)
-_VISIBLE_PAGES_INCREMENT_BOUNDS = (0.53, 0.082, 0.03, 0.028)
+_VISIBLE_PAGES_DECREMENT_BOUNDS = (0.526, 0.05, 0.03, 0.028)
+_VISIBLE_PAGES_INCREMENT_BOUNDS = (0.526, 0.082, 0.03, 0.028)
 _OPTIONAL_CONTROL_BOTTOM = 0.05
 _OPTIONAL_CONTROL_HEIGHT = 0.06
 _OPTIONAL_CONTROL_RIGHT = 0.98
 _OPTIONAL_CONTROL_GAP = 0.008
 _WIRE_FILTER_BUTTON_WIDTH = 0.104
 _ANCILLA_BUTTON_WIDTH = 0.104
-_BLOCK_TOGGLE_BUTTON_WIDTH = 0.172
-_PAGE_LABEL_POSITION = (0.075, 0.079)
+_BLOCK_TOGGLE_BUTTON_WIDTH = _WIRE_FILTER_BUTTON_WIDTH
+_PAGE_LABEL_POSITION = (0.108, 0.079)
 _PAGE_SUFFIX_POSITION = (0.302, 0.079)
 _VISIBLE_LABEL_POSITION = (0.406, 0.079)
 _VISIBLE_SUFFIX_POSITION = (0.564, 0.079)
 _MAIN_AXES_ZORDER = 3.0
 _CONTROL_AXES_ZORDER = 1.0
+_NAVIGATION_LABEL_FONT_SIZE = 12.0
 
 
 def _attach_controls(state: Managed2DPageWindowState) -> None:
@@ -49,6 +52,15 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     palette = state.ui_palette or managed_ui_palette(theme)
     state.axes.set_position(_MAIN_AXES_BOUNDS)
     state.axes.set_zorder(_MAIN_AXES_ZORDER)
+    help_button_axes, help_button = create_shortcut_help_button(
+        state.figure,
+        palette=palette,
+        bounds=_HELP_BUTTON_BOUNDS,
+        on_click=lambda _event: state.toggle_shortcut_help(),
+        zorder=_CONTROL_AXES_ZORDER,
+    )
+    state.help_button_axes = help_button_axes
+    state.help_button = help_button
 
     previous_page_button_axes = state.figure.add_axes(
         _PREVIOUS_PAGE_BUTTON_BOUNDS,
@@ -177,7 +189,7 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
     state.visible_suffix_text = state.figure.text(
         _VISIBLE_SUFFIX_POSITION[0],
         _VISIBLE_SUFFIX_POSITION[1],
-        f"/ {state.total_pages}",
+        f"/ {max(1, state.total_pages - state.start_page)}",
         color=palette.secondary_text_color,
         ha="left",
         va="center",
@@ -190,7 +202,7 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         color=palette.secondary_text_color,
         ha="left",
         va="center",
-        fontsize=10.0,
+        fontsize=_NAVIGATION_LABEL_FONT_SIZE,
     )
     state.figure.text(
         _VISIBLE_LABEL_POSITION[0],
@@ -199,15 +211,16 @@ def _attach_controls(state: Managed2DPageWindowState) -> None:
         color=palette.secondary_text_color,
         ha="left",
         va="center",
-        fontsize=10.0,
+        fontsize=_NAVIGATION_LABEL_FONT_SIZE,
     )
     _sync_navigation_button_states(state)
 
 
 def _style_button(button: Button, *, palette: ManagedUiPalette) -> None:
+    from .controls import _fit_button_label_font_size
+
     button.ax.set_facecolor(palette.surface_facecolor)
     button.label.set_color(palette.text_color)
-    button.label.set_fontsize(12.0)
     button.label.set_fontweight("bold")
     button.ax.tick_params(
         left=False,
@@ -218,6 +231,7 @@ def _style_button(button: Button, *, palette: ManagedUiPalette) -> None:
     for spine in button.ax.spines.values():
         spine.set_color(palette.surface_edgecolor_active)
         spine.set_linewidth(1.1)
+    _fit_button_label_font_size(button)
 
 
 def _set_button_enabled(
@@ -239,11 +253,22 @@ def _set_button_enabled(
 
 
 def _sync_navigation_button_states(state: Managed2DPageWindowState) -> None:
+    from .controls import _fit_button_label_font_size
+
     if state.ui_palette is None:
         return
 
     can_step_backward = state.start_page > 0
     can_step_forward = (state.start_page + state.visible_page_count) < state.total_pages
+
+    for button in (
+        state.previous_page_button,
+        state.next_page_button,
+        state.visible_pages_increment_button,
+        state.visible_pages_decrement_button,
+    ):
+        if button is not None:
+            _fit_button_label_font_size(button)
 
     if state.previous_page_button is not None:
         _set_button_enabled(
@@ -332,7 +357,7 @@ def _sync_inputs(state: Managed2DPageWindowState) -> None:
     if state.page_suffix_text is not None:
         state.page_suffix_text.set_text(f"/ {state.total_pages}")
     if state.visible_suffix_text is not None:
-        state.visible_suffix_text.set_text(f"/ {state.total_pages}")
+        state.visible_suffix_text.set_text(f"/ {max(1, state.total_pages - state.start_page)}")
 
     _ensure_exploration_controls(state)
 
@@ -495,6 +520,8 @@ def _remove_exploration_controls(state: Managed2DPageWindowState) -> None:
 
 
 def _sync_exploration_buttons(state: Managed2DPageWindowState) -> None:
+    from .controls import _fit_button_label_font_size
+
     if state.ui_palette is None or state.exploration is None:
         return
 
@@ -504,7 +531,10 @@ def _sync_exploration_buttons(state: Managed2DPageWindowState) -> None:
             if state.exploration.wire_filter_mode is WireFilterMode.ACTIVE
             else "Wires: All"
         )
-        state.wire_filter_button.label.set_fontsize(8.8)
+        _fit_button_label_font_size(
+            state.wire_filter_button,
+            possible_labels=("Wires: All", "Wires: Active"),
+        )
         _set_button_enabled(
             state.wire_filter_button,
             enabled=True,
@@ -515,7 +545,10 @@ def _sync_exploration_buttons(state: Managed2DPageWindowState) -> None:
         state.ancilla_toggle_button.label.set_text(
             "Ancillas: Show" if state.exploration.show_ancillas else "Ancillas: Hide"
         )
-        state.ancilla_toggle_button.label.set_fontsize(8.2)
+        _fit_button_label_font_size(
+            state.ancilla_toggle_button,
+            possible_labels=("Ancillas: Show", "Ancillas: Hide"),
+        )
         _set_button_enabled(
             state.ancilla_toggle_button,
             enabled=True,
@@ -529,7 +562,17 @@ def _sync_exploration_buttons(state: Managed2DPageWindowState) -> None:
     )
     if state.block_toggle_button is not None:
         state.block_toggle_button.label.set_text("" if block_action is None else block_action.label)
-        state.block_toggle_button.label.set_fontsize(8.2)
+        if block_action is None:
+            _fit_button_label_font_size(state.block_toggle_button, possible_labels=("",))
+        else:
+            block_label_root = block_action.label.removeprefix("Expand ").removeprefix("Collapse ")
+            _fit_button_label_font_size(
+                state.block_toggle_button,
+                possible_labels=(
+                    f"Expand {block_label_root}",
+                    f"Collapse {block_label_root}",
+                ),
+            )
         _set_button_enabled(
             state.block_toggle_button,
             enabled=block_action is not None,

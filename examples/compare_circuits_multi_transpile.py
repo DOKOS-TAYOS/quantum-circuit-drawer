@@ -25,7 +25,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     compare_circuits,
 )
 
-DEFAULT_COMPARE_FIGSIZE: tuple[float, float] = (8.8, 4.8)
+DEFAULT_COMPARE_FIGSIZE: tuple[float, float] = (10.6, 5.8)
 
 
 def build_source_circuit() -> QuantumCircuit:

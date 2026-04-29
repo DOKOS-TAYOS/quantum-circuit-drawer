@@ -102,6 +102,7 @@ class Managed2DPageWindowState:
     wire_filter_button: Button | None = None
     ancilla_toggle_button: Button | None = None
     block_toggle_button: Button | None = None
+    help_button: Button | None = None
     page_axes: Axes | None = None
     visible_pages_axes: Axes | None = None
     visible_pages_decrement_axes: Axes | None = None
@@ -111,6 +112,7 @@ class Managed2DPageWindowState:
     wire_filter_axes: Axes | None = None
     ancilla_toggle_axes: Axes | None = None
     block_toggle_axes: Axes | None = None
+    help_button_axes: Axes | None = None
     page_suffix_text: Text | None = None
     visible_suffix_text: Text | None = None
     shortcut_help_text: Text | None = None
@@ -122,6 +124,7 @@ class Managed2DPageWindowState:
     controls_enabled: bool = True
     click_callback_id: int | None = None
     key_callback_id: int | None = None
+    resize_callback_id: int | None = None
 
     def select_operation(self, operation_id: str | None) -> None:
         """Update the contextual selection and redraw the current page window."""
@@ -440,6 +443,13 @@ def configure_page_window(
     )
     _attach_window_selection_clicks(state)
     _attach_window_key_shortcuts(state)
+    canvas = getattr(figure, "canvas", None)
+    if canvas is not None:
+        if state.resize_callback_id is not None:
+            canvas.mpl_disconnect(state.resize_callback_id)
+        state.resize_callback_id = int(
+            canvas.mpl_connect("resize_event", lambda _event: _sync_inputs(state))
+        )
     _render_current_window(state)
     _sync_inputs(state)
     return state

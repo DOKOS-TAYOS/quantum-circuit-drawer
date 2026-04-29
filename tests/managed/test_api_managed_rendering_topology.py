@@ -80,7 +80,7 @@ def test_draw_quantum_circuit_attaches_lower_left_dark_topology_radio_panel(
     assert menu_state.menu_axes is not None
     assert menu_state.radio is not None
     assert tuple(menu_state.menu_axes.get_position().bounds) == pytest.approx(
-        (0.035, 0.035, 0.17, 0.21),
+        (0.85, 0.035, 0.12, 0.21),
         abs=1e-3,
     )
     assert menu_state.menu_axes.get_facecolor() == pytest.approx(mcolors.to_rgba("#171221"))
@@ -180,3 +180,62 @@ def test_topology_menu_selects_flexible_grid_topology(
     assert menu_state.radio.value_selected == "grid"
     assert menu_state.scene.topology.name == "grid"
     plt.close(figure)
+
+
+def test_topology_menu_resizes_label_font_with_figure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, _ = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        figsize=(4.0, 3.0),
+    )
+
+    try:
+        menu_state = get_topology_menu_state(figure)
+
+        assert menu_state is not None
+        assert menu_state.radio is not None
+
+        figure.canvas.draw()
+        initial_font_size = max(label.get_fontsize() for label in menu_state.radio.labels)
+
+        figure.set_size_inches(10.0, 6.0, forward=True)
+        _dispatch_resize_event(figure)
+        figure.canvas.draw()
+
+        resized_font_size = max(label.get_fontsize() for label in menu_state.radio.labels)
+
+        assert resized_font_size > initial_font_size
+    finally:
+        plt.close(figure)
+
+
+def test_topology_menu_uses_smaller_label_font(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "QtAgg")
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
+
+    figure, _ = draw_quantum_circuit(
+        build_sample_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        figsize=(4.0, 3.0),
+    )
+
+    try:
+        menu_state = get_topology_menu_state(figure)
+
+        assert menu_state is not None
+        assert menu_state.radio is not None
+
+        assert max(label.get_fontsize() for label in menu_state.radio.labels) <= 8.6
+    finally:
+        plt.close(figure)

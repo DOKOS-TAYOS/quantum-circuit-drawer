@@ -30,7 +30,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     plot_histogram,
 )
 
-DEFAULT_CIRCUIT_FIGSIZE: tuple[float, float] = (8.8, 4.8)
+DEFAULT_CIRCUIT_FIGSIZE: tuple[float, float] = (10.6, 5.8)
 
 
 def build_circuit(*, qubit_count: int, motif_count: int) -> object:
@@ -91,7 +91,7 @@ def main() -> None:
                     draw_style=HistogramDrawStyle.OUTLINE,
                     show_uniform_reference=True,
                 ),
-                output=OutputOptions(show=False, figsize=(8.4, 4.6)),
+                output=OutputOptions(show=False, figsize=(10.1, 5.5)),
             ),
         )
         _save_companion_histogram(args.output, histogram_result)

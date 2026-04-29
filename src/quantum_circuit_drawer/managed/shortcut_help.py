@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 
 from matplotlib.figure import Figure
 from matplotlib.text import Text
@@ -10,6 +11,10 @@ from matplotlib.text import Text
 from .ui_palette import ManagedUiPalette
 
 _SHORTCUT_HELP_POSITION = (0.018, 0.975)
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.widgets import Button
 
 
 def create_shortcut_help_text(
@@ -67,8 +72,49 @@ def toggle_shortcut_help_text(help_text: Text | None, *, figure: Figure) -> None
         canvas.draw_idle()
 
 
+def create_shortcut_help_button(
+    figure: Figure,
+    *,
+    palette: ManagedUiPalette,
+    bounds: tuple[float, float, float, float],
+    on_click: Callable[[object], None],
+    zorder: float = 1.0,
+) -> tuple[Axes, Button]:
+    """Create one circular-looking help button that toggles the shortcut overlay."""
+
+    from matplotlib.widgets import Button
+
+    button_axes = figure.add_axes(bounds, facecolor="none")
+    button_axes.set_zorder(zorder)
+    button_axes.set_xticks([])
+    button_axes.set_yticks([])
+    button_axes.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+    for spine in button_axes.spines.values():
+        spine.set_visible(False)
+    help_button = Button(
+        button_axes,
+        "?",
+        color="none",
+        hovercolor="none",
+    )
+    help_button.label.set_color(palette.text_color)
+    help_button.label.set_fontweight("bold")
+    help_button.label.set_bbox(
+        {
+            "boxstyle": "circle,pad=0.33",
+            "facecolor": palette.surface_facecolor,
+            "edgecolor": palette.surface_edgecolor_active,
+            "linewidth": 1.1,
+            "alpha": 0.98,
+        }
+    )
+    help_button.on_clicked(on_click)
+    return button_axes, help_button
+
+
 __all__ = [
     "ManagedUiPalette",
+    "create_shortcut_help_button",
     "create_shortcut_help_text",
     "format_shortcut_help",
     "toggle_shortcut_help_text",

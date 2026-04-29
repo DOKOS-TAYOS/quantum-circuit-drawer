@@ -27,7 +27,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     draw_quantum_circuit,
 )
 
-DEFAULT_FIGSIZE: tuple[float, float] = (9.4, 4.8)
+DEFAULT_FIGSIZE: tuple[float, float] = (11.3, 5.8)
 
 
 @dataclass(frozen=True, slots=True)

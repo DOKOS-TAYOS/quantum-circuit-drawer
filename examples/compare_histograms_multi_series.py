@@ -22,7 +22,7 @@ from quantum_circuit_drawer import (  # noqa: E402
 )
 from quantum_circuit_drawer.histogram import HistogramDataOptions  # noqa: E402
 
-DEFAULT_COMPARE_FIGSIZE: tuple[float, float] = (9.2, 5.1)
+DEFAULT_COMPARE_FIGSIZE: tuple[float, float] = (11.0, 6.1)
 
 
 def build_inputs() -> tuple[dict[str, float], dict[str, float], dict[str, float], dict[str, float]]:

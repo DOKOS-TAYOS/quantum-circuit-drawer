@@ -5,9 +5,13 @@
 ### Added
 
 - Added `circuit_to_latex(...)` with `quantikz` and basic `tikzpicture` export backends, returning typed `LatexResult` objects for full-circuit and paged 2D LaTeX snippets.
+- Added a persistent circular `?` help button to the interactive histogram controls and managed circuit viewers so the same shortcut overlay opened by `?` is also reachable from the visible UI.
 
 ### Changed
 
+- Enlarged the default Matplotlib windows used by the demo scripts by about 20% so the examples open a bit roomier across circuit, histogram, and compare showcases.
+- Added the `u` keyboard shortcut to interactive histograms so the uniform reference line can be shown or hidden without reopening the figure, and made the histogram reset action restore that line to its original config state.
+- Tightened the managed 3D control layout by moving the topology menu closer to the action buttons, narrowing the panel, right-aligning it with the `Wires` control area, and bringing the `Page` label noticeably closer to the left page-navigation button in both 2D and 3D page-window modes.
 - Rewrote the bundled demo scripts so the primary path is now direct, self-contained user code inside each `.py`: build the circuit or result inline, call the public API directly, and run the file without depending on the old shared helper flow.
 - Repositioned `examples/run_demo.py`, `examples/run_histogram_demo.py`, and `examples/run_compare_demo.py` as lightweight catalog launchers that forward flags to the direct scripts instead of imposing a shared builder architecture.
 - Refreshed the README, getting-started guide, user guide, and examples catalog so the quickest path now emphasizes normal scripts, clearer copy-paste workflows, and `circuit_to_latex(...)` as a first-class public capability.
@@ -20,6 +24,7 @@
 
 ### Fixed
 
+- Fixed managed menu controls so page-window, 2D/3D slider, and topology-menu button labels now scale with the final figure size, keep one stable font per button across its label states by fitting against the longest message, tighten the page/visible navigation geometry, narrow the topology panel to reduce right-side dead space, and enlarge compare-summary table text for easier reading.
 - Reduced repeated text-resolution work across the Matplotlib circuit render path by caching resolved visible-label and gate-label text before artist creation, improving default 2D rendering performance without changing circuit layout geometry.
 - Reduced repeated 2D managed paging work by reusing adaptive paging inputs and metrics across `pages_controls`, plus cached horizontal subscenes in `slider`, cutting redraw recomputation without changing the public API.
 - Reduced 2D Matplotlib artist overhead by batching gate boxes, measurement boxes, and decomposition highlights into patch collections where styles match, while keeping the visible geometry and public API unchanged.

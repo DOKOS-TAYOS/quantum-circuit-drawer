@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from matplotlib.axes import Axes
+from matplotlib.font_manager import FontProperties
+from matplotlib.textpath import TextPath
 
 from .ui_palette import ManagedUiPalette
 
@@ -39,8 +41,14 @@ _MANAGED_2D_STEPPER_BUTTON_GAP = 0.006
 _MANAGED_3D_VIEWPORT_BOUNDS_ATTR = "_quantum_circuit_drawer_managed_3d_viewport_bounds"
 _MANAGED_3D_MAIN_AXES_BOUNDS = (0.0, 0.0, 1.0, 1.0)
 _MANAGED_3D_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.0, 0.14, 1.0, 0.86)
-_MANAGED_3D_MENU_BOUNDS = (0.035, 0.035, 0.17, 0.21)
-_MANAGED_3D_MENU_BOUNDS_WITH_SLIDER = (0.035, 0.155, 0.17, 0.21)
+_MANAGED_3D_MENU_BOUNDS = (0.85, 0.035, 0.12, 0.21)
+_MANAGED_3D_MENU_BOUNDS_WITH_SLIDER = (0.85, 0.155, 0.12, 0.21)
+_CONTROL_LABEL_WIDTH_PADDING_FRACTION = 0.18
+_CONTROL_LABEL_HEIGHT_PADDING_FRACTION = 0.24
+_CONTROL_LABEL_DEFAULT_HEIGHT_SCALE = 0.52
+_CONTROL_MIN_FONT_SIZE = 1.0
+_RADIO_LABEL_SIDE_PADDING_POINTS = 10.0
+_BUTTON_LABEL_OPTIONS_ATTR = "_quantum_circuit_drawer_button_label_options"
 
 
 def managed_3d_axes_bounds(*, has_page_slider: bool) -> tuple[float, float, float, float]:
@@ -276,11 +284,11 @@ def _style_stepper_button(button: Button, *, palette: ManagedUiPalette) -> None:
     button.color = palette.surface_facecolor
     button.hovercolor = palette.surface_hover_facecolor
     button.label.set_color(palette.text_color)
-    button.label.set_fontsize(8.5)
     button.label.set_fontweight("bold")
     for spine in button.ax.spines.values():
         spine.set_color(palette.surface_edgecolor)
         spine.set_linewidth(1.0)
+    _fit_button_label_font_size(button)
 
 
 def _style_text_box(
@@ -308,3 +316,155 @@ def _style_text_box(
     for spine in text_box.ax.spines.values():
         spine.set_color(border_color)
         spine.set_linewidth(1.0)
+
+
+def _fit_button_label_font_size(
+    button: Button,
+    *,
+    text: str | None = None,
+    possible_labels: tuple[str, ...] | None = None,
+    fontweight: str = "bold",
+) -> float:
+    label_text = button.label.get_text() if text is None else text
+    if possible_labels is not None:
+        setattr(button, _BUTTON_LABEL_OPTIONS_ATTR, possible_labels)
+    label_options = cast(
+        "tuple[str, ...] | None",
+        getattr(button, _BUTTON_LABEL_OPTIONS_ATTR, None),
+    ) or (label_text,)
+    button.label.set_text(label_text)
+    width_points, height_points = _axes_size_points(button.ax)
+    resolved_font_size = min(
+        _fit_control_label_font_size(
+            candidate_label,
+            width_points=width_points,
+            height_points=height_points,
+            fontweight=fontweight,
+        )
+        for candidate_label in label_options
+    )
+    button.label.set_fontsize(resolved_font_size)
+    button.label.set_fontweight(fontweight)
+    return resolved_font_size
+
+
+def _fit_radio_label_font_size(
+    menu_axes: Axes,
+    *,
+    labels: tuple[str, ...] | list[str],
+    marker_diameter_points: float,
+    max_font_size: float | None = None,
+) -> float:
+    width_points, height_points = _axes_size_points(menu_axes)
+    row_height_points = height_points / max(1, len(labels))
+    available_width_points = max(
+        _VIEWPORT_EPSILON,
+        width_points - marker_diameter_points - _RADIO_LABEL_SIDE_PADDING_POINTS,
+    )
+    resolved_font_size = min(
+        _fit_control_label_font_size(
+            label,
+            width_points=available_width_points,
+            height_points=row_height_points,
+            fontweight="normal",
+        )
+        for label in labels
+    )
+    if max_font_size is not None:
+        return min(resolved_font_size, max_font_size)
+    return resolved_font_size
+
+
+def _radio_marker_size_points_squared(
+    menu_axes: Axes,
+    *,
+    item_count: int,
+) -> float:
+    _, height_points = _axes_size_points(menu_axes)
+    row_height_points = height_points / max(1, item_count)
+    marker_diameter_points = max(6.0, min(11.0, row_height_points * 0.42))
+    return marker_diameter_points * marker_diameter_points
+
+
+def _radio_marker_diameter_points(
+    menu_axes: Axes,
+    *,
+    item_count: int,
+) -> float:
+    return _radio_marker_size_points_squared(menu_axes, item_count=item_count) ** 0.5
+
+
+def _fit_control_label_font_size(
+    text: str,
+    *,
+    width_points: float,
+    height_points: float,
+    fontweight: str,
+) -> float:
+    available_width_points = max(
+        _VIEWPORT_EPSILON,
+        width_points * (1.0 - _CONTROL_LABEL_WIDTH_PADDING_FRACTION),
+    )
+    available_height_points = max(
+        _VIEWPORT_EPSILON,
+        height_points * (1.0 - _CONTROL_LABEL_HEIGHT_PADDING_FRACTION),
+    )
+    unit_width_points, unit_height_points = _text_size_at_unit_font(
+        text,
+        fontweight=fontweight,
+    )
+    preferred_font_size = max(
+        _CONTROL_MIN_FONT_SIZE,
+        height_points * _CONTROL_LABEL_DEFAULT_HEIGHT_SCALE,
+    )
+    fitted_width_font_size = (
+        available_width_points / unit_width_points
+        if unit_width_points > _VIEWPORT_EPSILON
+        else preferred_font_size
+    )
+    fitted_height_font_size = (
+        available_height_points / unit_height_points
+        if unit_height_points > _VIEWPORT_EPSILON
+        else preferred_font_size
+    )
+    return max(
+        _CONTROL_MIN_FONT_SIZE,
+        min(preferred_font_size, fitted_width_font_size, fitted_height_font_size),
+    )
+
+
+def _text_size_at_unit_font(
+    text: str,
+    *,
+    fontweight: str,
+) -> tuple[float, float]:
+    lines = text.splitlines() or [" "]
+    font_properties = FontProperties(size=1.0, weight=fontweight)
+    max_width_points = 0.0
+    total_height_points = 0.0
+    for line_index, line in enumerate(lines):
+        if line.strip():
+            line_bounds = TextPath(
+                (0.0, 0.0),
+                line,
+                size=1.0,
+                prop=font_properties,
+            ).get_extents()
+            max_width_points = max(max_width_points, line_bounds.width)
+            total_height_points += line_bounds.height
+        else:
+            total_height_points += 1.0
+        if line_index < (len(lines) - 1):
+            total_height_points += 0.28
+    return max_width_points, total_height_points
+
+
+def _axes_size_points(axes: Axes) -> tuple[float, float]:
+    figure = axes.figure
+    bounds = axes.get_position().bounds
+    width_points = figure.get_figwidth() * 72.0 * bounds[2]
+    height_points = figure.get_figheight() * 72.0 * bounds[3]
+    return (
+        max(_VIEWPORT_EPSILON, width_points),
+        max(_VIEWPORT_EPSILON, height_points),
+    )

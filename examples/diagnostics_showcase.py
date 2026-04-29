@@ -22,7 +22,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     draw_quantum_circuit,
 )
 
-DEFAULT_FIGSIZE: tuple[float, float] = (8.8, 4.8)
+DEFAULT_FIGSIZE: tuple[float, float] = (10.6, 5.8)
 
 
 def build_circuit(*, qubit_count: int, motif_count: int) -> object:

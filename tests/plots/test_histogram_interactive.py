@@ -103,6 +103,35 @@ def _dispatch_key_press(figure: Figure, key: str) -> None:
     figure.canvas.callbacks.process("key_press_event", event)
 
 
+def _dispatch_click_at_axes_center(figure: Figure, axes: object) -> None:
+    x, y, width, height = axes.get_window_extent(renderer=figure.canvas.get_renderer()).bounds
+    press_event = MouseEvent(
+        "button_press_event",
+        figure.canvas,
+        x + (width / 2.0),
+        y + (height / 2.0),
+        button=1,
+    )
+    figure.canvas.callbacks.process("button_press_event", press_event)
+    release_event = MouseEvent(
+        "button_release_event",
+        figure.canvas,
+        x + (width / 2.0),
+        y + (height / 2.0),
+        button=1,
+    )
+    figure.canvas.callbacks.process("button_release_event", release_event)
+
+
+def _uniform_reference_lines(figure: Figure) -> list[object]:
+    return [
+        line
+        for axes in figure.axes
+        for line in axes.lines
+        if getattr(line, "get_gid", lambda: None)() == "histogram-uniform-reference-line"
+    ]
+
+
 def test_plot_histogram_interactive_mode_attaches_controls_and_windowed_view() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
@@ -386,6 +415,34 @@ def test_histogram_interactive_keyboard_shortcuts_update_and_reset_view() -> Non
     plt.close(result.figure)
 
 
+def test_histogram_interactive_u_shortcut_toggles_uniform_reference_line() -> None:
+    result = plot_histogram(
+        {"00": 7, "01": 5, "10": 9, "11": 1},
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            show_uniform_reference=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.show_uniform_reference is False
+    assert _uniform_reference_lines(result.figure) == []
+
+    _dispatch_key_press(result.figure, "u")
+    assert state.show_uniform_reference is True
+    assert len(_uniform_reference_lines(result.figure)) == 1
+
+    _dispatch_key_press(result.figure, "u")
+    assert state.show_uniform_reference is False
+    assert _uniform_reference_lines(result.figure) == []
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_question_shortcut_toggles_shortcut_help() -> None:
     result = plot_histogram(
         _dense_histogram_counts(),
@@ -416,6 +473,34 @@ def test_histogram_interactive_question_shortcut_toggles_shortcut_help() -> None
     assert "$\\mathbf{m}$: Edit marginal qubits" in shortcut_help_text
 
     _dispatch_key_press(result.figure, "?")
+    assert state.shortcut_help_text.get_visible() is False
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_help_button_toggles_shortcut_help() -> None:
+    result = plot_histogram(
+        _dense_histogram_counts(),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.help_button is not None
+    assert state.help_button_axes is not None
+    assert state.help_button.label.get_text() == "?"
+    assert state.shortcut_help_text is not None
+    assert state.shortcut_help_text.get_visible() is False
+
+    _dispatch_click_at_axes_center(result.figure, state.help_button_axes)
+    assert state.shortcut_help_text.get_visible() is True
+
+    _dispatch_click_at_axes_center(result.figure, state.help_button_axes)
     assert state.shortcut_help_text.get_visible() is False
 
     plt.close(result.figure)

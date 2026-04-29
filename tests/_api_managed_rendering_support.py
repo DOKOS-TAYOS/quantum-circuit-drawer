@@ -10,6 +10,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.axes import Axes
+from matplotlib.backend_bases import ResizeEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.collections import PatchCollection
 from matplotlib.figure import Figure
@@ -356,6 +357,10 @@ def _gate_box_line_width(axes: object) -> float:
         raise StopIteration("No gate box patch or patch collection was rendered")
     line_widths = gate_collection.get_linewidths()
     return float(line_widths[0])
+
+
+def _dispatch_resize_event(figure: Figure) -> None:
+    figure.canvas.callbacks.process("resize_event", ResizeEvent("resize_event", figure.canvas))
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

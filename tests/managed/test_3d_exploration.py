@@ -528,6 +528,36 @@ def test_3d_page_window_shortcuts_cycle_topology_and_toggle_wire_filter() -> Non
         plt.close(result.primary_figure)
 
 
+def test_3d_page_window_help_button_toggles_shortcut_help() -> None:
+    result = public_draw_quantum_circuit(
+        build_wrapped_ir(),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            topology_menu=True,
+            show=False,
+        ),
+    )
+
+    try:
+        page_window = get_page_window(result.primary_figure)
+        assert page_window is not None
+        assert page_window.help_button is not None
+        assert page_window.help_button_axes is not None
+        assert page_window.help_button.label.get_text() == "?"
+        assert page_window.shortcut_help_text is not None
+        assert page_window.shortcut_help_text.get_visible() is False
+
+        _dispatch_click_at_axes_center(result.primary_figure, page_window.help_button_axes)
+        assert page_window.shortcut_help_text.get_visible() is True
+
+        _dispatch_click_at_axes_center(result.primary_figure, page_window.help_button_axes)
+        assert page_window.shortcut_help_text.get_visible() is False
+    finally:
+        plt.close(result.primary_figure)
+
+
 def test_3d_pages_mode_enables_managed_shortcuts_without_visible_controls() -> None:
     result = public_draw_quantum_circuit(
         build_wrapped_ir(),
@@ -904,6 +934,34 @@ def test_3d_slider_shortcuts_cycle_topology_and_toggle_wire_filter() -> None:
         plt.close(figure)
 
 
+def test_3d_slider_help_button_toggles_shortcut_help() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        page_slider=True,
+        show=False,
+    )
+
+    try:
+        page_slider = cast(Managed3DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.help_button is not None
+        assert page_slider.help_button_axes is not None
+        assert page_slider.help_button.label.get_text() == "?"
+        assert page_slider.shortcut_help_text is not None
+        assert page_slider.shortcut_help_text.get_visible() is False
+
+        _dispatch_click_at_axes_center(figure, page_slider.help_button_axes)
+        assert page_slider.shortcut_help_text.get_visible() is True
+
+        _dispatch_click_at_axes_center(figure, page_slider.help_button_axes)
+        assert page_slider.shortcut_help_text.get_visible() is False
+    finally:
+        plt.close(figure)
+
+
 def test_3d_slider_tab_shortcuts_select_expandable_blocks_and_clear_selection() -> None:
     current_semantic_ir, expanded_semantic_ir = _semantic_controls_circuits()
     current_circuit = lower_semantic_circuit(current_semantic_ir)
@@ -1197,6 +1255,15 @@ def _dispatch_click_release_in_axes(
         dblclick=dblclick,
     )
     figure.canvas.callbacks.process("button_release_event", release_event)
+
+
+def _dispatch_click_at_axes_center(figure: Figure, axes: object) -> None:
+    x, y, width, height = axes.get_window_extent(renderer=figure.canvas.get_renderer()).bounds
+    _dispatch_click_release_in_axes(
+        figure,
+        cast("Axes3D", axes),
+        display=(x + (width / 2.0), y + (height / 2.0)),
+    )
 
 
 def _dispatch_drag_in_axes(

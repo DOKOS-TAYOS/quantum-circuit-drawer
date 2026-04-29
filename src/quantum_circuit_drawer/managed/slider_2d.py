@@ -63,7 +63,11 @@ from .interaction import (
     toggle_operation_with_selection,
     visible_expandable_operation_ids,
 )
-from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
+from .shortcut_help import (
+    create_shortcut_help_button,
+    create_shortcut_help_text,
+    toggle_shortcut_help_text,
+)
 from .slider_2d_windowing import _scene_for_current_window
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .viewport import _figure_size_inches, axes_viewport_pixels
@@ -77,13 +81,14 @@ if TYPE_CHECKING:
 
 _VIEWPORT_EPSILON = 1e-6
 _DEFAULT_VISIBLE_QUBITS = 15
+_HELP_BUTTON_BOUNDS = (0.02, 0.05, 0.035, 0.06)
 _OPTIONAL_CONTROL_BOTTOM = 0.05
 _OPTIONAL_CONTROL_HEIGHT = 0.06
 _OPTIONAL_CONTROL_RIGHT = 0.97
 _OPTIONAL_CONTROL_GAP = 0.01
 _WIRE_FILTER_BUTTON_WIDTH = 0.13
 _ANCILLA_BUTTON_WIDTH = 0.13
-_BLOCK_TOGGLE_BUTTON_WIDTH = 0.18
+_BLOCK_TOGGLE_BUTTON_WIDTH = _WIRE_FILTER_BUTTON_WIDTH
 _MAIN_AXES_ZORDER = 3.0
 _SLIDER_CONTROL_ZORDER = 2.0
 _OPTIONAL_BUTTON_ZORDER = 1.0
@@ -153,6 +158,7 @@ class Managed2DPageSliderState:
     wire_filter_button: Button | None
     ancilla_toggle_button: Button | None
     block_toggle_button: Button | None
+    help_button: Button | None
     horizontal_axes: Axes | None
     vertical_axes: Axes | None
     visible_qubits_axes: Axes | None
@@ -161,6 +167,7 @@ class Managed2DPageSliderState:
     wire_filter_axes: Axes | None
     ancilla_toggle_axes: Axes | None
     block_toggle_axes: Axes | None
+    help_button_axes: Axes | None
     shortcut_help_text: Text | None
     start_column: int
     max_start_column: int
@@ -183,6 +190,7 @@ class Managed2DPageSliderState:
     double_click_toggle_enabled: bool = True
     click_callback_id: int | None = None
     key_callback_id: int | None = None
+    resize_callback_id: int | None = None
 
     def show_start_column(self, start_column: int) -> None:
         """Render the requested horizontal start column."""
@@ -486,6 +494,7 @@ def configure_page_slider(
         wire_filter_button=None,
         ancilla_toggle_button=None,
         block_toggle_button=None,
+        help_button=None,
         horizontal_axes=None,
         vertical_axes=None,
         visible_qubits_axes=None,
@@ -494,6 +503,7 @@ def configure_page_slider(
         wire_filter_axes=None,
         ancilla_toggle_axes=None,
         block_toggle_axes=None,
+        help_button_axes=None,
         shortcut_help_text=None,
         start_column=0,
         max_start_column=0,
@@ -538,6 +548,13 @@ def configure_page_slider(
     )
     _attach_slider_selection_clicks(state)
     _attach_slider_key_shortcuts(state)
+    canvas = getattr(figure, "canvas", None)
+    if canvas is not None:
+        if state.resize_callback_id is not None:
+            canvas.mpl_disconnect(state.resize_callback_id)
+        state.resize_callback_id = int(
+            canvas.mpl_connect("resize_event", lambda _event: _sync_2d_control_typography(state))
+        )
     _apply_2d_slider_state(state)
     _sync_visible_qubits_box(state, state.visible_qubits)
 
@@ -687,6 +704,15 @@ def _attach_2d_controls(
 
     theme = state.style.theme
     palette = managed_ui_palette(theme)
+    help_button_axes, help_button = create_shortcut_help_button(
+        state.figure,
+        palette=palette,
+        bounds=_HELP_BUTTON_BOUNDS,
+        on_click=lambda _event: state.toggle_shortcut_help(),
+        zorder=_SLIDER_CONTROL_ZORDER,
+    )
+    state.help_button_axes = help_button_axes
+    state.help_button = help_button
 
     if state.max_start_column > 0 and layout.horizontal_axes_bounds is not None:
         horizontal_axes = state.figure.add_axes(
@@ -871,6 +897,7 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
         state.visible_qubits_box,
         state.visible_qubits_decrement_button,
         state.visible_qubits_increment_button,
+        state.help_button,
         state.wire_filter_button,
         state.ancilla_toggle_button,
         state.block_toggle_button,
@@ -884,6 +911,7 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
         state.visible_qubits_axes,
         state.visible_qubits_decrement_axes,
         state.visible_qubits_increment_axes,
+        state.help_button_axes,
         state.wire_filter_axes,
         state.ancilla_toggle_axes,
         state.block_toggle_axes,
@@ -901,6 +929,8 @@ def _remove_2d_controls(state: Managed2DPageSliderState) -> None:
     state.visible_qubits_axes = None
     state.visible_qubits_decrement_axes = None
     state.visible_qubits_increment_axes = None
+    state.help_button = None
+    state.help_button_axes = None
     state.wire_filter_button = None
     state.ancilla_toggle_button = None
     state.block_toggle_button = None
@@ -970,6 +1000,7 @@ def _sync_visible_qubits_box(
         state.visible_qubits_box.set_val(str(visible_qubits))
     finally:
         state.is_syncing_visible_qubits = False
+    _sync_2d_control_typography(state)
 
 
 def _sync_horizontal_slider(state: Managed2DPageSliderState) -> None:
@@ -1302,6 +1333,8 @@ def _slider_exploration_button_bounds(
 
 
 def _sync_exploration_buttons(state: Managed2DPageSliderState) -> None:
+    from .controls import _fit_button_label_font_size
+
     if state.exploration is None:
         return
 
@@ -1312,7 +1345,10 @@ def _sync_exploration_buttons(state: Managed2DPageSliderState) -> None:
             if state.exploration.wire_filter_mode is WireFilterMode.ACTIVE
             else "Wires: All"
         )
-        state.wire_filter_button.label.set_fontsize(9.0)
+        _fit_button_label_font_size(
+            state.wire_filter_button,
+            possible_labels=("Wires: All", "Wires: Active"),
+        )
         _set_button_enabled(
             state.wire_filter_button,
             enabled=True,
@@ -1323,7 +1359,10 @@ def _sync_exploration_buttons(state: Managed2DPageSliderState) -> None:
         state.ancilla_toggle_button.label.set_text(
             "Ancillas: Show" if state.exploration.show_ancillas else "Ancillas: Hide"
         )
-        state.ancilla_toggle_button.label.set_fontsize(8.5)
+        _fit_button_label_font_size(
+            state.ancilla_toggle_button,
+            possible_labels=("Ancillas: Show", "Ancillas: Hide"),
+        )
         _set_button_enabled(
             state.ancilla_toggle_button,
             enabled=True,
@@ -1337,12 +1376,36 @@ def _sync_exploration_buttons(state: Managed2DPageSliderState) -> None:
     )
     if state.block_toggle_button is not None:
         state.block_toggle_button.label.set_text("" if block_action is None else block_action.label)
-        state.block_toggle_button.label.set_fontsize(8.3)
+        if block_action is None:
+            _fit_button_label_font_size(state.block_toggle_button, possible_labels=("",))
+        else:
+            block_label_root = block_action.label.removeprefix("Expand ").removeprefix("Collapse ")
+            _fit_button_label_font_size(
+                state.block_toggle_button,
+                possible_labels=(
+                    f"Expand {block_label_root}",
+                    f"Collapse {block_label_root}",
+                ),
+            )
         _set_button_enabled(
             state.block_toggle_button,
             enabled=block_action is not None,
             palette=palette,
         )
+
+
+def _sync_2d_control_typography(state: Managed2DPageSliderState) -> None:
+    from .controls import _fit_button_label_font_size
+
+    for button in (
+        state.visible_qubits_decrement_button,
+        state.visible_qubits_increment_button,
+        state.wire_filter_button,
+        state.ancilla_toggle_button,
+        state.block_toggle_button,
+    ):
+        if button is not None:
+            _fit_button_label_font_size(button)
 
 
 def _set_button_enabled(

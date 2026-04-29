@@ -836,6 +836,52 @@ def test_slider_optional_buttons_place_block_before_wire_and_ancilla_controls() 
         plt.close(figure)
 
 
+def test_slider_optional_buttons_use_same_width_for_block_and_wires_controls() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_controls_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=1.8)
+    scene = managed_module.build_continuous_slider_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=3.2,
+        figure_height=3.0,
+        use_agg=True,
+    )
+
+    try:
+        managed_module.configure_page_slider(
+            figure=figure,
+            axes=axes,
+            scene=scene,
+            viewport_width=scene.width,
+            set_page_slider=set_page_slider,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            normalized_style=style,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+        )
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+
+        page_slider.select_operation("op:0")
+
+        assert page_slider.block_toggle_axes is not None
+        assert page_slider.wire_filter_axes is not None
+        assert page_slider.block_toggle_axes.get_position().width == pytest.approx(
+            page_slider.wire_filter_axes.get_position().width
+        )
+    finally:
+        plt.close(figure)
+
+
 def test_page_window_click_selection_uses_visible_page_coordinates() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
@@ -984,6 +1030,33 @@ def test_page_window_question_shortcut_toggles_shortcut_help() -> None:
         assert "$\\mathbf{Enter/Space}$: Toggle block" in shortcut_help_text
 
         _dispatch_key_press(figure, "?")
+        assert page_window.shortcut_help_text.get_visible() is False
+    finally:
+        plt.close(figure)
+
+
+def test_page_window_help_button_toggles_shortcut_help() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_wrapped_ir(),
+        style={"max_page_width": 4.0},
+        figsize=(4.0, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.help_button is not None
+        assert page_window.help_button_axes is not None
+        assert page_window.help_button.label.get_text() == "?"
+        assert page_window.shortcut_help_text is not None
+        assert page_window.shortcut_help_text.get_visible() is False
+
+        _dispatch_click_at_axes_center(figure, page_window.help_button_axes)
+        assert page_window.shortcut_help_text.get_visible() is True
+
+        _dispatch_click_at_axes_center(figure, page_window.help_button_axes)
         assert page_window.shortcut_help_text.get_visible() is False
     finally:
         plt.close(figure)
@@ -1549,6 +1622,32 @@ def test_slider_zero_shortcut_resets_exploration_state() -> None:
         plt.close(figure)
 
 
+def test_slider_help_button_toggles_shortcut_help() -> None:
+    figure, axes = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=24, wire_count=24),
+        style={"max_page_width": 4.0},
+        page_slider=True,
+        show=False,
+    )
+
+    try:
+        page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+        assert page_slider is not None
+        assert page_slider.help_button is not None
+        assert page_slider.help_button_axes is not None
+        assert page_slider.help_button.label.get_text() == "?"
+        assert page_slider.shortcut_help_text is not None
+        assert page_slider.shortcut_help_text.get_visible() is False
+
+        _dispatch_click_at_axes_center(figure, page_slider.help_button_axes)
+        assert page_slider.shortcut_help_text.get_visible() is True
+
+        _dispatch_click_at_axes_center(figure, page_slider.help_button_axes)
+        assert page_slider.shortcut_help_text.get_visible() is False
+    finally:
+        plt.close(figure)
+
+
 def test_slider_enter_toggles_selected_block() -> None:
     current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
     current_circuit = lower_semantic_circuit(current_semantic_ir)
@@ -1849,6 +1948,26 @@ def _dispatch_click_at_data(
         dblclick=dblclick,
     )
     figure.canvas.callbacks.process("button_press_event", event)
+
+
+def _dispatch_click_at_axes_center(figure: Figure, axes: Axes) -> None:
+    x, y, width, height = axes.get_window_extent(renderer=figure.canvas.get_renderer()).bounds
+    press_event = MouseEvent(
+        "button_press_event",
+        figure.canvas,
+        x + (width / 2.0),
+        y + (height / 2.0),
+        button=1,
+    )
+    figure.canvas.callbacks.process("button_press_event", press_event)
+    release_event = MouseEvent(
+        "button_release_event",
+        figure.canvas,
+        x + (width / 2.0),
+        y + (height / 2.0),
+        button=1,
+    )
+    figure.canvas.callbacks.process("button_release_event", release_event)
 
 
 def _dispatch_key_press(figure: Figure, key: str) -> None:

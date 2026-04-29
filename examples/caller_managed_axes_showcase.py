@@ -139,7 +139,7 @@ def main() -> None:
 def create_dashboard_layout() -> tuple[Figure, DashboardLayout]:
     """Create a five-panel Matplotlib dashboard layout."""
 
-    figure = plt.figure(figsize=(10.2, 6.2), constrained_layout=True)
+    figure = plt.figure(figsize=(12.2, 7.4), constrained_layout=True)
     grid = figure.add_gridspec(
         3,
         2,

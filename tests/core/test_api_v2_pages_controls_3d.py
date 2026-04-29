@@ -134,7 +134,7 @@ def test_draw_quantum_circuit_3d_pages_controls_supports_topology_menu() -> None
     assert menu_state.menu_axes is not None
     assert menu_state.radio is not None
     assert tuple(menu_state.menu_axes.get_position().bounds) == pytest.approx(
-        (0.77, 0.215, 0.17, 0.29),
+        (0.86, 0.215, 0.12, 0.29),
         abs=1e-3,
     )
 

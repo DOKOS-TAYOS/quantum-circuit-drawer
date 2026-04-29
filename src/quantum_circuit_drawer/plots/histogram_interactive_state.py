@@ -10,7 +10,11 @@ from matplotlib.backend_bases import KeyEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-from ..managed.shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
+from ..managed.shortcut_help import (
+    create_shortcut_help_button,
+    create_shortcut_help_text,
+    toggle_shortcut_help_text,
+)
 from ..managed.ui_palette import managed_ui_palette
 from ..renderers._matplotlib_figure import clear_hover_state, set_histogram_state
 from ..style.theme import resolve_theme
@@ -86,6 +90,7 @@ class HistogramInteractiveState:
     initial_kind: HistogramKind
     initial_active_qubits: tuple[int, ...] | None
     initial_slider_enabled: bool
+    initial_show_uniform_reference: bool
     active_qubits: tuple[int, ...] | None
     slider_enabled: bool
     message_text: Text
@@ -93,11 +98,13 @@ class HistogramInteractiveState:
     label_mode_button: Button | None = None
     kind_toggle_button: Button | None = None
     slider_toggle_button: Button | None = None
+    help_button: Button | None = None
     marginal_text_box: TextBox | None = None
     order_axes: Axes | None = None
     label_mode_axes: Axes | None = None
     kind_toggle_axes: Axes | None = None
     slider_toggle_axes: Axes | None = None
+    help_button_axes: Axes | None = None
     marginal_axes: Axes | None = None
     slider_axes: Axes | None = None
     horizontal_slider: Slider | None = None
@@ -152,6 +159,13 @@ class HistogramInteractiveState:
         self.slider_enabled = not self.slider_enabled
         if not self.slider_enabled:
             self.window_start = 0
+        self._set_message("")
+        self.redraw()
+
+    def toggle_uniform_reference(self) -> None:
+        """Toggle the uniform-reference line and redraw the current histogram view."""
+
+        self.show_uniform_reference = not self.show_uniform_reference
         self._set_message("")
         self.redraw()
 
@@ -350,6 +364,7 @@ class HistogramInteractiveState:
         self.kind = self.initial_kind
         self.active_qubits = self.initial_active_qubits
         self.slider_enabled = self.initial_slider_enabled
+        self.show_uniform_reference = self.initial_show_uniform_reference
         self.window_start = 0
         self._set_message("")
         self.redraw()
@@ -366,6 +381,7 @@ class HistogramInteractiveState:
         if self.marginal_axes is not None:
             clear_hover_state(self.marginal_axes)
         for widget in (
+            self.help_button,
             self.order_button,
             self.label_mode_button,
             self.kind_toggle_button,
@@ -379,6 +395,7 @@ class HistogramInteractiveState:
         if self.key_callback_id is not None and self.figure.canvas is not None:
             self.figure.canvas.mpl_disconnect(self.key_callback_id)
         for control_axes in (
+            self.help_button_axes,
             self.order_axes,
             self.label_mode_axes,
             self.kind_toggle_axes,
@@ -484,6 +501,7 @@ def attach_histogram_interactivity(
         initial_kind=kind,
         initial_active_qubits=config.qubits,
         initial_slider_enabled=True,
+        initial_show_uniform_reference=config.show_uniform_reference,
         active_qubits=config.qubits,
         slider_enabled=True,
         message_text=message_text,
@@ -494,6 +512,7 @@ def attach_histogram_interactivity(
                 "View",
                 "Left/Right: Move slider window",
                 "o: Toggle slider",
+                "u: Toggle uniform reference",
                 "0: Restore the original view",
                 "?: Show/hide this help",
                 "",
@@ -504,6 +523,13 @@ def attach_histogram_interactivity(
                 "m: Edit marginal qubits",
             ),
         ),
+    )
+    state.help_button_axes, state.help_button = create_shortcut_help_button(
+        figure,
+        palette=managed_ui_palette(theme),
+        bounds=(0.02, 0.025, 0.045, 0.06),
+        on_click=lambda _event: state.toggle_shortcut_help(),
+        zorder=2.0,
     )
     attach_histogram_controls(state=state, config=config)
 
@@ -555,6 +581,9 @@ def _attach_histogram_key_shortcuts(state: HistogramInteractiveState) -> None:
             return
         if key_name == "o":
             state.toggle_slider()
+            return
+        if key_name == "u":
+            state.toggle_uniform_reference()
             return
         if key_name == "c":
             state.cycle_sort()

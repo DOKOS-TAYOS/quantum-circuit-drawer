@@ -20,7 +20,7 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.config import CircuitRenderOptions, DrawSideConfig  # noqa: E402
 
-DEFAULT_FIGSIZE: tuple[float, float] = (8.8, 4.8)
+DEFAULT_FIGSIZE: tuple[float, float] = (10.6, 5.8)
 
 
 def build_circuit(*, qubit_count: int, column_count: int, seed: int) -> object:

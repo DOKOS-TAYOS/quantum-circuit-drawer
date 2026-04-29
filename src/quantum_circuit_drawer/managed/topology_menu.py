@@ -17,7 +17,13 @@ from ..renderers._matplotlib_figure import (
     set_topology_menu_state,
 )
 from ..typing import LayoutEngine3DLike
-from .controls import apply_managed_3d_axes_bounds, managed_3d_menu_bounds
+from .controls import (
+    _fit_radio_label_font_size,
+    _radio_marker_diameter_points,
+    _radio_marker_size_points_squared,
+    apply_managed_3d_axes_bounds,
+    managed_3d_menu_bounds,
+)
 from .page_window_3d import Managed3DPageWindowState
 from .slider_3d import Managed3DPageSliderState
 from .ui_palette import ManagedUiPalette, managed_ui_palette
@@ -34,9 +40,9 @@ _ALL_TOPOLOGIES: tuple[TopologyName, ...] = (
     "star_tree",
     "honeycomb",
 )
-_MENU_LABEL_FONT_SIZE = 10.0
+_MENU_LABEL_FONT_SIZE = 8.6
 _MENU_RADIO_MARKER_SIZE = 72.0
-_PAGE_WINDOW_MENU_BOUNDS = (0.77, 0.215, 0.17, 0.29)
+_PAGE_WINDOW_MENU_BOUNDS = (0.86, 0.215, 0.12, 0.29)
 
 
 @dataclass(slots=True)
@@ -53,6 +59,7 @@ class TopologyMenuState:
     ui_palette: ManagedUiPalette | None = None
     menu_axes: Axes | None = None
     radio: RadioButtons | None = None
+    resize_callback_id: int | None = None
 
     def is_enabled(self, topology: TopologyName) -> bool:
         """Return whether the requested topology is available for this circuit."""
@@ -107,6 +114,10 @@ class TopologyMenuState:
         if self.radio is not None:
             self.radio.disconnect_events()
             self.radio = None
+        canvas = getattr(self.figure, "canvas", None)
+        if canvas is not None and self.resize_callback_id is not None:
+            canvas.mpl_disconnect(self.resize_callback_id)
+            self.resize_callback_id = None
 
         if self.menu_axes is not None:
             self.menu_axes.remove()
@@ -166,6 +177,13 @@ def attach_topology_menu(
     )
     state.radio.on_clicked(lambda selected: state.select_topology(cast("TopologyName", selected)))
     _refresh_radio_styles(state)
+    canvas = getattr(figure, "canvas", None)
+    if canvas is not None:
+        if state.resize_callback_id is not None:
+            canvas.mpl_disconnect(state.resize_callback_id)
+        state.resize_callback_id = int(
+            canvas.mpl_connect("resize_event", lambda _event: _refresh_radio_styles(state))
+        )
     set_topology_menu_state(figure, state)
     return state
 
@@ -182,7 +200,7 @@ def _configure_menu_axes(menu_axes: Axes, *, palette: ManagedUiPalette) -> None:
 
 
 def _refresh_radio_styles(state: TopologyMenuState) -> None:
-    if state.radio is None or state.ui_palette is None:
+    if state.radio is None or state.ui_palette is None or state.menu_axes is None:
         return
 
     label_colors: list[str] = []
@@ -213,16 +231,31 @@ def _refresh_radio_styles(state: TopologyMenuState) -> None:
             edge_colors.append(state.ui_palette.surface_edgecolor_disabled)
             line_widths.append(1.2)
 
+    label_font_size = _fit_radio_label_font_size(
+        state.menu_axes,
+        labels=list(state.topologies),
+        marker_diameter_points=_radio_marker_diameter_points(
+            state.menu_axes,
+            item_count=len(edge_colors),
+        ),
+        max_font_size=_MENU_LABEL_FONT_SIZE,
+    )
     state.radio.set_label_props(
         {
             "color": label_colors,
-            "fontsize": [_MENU_LABEL_FONT_SIZE] * len(label_colors),
+            "fontsize": [label_font_size] * len(label_colors),
             "fontweight": font_weights,
         }
     )
     state.radio.set_radio_props(
         {
-            "s": [_MENU_RADIO_MARKER_SIZE] * len(edge_colors),
+            "s": [
+                _radio_marker_size_points_squared(
+                    state.menu_axes,
+                    item_count=len(edge_colors),
+                )
+            ]
+            * len(edge_colors),
             "facecolor": face_colors,
             "edgecolor": edge_colors,
             "linewidth": line_widths,
