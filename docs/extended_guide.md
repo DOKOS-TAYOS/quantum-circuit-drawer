@@ -64,6 +64,27 @@ The most useful correlation fields are:
 
 In comparisons, the logs also preserve `scope` such as `left`, `right`, or `extra[n]`, which makes it easier to tell which side produced a given event.
 
+When you want to consume the logs from code instead of reading them in the terminal, use `capture_logs(...)`:
+
+```python
+from quantum_circuit_drawer import capture_logs, draw_quantum_circuit
+
+with capture_logs(level="INFO", profile="detail") as capture:
+    result = draw_quantum_circuit(circuit)
+
+print(len(capture.entries))
+print(capture.entries[0].event)
+print(capture.to_dicts()[0]["request_id"])
+```
+
+This capture path is useful for scripts, ad-hoc debugging, and lightweight tooling:
+
+- `capture.records` keeps the raw `logging.LogRecord` objects
+- `capture.entries` keeps only structured package events
+- `capture.to_dicts()` returns a stable JSON-friendly shape, including fixed metadata plus a nested `fields` dictionary for extra event-specific data
+
+`capture_logs(...)` does not replace `configure_logging(...)`; they can be used together when you want both visible logs and programmatic inspection in the same run.
+
 ## Installation Choices
 
 The base package includes the Matplotlib renderer, framework-free IR support, circuit comparison, histogram plotting, and histogram comparison.

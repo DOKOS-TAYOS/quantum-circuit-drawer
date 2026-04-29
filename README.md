@@ -113,6 +113,20 @@ Two good starting points are:
 
 When you need a runnable example, start with [examples/logging_showcase.py](examples/logging_showcase.py).
 
+If you want to inspect logs from code instead of reading terminal output, use the capture helper:
+
+```python
+from quantum_circuit_drawer import capture_logs, draw_quantum_circuit
+
+with capture_logs(level="INFO", profile="detail") as capture:
+    result = draw_quantum_circuit(circuit)
+
+print(capture.entries[0].event)
+print(capture.to_dicts()[0]["request_id"])
+```
+
+`capture_logs(...)` is opt-in, keeps existing handlers in place, and returns both raw `records` and stable structured `entries`.
+
 ## Visual Gallery
 
 The library renders normal static images, managed exploration views, 3D topology scenes, and result distributions with the same public API shape. Gallery images use absolute raw GitHub URLs so they render from both GitHub Markdown and the PyPI project description.

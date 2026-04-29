@@ -13,6 +13,8 @@ configure_logging(level="INFO", profile=LogProfile.DETAIL)
 
 If the problem only appears while you interact with managed controls or histogram widgets, switch to `profile="interactive"` and `level="DEBUG"` so `interactive.*` events become visible too.
 
+If you need to inspect those logs from code, for example in a small repro script, wrap the call with `capture_logs(...)` and inspect `capture.entries` or `capture.to_dicts()` afterwards instead of scraping terminal text.
+
 ## Optional framework import fails
 
 Typical symptoms:
