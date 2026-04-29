@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -10,6 +11,8 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
+from .._interactive_logging import ensure_interactive_log_session
+from .._logging import InteractionSource, InteractiveLogSession, log_interaction
 from ..ir.lowering import lower_semantic_circuit, semantic_circuit_from_circuit_ir
 from ..ir.semantic import semantic_operation_id
 from ..layout._layering import normalized_draw_circuit
@@ -55,7 +58,6 @@ from .interaction import (
     next_visible_column_selection,
     next_visible_operation_selection,
     run_managed_canvas_action,
-    toggle_operation_with_selection,
     visible_column_operation_ids,
     visible_operation_ids_in_tab_order,
 )
@@ -64,6 +66,8 @@ from .page_window_render import _render_current_window
 from .page_window_windowing import _clamp_page_index, _clamp_visible_page_count
 from .shortcut_help import create_shortcut_help_text, toggle_shortcut_help_text
 from .ui_palette import ManagedUiPalette, managed_ui_palette
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from matplotlib.text import Text
@@ -125,50 +129,124 @@ class Managed2DPageWindowState:
     click_callback_id: int | None = None
     key_callback_id: int | None = None
     resize_callback_id: int | None = None
+    log_session: InteractiveLogSession | None = None
 
-    def select_operation(self, operation_id: str | None) -> None:
+    def select_operation(
+        self,
+        operation_id: str | None,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Update the contextual selection and redraw the current page window."""
 
         if self.exploration is None:
             return
+        previous_operation_id = self.exploration.selected_operation_id
         self.exploration.selected_operation_id = operation_id
         _restyle_page_window_scene(self)
         _render_current_window(self)
         _sync_inputs(self)
+        if self.exploration.selected_operation_id == previous_operation_id:
+            _log_2d_page_window_interaction(
+                self,
+                logging.DEBUG,
+                "interactive.selection.changed",
+                "Ignored unchanged managed page-window selection.",
+                source=source,
+                reason="already_active",
+                before=previous_operation_id,
+                after=self.exploration.selected_operation_id,
+                selected_operation_id=self.exploration.selected_operation_id,
+            )
+            return
+        _log_2d_page_window_interaction(
+            self,
+            logging.INFO,
+            "interactive.selection.changed",
+            "Updated managed page-window selection.",
+            source=source,
+            before=previous_operation_id,
+            after=self.exploration.selected_operation_id,
+            selected_operation_id=self.exploration.selected_operation_id,
+        )
 
-    def toggle_wire_filter(self) -> None:
+    def toggle_wire_filter(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle between all wires and only the currently active wires."""
 
         if self.exploration is None:
             return
+        previous_mode = self.exploration.wire_filter_mode
         self.exploration.wire_filter_mode = toggle_wire_filter_mode(
             self.exploration.wire_filter_mode
         )
         _refresh_page_window_exploration_context(self)
         _render_current_window(self)
         _sync_inputs(self)
+        _log_2d_page_window_interaction(
+            self,
+            logging.INFO,
+            "interactive.wire_filter.changed",
+            "Updated managed page-window wire filter.",
+            source=source,
+            before=previous_mode,
+            after=self.exploration.wire_filter_mode,
+            wire_filter_mode=self.exploration.wire_filter_mode,
+        )
 
-    def toggle_ancillas(self) -> None:
+    def toggle_ancillas(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle whether ancilla-like quantum wires remain visible."""
 
         if self.exploration is None:
             return
+        previous_show_ancillas = self.exploration.show_ancillas
         self.exploration.show_ancillas = not self.exploration.show_ancillas
         _refresh_page_window_exploration_context(self)
         _render_current_window(self)
         _sync_inputs(self)
+        _log_2d_page_window_interaction(
+            self,
+            logging.INFO,
+            "interactive.ancillas.changed",
+            "Updated managed page-window ancilla visibility.",
+            source=source,
+            before=previous_show_ancillas,
+            after=self.exploration.show_ancillas,
+            show_ancillas=self.exploration.show_ancillas,
+        )
 
-    def toggle_selected_block(self) -> None:
+    def toggle_selected_block(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Expand or collapse the semantic block that owns the selection."""
 
         if self.exploration is None:
             return
+        previous_selection = self.exploration.selected_operation_id
         block_action = selected_block_action(
             self.exploration.catalog,
             selected_operation_id=self.exploration.selected_operation_id,
             collapsed_block_ids=self.exploration.collapsed_block_ids,
         )
         if block_action is None:
+            _log_2d_page_window_interaction(
+                self,
+                logging.DEBUG,
+                "interactive.block.changed",
+                "Ignored managed page-window block toggle without a valid selection.",
+                source=source,
+                reason="no_selection",
+                selected_operation_id=self.exploration.selected_operation_id,
+            )
             return
         if block_action.action == "expand":
             self.exploration.collapsed_block_ids.discard(block_action.block_id)
@@ -181,30 +259,101 @@ class Managed2DPageWindowState:
         _refresh_page_window_exploration_context(self)
         _render_current_window(self)
         _sync_inputs(self)
+        _log_2d_page_window_interaction(
+            self,
+            logging.INFO,
+            "interactive.block.changed",
+            "Updated managed page-window block state.",
+            source=source,
+            block_action=block_action.action,
+            block_id=block_action.block_id,
+            before=previous_selection,
+            after=self.exploration.selected_operation_id,
+            selected_operation_id=self.exploration.selected_operation_id,
+        )
 
-    def clear_selection(self) -> None:
+    def clear_selection(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Clear the current contextual selection."""
 
-        self.select_operation(None)
+        self.select_operation(None, source=source)
 
-    def reset_exploration_view(self) -> None:
+    def reset_exploration_view(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Restore the managed exploration state to its original defaults."""
 
         if self.exploration is None:
             return
+        previous_state = (
+            self.exploration.selected_operation_id,
+            self.exploration.wire_filter_mode,
+            self.exploration.show_ancillas,
+            tuple(sorted(self.exploration.collapsed_block_ids)),
+        )
         reset_exploration_state(self.exploration)
         _refresh_page_window_exploration_context(self)
         _render_current_window(self)
         _sync_inputs(self)
+        next_state = (
+            self.exploration.selected_operation_id,
+            self.exploration.wire_filter_mode,
+            self.exploration.show_ancillas,
+            tuple(sorted(self.exploration.collapsed_block_ids)),
+        )
+        level = logging.INFO if next_state != previous_state else logging.DEBUG
+        _log_2d_page_window_interaction(
+            self,
+            level,
+            "interactive.view.reset",
+            "Reset managed page-window exploration view."
+            if level == logging.INFO
+            else "Ignored managed page-window reset because the view was already at defaults.",
+            source=source,
+            reason=None if level == logging.INFO else "already_active",
+            before=previous_state,
+            after=next_state,
+        )
 
-    def toggle_shortcut_help(self) -> None:
+    def toggle_shortcut_help(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Toggle the managed shortcut-help overlay."""
 
+        previous_visible = bool(
+            self.shortcut_help_text is not None and self.shortcut_help_text.get_visible()
+        )
         toggle_shortcut_help_text(self.shortcut_help_text, figure=self.figure)
+        next_visible = bool(
+            self.shortcut_help_text is not None and self.shortcut_help_text.get_visible()
+        )
+        _log_2d_page_window_interaction(
+            self,
+            logging.INFO,
+            "interactive.help_toggled",
+            "Toggled managed page-window shortcut help.",
+            source=source,
+            before=previous_visible,
+            after=next_visible,
+            help_visible=next_visible,
+        )
 
-    def step_page(self, delta: int) -> None:
+    def step_page(
+        self,
+        delta: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Move the visible page window backward or forward."""
 
+        previous_start_page = self.start_page
         self.start_page = _clamp_page_index((self.start_page + 1) + delta, self.total_pages)
         self.visible_page_count = _clamp_visible_page_count(
             self.visible_page_count,
@@ -213,10 +362,25 @@ class Managed2DPageWindowState:
         )
         _render_current_window(self)
         _sync_inputs(self)
+        _log_2d_page_window_viewport_change(
+            self,
+            source=source,
+            field_name="start_page",
+            before=previous_start_page,
+            requested=(previous_start_page + 1) + delta,
+            after=self.start_page,
+            max_value=max(0, self.total_pages - 1),
+        )
 
-    def step_visible_pages(self, delta: int) -> None:
+    def step_visible_pages(
+        self,
+        delta: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Grow or shrink the visible page count."""
 
+        previous_visible_page_count = self.visible_page_count
         self.visible_page_count = _clamp_visible_page_count(
             self.visible_page_count + delta,
             total_pages=self.total_pages,
@@ -224,30 +388,43 @@ class Managed2DPageWindowState:
         )
         _render_current_window(self)
         _sync_inputs(self)
+        _log_2d_page_window_viewport_change(
+            self,
+            source=source,
+            field_name="visible_page_count",
+            before=previous_visible_page_count,
+            requested=previous_visible_page_count + delta,
+            after=self.visible_page_count,
+            max_value=max(1, self.total_pages - self.start_page),
+        )
 
-    def show_first_page(self) -> None:
+    def show_first_page(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Jump to the absolute beginning of the paged window."""
 
-        self.start_page = 0
-        _render_current_window(self)
-        _sync_inputs(self)
+        self.step_page(-self.start_page, source=source)
 
-    def show_last_page(self) -> None:
+    def show_last_page(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Jump to the absolute end of the paged window."""
 
-        self.start_page = max(0, self.total_pages - 1)
-        self.visible_page_count = _clamp_visible_page_count(
-            self.visible_page_count,
-            total_pages=self.total_pages,
-            start_page=self.start_page,
-        )
-        _render_current_window(self)
-        _sync_inputs(self)
+        self.step_page(max(0, self.total_pages - 1) - self.start_page, source=source)
 
-    def step_page_large(self, delta: int) -> None:
+    def step_page_large(
+        self,
+        delta: int,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Move the visible page window by a large managed step."""
 
-        self.step_page(delta * max(1, self.visible_page_count))
+        self.step_page(delta * max(1, self.visible_page_count), source=source)
 
     def step_operation_selection(self, *, backwards: bool = False) -> None:
         """Move the selection across visible operations and advance pages when needed."""
@@ -418,6 +595,15 @@ def configure_page_window(
         controls_enabled=attach_controls,
     )
     set_page_window(figure, state)
+    state.log_session = ensure_interactive_log_session(
+        figure=figure,
+        surface="2d_page_window",
+        logger=logger,
+        state=state,
+        start_page=state.start_page,
+        visible_page_count=state.visible_page_count,
+        total_pages=state.total_pages,
+    )
     if attach_controls:
         _attach_controls(state)
     state.shortcut_help_text = create_shortcut_help_text(
@@ -555,6 +741,84 @@ def _scene_has_operation_ids(scene: LayoutScene) -> bool:
     )
 
 
+def _log_2d_page_window_interaction(
+    state: Managed2DPageWindowState,
+    level: int,
+    event: str,
+    message: str,
+    *,
+    source: InteractionSource | str,
+    **fields: object,
+) -> None:
+    session = state.log_session or ensure_interactive_log_session(
+        figure=state.figure,
+        surface="2d_page_window",
+        logger=logger,
+        state=state,
+    )
+    state.log_session = session
+    payload: dict[str, object] = {
+        "start_page": state.start_page,
+        "visible_page_count": state.visible_page_count,
+        "total_pages": state.total_pages,
+        "selected_operation_id": (
+            None if state.exploration is None else state.exploration.selected_operation_id
+        ),
+        "wire_filter_mode": (
+            None if state.exploration is None else state.exploration.wire_filter_mode
+        ),
+        "show_ancillas": None if state.exploration is None else state.exploration.show_ancillas,
+    }
+    payload.update(fields)
+    log_interaction(
+        logger,
+        level,
+        event,
+        message,
+        session=session,
+        source=source,
+        **payload,
+    )
+
+
+def _log_2d_page_window_viewport_change(
+    state: Managed2DPageWindowState,
+    *,
+    source: InteractionSource | str,
+    field_name: str,
+    before: int,
+    requested: int,
+    after: int,
+    max_value: int,
+) -> None:
+    if after == before:
+        _log_2d_page_window_interaction(
+            state,
+            logging.DEBUG,
+            "interactive.viewport.changed",
+            "Ignored unchanged managed page-window viewport update.",
+            source=source,
+            viewport_field=field_name,
+            before=before,
+            after=after,
+            requested=requested,
+            reason="already_active" if requested == before else "clamped",
+        )
+        return
+    _log_2d_page_window_interaction(
+        state,
+        logging.INFO,
+        "interactive.viewport.changed",
+        "Updated managed page-window viewport.",
+        source=source,
+        viewport_field=field_name,
+        before=before,
+        after=after,
+        requested=requested,
+        max_value=max_value,
+    )
+
+
 def _attach_window_selection_clicks(state: Managed2DPageWindowState) -> None:
     canvas = getattr(state.figure, "canvas", None)
     if canvas is None:
@@ -570,9 +834,10 @@ def _attach_window_selection_clicks(state: Managed2DPageWindowState) -> None:
         click_scene = state.window_scene or state.scene
         operation_id = clicked_operation_id(state.axes, click_scene, event)
         if state.double_click_toggle_enabled and event.dblclick:
-            toggle_operation_with_selection(state, operation_id)
+            state.select_operation(operation_id, source=InteractionSource.MOUSE)
+            state.toggle_selected_block(source=InteractionSource.MOUSE)
             return
-        state.select_operation(operation_id)
+        state.select_operation(operation_id, source=InteractionSource.MOUSE)
 
     state.click_callback_id = int(canvas.mpl_connect("button_press_event", _handle_click))
 
@@ -596,22 +861,22 @@ def _attach_window_key_shortcuts(state: Managed2DPageWindowState) -> None:
 
         key_name = managed_key_name(event)
         if is_home_key(event):
-            _run(state.show_first_page)
+            _run(lambda: state.show_first_page(source=InteractionSource.KEYBOARD))
             return
         if is_end_key(event):
-            _run(state.show_last_page)
+            _run(lambda: state.show_last_page(source=InteractionSource.KEYBOARD))
             return
         if is_page_up_key(event):
-            _run(lambda: state.step_page_large(-1))
+            _run(lambda: state.step_page_large(-1, source=InteractionSource.KEYBOARD))
             return
         if is_page_down_key(event):
-            _run(lambda: state.step_page_large(1))
+            _run(lambda: state.step_page_large(1, source=InteractionSource.KEYBOARD))
             return
         if is_plus_key(event):
-            _run(lambda: state.step_visible_pages(1))
+            _run(lambda: state.step_visible_pages(1, source=InteractionSource.KEYBOARD))
             return
         if is_minus_key(event):
-            _run(lambda: state.step_visible_pages(-1))
+            _run(lambda: state.step_visible_pages(-1, source=InteractionSource.KEYBOARD))
             return
         if is_next_selection_key(event):
             _run(state.step_operation_selection)
@@ -626,30 +891,30 @@ def _attach_window_key_shortcuts(state: Managed2DPageWindowState) -> None:
             _run(lambda: state.step_column_selection(backwards=True))
             return
         if is_clear_selection_key(event):
-            _run(state.clear_selection)
+            _run(lambda: state.clear_selection(source=InteractionSource.KEYBOARD))
             return
         if is_reset_view_key(event):
-            _run(state.reset_exploration_view)
+            _run(lambda: state.reset_exploration_view(source=InteractionSource.KEYBOARD))
             return
         if is_toggle_wire_filter_key(event):
-            _run(state.toggle_wire_filter)
+            _run(lambda: state.toggle_wire_filter(source=InteractionSource.KEYBOARD))
             return
         if is_shortcut_help_key(event):
-            _run(state.toggle_shortcut_help)
+            _run(lambda: state.toggle_shortcut_help(source=InteractionSource.KEYBOARD))
             return
         if key_name == "left":
-            _run(lambda: state.step_page(-1))
+            _run(lambda: state.step_page(-1, source=InteractionSource.KEYBOARD))
             return
         if key_name == "right":
-            _run(lambda: state.step_page(1))
+            _run(lambda: state.step_page(1, source=InteractionSource.KEYBOARD))
             return
         if key_name == "up":
-            _run(lambda: state.step_visible_pages(1))
+            _run(lambda: state.step_visible_pages(1, source=InteractionSource.KEYBOARD))
             return
         if key_name == "down":
-            _run(lambda: state.step_visible_pages(-1))
+            _run(lambda: state.step_visible_pages(-1, source=InteractionSource.KEYBOARD))
             return
         if is_block_toggle_key(event):
-            _run(state.toggle_selected_block)
+            _run(lambda: state.toggle_selected_block(source=InteractionSource.KEYBOARD))
 
     state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))

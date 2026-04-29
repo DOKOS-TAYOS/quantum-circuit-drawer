@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
@@ -10,6 +11,8 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 
+from .._interactive_logging import ensure_interactive_log_session
+from .._logging import InteractionSource, InteractiveLogSession, log_interaction
 from ..drawing.pipeline import PreparedDrawPipeline, _compute_3d_scene
 from ..ir.circuit import CircuitIR
 from ..ir.lowering import lower_semantic_circuit
@@ -95,6 +98,7 @@ _BLOCK_TOGGLE_BUTTON_WIDTH = _WIRE_FILTER_BUTTON_WIDTH
 _SLIDER_CONTROL_ZORDER = 2.0
 _OPTIONAL_BUTTON_ZORDER = 1.0
 _CLICK_RELEASE_MAX_DRAG_PIXELS = 6.0
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -131,6 +135,7 @@ class Managed3DPageSliderState:
     key_callback_id: int | None = None
     resize_callback_id: int | None = None
     pending_click: tuple[float, float, bool] | None = None
+    log_session: InteractiveLogSession | None = None
 
     def show_start_column(self, start_column: int) -> None:
         """Render the requested 3D column window on the managed axes."""
@@ -154,16 +159,34 @@ class Managed3DPageSliderState:
         if canvas is not None:
             canvas.draw_idle()
 
-    def select_topology(self, topology: TopologyName) -> None:
+    def select_topology(
+        self,
+        topology: TopologyName,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Switch topology while keeping the current column window."""
 
+        previous_topology = self.pipeline.draw_options.topology
         updated_draw_options = replace(self.pipeline.draw_options, topology=topology)
         self.pipeline = replace(self.pipeline, draw_options=updated_draw_options)
         self.scene_cache.clear()
         _refresh_3d_slider_window_metrics(self)
         self.show_start_column(self.start_column)
+        _log_3d_slider_topology_change(
+            self,
+            logging.INFO if topology != previous_topology else logging.DEBUG,
+            source=source,
+            before=previous_topology,
+            after=topology,
+            reason=None if topology != previous_topology else "already_active",
+        )
 
-    def cycle_topology(self) -> None:
+    def cycle_topology(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Switch to the next supported built-in topology."""
 
         from .topology_menu import next_valid_topology
@@ -176,11 +199,15 @@ class Managed3DPageSliderState:
             return
         topology_menu_state = get_topology_menu_state(self.figure)
         if hasattr(topology_menu_state, "select_topology"):
-            topology_menu_state.select_topology(next_topology)
+            topology_menu_state.select_topology(next_topology, source=source)
             return
-        self.select_topology(next_topology)
+        self.select_topology(next_topology, source=source)
 
-    def previous_topology(self) -> None:
+    def previous_topology(
+        self,
+        *,
+        source: InteractionSource | str = InteractionSource.PROGRAMMATIC,
+    ) -> None:
         """Switch to the previous supported built-in topology."""
 
         from .topology_menu import previous_valid_topology
@@ -193,9 +220,9 @@ class Managed3DPageSliderState:
             return
         topology_menu_state = get_topology_menu_state(self.figure)
         if hasattr(topology_menu_state, "select_topology"):
-            topology_menu_state.select_topology(previous_topology)
+            topology_menu_state.select_topology(previous_topology, source=source)
             return
-        self.select_topology(previous_topology)
+        self.select_topology(previous_topology, source=source)
 
     def select_operation(self, operation_id: str | None) -> None:
         """Update the contextual selection and redraw the current slider view."""
@@ -456,6 +483,15 @@ def configure_3d_page_slider(
     _ensure_3d_slider_exploration_controls(state)
     _sync_3d_slider_exploration_buttons(state)
     set_page_slider(figure, state)
+    state.log_session = ensure_interactive_log_session(
+        figure=figure,
+        surface="3d_slider",
+        logger=logger,
+        state=state,
+        start_column=state.start_column,
+        max_start_column=state.max_start_column,
+        topology=state.pipeline.draw_options.topology,
+    )
     return state
 
 
@@ -634,10 +670,10 @@ def _attach_3d_slider_key_shortcuts(state: Managed3DPageSliderState) -> None:
             _run(state.reset_exploration_view)
             return
         if is_cycle_topology_key(event):
-            _run(state.cycle_topology)
+            _run(lambda: state.cycle_topology(source=InteractionSource.KEYBOARD))
             return
         if is_previous_topology_key(event):
-            _run(state.previous_topology)
+            _run(lambda: state.previous_topology(source=InteractionSource.KEYBOARD))
             return
         if is_toggle_wire_filter_key(event):
             _run(state.toggle_wire_filter)
@@ -655,6 +691,44 @@ def _attach_3d_slider_key_shortcuts(state: Managed3DPageSliderState) -> None:
             _run(state.toggle_selected_block)
 
     state.key_callback_id = int(canvas.mpl_connect("key_press_event", _handle_key))
+
+
+def _log_3d_slider_topology_change(
+    state: Managed3DPageSliderState,
+    level: int,
+    *,
+    source: InteractionSource | str,
+    before: TopologyName,
+    after: TopologyName,
+    reason: str | None = None,
+) -> None:
+    session = state.log_session or ensure_interactive_log_session(
+        figure=state.figure,
+        surface="3d_slider",
+        logger=logger,
+        state=state,
+    )
+    state.log_session = session
+    payload: dict[str, object] = {
+        "topology": after,
+        "before": before,
+        "after": after,
+        "start_column": state.start_column,
+        "max_start_column": state.max_start_column,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    log_interaction(
+        logger,
+        level,
+        "interactive.topology.changed",
+        "Updated managed 3D slider topology."
+        if level == logging.INFO
+        else "Ignored unchanged managed 3D slider topology update.",
+        session=session,
+        source=source,
+        **payload,
+    )
 
 
 def _3d_slider_exploration_button_bounds(

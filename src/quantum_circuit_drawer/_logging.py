@@ -25,9 +25,12 @@ _CONTEXT_FIELDS = (
     "framework",
     "backend",
     "scope",
+    "session_id",
+    "surface",
 )
 _STANDARD_RECORD_ATTRS = frozenset(stdlib_logging.makeLogRecord({}).__dict__)
 _REQUEST_CONTEXT = ContextVar("quantum_circuit_drawer_request_context", default=None)
+_INTERACTIVE_CONTEXT = ContextVar("quantum_circuit_drawer_interactive_context", default=None)
 
 
 class LogFormat(StrEnum):
@@ -46,6 +49,31 @@ class _RequestLogContext:
     framework: str | None = None
     backend: str | None = None
     scope: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class InteractiveLogSession:
+    request_id: str
+    session_id: str
+    surface: str
+    api: str | None = None
+    view: str | None = None
+    mode: str | None = None
+    framework: str | None = None
+    backend: str | None = None
+    scope: str | None = None
+
+
+class InteractionSource(StrEnum):
+    """Supported origins for interactive state transitions."""
+
+    KEYBOARD = "keyboard"
+    BUTTON = "button"
+    SLIDER = "slider"
+    TEXTBOX = "textbox"
+    RADIO = "radio"
+    MOUSE = "mouse"
+    PROGRAMMATIC = "programmatic"
 
 
 class _HumanLogFormatter(stdlib_logging.Formatter):
@@ -132,6 +160,12 @@ def current_log_context() -> _RequestLogContext | None:
     return _REQUEST_CONTEXT.get()
 
 
+def current_interactive_log_session() -> InteractiveLogSession | None:
+    """Return the current interactive session context, if any."""
+
+    return _INTERACTIVE_CONTEXT.get()
+
+
 @contextmanager
 def push_log_context(**values: object) -> Iterator[_RequestLogContext]:
     """Temporarily enrich the current request log context."""
@@ -149,6 +183,65 @@ def push_log_context(**values: object) -> Iterator[_RequestLogContext]:
         yield next_context
     finally:
         _REQUEST_CONTEXT.reset(token)
+
+
+@contextmanager
+def push_interactive_log_session(
+    session: InteractiveLogSession,
+) -> Iterator[InteractiveLogSession]:
+    """Temporarily activate one interactive log session."""
+
+    token = _INTERACTIVE_CONTEXT.set(session)
+    try:
+        yield session
+    finally:
+        _INTERACTIVE_CONTEXT.reset(token)
+
+
+def create_interactive_log_session(
+    *,
+    surface: str,
+    request_id: str | None = None,
+    api: str | None = None,
+    view: str | None = None,
+    mode: str | None = None,
+    framework: str | None = None,
+    backend: str | None = None,
+    scope: str | None = None,
+    session_id: str | None = None,
+) -> InteractiveLogSession:
+    """Create one interactive log session, inheriting the current request when present."""
+
+    current = current_log_context()
+    return InteractiveLogSession(
+        request_id=_resolved_context_field(
+            explicit_value=request_id,
+            current_value=current.request_id if current is not None else None,
+            fallback=uuid4().hex,
+        ),
+        session_id=_resolved_context_field(
+            explicit_value=session_id,
+            current_value=None,
+            fallback=uuid4().hex,
+        ),
+        surface=_resolved_context_field(
+            explicit_value=surface,
+            current_value=None,
+            fallback="interactive",
+        ),
+        api=_optional_context_field(api, current.api if current is not None else None),
+        view=_optional_context_field(view, current.view if current is not None else None),
+        mode=_optional_context_field(mode, current.mode if current is not None else None),
+        framework=_optional_context_field(
+            framework,
+            current.framework if current is not None else None,
+        ),
+        backend=_optional_context_field(
+            backend,
+            current.backend if current is not None else None,
+        ),
+        scope=_optional_context_field(scope, current.scope if current is not None else None),
+    )
 
 
 @contextmanager
@@ -191,10 +284,38 @@ def log_event(
     current = current_log_context()
     if current is not None:
         extra.update(asdict(current))
+    interactive_session = current_interactive_log_session()
+    if interactive_session is not None:
+        extra.update(asdict(interactive_session))
     extra["event"] = event
     for field_name, value in fields.items():
         extra[field_name] = _normalize_log_value(value)
     logger.log(level, message, *args, extra=extra, exc_info=exc_info)
+
+
+def log_interaction(
+    logger: stdlib_logging.Logger,
+    level: int,
+    event: str,
+    message: str,
+    *,
+    session: InteractiveLogSession,
+    source: InteractionSource | str,
+    exc_info: bool | BaseException | tuple[type[BaseException], BaseException, object] = False,
+    **fields: object,
+) -> None:
+    """Emit one interactive package event under the provided persistent session."""
+
+    with push_interactive_log_session(session):
+        log_event(
+            logger,
+            level,
+            event,
+            message,
+            exc_info=exc_info,
+            interaction_source=_normalize_interaction_source(source),
+            **fields,
+        )
 
 
 def emit_render_diagnostics(
@@ -288,17 +409,48 @@ def _normalize_log_value(value: object) -> object:
     return value
 
 
+def _optional_context_field(explicit_value: str | None, current_value: str | None) -> str | None:
+    if explicit_value is not None:
+        normalized_value = _normalize_log_value(explicit_value)
+        return None if normalized_value is None else str(normalized_value)
+    if current_value is None:
+        return None
+    normalized_value = _normalize_log_value(current_value)
+    return None if normalized_value is None else str(normalized_value)
+
+
+def _resolved_context_field(
+    *,
+    explicit_value: str | None,
+    current_value: str | None,
+    fallback: str,
+) -> str:
+    return _optional_context_field(explicit_value, current_value) or fallback
+
+
+def _normalize_interaction_source(value: InteractionSource | str) -> str:
+    if isinstance(value, InteractionSource):
+        return value.value
+    return str(_normalize_log_value(value))
+
+
 package_logger()
 
 
 __all__ = [
+    "InteractionSource",
+    "InteractiveLogSession",
     "LogFormat",
     "configure_logging",
+    "create_interactive_log_session",
     "current_log_context",
+    "current_interactive_log_session",
     "duration_ms",
     "emit_render_diagnostics",
     "log_event",
+    "log_interaction",
     "logged_api_call",
     "package_logger",
+    "push_interactive_log_session",
     "push_log_context",
 ]
