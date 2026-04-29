@@ -462,6 +462,45 @@ def test_draw_quantum_circuit_page_slider_keeps_text_size_stable_after_redraw() 
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_qiskit_exploration_slider_uses_reduced_useful_stops() -> None:
+    pytest.importorskip("qiskit")
+    from examples.qiskit_2d_exploration_showcase import build_circuit
+
+    from quantum_circuit_drawer import (
+        CircuitAppearanceOptions,
+        CircuitRenderOptions,
+        DrawConfig,
+        DrawMode,
+        DrawSideConfig,
+        OutputOptions,
+    )
+    from quantum_circuit_drawer import (
+        draw_quantum_circuit as public_draw_quantum_circuit,
+    )
+
+    result = public_draw_quantum_circuit(
+        build_circuit(qubit_count=12, motif_count=9),
+        config=DrawConfig(
+            side=DrawSideConfig(
+                render=CircuitRenderOptions(mode=DrawMode("slider"), topology="grid"),
+                appearance=CircuitAppearanceOptions(hover=True),
+            ),
+            output=OutputOptions(show=False, figsize=(11.8, 6.2)),
+        ),
+    )
+    figure = result.primary_figure
+    page_slider = cast(Managed2DPageSliderState | None, get_page_slider(figure))
+
+    assert page_slider is not None
+    assert page_slider.horizontal_slider is not None
+    assert page_slider.max_start_column > 0
+    assert page_slider.horizontal_slider.valstep is not None
+    assert not isinstance(page_slider.horizontal_slider.valstep, float)
+    assert len(page_slider.horizontal_slider.valstep) < page_slider.max_start_column + 1
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_slider_uses_stable_gate_font_size_before_first_draw() -> None:
     figure, axes = draw_quantum_circuit(
         build_dense_rotation_ir(layer_count=24),

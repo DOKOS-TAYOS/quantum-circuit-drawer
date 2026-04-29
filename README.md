@@ -685,6 +685,10 @@ The fastest way to see the current strengths of the library is to run one of the
 | `compare-histograms-multi-series` | A multi-series overlay for ideal, noisy, raw hardware, and mitigated distributions |
 | `histogram-quasi-nonnegative` | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero |
 
+In the examples catalog, each showcase has both a direct script filename such as `examples/qiskit_2d_exploration_showcase.py` and, when you use the shared runners, a matching `demo_id` such as `qiskit-2d-exploration-showcase`.
+
+If you are running the bundled examples from this repository rather than installing the published package, install the optional extras you need inside your local `.venv`, for example `.\.venv\Scripts\python.exe -m pip install -e ".[qiskit]"` on Windows PowerShell or `.venv/bin/python -m pip install -e ".[qiskit]"` on Linux or WSL.
+
 Windows PowerShell:
 
 ```powershell
@@ -729,7 +733,7 @@ Linux or WSL:
 
 The CLI export showcase writes `examples/output/cli-export-showcase.png` by default. Use `--output` to choose another PNG path.
 
-The full curated catalog, including direct script commands, histogram demos, compare demos, and per-framework recommendations, lives in [examples/README.md](examples/README.md).
+The full curated catalog, including the mapping between runner `demo_id` values and direct script filenames, lives in [examples/README.md](examples/README.md).
 
 ## Documentation
 

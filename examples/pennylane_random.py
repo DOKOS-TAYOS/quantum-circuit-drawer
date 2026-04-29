@@ -21,6 +21,8 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
 
+DEFAULT_FIGSIZE: tuple[float, float] = (10.1, 5.5)
+
 
 def build_tape(*, qubit_count: int, column_count: int, seed: int) -> QuantumTape:
     """Build a deterministic random-looking PennyLane tape."""
@@ -104,7 +106,11 @@ def main() -> None:
         result = draw_quantum_circuit(
             build_tape(qubit_count=args.qubits, column_count=args.columns, seed=args.seed),
             config=DrawConfig(
-                output=OutputOptions(output_path=args.output, show=args.show),
+                output=OutputOptions(
+                    output_path=args.output,
+                    show=args.show,
+                    figsize=DEFAULT_FIGSIZE,
+                ),
             ),
         )
         if args.output is not None:

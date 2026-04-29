@@ -126,6 +126,12 @@ def _parse_args() -> Namespace:
         help="How many composite motifs to place across the showcase circuit.",
     )
     parser.add_argument(
+        "--columns",
+        dest="motifs",
+        type=int,
+        help="Alias for --motifs, kept for consistency with the broader demo family.",
+    )
+    parser.add_argument(
         "--mode",
         choices=("auto", "pages", "pages_controls", "slider", "full"),
         default="auto",

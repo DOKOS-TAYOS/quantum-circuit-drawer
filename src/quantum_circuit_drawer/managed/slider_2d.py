@@ -70,7 +70,7 @@ from .shortcut_help import (
     create_shortcut_help_text,
     toggle_shortcut_help_text,
 )
-from .slider_2d_windowing import _scene_for_current_window
+from .slider_2d_windowing import _horizontal_scene_for_start_column, _scene_for_current_window
 from .ui_palette import ManagedUiPalette, managed_ui_palette
 from .viewport import _figure_size_inches, axes_viewport_pixels
 
@@ -174,6 +174,7 @@ class Managed2DPageSliderState:
     shortcut_help_text: Text | None
     start_column: int
     max_start_column: int
+    horizontal_slider_stops: tuple[int, ...]
     start_row: int
     max_start_row: int
     viewport_width: float
@@ -713,6 +714,7 @@ def configure_page_slider(
         shortcut_help_text=None,
         start_column=0,
         max_start_column=0,
+        horizontal_slider_stops=(0,),
         start_row=0,
         max_start_row=0,
         viewport_width=initial_viewport_width,
@@ -845,6 +847,7 @@ def set_slider_view(
 def _apply_2d_slider_state(state: Managed2DPageSliderState) -> None:
     max_start_column = max(0, state.total_column_count - 1)
     state.max_start_column = max_start_column if _has_horizontal_overflow(state) else 0
+    state.horizontal_slider_stops = _horizontal_slider_stop_columns(state)
     state.max_start_row = max(0, state.total_visible_rows - state.visible_qubits)
     state.start_column = min(max(0, state.start_column), state.max_start_column)
     state.start_row = min(max(0, state.start_row), state.max_start_row)
@@ -944,7 +947,7 @@ def _attach_2d_controls(
             valmin=0.0,
             valmax=float(state.max_start_column),
             valinit=float(state.start_column),
-            valstep=1.0,
+            valstep=[float(stop) for stop in state.horizontal_slider_stops],
             color=palette.slider_fill_color,
             track_color=palette.slider_track_color,
             handle_style={
@@ -1467,10 +1470,45 @@ def _needs_2d_control_rebuild(
         state.max_start_column
     ):
         return True
+    if (
+        state.horizontal_slider is not None
+        and tuple(int(round(float(value))) for value in state.horizontal_slider.valstep or ())
+        != state.horizontal_slider_stops
+    ):
+        return True
 
     return state.vertical_slider is not None and state.vertical_slider.valmax != float(
         state.max_start_row
     )
+
+
+def _horizontal_slider_stop_columns(state: Managed2DPageSliderState) -> tuple[int, ...]:
+    if state.max_start_column <= 0:
+        return (0,)
+
+    stop_columns: list[int] = [0]
+    previous_signature = _horizontal_window_signature(_horizontal_scene_for_start_column(state, 0))
+    for start_column in range(1, state.max_start_column + 1):
+        current_signature = _horizontal_window_signature(
+            _horizontal_scene_for_start_column(state, start_column)
+        )
+        if current_signature != previous_signature:
+            stop_columns.append(start_column)
+            previous_signature = current_signature
+
+    if stop_columns[-1] != state.max_start_column:
+        stop_columns.append(state.max_start_column)
+    return tuple(stop_columns)
+
+
+def _horizontal_window_signature(
+    scene: LayoutScene,
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    gate_labels = tuple(gate.label for gate in scene.gates)
+    measurement_labels = tuple(measurement.label for measurement in scene.measurements)
+    control_labels = tuple(str(control.column) for control in scene.controls)
+    swap_columns = tuple(str(swap.column) for swap in scene.swaps)
+    return gate_labels, measurement_labels, control_labels, swap_columns
 
 
 def _has_horizontal_overflow(state: Managed2DPageSliderState) -> bool:

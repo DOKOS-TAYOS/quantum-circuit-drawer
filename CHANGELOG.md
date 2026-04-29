@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Clarified the examples documentation so `examples/README.md` now explains the difference between runner `demo_id` values and direct script filenames, highlights editable-install extra commands for local `.venv` workflows, and includes `logging_showcase.py` alongside the other copy-paste utility examples.
 - Enlarged the default Matplotlib windows used by the demo scripts by about 20% so the examples open a bit roomier across circuit, histogram, and compare showcases.
 - Added the `u` keyboard shortcut to interactive histograms so the uniform reference line can be shown or hidden without reopening the figure, and made the histogram reset action restore that line to its original config state.
 - Tightened the managed 3D control layout by moving the topology menu closer to the action buttons, narrowing the panel, right-aligning it with the `Wires` control area, and bringing the `Page` label noticeably closer to the left page-navigation button in both 2D and 3D page-window modes.
@@ -28,6 +29,7 @@
 
 ### Fixed
 
+- Fixed the managed 2D exploration slider so dense Qiskit showcase circuits now snap the horizontal slider to distinct visible windows instead of walking every raw internal column, avoiding sticky-feeling regions where dragging appeared to move the wrong content.
 - Fixed managed 2D page revisits so gate-label base font sizes now stay stable when returning from narrower windows, while matching gate families such as `P/RZ/RX/RY`, `RXY`-style multi-axis rotations, `H/X/Y/Z/T/S`, and `SX/SY/SZ` now share one per-page fitted font size based on the tightest member of the group.
 - Fixed managed menu controls so page-window, 2D/3D slider, and topology-menu button labels now scale with the final figure size, keep one stable font per button across its label states by fitting against the longest message, tighten the page/visible navigation geometry, narrow the topology panel to reduce right-side dead space, and enlarge compare-summary table text for easier reading.
 - Reduced repeated text-resolution work across the Matplotlib circuit render path by caching resolved visible-label and gate-label text before artist creation, improving default 2D rendering performance without changing circuit layout geometry.

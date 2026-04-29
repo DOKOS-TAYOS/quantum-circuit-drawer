@@ -8,6 +8,36 @@ The examples are organized around normal user workflows:
 
 If you want the longer explanation of what each mode, config block, managed control, histogram option, and comparison result means, read the [Extended guide](../docs/extended_guide.md).
 
+This page uses three names that are related but not identical:
+
+- `demo_id`: the id used with `examples/run_demo.py`, `examples/run_histogram_demo.py`, and `examples/run_compare_demo.py`
+- direct script: the real `.py` file under `examples/`, such as `examples/qiskit_2d_exploration_showcase.py`
+- family runner: one of the three `run_*.py` launchers that lists ids and forwards flags to the direct script
+
+When you want code to copy into your own project, prefer the direct scripts. When you want discovery, quick catalog browsing, or a short launcher command, use the runners.
+
+To run examples from this repository, install the optional extras you need inside your local `.venv` first. Typical commands are:
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[qiskit]"
+.\.venv\Scripts\python.exe -m pip install -e ".[cirq]"
+.\.venv\Scripts\python.exe -m pip install -e ".[pennylane]"
+.\.venv\Scripts\python.exe -m pip install -e ".[myqlm]"
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python -m pip install -e ".[qiskit]"
+.venv/bin/python -m pip install -e ".[cirq]"
+.venv/bin/python -m pip install -e ".[pennylane]"
+.venv/bin/python -m pip install -e ".[myqlm]"
+```
+
+Use `.[qasm3]` for OpenQASM 3 and `.[cudaq]` only on Linux or WSL2.
+
 OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantum-circuit-drawer[qiskit]`, then pass text starting with `OPENQASM` or a `.qasm` path to `draw_quantum_circuit(...)`; use `framework="qasm"` when you want the parser path to be explicit.
 
 The direct utility demos are the best copy-paste examples when you want to use result helpers, `circuit_to_latex(...)`, caller-managed axes, accessible styling, diagnostics, CLI exports, or Qiskit backend topology objects from normal scripts.
@@ -49,6 +79,8 @@ If you want one file to open and adapt, start with a direct script:
 
 
 ## Discovery
+
+These commands list `demo_id` values. Use those ids only with the `run_*.py` launchers, not as filesystem names.
 
 Windows PowerShell:
 
@@ -198,6 +230,8 @@ The CLI export showcase writes `examples/output/cli-export-showcase.png` by defa
 
 ### Commands
 
+These commands call the direct script files themselves. The matching runner ids use hyphens instead of underscores, for example `qiskit-2d-exploration-showcase` -> `examples/qiskit_2d_exploration_showcase.py`.
+
 Windows PowerShell:
 
 ```powershell
@@ -303,6 +337,7 @@ These direct scripts are intentionally small and copyable. They cover the practi
 | Demo | Focus |
 | --- | --- |
 | `public-api-utilities-showcase` | `analyze_quantum_circuit`, `DrawResult.to_dict()`, `save_all_pages(...)`, `HistogramResult.to_csv(...)`, and companion exports |
+| `logging-showcase` | `configure_logging(...)`, `capture_logs(...)`, and the `summary` / `detail` / `interactive` profiles |
 | `caller-managed-axes-showcase` | caller-managed axes with `draw_quantum_circuit(...)`, `plot_histogram(...)`, and `compare_circuits(...)` on one Matplotlib figure |
 | `style-accessible-showcase` | accessible circuit and histogram styling with the shared `accessible` preset |
 | `diagnostics-showcase` | diagnostics, warnings, resolved modes, page counts, and analysis summaries |
@@ -313,6 +348,7 @@ Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe examples\public_api_utilities_showcase.py --no-show --output public-api.png
+.\.venv\Scripts\python.exe examples\logging_showcase.py --profile detail --no-show
 .\.venv\Scripts\python.exe examples\caller_managed_axes_showcase.py --no-show --output caller-axes.png
 .\.venv\Scripts\python.exe examples\style_accessible_showcase.py --no-show --output accessible.png
 .\.venv\Scripts\python.exe examples\diagnostics_showcase.py --no-show --output diagnostics.png
@@ -324,6 +360,7 @@ Linux or WSL:
 
 ```bash
 .venv/bin/python examples/public_api_utilities_showcase.py --no-show --output public-api.png
+.venv/bin/python examples/logging_showcase.py --profile detail --no-show
 .venv/bin/python examples/caller_managed_axes_showcase.py --no-show --output caller-axes.png
 .venv/bin/python examples/style_accessible_showcase.py --no-show --output accessible.png
 .venv/bin/python examples/diagnostics_showcase.py --no-show --output diagnostics.png

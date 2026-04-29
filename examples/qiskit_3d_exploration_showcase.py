@@ -128,6 +128,12 @@ def _parse_args() -> Namespace:
         help="How many composite motifs to place across the showcase circuit.",
     )
     parser.add_argument(
+        "--columns",
+        dest="motifs",
+        type=int,
+        help="Alias for --motifs, kept for consistency with the broader demo family.",
+    )
+    parser.add_argument(
         "--mode",
         choices=("auto", "pages", "pages_controls", "slider", "full"),
         default="pages_controls",
@@ -138,6 +144,12 @@ def _parse_args() -> Namespace:
         choices=("line", "grid", "star", "star_tree", "honeycomb"),
         default="grid",
         help="Topology used by the managed 3D view.",
+    )
+    parser.add_argument(
+        "--view",
+        choices=("3d",),
+        default="3d",
+        help="Accepted for CLI consistency; this showcase always renders the 3D view.",
     )
     parser.add_argument("--output", type=Path, help="Optional output image path.")
     parser.add_argument("--show", dest="show", action="store_true", default=True)
