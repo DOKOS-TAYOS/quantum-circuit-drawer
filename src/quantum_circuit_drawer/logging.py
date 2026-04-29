@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from ._logging import LogFormat, configure_logging
+from ._logging import LogFormat, LogProfile, configure_logging
 
-__all__ = ["LogFormat", "configure_logging"]
+__all__ = ["LogFormat", "LogProfile", "configure_logging"]

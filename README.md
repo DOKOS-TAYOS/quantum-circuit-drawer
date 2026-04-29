@@ -90,6 +90,29 @@ Each public config is now grouped into typed blocks ordered by responsibility:
 - single histograms use `HistogramConfig(data=..., view=..., appearance=..., output=...)`
 - histogram comparison uses `HistogramCompareConfig(data=..., compare=..., output=...)`
 
+## Structured Logging
+
+The package can also emit structured logs for day-to-day debugging:
+
+```python
+from quantum_circuit_drawer import LogProfile, configure_logging
+
+configure_logging(level="INFO", profile=LogProfile.SUMMARY)
+```
+
+Two good starting points are:
+
+- normal script debugging: `profile="summary"` or `profile="detail"` with `level="INFO"`
+- managed or histogram interaction debugging: `profile="interactive"` with `level="DEBUG"`
+
+`level` still controls severity in the standard Python logging way. `profile` controls which structured event families are shown:
+
+- `summary` keeps API lifecycle, saved-output, diagnostics, and warnings/errors
+- `detail` adds internal non-interactive pipeline events
+- `interactive` also includes `interactive.*` events such as viewport, selection, topology, and histogram state changes
+
+When you need a runnable example, start with [examples/logging_showcase.py](examples/logging_showcase.py).
+
 ## Visual Gallery
 
 The library renders normal static images, managed exploration views, 3D topology scenes, and result distributions with the same public API shape. Gallery images use absolute raw GitHub URLs so they render from both GitHub Markdown and the PyPI project description.
