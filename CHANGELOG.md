@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-15
+
 ### Added
 
 - Added Dependabot version update configuration for Python dependencies and GitHub Actions, with weekly schedules in the Europe/Madrid timezone.
@@ -365,7 +367,8 @@ Stable **1.0.0** release with PyPI trove classifier `Development Status :: 5 - P
 - Unused autodetection helper from `utils`
 - Generated artifacts and cache directories from the intended versioned repo surface
 
-[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.6.0...v1.0.0
 [0.6.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v0.4.0...v0.5.0
