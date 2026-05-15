@@ -87,6 +87,7 @@ def test_security_workflows_are_configured() -> None:
     assert "actions/dependency-review-action@v4" in security_text
     assert "python -m pip_audit" in security_text
     assert "python -m bandit" in security_text
+    assert 'python -m pip install -e ".[dev,security]"' not in security_text
 
 
 def test_codeql_uses_github_default_setup_instead_of_advanced_workflow() -> None:

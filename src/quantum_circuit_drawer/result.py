@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -41,8 +42,10 @@ class DrawResult:
         """Display contained figures in IPython without showing the dataclass repr."""
 
         try:
-            from IPython.display import display
+            display = getattr(import_module("IPython.display"), "display", None)
         except Exception:
+            return
+        if not callable(display):
             return
 
         for figure in self.figures:

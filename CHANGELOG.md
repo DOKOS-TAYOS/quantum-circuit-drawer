@@ -17,6 +17,8 @@
 
 - Removed the remaining legacy shared-helper imports from the direct `qiskit_random.py` and `cudaq_random.py` examples so the full test suite stays green for public CI.
 - Removed the repository CodeQL advanced workflow so GitHub CodeQL default setup can process scans without conflicting SARIF uploads.
+- Installed the package non-editably in the Security workflow so `pip-audit --skip-editable` no longer fails on the local project distribution.
+- Fixed type-checking for optional IPython notebook display hooks and Qiskit register-size detection.
 - Preserved custom Qiskit quantum register names in rendered wire labels, including multi-bit register indices.
 - Kept long wire-label lanes compact and readable so named Qiskit registers no longer create excessive blank space at the left of 2D figures.
 - Suppressed the verbose `DrawResult(...)` text representation when draw results are the last expression in IPython notebooks.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Protocol, cast
 
 from ..exceptions import UnsupportedOperationError
@@ -30,7 +30,7 @@ from .base import BaseAdapter
 class _QiskitRegisterLike(Protocol):
     name: str | None
 
-    def __iter__(self) -> Iterable[object]: ...
+    def __iter__(self) -> Iterator[object]: ...
 
 
 class _QiskitCircuitLike(Protocol):

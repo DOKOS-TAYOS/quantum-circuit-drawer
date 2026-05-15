@@ -44,18 +44,19 @@ For CUDA-Q development, use Linux or WSL2:
 
 On native Windows, Cirq and PennyLane can still be limited by upstream SciPy/HiGHS behavior. For reliable end-to-end adapter work on those frameworks, Linux or WSL is the safer path.
 
-For local security checks, install the security extra as well.
+For local security checks, install the package non-editably in a clean environment so
+`pip-audit --skip-editable` does not stop on the project distribution itself.
 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,security]"
+.\.venv\Scripts\python.exe -m pip install ".[dev,security]"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip install -e ".[dev,security]"
+.venv/bin/python -m pip install ".[dev,security]"
 ```
 
 ## Repository Layout
