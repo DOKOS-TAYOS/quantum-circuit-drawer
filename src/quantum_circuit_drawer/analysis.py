@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from ._logging import (
     duration_ms,
@@ -17,12 +18,37 @@ from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 from .ir.circuit import CircuitIR
 from .ir.operations import OperationIR, OperationKind
 
+if TYPE_CHECKING:
+    from .config import ViewMode
+    from .topology import TopologyInput, TopologyQubitMode
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class CircuitAnalysisResult:
-    """Summary returned by ``analyze_quantum_circuit`` without rendering figures."""
+    """Non-rendering summary returned by ``analyze_quantum_circuit(...)``.
+
+    Attributes:
+        detected_framework: Adapter chosen for the input, such as ``"qiskit"``,
+            ``"ir"``, or ``"qasm"``.
+        mode: Resolved draw mode that would be used for rendering.
+        view: Resolved view, either ``"2d"`` or ``"3d"``.
+        page_count: Number of pages the prepared circuit would produce.
+        quantum_wire_count: Number of quantum wires.
+        classical_wire_count: Number of classical wires.
+        total_wire_count: Quantum plus classical wire count.
+        layer_count: Number of normalized circuit layers.
+        operation_count: Total number of operations.
+        gate_count: Gate operations without classical measurements.
+        controlled_gate_count: Controlled-gate operations.
+        multi_qubit_operation_count: Operations touching more than one quantum wire.
+        measurement_count: Measurement operations.
+        swap_count: Swap operations.
+        barrier_count: Barrier operations.
+        diagnostics: Non-fatal warnings or info messages produced while preparing the
+            circuit.
+    """
 
     detected_framework: str | None
     mode: DrawMode
@@ -52,7 +78,12 @@ class CircuitAnalysisResult:
         )
 
     def to_dict(self) -> dict[str, object]:
-        """Return a JSON-friendly summary without Matplotlib objects."""
+        """Return a JSON-friendly summary.
+
+        Returns:
+            A dictionary with framework, mode, view, counts, and diagnostics. It never
+            contains Matplotlib figures or axes.
+        """
 
         return {
             "detected_framework": self.detected_framework,
@@ -79,16 +110,57 @@ class CircuitAnalysisResult:
 def analyze_quantum_circuit(
     circuit: object,
     *,
+    mode: DrawMode | str | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    topology: TopologyInput | None = None,
+    topology_qubits: TopologyQubitMode | None = None,
     config: DrawConfig | None = None,
 ) -> CircuitAnalysisResult:
-    """Analyze a supported circuit without rendering or saving figures."""
+    """Analyze a supported circuit without rendering or saving figures.
+
+    Direct kwargs are the small, common API for preparation choices. This function
+    does not render, display, or save figures, so output options such as ``show`` and
+    ``output_path`` are ignored even when present in ``config``.
+
+    Args:
+        circuit: Any supported circuit input: public ``CircuitIR``, supported framework
+            objects, OpenQASM 2/3 text, or ``.qasm`` / ``.qasm3`` paths.
+        mode: Optional preparation mode: ``"auto"``, ``"pages"``,
+            ``"pages_controls"``, ``"slider"``, ``"full"``, or ``DrawMode``.
+        framework: Optional adapter name, such as ``"ir"``, ``"qiskit"``, or
+            ``"qasm"``.
+        view: Optional ``"2d"`` or ``"3d"`` preparation view.
+        composite_mode: Optional ``"compact"`` or ``"expand"`` composite handling.
+        topology: Optional built-in topology name or topology object for 3D analysis.
+        topology_qubits: Optional ``"used"`` or ``"all"`` topology-node mode.
+        config: Optional ``DrawConfig``. Framework, view, mode, topology, and adapter
+            options are honored for preparation, but ``show`` and ``output_path`` are
+            ignored so analysis has no visual side effects. Non-``None`` direct kwargs
+            override only matching render fields.
+
+    Returns:
+        ``CircuitAnalysisResult`` with resolved framework, mode, page count, wire
+        counts, operation counts, and diagnostics.
+    """
 
     from .drawing.preparation import prepare_draw_call
 
     with logged_api_call(logger, api="analyze_quantum_circuit") as started_at:
         prepared = prepare_draw_call(
             circuit,
-            config=_without_rendered_output(config),
+            config=_without_rendered_output(
+                _merge_analysis_config(
+                    config,
+                    mode=mode,
+                    framework=framework,
+                    view=view,
+                    composite_mode=composite_mode,
+                    topology=topology,
+                    topology_qubits=topology_qubits,
+                )
+            ),
             ax=None,
         )
         pipeline = prepared.pipeline
@@ -156,6 +228,50 @@ def _without_rendered_output(config: DrawConfig | None) -> DrawConfig:
             output_path=None,
         ),
     )
+
+
+def _merge_analysis_config(
+    config: DrawConfig | None,
+    *,
+    mode: DrawMode | str | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    topology: TopologyInput | None = None,
+    topology_qubits: TopologyQubitMode | None = None,
+) -> DrawConfig:
+    resolved_config = DrawConfig() if config is None else config
+
+    render_options = resolved_config.side.render
+    if (
+        mode is not None
+        or framework is not None
+        or view is not None
+        or composite_mode is not None
+        or topology is not None
+        or topology_qubits is not None
+    ):
+        render_options = replace(
+            render_options,
+            framework=render_options.framework if framework is None else framework,
+            view=render_options.view if view is None else view,
+            mode=render_options.mode if mode is None else mode,
+            composite_mode=(
+                render_options.composite_mode if composite_mode is None else composite_mode
+            ),
+            topology=render_options.topology if topology is None else topology,
+            topology_qubits=(
+                render_options.topology_qubits if topology_qubits is None else topology_qubits
+            ),
+        )
+
+    side_config = resolved_config.side
+    if render_options is not resolved_config.side.render:
+        side_config = replace(side_config, render=render_options)
+
+    if side_config is resolved_config.side:
+        return resolved_config
+    return replace(resolved_config, side=side_config)
 
 
 def _analysis_page_count(scene: object) -> int:

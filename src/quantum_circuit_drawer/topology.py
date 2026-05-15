@@ -46,12 +46,15 @@ _HEAVY_HEX_SEED_CELL: tuple[tuple[int, int], ...] = (
 
 @dataclass(frozen=True, slots=True)
 class HardwareTopology:
-    """Public static topology for the 3D hardware view.
+    """Static hardware graph used by 3D circuit rendering.
 
-    ``node_ids`` defines the physical ordering that will be mapped onto the
-    circuit quantum wires position-by-position. ``edges`` are treated as an
-    undirected connectivity graph. ``coordinates`` can be omitted, in which
-    case the layout engine derives a deterministic 2D footprint.
+    Attributes:
+        node_ids: Physical node identifiers in the order circuit qubits are mapped to
+            topology nodes. Identifiers may be strings or integers and must be unique.
+        edges: Undirected coupling edges between entries in ``node_ids``.
+        coordinates: Optional 2D coordinates for each node. Missing coordinates are
+            filled deterministically by the layout engine.
+        name: Display name shown in 3D topology menus and hover text.
     """
 
     node_ids: tuple[HardwareNodeId, ...]
@@ -85,7 +88,18 @@ class HardwareTopology:
         name: str = "custom",
         coordinates: HardwareCoordinates | None = None,
     ) -> HardwareTopology:
-        """Build a topology from a coupling-map style edge list."""
+        """Build a topology from a coupling-map style edge list.
+
+        Args:
+            coupling_map: Iterable of ``(source, target)`` node pairs. Direction is
+                ignored for display.
+            name: Display name for the created topology.
+            coordinates: Optional node coordinates keyed by node id.
+
+        Returns:
+            A validated ``HardwareTopology`` with nodes ordered by first appearance in
+            the coupling map.
+        """
 
         ordered_nodes: list[HardwareNodeId] = []
         raw_edges: list[tuple[HardwareNodeId, HardwareNodeId]] = []
@@ -115,9 +129,18 @@ class HardwareTopology:
     ) -> HardwareTopology:
         """Build a topology from a Qiskit BackendV1/BackendV2-like object.
 
-        The helper intentionally avoids importing Qiskit. It reads the stable
-        backend, target, and coupling-map attributes by duck typing so tests and
-        optional dependency users can pass real or lightweight backend objects.
+        Args:
+            backend: Real Qiskit backend or a duck-typed object exposing target,
+                coupling-map, or configuration attributes.
+            name: Optional display name. ``None`` uses the backend name when available.
+            coordinates: Optional node coordinates keyed by backend qubit id.
+            two_q_gate: Optional two-qubit operation name used to filter BackendV2
+                targets, such as ``"cx"`` or ``"ecr"``.
+            filter_idle_qubits: Whether to drop backend qubits not present in any
+                inferred coupling edge.
+
+        Returns:
+            A validated ``HardwareTopology`` without importing Qiskit directly.
         """
 
         coupling_map = _qiskit_backend_coupling_map(
@@ -150,7 +173,17 @@ class HardwareTopology:
         name: str = "custom",
         coordinates: HardwareCoordinates | None = None,
     ) -> HardwareTopology:
-        """Build a topology from a Python adjacency mapping or edge list."""
+        """Build a topology from a Python adjacency mapping or edge list.
+
+        Args:
+            graph: Either a mapping of ``node -> iterable[neighbor]`` or an iterable of
+                ``(node, neighbor)`` pairs.
+            name: Display name for the created topology.
+            coordinates: Optional node coordinates keyed by node id.
+
+        Returns:
+            A validated ``HardwareTopology`` with duplicate undirected edges removed.
+        """
 
         ordered_nodes: list[HardwareNodeId] = []
         raw_edges: list[tuple[HardwareNodeId, HardwareNodeId]] = []
@@ -185,7 +218,15 @@ class HardwareTopology:
 
 @dataclass(frozen=True, slots=True)
 class FunctionalTopology:
-    """Topology generated from a qubit-count function."""
+    """Topology generated lazily from a qubit-count function.
+
+    Attributes:
+        builder: Callable receiving the required qubit count and returning a
+            ``HardwareTopology``.
+        qubit_count: Optional fixed qubit count. ``None`` lets the renderer request the
+            count needed for the circuit.
+        name: Display name used before the generated hardware topology is materialized.
+    """
 
     builder: Callable[[int], HardwareTopology]
     qubit_count: int | None = None
@@ -201,7 +242,16 @@ class FunctionalTopology:
 
 @dataclass(frozen=True, slots=True)
 class PeriodicTopology1D:
-    """Topology built from an initial cell, repeated cell, and final cell."""
+    """One-dimensional periodic topology assembled from hardware cells.
+
+    Attributes:
+        initial_cell: Hardware cell placed at the start of the chain.
+        periodic_cell: Hardware cell repeated ``repeat_count`` times.
+        final_cell: Hardware cell placed at the end of the chain.
+        bridge_edges: Edges connecting the cells by node id.
+        repeat_count: Number of periodic cells to include. It may be zero.
+        name: Display name for the materialized topology.
+    """
 
     initial_cell: HardwareTopology
     periodic_cell: HardwareTopology
@@ -222,7 +272,24 @@ class PeriodicTopology1D:
 
 @dataclass(frozen=True, slots=True)
 class PeriodicTopology2D:
-    """Topology built from corner, edge, and center cells repeated in a 2D patch."""
+    """Two-dimensional periodic topology assembled from nine hardware cell roles.
+
+    Attributes:
+        top_left_cell: Cell used at the top-left corner.
+        top_edge_cell: Cell repeated along the top edge.
+        top_right_cell: Cell used at the top-right corner.
+        left_edge_cell: Cell repeated along the left edge.
+        center_cell: Cell repeated in the interior.
+        right_edge_cell: Cell repeated along the right edge.
+        bottom_left_cell: Cell used at the bottom-left corner.
+        bottom_edge_cell: Cell repeated along the bottom edge.
+        bottom_right_cell: Cell used at the bottom-right corner.
+        horizontal_bridge_edges: Edges connecting neighboring cells horizontally.
+        vertical_bridge_edges: Edges connecting neighboring cells vertically.
+        rows: Number of cell rows in the materialized patch.
+        columns: Number of cell columns in the materialized patch.
+        name: Display name for the materialized topology.
+    """
 
     top_left_cell: HardwareTopology
     top_edge_cell: HardwareTopology
@@ -270,37 +337,78 @@ class PeriodicTopology2D:
 
 
 def builtin_topology_names() -> tuple[BuiltinTopologyName, ...]:
-    """Return the built-in topology names in stable display order."""
+    """Return built-in topology names in stable display order.
+
+    Returns:
+        ``("line", "grid", "star", "star_tree", "honeycomb")``.
+    """
 
     return _BUILTIN_TOPOLOGY_NAMES
 
 
 def is_builtin_topology(value: object) -> TypeGuard[BuiltinTopologyName]:
-    """Return whether a value is one of the built-in topology names."""
+    """Check whether a value is a built-in topology name.
+
+    Args:
+        value: Value to test.
+
+    Returns:
+        ``True`` when ``value`` is one of ``"line"``, ``"grid"``, ``"star"``,
+        ``"star_tree"``, or ``"honeycomb"``.
+    """
 
     return isinstance(value, str) and value in _BUILTIN_TOPOLOGY_NAMES
 
 
 def is_custom_topology(value: object) -> TypeGuard[HardwareTopology]:
-    """Return whether a value is a public static hardware topology."""
+    """Check whether a value is a static hardware topology.
+
+    Args:
+        value: Value to test.
+
+    Returns:
+        ``True`` when ``value`` is a ``HardwareTopology`` instance.
+    """
 
     return isinstance(value, HardwareTopology)
 
 
 def is_functional_topology(value: object) -> TypeGuard[FunctionalTopology]:
-    """Return whether a value is a public functional topology."""
+    """Check whether a value is a functional topology.
+
+    Args:
+        value: Value to test.
+
+    Returns:
+        ``True`` when ``value`` is a ``FunctionalTopology`` instance.
+    """
 
     return isinstance(value, FunctionalTopology)
 
 
 def is_periodic_topology(value: object) -> TypeGuard[PeriodicTopology1D | PeriodicTopology2D]:
-    """Return whether a value is a public periodic topology."""
+    """Check whether a value is a one- or two-dimensional periodic topology.
+
+    Args:
+        value: Value to test.
+
+    Returns:
+        ``True`` for ``PeriodicTopology1D`` and ``PeriodicTopology2D`` instances.
+    """
 
     return isinstance(value, PeriodicTopology1D | PeriodicTopology2D)
 
 
 def normalize_topology_input(value: object) -> TopologyInput:
-    """Validate a public topology choice and return its typed form."""
+    """Validate a public topology choice and return its typed form.
+
+    Args:
+        value: Built-in topology name, ``HardwareTopology``, ``FunctionalTopology``,
+            ``PeriodicTopology1D``, or ``PeriodicTopology2D``.
+
+    Returns:
+        The validated topology input.
+    """
 
     if is_builtin_topology(value):
         return value
@@ -317,7 +425,15 @@ def normalize_topology_input(value: object) -> TopologyInput:
 
 
 def normalize_topology_qubits(value: object) -> TopologyQubitMode:
-    """Validate how many topology qubits should be rendered."""
+    """Validate how many topology nodes should be rendered.
+
+    Args:
+        value: ``"used"`` to draw nodes used by the circuit or ``"all"`` to keep the
+            full topology footprint.
+
+    Returns:
+        The validated topology-qubit mode.
+    """
 
     if isinstance(value, str) and value in _TOPOLOGY_QUBIT_MODES:
         return value
@@ -326,7 +442,15 @@ def normalize_topology_qubits(value: object) -> TopologyQubitMode:
 
 
 def normalize_topology_resize(value: object) -> TopologyResizeMode:
-    """Validate how non-static topologies should handle undersized layouts."""
+    """Validate how flexible topologies handle undersized layouts.
+
+    Args:
+        value: ``"error"`` to reject undersized layouts or ``"fit"`` to rebuild
+            generated topologies for the required qubit count.
+
+    Returns:
+        The validated topology-resize mode.
+    """
 
     if isinstance(value, str) and value in _TOPOLOGY_RESIZE_MODES:
         return value
@@ -335,7 +459,14 @@ def normalize_topology_resize(value: object) -> TopologyResizeMode:
 
 
 def topology_display_name(value: TopologyInput) -> str:
-    """Return a user-facing name for built-in and custom topologies."""
+    """Return a user-facing name for built-in and custom topologies.
+
+    Args:
+        value: Any validated topology input.
+
+    Returns:
+        Built-in name or custom topology ``name``.
+    """
 
     if is_builtin_topology(value):
         return value
@@ -347,7 +478,15 @@ def topology_display_name(value: TopologyInput) -> str:
 
 
 def line_topology(qubit_count: int) -> HardwareTopology:
-    """Build a linear topology for the requested number of qubits."""
+    """Build a nearest-neighbor line topology.
+
+    Args:
+        qubit_count: Positive number of topology nodes to create.
+
+    Returns:
+        ``HardwareTopology`` with nodes ``0..qubit_count-1`` arranged on a horizontal
+        line and edges between adjacent nodes.
+    """
 
     _validate_positive_qubit_count(qubit_count)
     node_ids = tuple(range(qubit_count))
@@ -360,7 +499,15 @@ def line_topology(qubit_count: int) -> HardwareTopology:
 
 
 def grid_topology(qubit_count: int) -> HardwareTopology:
-    """Build a near-square ragged grid topology for the requested qubits."""
+    """Build a compact near-square grid topology.
+
+    Args:
+        qubit_count: Positive number of topology nodes to create.
+
+    Returns:
+        ``HardwareTopology`` with deterministic grid coordinates and horizontal plus
+        vertical nearest-neighbor edges.
+    """
 
     _validate_positive_qubit_count(qubit_count)
     columns = _compact_grid_column_count(qubit_count)
@@ -414,7 +561,16 @@ def _compact_grid_row_offset(*, columns: int, row_width: int) -> float:
 
 
 def star_topology(qubit_count: int) -> HardwareTopology:
-    """Build a star topology, allowing a single center-only qubit."""
+    """Build a center-and-leaves star topology.
+
+    Args:
+        qubit_count: Positive number of topology nodes to create. ``1`` produces a
+            center-only topology with no edges.
+
+    Returns:
+        ``HardwareTopology`` with node ``0`` at the center and every other node
+        connected to it.
+    """
 
     _validate_positive_qubit_count(qubit_count)
     node_ids = tuple(range(qubit_count))
@@ -440,7 +596,14 @@ def star_topology(qubit_count: int) -> HardwareTopology:
 
 
 def star_tree_topology(qubit_count: int) -> HardwareTopology:
-    """Build a breadth-first three-branch star-tree topology."""
+    """Build a deterministic three-branch tree topology.
+
+    Args:
+        qubit_count: Positive number of topology nodes to create.
+
+    Returns:
+        ``HardwareTopology`` with breadth-first node placement from a central root.
+    """
 
     _validate_positive_qubit_count(qubit_count)
     node_ids = tuple(range(qubit_count))
@@ -475,7 +638,15 @@ def star_tree_topology(qubit_count: int) -> HardwareTopology:
 
 
 def honeycomb_topology(qubit_count: int) -> HardwareTopology:
-    """Build a compact deterministic IBM-inspired hexagonal chip patch."""
+    """Build a compact honeycomb-style topology.
+
+    Args:
+        qubit_count: Positive number of topology nodes to create.
+
+    Returns:
+        ``HardwareTopology`` with deterministic heavy-hex-inspired coordinates and
+        nearest-neighbor edges.
+    """
 
     _validate_positive_qubit_count(qubit_count)
     raw_coordinates, edges = _compact_heavy_hex_patch(qubit_count)
@@ -644,7 +815,17 @@ def materialize_topology(
     qubit_count: int,
     topology_resize: TopologyResizeMode,
 ) -> HardwareTopology:
-    """Return a concrete hardware topology for a circuit qubit count."""
+    """Return a concrete hardware topology for a circuit qubit count.
+
+    Args:
+        topology: Built-in topology name or one of the public topology objects.
+        qubit_count: Positive number of circuit qubits that must fit on the topology.
+        topology_resize: ``"error"`` to reject undersized generated topologies or
+            ``"fit"`` to resize flexible topology definitions.
+
+    Returns:
+        A concrete ``HardwareTopology`` with at least ``qubit_count`` nodes.
+    """
 
     _validate_positive_qubit_count(qubit_count)
     resize = normalize_topology_resize(topology_resize)

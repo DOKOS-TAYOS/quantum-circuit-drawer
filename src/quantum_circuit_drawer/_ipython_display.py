@@ -28,9 +28,25 @@ def display_figures_in_ipython(
         return
 
     for figure in materialized_figures:
-        display(figure)
+        display(_ipython_display_target(figure))
     if close_after_display:
         close_figures_in_pyplot(materialized_figures)
+
+
+def _ipython_display_target(figure: Figure) -> object:
+    """Return the richest IPython display object for a Matplotlib figure."""
+
+    canvas = getattr(figure, "canvas", None)
+    if canvas is not None and _has_ipython_rich_display(canvas):
+        return canvas
+    return figure
+
+
+def _has_ipython_rich_display(value: object) -> bool:
+    return any(
+        callable(getattr(value, attr, None))
+        for attr in ("_ipython_display_", "_repr_mimebundle_", "_repr_html_")
+    )
 
 
 def close_figures_in_pyplot(figures: Iterable[Figure]) -> None:

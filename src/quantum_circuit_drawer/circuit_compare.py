@@ -17,8 +17,10 @@ from ._validation import (
 from .config import (
     CircuitAppearanceOptions,
     CircuitRenderOptions,
+    DrawMode,
     DrawSideConfig,
     OutputOptions,
+    ViewMode,
     validate_output_options,
 )
 from .export.figures import save_matplotlib_figure
@@ -34,7 +36,18 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class CircuitCompareOptions:
-    """Public comparison-only controls for ``compare_circuits``."""
+    """Comparison-only presentation controls for ``compare_circuits(...)``.
+
+    Attributes:
+        left_title: Default title for the first circuit when ``titles`` is not given.
+        right_title: Default title for the second circuit when ``titles`` is not given.
+        highlight_differences: Whether differing columns are visually highlighted in
+            the side-by-side render.
+        show_summary: Whether to include the summary table axes when the comparison
+            owns the Matplotlib figure.
+        titles: Optional title for every compared circuit. Use this when comparing
+            three or more circuits or when the default left/right labels are not enough.
+    """
 
     left_title: str = "Left"
     right_title: str = "Right"
@@ -51,7 +64,20 @@ class CircuitCompareOptions:
 
 @dataclass(frozen=True, slots=True)
 class CircuitCompareConfig:
-    """Public configuration for ``compare_circuits``."""
+    """Advanced configuration object for ``compare_circuits(...)``.
+
+    Attributes:
+        shared: Base ``DrawSideConfig`` applied to every compared circuit.
+        left_render: Optional render override for the first circuit.
+        right_render: Optional render override for the second circuit.
+        left_appearance: Optional appearance override for the first circuit.
+        right_appearance: Optional appearance override for the second circuit.
+        compare: ``CircuitCompareOptions`` controlling titles, highlighting, and the
+            summary table.
+        output: ``OutputOptions`` controlling display, saving, and managed figure size.
+            Direct kwargs on ``compare_circuits(...)`` override only matching common
+            fields when they are not ``None``.
+    """
 
     shared: DrawSideConfig = field(default_factory=DrawSideConfig)
     left_render: CircuitRenderOptions | None = None
@@ -117,7 +143,29 @@ class CircuitCompareConfig:
 
 @dataclass(frozen=True, slots=True)
 class CircuitCompareMetrics:
-    """Comparison metrics derived from two normalized circuit IRs."""
+    """Structural metrics comparing the first two normalized circuits.
+
+    Attributes:
+        left_layer_count: Layer count for the first circuit.
+        right_layer_count: Layer count for the second circuit.
+        layer_delta: ``right_layer_count - left_layer_count``.
+        left_operation_count: Operation count for the first circuit.
+        right_operation_count: Operation count for the second circuit.
+        operation_delta: ``right_operation_count - left_operation_count``.
+        left_multi_qubit_count: Multi-qubit operation count for the first circuit.
+        right_multi_qubit_count: Multi-qubit operation count for the second circuit.
+        multi_qubit_delta: Difference in multi-qubit operation counts.
+        left_measurement_count: Measurement count for the first circuit.
+        right_measurement_count: Measurement count for the second circuit.
+        measurement_delta: Difference in measurement counts.
+        left_swap_count: Swap count for the first circuit.
+        right_swap_count: Swap count for the second circuit.
+        swap_delta: Difference in swap counts.
+        differing_layer_count: Count of aligned layer positions with different
+            semantic signatures.
+        left_only_layer_count: Layers that only exist in the first circuit.
+        right_only_layer_count: Layers that only exist in the second circuit.
+    """
 
     left_layer_count: int
     right_layer_count: int
@@ -141,7 +189,16 @@ class CircuitCompareMetrics:
 
 @dataclass(frozen=True, slots=True)
 class CircuitCompareSideMetrics:
-    """Per-circuit metrics used by multi-circuit comparison summaries."""
+    """Per-circuit summary row used by multi-circuit comparisons.
+
+    Attributes:
+        title: Display title for this circuit.
+        layer_count: Number of normalized layers.
+        operation_count: Total number of operations.
+        multi_qubit_count: Operations touching more than one quantum wire.
+        measurement_count: Measurement operation count.
+        swap_count: Swap operation count.
+    """
 
     title: str
     layer_count: int
@@ -153,7 +210,22 @@ class CircuitCompareSideMetrics:
 
 @dataclass(frozen=True, slots=True)
 class CircuitCompareResult:
-    """Returned comparison figure plus nested per-side draw results."""
+    """Result returned by ``compare_circuits(...)``.
+
+    Attributes:
+        figure: Shared Matplotlib figure containing the side-by-side comparison.
+        axes: Circuit axes, one per compared circuit.
+        left_result: ``DrawResult`` for the first circuit.
+        right_result: ``DrawResult`` for the second circuit.
+        metrics: Structural metrics for the first two circuits.
+        side_results: ``DrawResult`` objects for all circuits when comparing more than
+            two inputs.
+        side_metrics: Summary metrics for every compared circuit.
+        titles: Resolved display titles.
+        summary_axes: Optional axes containing the comparison summary table.
+        diagnostics: Combined non-fatal diagnostics from all compared circuits.
+        saved_path: Absolute saved path when ``output_path`` was used.
+    """
 
     figure: Figure
     axes: tuple[Axes, ...]
@@ -168,13 +240,25 @@ class CircuitCompareResult:
     saved_path: str | None = None
 
     def save(self, path: OutputPath) -> str:
-        """Save the comparison figure and return the absolute saved path."""
+        """Save the comparison figure to disk.
+
+        Args:
+            path: Destination image path accepted by Matplotlib.
+
+        Returns:
+            The absolute path written.
+        """
 
         save_matplotlib_figure(self.figure, path)
         return _resolved_output_path(path)
 
     def to_dict(self) -> dict[str, object]:
-        """Return comparison metadata without Matplotlib figure or axes objects."""
+        """Return comparison metadata without Matplotlib objects.
+
+        Returns:
+            A JSON-friendly dictionary containing nested draw-result metadata, metrics,
+            titles, diagnostics, and saved path.
+        """
 
         return {
             "left_result": self.left_result.to_dict(),
@@ -202,11 +286,58 @@ def compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *additional_circuits: object,
+    mode: DrawMode | str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    left_title: str | None = None,
+    right_title: str | None = None,
+    titles: tuple[str, ...] | None = None,
+    highlight_differences: bool | None = None,
+    show_summary: bool | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, ...] | None = None,
     summary_ax: Axes | None = None,
 ) -> CircuitCompareResult:
-    """Render two or more circuits side by side and return structural comparison data."""
+    """Render circuits side by side and return structural comparison data.
+
+    Direct kwargs are the small, common API for shared render, title, summary, and
+    output choices. Per-side render or appearance overrides, hover, styles,
+    unsupported-operation policy, and adapter-specific options stay in ``config``.
+
+    Args:
+        left_circuit: First supported circuit input.
+        right_circuit: Second supported circuit input.
+        *additional_circuits: Optional extra circuits to include in the same comparison.
+        mode: Optional shared render mode: ``"auto"``, ``"pages"``,
+            ``"pages_controls"``, ``"slider"``, ``"full"``, or ``DrawMode``.
+        show: Optional override for automatic display.
+        output_path: Optional file path for saving the comparison summary or static
+            side-by-side figure.
+        figsize: Optional managed side-figure size as ``(width, height)`` in inches.
+        framework: Optional shared adapter name, such as ``"ir"``, ``"qiskit"``, or
+            ``"qasm"``.
+        view: Optional shared view. Circuit comparison currently supports ``"2d"``.
+        composite_mode: Optional ``"compact"`` or ``"expand"`` composite rendering.
+        left_title: Optional display title for the first circuit.
+        right_title: Optional display title for the second circuit.
+        titles: Optional title for every compared circuit.
+        highlight_differences: Optional override for diff markers in static comparison.
+        show_summary: Optional override for the managed summary figure/card.
+        config: Optional ``CircuitCompareConfig`` for shared render settings,
+            per-side overrides, titles, highlighting, summary table, and output.
+            Non-``None`` direct kwargs override only matching common fields.
+        axes: Optional caller-owned axes, one per circuit. Do not combine with a
+            managed ``figsize``.
+        summary_ax: Optional caller-owned axes for the summary table.
+
+    Returns:
+        ``CircuitCompareResult`` with the shared figure, per-side ``DrawResult``
+        objects, metrics, diagnostics, and saved path.
+    """
 
     from .drawing.api import compare_circuits as _compare_circuits
 
@@ -214,6 +345,18 @@ def compare_circuits(
         left_circuit,
         right_circuit,
         *additional_circuits,
+        mode=mode,
+        show=show,
+        output_path=output_path,
+        figsize=figsize,
+        framework=framework,
+        view=view,
+        composite_mode=composite_mode,
+        left_title=left_title,
+        right_title=right_title,
+        titles=titles,
+        highlight_differences=highlight_differences,
+        show_summary=show_summary,
         config=config,
         axes=axes,
         summary_ax=summary_ax,

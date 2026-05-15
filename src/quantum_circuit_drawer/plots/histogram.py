@@ -63,6 +63,8 @@ from .histogram_render import (
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
+    from ..typing import OutputPath
+
 logger = logging.getLogger(__name__)
 _HistogramDisplayResultT = TypeVar(
     "_HistogramDisplayResultT",
@@ -74,13 +76,67 @@ _HistogramDisplayResultT = TypeVar(
 def plot_histogram(
     data: object,
     *,
+    kind: HistogramKind | str | None = None,
+    mode: HistogramMode | str | None = None,
+    sort: HistogramSort | str | None = None,
+    state_label_mode: HistogramStateLabelMode | str | None = None,
+    qubits: tuple[int, ...] | None = None,
+    top_k: int | None = None,
+    result_index: int | None = None,
+    data_key: str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
     config: HistogramConfig | None = None,
     ax: Axes | None = None,
 ) -> HistogramResult:
-    """Plot a histogram from counts or quasi-probability data."""
+    """Plot counts or quasi-probability data.
+
+    Direct kwargs are the small, common API for data selection, ordering, display, and
+    saving. Advanced appearance, hover behavior, presets, themes, bar styles, and
+    uniform reference lines stay in ``config``.
+
+    Args:
+        data: Mapping, framework result object, vector-like probabilities, or tuple/list
+            of result payloads accepted by the histogram normalizer.
+        kind: Optional ``"auto"``, ``"counts"``, ``"quasi"``, or ``HistogramKind``.
+        mode: Optional ``"auto"``, ``"static"``, ``"interactive"``, or
+            ``HistogramMode``.
+        sort: Optional ``"state"``, ``"state_desc"``, ``"value_desc"``, or
+            ``"value_asc"``.
+        state_label_mode: Optional ``"binary"`` or ``"decimal"`` visible tick labels.
+        qubits: Optional tuple of qubit indices for a joint marginal.
+        top_k: Optional positive number of bins to keep after sorting.
+        result_index: Optional payload index for result containers with several
+            histograms.
+        data_key: Optional Qiskit data field name.
+        show: Optional override for automatic display.
+        output_path: Optional file path for saving.
+        figsize: Optional managed figure size as ``(width, height)`` in inches.
+        config: Optional advanced ``HistogramConfig``. Non-``None`` direct kwargs
+            override only matching fields.
+        ax: Optional caller-owned Matplotlib axes for static plotting.
+
+    Returns:
+        ``HistogramResult`` with figure, axes, resolved kind, state labels, values,
+        selected qubits, diagnostics, and saved path.
+    """
 
     with logged_api_call(logger, api="plot_histogram") as started_at:
-        resolved_config = config or HistogramConfig()
+        resolved_config = _merge_histogram_config(
+            config,
+            kind=kind,
+            mode=mode,
+            sort=sort,
+            state_label_mode=state_label_mode,
+            qubits=qubits,
+            top_k=top_k,
+            result_index=result_index,
+            data_key=data_key,
+            show=show,
+            output_path=output_path,
+            figsize=figsize,
+        )
         if ax is not None and resolved_config.figsize is not None:
             raise ValueError("figsize cannot be used with ax")
         runtime_context = detect_runtime_context()
@@ -248,17 +304,145 @@ def plot_histogram(
             return result
 
 
+def _merge_histogram_config(
+    config: HistogramConfig | None,
+    *,
+    kind: HistogramKind | str | None = None,
+    mode: HistogramMode | str | None = None,
+    sort: HistogramSort | str | None = None,
+    state_label_mode: HistogramStateLabelMode | str | None = None,
+    qubits: tuple[int, ...] | None = None,
+    top_k: int | None = None,
+    result_index: int | None = None,
+    data_key: str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
+) -> HistogramConfig:
+    resolved_config = HistogramConfig() if config is None else config
+
+    data_options = resolved_config.data
+    if (
+        kind is not None
+        or top_k is not None
+        or qubits is not None
+        or result_index is not None
+        or data_key is not None
+    ):
+        data_options = replace(
+            data_options,
+            kind=data_options.kind if kind is None else kind,
+            top_k=data_options.top_k if top_k is None else top_k,
+            qubits=data_options.qubits if qubits is None else qubits,
+            result_index=data_options.result_index if result_index is None else result_index,
+            data_key=data_options.data_key if data_key is None else data_key,
+        )
+
+    view_options = resolved_config.view
+    if mode is not None or sort is not None or state_label_mode is not None:
+        view_options = replace(
+            view_options,
+            mode=view_options.mode if mode is None else mode,
+            sort=view_options.sort if sort is None else sort,
+            state_label_mode=(
+                view_options.state_label_mode if state_label_mode is None else state_label_mode
+            ),
+        )
+
+    output_options = resolved_config.output
+    if show is not None or output_path is not None or figsize is not None:
+        output_options = replace(
+            output_options,
+            show=output_options.show if show is None else show,
+            output_path=output_options.output_path if output_path is None else output_path,
+            figsize=output_options.figsize if figsize is None else figsize,
+        )
+
+    if (
+        data_options is resolved_config.data
+        and view_options is resolved_config.view
+        and output_options is resolved_config.output
+    ):
+        return resolved_config
+    return replace(
+        resolved_config,
+        data=data_options,
+        view=view_options,
+        output=output_options,
+    )
+
+
 def compare_histograms(
     left_data: object,
     right_data: object,
     *additional_data: object,
+    kind: HistogramKind | str | None = None,
+    sort: HistogramCompareSort | str | None = None,
+    qubits: tuple[int, ...] | None = None,
+    top_k: int | None = None,
+    result_index: int | None = None,
+    data_key: str | None = None,
+    left_label: str | None = None,
+    right_label: str | None = None,
+    series_labels: tuple[str, ...] | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
     config: HistogramCompareConfig | None = None,
     ax: Axes | None = None,
 ) -> HistogramCompareResult:
-    """Overlay two or more histograms on the same bins and return aligned values."""
+    """Overlay two or more histogram-like datasets on aligned bins.
+
+    Direct kwargs are the small, common API for shared data selection, ordering,
+    labels, display, and saving. Hover, presets, and theme customization stay in
+    ``config``.
+
+    Args:
+        left_data: First histogram-like input.
+        right_data: Second histogram-like input.
+        *additional_data: Optional additional distributions to draw in the same axes.
+        kind: Optional ``"auto"``, ``"counts"``, ``"quasi"``, or ``HistogramKind``.
+        sort: Optional ``"state"``, ``"state_desc"``, ``"delta_desc"``, or
+            ``HistogramCompareSort``.
+        qubits: Optional tuple of qubit indices for a joint marginal.
+        top_k: Optional positive number of aligned bins to keep after sorting.
+        result_index: Optional payload index for result containers with several
+            histograms.
+        data_key: Optional Qiskit data field name.
+        left_label: Optional legend label for the first distribution.
+        right_label: Optional legend label for the second distribution.
+        series_labels: Optional legend labels for every distribution when comparing
+            three or more series.
+        show: Optional override for automatic display.
+        output_path: Optional file path for saving.
+        figsize: Optional managed figure size as ``(width, height)`` in inches.
+        config: Optional ``HistogramCompareConfig`` for shared data selection, ordering,
+            labels, hover, appearance, and output. Non-``None`` direct kwargs override
+            only matching fields.
+        ax: Optional caller-owned Matplotlib axes. Interactive histogram controls are
+            not used for comparison plots.
+
+    Returns:
+        ``HistogramCompareResult`` with aligned state labels, series values,
+        first-two deltas, metrics, selected qubits, diagnostics, and saved path.
+    """
 
     with logged_api_call(logger, api="compare_histograms") as started_at:
-        resolved_config = config or HistogramCompareConfig()
+        resolved_config = _merge_histogram_compare_config(
+            config,
+            kind=kind,
+            sort=sort,
+            qubits=qubits,
+            top_k=top_k,
+            result_index=result_index,
+            data_key=data_key,
+            left_label=left_label,
+            right_label=right_label,
+            series_labels=series_labels,
+            show=show,
+            output_path=output_path,
+            figsize=figsize,
+        )
         if ax is not None and resolved_config.figsize is not None:
             raise ValueError("figsize cannot be used with ax")
         runtime_context = detect_runtime_context()
@@ -410,6 +594,81 @@ def compare_histograms(
                 saved_path=result.saved_path,
             )
             return result
+
+
+def _merge_histogram_compare_config(
+    config: HistogramCompareConfig | None,
+    *,
+    kind: HistogramKind | str | None = None,
+    sort: HistogramCompareSort | str | None = None,
+    qubits: tuple[int, ...] | None = None,
+    top_k: int | None = None,
+    result_index: int | None = None,
+    data_key: str | None = None,
+    left_label: str | None = None,
+    right_label: str | None = None,
+    series_labels: tuple[str, ...] | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
+) -> HistogramCompareConfig:
+    resolved_config = HistogramCompareConfig() if config is None else config
+
+    data_options = resolved_config.data
+    if (
+        kind is not None
+        or top_k is not None
+        or qubits is not None
+        or result_index is not None
+        or data_key is not None
+    ):
+        data_options = replace(
+            data_options,
+            kind=data_options.kind if kind is None else kind,
+            top_k=data_options.top_k if top_k is None else top_k,
+            qubits=data_options.qubits if qubits is None else qubits,
+            result_index=data_options.result_index if result_index is None else result_index,
+            data_key=data_options.data_key if data_key is None else data_key,
+        )
+
+    compare_options = resolved_config.compare
+    if (
+        sort is not None
+        or left_label is not None
+        or right_label is not None
+        or series_labels is not None
+    ):
+        compare_options = replace(
+            compare_options,
+            sort=compare_options.sort if sort is None else sort,
+            left_label=compare_options.left_label if left_label is None else left_label,
+            right_label=compare_options.right_label if right_label is None else right_label,
+            series_labels=(
+                compare_options.series_labels if series_labels is None else series_labels
+            ),
+        )
+
+    output_options = resolved_config.output
+    if show is not None or output_path is not None or figsize is not None:
+        output_options = replace(
+            output_options,
+            show=output_options.show if show is None else show,
+            output_path=output_options.output_path if output_path is None else output_path,
+            figsize=output_options.figsize if figsize is None else figsize,
+        )
+
+    if (
+        data_options is resolved_config.data
+        and compare_options is resolved_config.compare
+        and output_options is resolved_config.output
+    ):
+        return resolved_config
+    return replace(
+        resolved_config,
+        data=data_options,
+        compare=compare_options,
+        output=output_options,
+    )
 
 
 def _resolve_compare_series_labels(

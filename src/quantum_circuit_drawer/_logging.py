@@ -48,14 +48,26 @@ LogExcInfo: TypeAlias = (
 
 
 class LogFormat(StrEnum):
-    """Supported output formats for ``configure_logging``."""
+    """Output format for ``configure_logging(...)``.
+
+    Values:
+        ``HUMAN`` writes compact readable log lines. ``JSON`` writes one sorted JSON
+        object per record for ingestion by tools or test snapshots.
+    """
 
     HUMAN = "human"
     JSON = "json"
 
 
 class LogProfile(StrEnum):
-    """Supported verbosity profiles for ``configure_logging``."""
+    """Verbosity profile for package logging.
+
+    Values:
+        ``SUMMARY`` keeps API completions, diagnostics, and saved-output events.
+        ``DETAIL`` includes render preparation and completion details but suppresses
+        high-volume interactive events. ``INTERACTIVE`` includes every structured
+        package event.
+    """
 
     SUMMARY = "summary"
     DETAIL = "detail"
@@ -64,7 +76,25 @@ class LogProfile(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class CapturedLogEntry:
-    """Stable JSON-friendly representation of one structured package log event."""
+    """Structured log event captured by ``capture_logs(...)``.
+
+    Attributes:
+        event: Stable event name, such as ``"api.completed"``.
+        level: Logging level name.
+        logger: Logger name that emitted the event.
+        message: Human-readable log message.
+        timestamp: Formatted log timestamp.
+        request_id: Request correlation id when available.
+        api: Public API associated with the event.
+        view: Render view, usually ``"2d"`` or ``"3d"``.
+        mode: Render or histogram mode.
+        framework: Detected or requested framework.
+        backend: Rendering backend.
+        scope: Optional internal scope.
+        session_id: Interactive-session correlation id.
+        surface: Interactive surface name.
+        fields: Extra structured fields not promoted to top-level attributes.
+    """
 
     event: str
     level: str
@@ -83,7 +113,12 @@ class CapturedLogEntry:
     fields: Mapping[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
-        """Return one stable JSON-ready dictionary for this structured event."""
+        """Return one stable JSON-ready dictionary for this structured event.
+
+        Returns:
+            A dictionary with the promoted context fields and a nested ``fields`` map
+            for event-specific values.
+        """
 
         return {
             "event": self.event,
@@ -105,7 +140,13 @@ class CapturedLogEntry:
 
 
 class LogCapture:
-    """In-memory capture result for one ``capture_logs(...)`` block."""
+    """In-memory capture container yielded by ``capture_logs(...)``.
+
+    Attributes:
+        records: Raw ``logging.LogRecord`` objects captured while the context manager
+            was active, including unstructured records.
+        entries: Parsed ``CapturedLogEntry`` objects for structured package events.
+    """
 
     def __init__(self) -> None:
         self._records: list[stdlib_logging.LogRecord] = []
@@ -124,7 +165,11 @@ class LogCapture:
         return tuple(self._entries)
 
     def to_dicts(self) -> tuple[dict[str, object], ...]:
-        """Return stable JSON-ready dictionaries for captured structured events."""
+        """Return stable JSON-ready dictionaries for captured structured events.
+
+        Returns:
+            One dictionary per captured structured package event.
+        """
 
         return tuple(entry.to_dict() for entry in self._entries)
 
@@ -249,7 +294,19 @@ def configure_logging(
     stream: TextIO | None = None,
     logger_name: str = _PACKAGE_LOGGER_NAME,
 ) -> stdlib_logging.Logger:
-    """Configure one package logger with one managed stream handler and profile filter."""
+    """Configure package logging for scripts, notebooks, or tests.
+
+    Args:
+        level: Logging level name or integer accepted by ``logging``.
+        format: ``LogFormat`` or ``"human"`` / ``"json"``.
+        profile: ``LogProfile`` or ``"summary"``, ``"detail"``, or ``"interactive"``.
+        stream: Optional text stream. ``None`` uses ``logging.StreamHandler`` defaults.
+        logger_name: Logger to configure. The default is ``"quantum_circuit_drawer"``.
+
+    Returns:
+        The configured logger. Existing handlers installed by this helper are replaced
+        so repeated calls do not duplicate output.
+    """
 
     logger = stdlib_logging.getLogger(logger_name)
     _remove_managed_handlers(logger)
@@ -271,7 +328,17 @@ def capture_logs(
     profile: LogProfile | str = LogProfile.INTERACTIVE,
     logger_name: str = _PACKAGE_LOGGER_NAME,
 ) -> Iterator[LogCapture]:
-    """Temporarily capture package logs in memory without reconfiguring visible handlers."""
+    """Capture package logs in memory inside a ``with`` block.
+
+    Args:
+        level: Minimum logging level name or integer to capture.
+        profile: ``LogProfile`` or ``"summary"``, ``"detail"``, or ``"interactive"``.
+        logger_name: Logger to capture. The default is ``"quantum_circuit_drawer"``.
+
+    Returns:
+        An iterator yielding ``LogCapture``. Use ``capture.entries`` for structured
+        events or ``capture.records`` for raw ``logging`` records.
+    """
 
     logger = stdlib_logging.getLogger(logger_name)
     requested_level = _normalize_log_level(level)

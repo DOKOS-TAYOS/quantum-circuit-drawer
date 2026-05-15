@@ -14,10 +14,15 @@ def _normalize_wire_ids(values: Sequence[str]) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class ClassicalConditionIR:
-    """Framework-neutral classical condition attached to an operation.
+    """Classical condition attached to a quantum operation.
 
-    ``wire_ids`` identifies the classical wires involved in the condition, and
-    ``expression`` is the display text rendered next to the classical link.
+    Attributes:
+        wire_ids: Classical wire ids involved in the condition. These wires are used
+            for layout occupancy and condition connector drawing.
+        expression: Human-readable condition text, such as ``"c == 1"`` or
+            ``"flag == True"``.
+        metadata: Optional framework-specific condition metadata preserved for hover or
+            downstream extension code.
     """
 
     wire_ids: Sequence[str]

@@ -38,7 +38,19 @@ _VALID_SHOW_MATRIX_VALUES = frozenset({"never", "auto", "always"})
 
 @dataclass(frozen=True, slots=True)
 class HoverOptions:
-    """Interactive hover settings accepted by the public drawing API."""
+    """Interactive hover settings accepted by ``DrawConfig``.
+
+    Attributes:
+        enabled: Master switch for circuit hover annotations.
+        show_name: Include operation names in hover text.
+        show_size: Include matrix size when matrix data is available.
+        show_matrix_dimensions: Include matrix dimensions without printing the matrix.
+        show_qubits: Include target/control wire information.
+        show_matrix: ``"never"``, ``"auto"``, or ``"always"``. ``"auto"`` prints
+            small matrices only when they fit the configured qubit limit.
+        matrix_max_qubits: Maximum operation size, in qubits, for automatic matrix
+            display.
+    """
 
     enabled: bool = True
     show_name: bool = True
@@ -57,7 +69,12 @@ class HoverOptions:
             raise ValueError("hover.matrix_max_qubits must be a positive integer")
 
     def to_mapping(self) -> dict[str, object]:
-        """Return the options as a plain mapping."""
+        """Return the options as a plain mapping.
+
+        Returns:
+            A dictionary using the same keys accepted by ``hover={...}`` mappings in
+            ``CircuitAppearanceOptions``.
+        """
 
         return {
             "enabled": self.enabled,
@@ -76,7 +93,17 @@ def _validated_hover_bool(name: str, value: object) -> bool:
 
 
 def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverOptions:
-    """Normalize hover input into a validated ``HoverOptions`` instance."""
+    """Normalize hover input into a validated ``HoverOptions`` instance.
+
+    Args:
+        hover: ``True`` for default hover, ``False`` to disable hover, an existing
+            ``HoverOptions`` instance, or a mapping with any of ``enabled``,
+            ``show_name``, ``show_size``, ``show_matrix_dimensions``, ``show_qubits``,
+            ``show_matrix``, and ``matrix_max_qubits``.
+
+    Returns:
+        A validated ``HoverOptions`` instance.
+    """
 
     if isinstance(hover, bool):
         return HoverOptions(enabled=hover)
@@ -121,7 +148,15 @@ def normalize_hover(hover: bool | HoverOptions | Mapping[str, object]) -> HoverO
 
 
 def disable_hover(hover: HoverOptions) -> HoverOptions:
-    """Return a copy of ``hover`` with interactivity disabled."""
+    """Return a copy of ``hover`` with interactivity disabled.
+
+    Args:
+        hover: Existing hover configuration.
+
+    Returns:
+        ``hover`` itself when already disabled, otherwise a copy with
+        ``enabled=False``.
+    """
 
     if not hover.enabled:
         return hover

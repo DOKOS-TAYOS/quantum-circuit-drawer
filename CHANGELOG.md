@@ -8,6 +8,8 @@
   `plot_histogram(...)`, and histogram comparisons while still displaying the figure once when
   `show=True`.
 - Added a `notebook` extra that installs `ipympl` so Jupyter users can enable `%matplotlib widget` for hover, managed controls, and interactive histograms.
+- Added minimal flat public kwargs to `draw_quantum_circuit(...)`, `analyze_quantum_circuit(...)`, `circuit_to_latex(...)`, `plot_histogram(...)`, `compare_circuits(...)`, and `compare_histograms(...)` for common mode, framework, data selection, labels, and output options while keeping advanced appearance, hover, topology, and adapter settings under `config=`.
+- Expanded public docstrings across the main API, configuration objects, result objects, logging helpers, topology helpers, histogram models, and public IR classes so arguments, accepted values, attributes, and return objects are discoverable from Python help, with installed-import `pydoc` coverage for the main public APIs.
 - Histogram bars now show compact value labels above each bin, and dense x-axis state labels rotate and shrink to avoid overlapping adjacent ticks.
 - Bundled demos now highlight the updated Qiskit control-flow frames, `switch_case` summaries, `StatePreparation`, dagger labels, and dense histogram labels.
 - Qiskit `switch_case` boxes and CUDA-Q structured control-flow boxes now include static condition, case, region, and iteration summaries instead of requiring hover to see the relevant control information.
@@ -19,6 +21,9 @@
 - Qiskit `initialize` instructions now render as `StatePreparation` with a smaller compact state-vector subtitle and a text-proportional gate width.
 - `show=False` now also suppresses automatic notebook display for returned circuit and histogram
   result objects.
+- Notebook widget backends such as `%matplotlib widget` now display the Matplotlib
+  canvas object for returned circuit figures, preserving `pages_controls` and other
+  interactive controls instead of showing a static figure representation.
 
 ## [1.0.1] - 2026-05-15
 

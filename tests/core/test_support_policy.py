@@ -35,6 +35,12 @@ _RAW_GITHUB_IMAGE_PREFIX = (
 )
 
 
+def _python_signature_block(text: str, name: str, result_type: str) -> str:
+    start = text.index(f"{name}(", text.index("## Main functions"))
+    end = text.index(f") -> {result_type}", start)
+    return text[start : end + len(f") -> {result_type}")]
+
+
 def _markdown_heading_slug(value: str) -> str:
     normalized = re.sub(r"`([^`]+)`", r"\1", value.strip().lower())
     normalized = re.sub(r"<[^>]+>", "", normalized)
@@ -137,6 +143,254 @@ def test_public_docs_describe_notebook_extra_for_widget_interactivity() -> None:
     assert "ipympl" in combined_docs
     assert "%matplotlib widget" in combined_docs
     assert "notebook` extra" in changelog_reference
+
+
+def test_public_docs_describe_minimal_flat_histogram_and_circuit_apis() -> None:
+    api_reference = Path("docs/api.md").read_text(encoding="utf-8")
+    user_guide_reference = Path("docs/user-guide.md").read_text(encoding="utf-8")
+    changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+    plot_signature = _python_signature_block(api_reference, "plot_histogram", "HistogramResult")
+    draw_signature = _python_signature_block(api_reference, "draw_quantum_circuit", "DrawResult")
+    analyze_signature = _python_signature_block(
+        api_reference,
+        "analyze_quantum_circuit",
+        "CircuitAnalysisResult",
+    )
+    latex_signature = _python_signature_block(
+        api_reference,
+        "circuit_to_latex",
+        "LatexResult",
+    )
+    compare_histogram_signature = _python_signature_block(
+        api_reference,
+        "compare_histograms",
+        "HistogramCompareResult",
+    )
+    compare_circuit_signature = _python_signature_block(
+        api_reference,
+        "compare_circuits",
+        "CircuitCompareResult",
+    )
+
+    for flat_kwarg in (
+        "kind",
+        "mode",
+        "sort",
+        "state_label_mode",
+        "qubits",
+        "top_k",
+        "result_index",
+        "data_key",
+        "show",
+        "output_path",
+        "figsize",
+        "config",
+        "ax",
+    ):
+        assert f"{flat_kwarg}:" in plot_signature
+
+    for flat_kwarg in (
+        "mode",
+        "framework",
+        "view",
+        "composite_mode",
+        "topology",
+        "topology_qubits",
+        "config",
+    ):
+        assert f"{flat_kwarg}:" in analyze_signature
+
+    for flat_kwarg in (
+        "mode",
+        "show",
+        "output_path",
+        "figsize",
+        "framework",
+        "view",
+        "composite_mode",
+        "topology",
+        "topology_qubits",
+        "config",
+        "ax",
+    ):
+        assert f"{flat_kwarg}:" in draw_signature
+
+    for flat_kwarg in (
+        "config",
+        "backend",
+        "mode",
+        "framework",
+        "composite_mode",
+    ):
+        assert f"{flat_kwarg}:" in latex_signature
+
+    for flat_kwarg in (
+        "kind",
+        "sort",
+        "qubits",
+        "top_k",
+        "result_index",
+        "data_key",
+        "left_label",
+        "right_label",
+        "series_labels",
+        "show",
+        "output_path",
+        "figsize",
+        "config",
+        "ax",
+    ):
+        assert f"{flat_kwarg}:" in compare_histogram_signature
+
+    for flat_kwarg in (
+        "mode",
+        "show",
+        "output_path",
+        "figsize",
+        "framework",
+        "view",
+        "composite_mode",
+        "left_title",
+        "right_title",
+        "titles",
+        "highlight_differences",
+        "show_summary",
+        "config",
+        "axes",
+        "summary_ax",
+    ):
+        assert f"{flat_kwarg}:" in compare_circuit_signature
+
+    assert 'plot_histogram(counts, sort="value_desc", top_k=8, show=False)' in (
+        user_guide_reference
+    )
+    assert 'plot_histogram(quasi, kind="quasi", mode="static")' in user_guide_reference
+    assert 'plot_histogram(counts, qubits=(0, 2), state_label_mode="decimal")' in (
+        user_guide_reference
+    )
+    assert 'draw_quantum_circuit(circuit, mode="pages", show=False)' in user_guide_reference
+    assert 'draw_quantum_circuit(circuit, mode="slider")' in user_guide_reference
+    assert 'draw_quantum_circuit(circuit, view="3d", topology="grid")' in user_guide_reference
+    assert 'analyze_quantum_circuit(circuit, framework="qiskit", view="3d")' in (
+        user_guide_reference
+    )
+    assert 'circuit_to_latex(circuit, mode="pages", framework="qiskit")' in (user_guide_reference)
+    assert (
+        'compare_histograms(left_counts, right_counts, sort="delta_desc", top_k=8, show=False)'
+        in (user_guide_reference)
+    )
+    assert 'compare_circuits(left_circuit, right_circuit, mode="full", show=False)' in (
+        user_guide_reference
+    )
+    assert '`kind` | `"auto"`, `"counts"`, `"quasi"`' in api_reference
+    assert '`topology_qubits` | `"used"`, `"all"`' in api_reference
+    assert "`left_title` | text label" in api_reference
+    assert "`series_labels` | tuple of text labels" in api_reference
+    assert "flat public kwargs" in changelog_reference
+
+
+def test_api_docs_keep_advanced_options_out_of_flat_function_signatures() -> None:
+    api_reference = Path("docs/api.md").read_text(encoding="utf-8")
+    plot_signature = _python_signature_block(api_reference, "plot_histogram", "HistogramResult")
+    draw_signature = _python_signature_block(api_reference, "draw_quantum_circuit", "DrawResult")
+    analyze_signature = _python_signature_block(
+        api_reference,
+        "analyze_quantum_circuit",
+        "CircuitAnalysisResult",
+    )
+    latex_signature = _python_signature_block(
+        api_reference,
+        "circuit_to_latex",
+        "LatexResult",
+    )
+    compare_histogram_signature = _python_signature_block(
+        api_reference,
+        "compare_histograms",
+        "HistogramCompareResult",
+    )
+    compare_circuit_signature = _python_signature_block(
+        api_reference,
+        "compare_circuits",
+        "CircuitCompareResult",
+    )
+
+    for advanced_name in (
+        "hover",
+        "show_uniform_reference",
+        "draw_style",
+        "preset",
+        "theme",
+    ):
+        assert f"{advanced_name}:" not in plot_signature
+
+    for advanced_name in (
+        "show",
+        "output_path",
+        "figsize",
+        "hover",
+        "preset",
+        "style",
+        "topology_resize",
+        "topology_menu",
+        "keyboard_shortcuts",
+        "double_click_toggle",
+        "unsupported_policy",
+        "adapter_options",
+    ):
+        assert f"{advanced_name}:" not in analyze_signature
+
+    for advanced_name in (
+        "hover",
+        "preset",
+        "style",
+        "topology_resize",
+        "topology_menu",
+        "keyboard_shortcuts",
+        "double_click_toggle",
+        "unsupported_policy",
+        "adapter_options",
+        "interactive",
+    ):
+        assert f"{advanced_name}:" not in draw_signature
+
+    for advanced_name in (
+        "view",
+        "topology",
+        "topology_qubits",
+        "show",
+        "output_path",
+        "figsize",
+        "hover",
+        "preset",
+        "style",
+        "topology_resize",
+        "topology_menu",
+        "keyboard_shortcuts",
+        "double_click_toggle",
+        "unsupported_policy",
+        "adapter_options",
+    ):
+        assert f"{advanced_name}:" not in latex_signature
+
+    for advanced_name in ("hover", "preset", "theme"):
+        assert f"{advanced_name}:" not in compare_histogram_signature
+
+    for advanced_name in (
+        "hover",
+        "preset",
+        "style",
+        "topology",
+        "topology_qubits",
+        "topology_resize",
+        "topology_menu",
+        "keyboard_shortcuts",
+        "double_click_toggle",
+        "unsupported_policy",
+        "adapter_options",
+        "interactive",
+    ):
+        assert f"{advanced_name}:" not in compare_circuit_signature
 
 
 def test_public_docs_describe_openqasm_text_and_file_support() -> None:

@@ -132,10 +132,32 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
     def fake_plot_histogram(
         data: object,
         *,
+        kind: object = None,
+        mode: object = None,
+        sort: object = None,
+        state_label_mode: object = None,
+        qubits: tuple[int, ...] | None = None,
+        top_k: int | None = None,
+        result_index: int | None = None,
+        data_key: str | None = None,
+        show: bool | None = None,
+        output_path: object = None,
+        figsize: tuple[float, float] | None = None,
         config: HistogramConfig | None = None,
         ax: object = None,
     ) -> HistogramResult:
         captured["data"] = data
+        captured["kind"] = kind
+        captured["mode"] = mode
+        captured["sort"] = sort
+        captured["state_label_mode"] = state_label_mode
+        captured["qubits"] = qubits
+        captured["top_k"] = top_k
+        captured["result_index"] = result_index
+        captured["data_key"] = data_key
+        captured["show"] = show
+        captured["output_path"] = output_path
+        captured["figsize"] = figsize
         captured["config"] = config
         captured["ax"] = ax
         return expected_result
@@ -150,15 +172,122 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
 
     result = quantum_circuit_drawer.plot_histogram(
         {"0": 1},
+        kind="counts",
+        mode="static",
+        sort="value_desc",
+        state_label_mode="decimal",
+        qubits=(0,),
+        top_k=1,
+        result_index=0,
+        data_key="c",
+        show=False,
+        output_path="histogram.png",
+        figsize=(3.0, 2.0),
         config=config,
         ax=axes,
     )
 
     assert result is expected_result
+    assert captured["kind"] == "counts"
+    assert captured["mode"] == "static"
+    assert captured["sort"] == "value_desc"
+    assert captured["state_label_mode"] == "decimal"
+    assert captured["qubits"] == (0,)
+    assert captured["top_k"] == 1
+    assert captured["result_index"] == 0
+    assert captured["data_key"] == "c"
+    assert captured["show"] is False
+    assert captured["output_path"] == "histogram.png"
+    assert captured["figsize"] == (3.0, 2.0)
     assert captured["config"] is config
     assert captured["ax"] is axes
 
     plt.close(figure)
+
+
+def test_plot_histogram_accepts_flat_common_kwargs() -> None:
+    result = plot_histogram(
+        {"00": 7, "01": 5, "10": 5, "11": 2},
+        kind="counts",
+        mode="static",
+        sort="value_desc",
+        state_label_mode="decimal",
+        top_k=3,
+        show=False,
+        figsize=(4.0, 2.5),
+    )
+
+    tick_labels = tuple(text.get_text() for text in result.axes.get_xticklabels())
+
+    assert result.kind is HistogramKind.COUNTS
+    assert result.state_labels == ("00", "01", "10")
+    assert result.values == (7.0, 5.0, 5.0)
+    assert tick_labels == ("0", "1", "2")
+    assert tuple(result.figure.get_size_inches()) == pytest.approx((4.0, 2.5))
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_flat_kwargs_override_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_show(*args: object, **kwargs: object) -> None:
+        pytest.fail("flat show=False should override config.output.show=True")
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.renderers._render_support.show_figure_if_supported",
+        fail_show,
+    )
+    config = build_public_histogram_config(
+        show=True,
+        sort=HistogramSort.STATE_DESC,
+        top_k=None,
+        figsize=(7.0, 5.0),
+    )
+
+    result = plot_histogram(
+        {"00": 7, "01": 5, "11": 2},
+        sort="value_asc",
+        top_k=2,
+        show=False,
+        figsize=(3.0, 2.0),
+        config=config,
+    )
+
+    assert result.state_labels == ("11", "01")
+    assert result.values == (2.0, 5.0)
+    assert tuple(result.figure.get_size_inches()) == pytest.approx((3.0, 2.0))
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_flat_strings_and_enums_match() -> None:
+    data = {"00": 7, "01": 5, "11": 2}
+
+    enum_result = plot_histogram(
+        data,
+        kind=HistogramKind.COUNTS,
+        mode=HistogramMode.STATIC,
+        sort=HistogramSort.VALUE_ASC,
+        state_label_mode=HistogramStateLabelMode.DECIMAL,
+        show=False,
+    )
+    string_result = plot_histogram(
+        data,
+        kind="counts",
+        mode="static",
+        sort="value_asc",
+        state_label_mode="decimal",
+        show=False,
+    )
+
+    assert enum_result.kind is string_result.kind
+    assert enum_result.state_labels == string_result.state_labels
+    assert enum_result.values == string_result.values
+    assert tuple(text.get_text() for text in enum_result.axes.get_xticklabels()) == tuple(
+        text.get_text() for text in string_result.axes.get_xticklabels()
+    )
+
+    plt.close(enum_result.figure)
+    plt.close(string_result.figure)
 
 
 def test_plot_histogram_normalizes_integer_state_keys_to_padded_bitstrings() -> None:
@@ -232,6 +361,21 @@ def test_plot_histogram_rejects_figsize_with_existing_axes() -> None:
         plot_histogram(
             {"0": 1},
             config=build_public_histogram_config(show=False, figsize=(6.0, 4.0)),
+            ax=axes,
+        )
+
+    plt.close(figure)
+
+
+def test_plot_histogram_rejects_flat_figsize_with_existing_axes() -> None:
+    figure, axes = plt.subplots()
+
+    with pytest.raises(ValueError, match="figsize cannot be used with ax"):
+        plot_histogram(
+            {"0": 1},
+            mode="static",
+            show=False,
+            figsize=(6.0, 4.0),
             ax=axes,
         )
 

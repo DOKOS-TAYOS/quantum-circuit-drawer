@@ -20,6 +20,7 @@ from quantum_circuit_drawer import (
     HistogramCompareResult,
     HistogramCompareSort,
     HistogramConfig,
+    HistogramKind,
     RenderDiagnostic,
     StylePreset,
     UnsupportedPolicy,
@@ -150,6 +151,108 @@ def test_public_package_exports_diagnostics_preset_and_compare_types() -> None:
     assert quantum_circuit_drawer.compare_histograms is compare_histograms
     assert DrawConfig().unsupported_policy is UnsupportedPolicy.RAISE
     assert HistogramConfig().preset is None
+
+
+def test_package_level_compare_histograms_forwards_flat_common_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    expected_result = HistogramCompareResult(
+        figure=object(),
+        axes=object(),
+        kind=HistogramKind.COUNTS,
+        state_labels=("0",),
+        left_values=(1.0,),
+        right_values=(0.0,),
+        delta_values=(1.0,),
+        metrics=HistogramCompareMetrics(1.0, 1.0),
+        qubits=None,
+    )
+
+    def fake_compare_histograms(
+        left_data: object,
+        right_data: object,
+        *additional_data: object,
+        kind: object = None,
+        sort: object = None,
+        qubits: tuple[int, ...] | None = None,
+        top_k: int | None = None,
+        result_index: int | None = None,
+        data_key: str | None = None,
+        left_label: str | None = None,
+        right_label: str | None = None,
+        series_labels: tuple[str, ...] | None = None,
+        show: bool | None = None,
+        output_path: object = None,
+        figsize: tuple[float, float] | None = None,
+        config: HistogramCompareConfig | None = None,
+        ax: object = None,
+    ) -> HistogramCompareResult:
+        captured["left_data"] = left_data
+        captured["right_data"] = right_data
+        captured["additional_data"] = additional_data
+        captured["kind"] = kind
+        captured["sort"] = sort
+        captured["qubits"] = qubits
+        captured["top_k"] = top_k
+        captured["result_index"] = result_index
+        captured["data_key"] = data_key
+        captured["left_label"] = left_label
+        captured["right_label"] = right_label
+        captured["series_labels"] = series_labels
+        captured["show"] = show
+        captured["output_path"] = output_path
+        captured["figsize"] = figsize
+        captured["config"] = config
+        captured["ax"] = ax
+        return expected_result
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.histogram.compare_histograms",
+        fake_compare_histograms,
+    )
+
+    figure, axes = plt.subplots()
+    config = build_public_histogram_compare_config(show=False)
+
+    result = quantum_circuit_drawer.compare_histograms(
+        {"0": 1},
+        {"0": 0},
+        {"0": 2},
+        kind="counts",
+        sort="delta_desc",
+        qubits=(0,),
+        top_k=1,
+        result_index=0,
+        data_key="c",
+        left_label="Before",
+        right_label="After",
+        series_labels=("Before", "After", "Third"),
+        show=False,
+        output_path="compare-histogram.png",
+        figsize=(3.0, 2.0),
+        config=config,
+        ax=axes,
+    )
+
+    assert result is expected_result
+    assert captured["additional_data"] == ({"0": 2},)
+    assert captured["kind"] == "counts"
+    assert captured["sort"] == "delta_desc"
+    assert captured["qubits"] == (0,)
+    assert captured["top_k"] == 1
+    assert captured["result_index"] == 0
+    assert captured["data_key"] == "c"
+    assert captured["left_label"] == "Before"
+    assert captured["right_label"] == "After"
+    assert captured["series_labels"] == ("Before", "After", "Third")
+    assert captured["show"] is False
+    assert captured["output_path"] == "compare-histogram.png"
+    assert captured["figsize"] == (3.0, 2.0)
+    assert captured["config"] is config
+    assert captured["ax"] is axes
+
+    plt.close(figure)
 
 
 def test_draw_quantum_circuit_reports_runtime_diagnostics_for_auto_mode_and_hidden_hover(
@@ -401,6 +504,110 @@ def test_compare_histograms_returns_overlay_result_with_metrics_and_diagnostics(
     assert_figure_has_visible_content(result.figure)
 
     plt.close(result.figure)
+
+
+def test_compare_histograms_accepts_flat_common_kwargs() -> None:
+    result = compare_histograms(
+        {"00": 7, "01": 5, "11": 2},
+        {"00": 1, "01": 5, "11": 9},
+        kind="counts",
+        sort="delta_desc",
+        top_k=2,
+        left_label="Before",
+        right_label="After",
+        show=False,
+        figsize=(4.0, 2.5),
+    )
+
+    assert result.kind is HistogramKind.COUNTS
+    assert result.state_labels == ("11", "00")
+    assert result.left_values == (2.0, 7.0)
+    assert result.right_values == (9.0, 1.0)
+    assert result.series_labels == ("Before", "After")
+    assert tuple(result.figure.get_size_inches()) == pytest.approx((4.0, 2.5))
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_flat_kwargs_override_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_show(*args: object, **kwargs: object) -> None:
+        pytest.fail("flat show=False should override config.output.show=True")
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.renderers._render_support.show_figure_if_supported",
+        fail_show,
+    )
+    config = build_public_histogram_compare_config(
+        show=True,
+        sort=HistogramCompareSort.STATE,
+        top_k=None,
+        left_label="Left",
+        right_label="Right",
+        figsize=(7.0, 5.0),
+    )
+
+    result = compare_histograms(
+        {"00": 7, "01": 5, "11": 2},
+        {"00": 1, "01": 5, "11": 9},
+        sort="delta_desc",
+        top_k=1,
+        left_label="Before",
+        right_label="After",
+        show=False,
+        figsize=(3.0, 2.0),
+        config=config,
+    )
+
+    assert result.state_labels == ("11",)
+    assert result.series_labels == ("Before", "After")
+    assert tuple(result.figure.get_size_inches()) == pytest.approx((3.0, 2.0))
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_flat_strings_and_enums_match() -> None:
+    left_data = {"00": 7, "01": 5, "11": 2}
+    right_data = {"00": 1, "01": 5, "11": 9}
+
+    enum_result = compare_histograms(
+        left_data,
+        right_data,
+        kind=HistogramKind.COUNTS,
+        sort=HistogramCompareSort.DELTA_DESC,
+        show=False,
+    )
+    string_result = compare_histograms(
+        left_data,
+        right_data,
+        kind="counts",
+        sort="delta_desc",
+        show=False,
+    )
+
+    assert enum_result.kind is string_result.kind
+    assert enum_result.state_labels == string_result.state_labels
+    assert enum_result.left_values == string_result.left_values
+    assert enum_result.right_values == string_result.right_values
+
+    plt.close(enum_result.figure)
+    plt.close(string_result.figure)
+
+
+def test_compare_histograms_rejects_flat_figsize_with_existing_axes() -> None:
+    figure, axes = plt.subplots()
+
+    with pytest.raises(ValueError, match="figsize cannot be used with ax"):
+        compare_histograms(
+            {"00": 7},
+            {"00": 1},
+            show=False,
+            figsize=(3.0, 2.0),
+            ax=axes,
+        )
+
+    plt.close(figure)
 
 
 def test_compare_histograms_reports_normalized_saved_path(sandbox_tmp_path) -> None:

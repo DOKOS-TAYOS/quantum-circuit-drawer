@@ -32,7 +32,16 @@ class _LoweredOperationPayload:
 
 
 def lower_semantic_circuit(circuit: SemanticCircuitIR) -> CircuitIR:
-    """Lower semantic IR into the existing render-focused ``CircuitIR`` contract."""
+    """Lower semantic IR into the render-focused ``CircuitIR`` contract.
+
+    Args:
+        circuit: Semantic circuit that may include provenance, annotations, hover
+            details, and diagnostics.
+
+    Returns:
+        ``CircuitIR`` with equivalent wires, lowered layers, circuit name, and metadata
+        ready for existing layout and renderer code.
+    """
 
     return CircuitIR(
         quantum_wires=circuit.quantum_wires,
@@ -44,7 +53,14 @@ def lower_semantic_circuit(circuit: SemanticCircuitIR) -> CircuitIR:
 
 
 def lower_semantic_layer(layer: SemanticLayerIR) -> LayerIR:
-    """Lower one semantic layer into a render-focused ``LayerIR``."""
+    """Lower one semantic layer into a render-focused ``LayerIR``.
+
+    Args:
+        layer: Semantic layer to lower.
+
+    Returns:
+        ``LayerIR`` containing lowered operation and measurement nodes.
+    """
 
     return LayerIR(
         operations=tuple(lower_semantic_operation(operation) for operation in layer.operations),
@@ -53,7 +69,15 @@ def lower_semantic_layer(layer: SemanticLayerIR) -> LayerIR:
 
 
 def lower_semantic_operation(operation: SemanticOperationIR) -> OperationIR | MeasurementIR:
-    """Lower one semantic operation into the existing render-focused operation IR."""
+    """Lower one semantic operation into render-focused operation IR.
+
+    Args:
+        operation: Semantic operation to lower.
+
+    Returns:
+        ``MeasurementIR`` for measurements, otherwise ``OperationIR`` with semantic
+        annotations and provenance copied into metadata.
+    """
 
     payload = lowered_operation_payload(operation)
     if operation.kind is OperationKind.MEASUREMENT:
@@ -85,7 +109,15 @@ def lower_semantic_operation(operation: SemanticOperationIR) -> OperationIR | Me
 
 
 def semantic_circuit_from_circuit_ir(circuit: CircuitIR) -> SemanticCircuitIR:
-    """Wrap legacy ``CircuitIR`` values as semantic IR without changing behavior."""
+    """Wrap an existing ``CircuitIR`` as semantic IR.
+
+    Args:
+        circuit: Render-focused circuit to preserve as semantic IR.
+
+    Returns:
+        ``SemanticCircuitIR`` with the same wires, layers, name, and metadata. Operation
+        provenance is synthesized from layer and operation indices.
+    """
 
     framework_name = str(circuit.metadata.get("framework", "ir"))
     return SemanticCircuitIR(
@@ -110,7 +142,16 @@ def semantic_layer_from_layer_ir(
     framework_name: str,
     layer_index: int,
 ) -> SemanticLayerIR:
-    """Wrap one legacy ``LayerIR`` as a semantic layer."""
+    """Wrap one render-focused layer as a semantic layer.
+
+    Args:
+        layer: ``LayerIR`` to wrap.
+        framework_name: Framework label to place in provenance.
+        layer_index: Source layer index used for stable provenance locations.
+
+    Returns:
+        ``SemanticLayerIR`` containing wrapped operations.
+    """
 
     return SemanticLayerIR(
         operations=tuple(
@@ -133,7 +174,18 @@ def semantic_operation_from_operation_ir(
     layer_index: int,
     operation_index: int,
 ) -> SemanticOperationIR:
-    """Wrap one legacy operation as semantic IR."""
+    """Wrap one render-focused operation as semantic IR.
+
+    Args:
+        operation: ``OperationIR`` or ``MeasurementIR`` to wrap.
+        framework_name: Framework label to place in provenance.
+        layer_index: Source layer index.
+        operation_index: Operation index within the source layer.
+
+    Returns:
+        ``SemanticOperationIR`` with equivalent drawable data and synthesized
+        provenance.
+    """
 
     provenance = _semantic_provenance_from_metadata(
         metadata=operation.metadata,

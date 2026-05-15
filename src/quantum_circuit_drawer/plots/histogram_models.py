@@ -46,7 +46,13 @@ if TYPE_CHECKING:
 
 
 class HistogramKind(StrEnum):
-    """Public histogram data modes."""
+    """How histogram input values should be interpreted.
+
+    Values:
+        ``AUTO`` infers counts from non-negative integer values and otherwise uses
+        quasi-probabilities. ``COUNTS`` requires non-negative integer counts.
+        ``QUASI`` accepts probability-like weights, including negative values.
+    """
 
     AUTO = "auto"
     COUNTS = "counts"
@@ -54,7 +60,14 @@ class HistogramKind(StrEnum):
 
 
 class HistogramMode(StrEnum):
-    """Public histogram render modes."""
+    """Rendering mode for ``plot_histogram(...)``.
+
+    Values:
+        ``AUTO`` chooses interactive mode for normal scripts and widget notebook
+        backends, but falls back to static output in inline notebooks. ``STATIC`` draws
+        a normal Matplotlib histogram. ``INTERACTIVE`` adds the managed slider,
+        buttons, hover, and marginal controls.
+    """
 
     AUTO = "auto"
     STATIC = "static"
@@ -62,14 +75,25 @@ class HistogramMode(StrEnum):
 
 
 class HistogramStateLabelMode(StrEnum):
-    """Public histogram state-label display modes."""
+    """Display style for x-axis state labels.
+
+    Values:
+        ``BINARY`` keeps bitstring labels such as ``"101"``. ``DECIMAL`` converts each
+        register to base-10 text; space-separated registers are converted independently.
+    """
 
     BINARY = "binary"
     DECIMAL = "decimal"
 
 
 class HistogramSort(StrEnum):
-    """Public histogram ordering modes."""
+    """Ordering choices for a single histogram.
+
+    Values:
+        ``STATE`` sorts state labels ascending. ``STATE_DESC`` sorts state labels
+        descending. ``VALUE_DESC`` and ``VALUE_ASC`` order bins by value with a stable
+        state-label tie break.
+    """
 
     STATE = "state"
     STATE_DESC = "state_desc"
@@ -78,7 +102,12 @@ class HistogramSort(StrEnum):
 
 
 class HistogramDrawStyle(StrEnum):
-    """Public histogram bar rendering styles."""
+    """Bar styles for static and saved histogram figures.
+
+    Values:
+        ``SOLID`` uses filled bars, ``OUTLINE`` emphasizes edges with lighter fills,
+        and ``SOFT`` uses the softer preset-friendly bar treatment.
+    """
 
     SOLID = "solid"
     OUTLINE = "outline"
@@ -86,7 +115,12 @@ class HistogramDrawStyle(StrEnum):
 
 
 class HistogramCompareSort(StrEnum):
-    """Public ordering modes for histogram comparison plots."""
+    """Ordering choices for ``compare_histograms(...)``.
+
+    Values:
+        ``STATE`` and ``STATE_DESC`` sort by normalized state labels. ``DELTA_DESC``
+        puts states with the largest absolute left-minus-right difference first.
+    """
 
     STATE = "state"
     STATE_DESC = "state_desc"
@@ -95,7 +129,19 @@ class HistogramCompareSort(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class HistogramDataOptions:
-    """Histogram data selection and interpretation controls."""
+    """Data-selection options shared by histogram plot and comparison calls.
+
+    Attributes:
+        kind: ``HistogramKind`` or one of ``"auto"``, ``"counts"``, and ``"quasi"``.
+        top_k: Optional positive integer limiting the plot to the highest-ranked bins
+            after the selected ordering is applied.
+        qubits: Optional tuple of qubit indices for a joint marginal. The tuple order is
+            preserved in the returned state labels.
+        result_index: Non-negative index used when the input is a tuple/list or a
+            framework result container with several histogram payloads.
+        data_key: Optional Qiskit ``DataBin`` field name when several measurement data
+            fields are present.
+    """
 
     kind: HistogramKind = HistogramKind.AUTO
     top_k: int | None = None
@@ -112,7 +158,16 @@ class HistogramDataOptions:
 
 @dataclass(frozen=True, slots=True)
 class HistogramViewOptions:
-    """Histogram view-specific options for single-histogram plots."""
+    """View options specific to ``plot_histogram(...)``.
+
+    Attributes:
+        mode: ``HistogramMode`` or one of ``"auto"``, ``"static"``, and
+            ``"interactive"``.
+        sort: ``HistogramSort`` or one of ``"state"``, ``"state_desc"``,
+            ``"value_desc"``, and ``"value_asc"``.
+        state_label_mode: ``HistogramStateLabelMode`` or ``"binary"`` / ``"decimal"``
+            for visible x-axis labels.
+    """
 
     mode: HistogramMode = HistogramMode.AUTO
     sort: HistogramSort = HistogramSort.STATE
@@ -130,7 +185,20 @@ class HistogramViewOptions:
 
 @dataclass(frozen=True, slots=True)
 class HistogramAppearanceOptions:
-    """Histogram appearance and interaction options."""
+    """Advanced histogram appearance and interaction options.
+
+    Attributes:
+        preset: Optional shared ``StylePreset`` or preset string. Valid strings are
+            ``"paper"``, ``"notebook"``, ``"compact"``, ``"presentation"``, and
+            ``"accessible"``.
+        theme: Optional theme name or ``DrawTheme`` override. ``None`` uses the preset
+            or default theme.
+        draw_style: ``HistogramDrawStyle`` or ``"solid"``, ``"outline"``, or
+            ``"soft"``.
+        hover: Whether interactive histogram bin/control hover is enabled.
+        show_uniform_reference: Whether to draw a uniform reference line in static and
+            saved histogram figures.
+    """
 
     preset: StylePreset | str | None = None
     theme: DrawTheme | str | None = None
@@ -157,7 +225,19 @@ class HistogramAppearanceOptions:
 
 @dataclass(frozen=True, slots=True)
 class HistogramCompareOptions:
-    """Histogram-comparison specific presentation controls."""
+    """Presentation options specific to ``compare_histograms(...)``.
+
+    Attributes:
+        sort: ``HistogramCompareSort`` or one of ``"state"``, ``"state_desc"``, and
+            ``"delta_desc"``.
+        left_label: Legend label for the first distribution.
+        right_label: Legend label for the second distribution.
+        hover: Whether comparison hover labels are enabled.
+        preset: Optional shared style preset name.
+        theme: Optional theme name or ``DrawTheme`` override.
+        series_labels: Optional label for each distribution when comparing three or
+            more series.
+    """
 
     sort: HistogramCompareSort = HistogramCompareSort.STATE
     left_label: str = "Left"
@@ -182,7 +262,18 @@ class HistogramCompareOptions:
 
 @dataclass(frozen=True, slots=True)
 class HistogramConfig:
-    """Public configuration for ``plot_histogram``."""
+    """Advanced configuration object for ``plot_histogram(...)``.
+
+    Attributes:
+        data: ``HistogramDataOptions`` for input interpretation, top-k filtering,
+            result selection, data key selection, and qubit marginals.
+        view: ``HistogramViewOptions`` for mode, bin ordering, and visible label style.
+        appearance: ``HistogramAppearanceOptions`` for hover, presets, themes, bar
+            style, and uniform reference lines.
+        output: ``OutputOptions`` for ``show``, ``output_path``, and ``figsize``.
+            Direct kwargs on ``plot_histogram(...)`` override only matching fields when
+            they are not ``None``.
+    """
 
     data: HistogramDataOptions = field(default_factory=HistogramDataOptions)
     view: HistogramViewOptions = field(default_factory=HistogramViewOptions)
@@ -267,7 +358,19 @@ class HistogramConfig:
 
 @dataclass(frozen=True, slots=True)
 class HistogramResult:
-    """Returned histogram plot handle and normalized values."""
+    """Result returned by ``plot_histogram(...)``.
+
+    Attributes:
+        figure: Matplotlib figure containing the histogram.
+        axes: Matplotlib axes used for the histogram.
+        kind: Resolved ``HistogramKind`` after input normalization.
+        state_labels: Normalized state labels in the returned order. These stay binary
+            even if ``state_label_mode="decimal"`` changes the visible tick labels.
+        values: Numeric values aligned with ``state_labels``.
+        qubits: Selected marginal qubits, or ``None`` when the full register is shown.
+        diagnostics: Non-fatal diagnostics emitted while normalizing or rendering.
+        saved_path: Absolute saved path when ``output_path`` was used.
+    """
 
     figure: Figure
     axes: Axes
@@ -291,13 +394,26 @@ class HistogramResult:
         )
 
     def save(self, path: OutputPath) -> str:
-        """Save the histogram figure and return the absolute saved path."""
+        """Save the histogram figure to disk.
+
+        Args:
+            path: Destination image path accepted by Matplotlib, such as ``"hist.png"``
+                or ``Path("hist.svg")``.
+
+        Returns:
+            The absolute path written.
+        """
 
         save_matplotlib_figure(self.figure, path)
         return _resolved_output_path(path)
 
     def to_dict(self) -> dict[str, object]:
-        """Return histogram values and metadata without Matplotlib objects."""
+        """Return histogram data without Matplotlib objects.
+
+        Returns:
+            A JSON-friendly dictionary containing kind, state labels, values, selected
+            qubits, saved path, and diagnostics.
+        """
 
         return {
             "kind": self.kind.value,
@@ -309,7 +425,14 @@ class HistogramResult:
         }
 
     def to_csv(self, path: OutputPath) -> str:
-        """Write state/value rows to CSV and return the absolute path."""
+        """Write state/value rows to CSV.
+
+        Args:
+            path: Destination CSV path.
+
+        Returns:
+            The absolute path written.
+        """
 
         output_path = Path(path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -322,7 +445,16 @@ class HistogramResult:
 
 @dataclass(frozen=True, slots=True)
 class HistogramCompareConfig:
-    """Public configuration for ``compare_histograms``."""
+    """Advanced configuration object for ``compare_histograms(...)``.
+
+    Attributes:
+        data: Shared ``HistogramDataOptions`` applied to every input distribution.
+        compare: ``HistogramCompareOptions`` controlling ordering, legend labels,
+            hover, presets, and multi-series labels.
+        output: ``OutputOptions`` for ``show``, ``output_path``, and ``figsize``.
+            Direct kwargs on ``compare_histograms(...)`` override only matching fields
+            when they are not ``None``.
+    """
 
     data: HistogramDataOptions = field(default_factory=HistogramDataOptions)
     compare: HistogramCompareOptions = field(default_factory=HistogramCompareOptions)
@@ -401,7 +533,14 @@ class HistogramCompareConfig:
 
 @dataclass(frozen=True, slots=True)
 class HistogramCompareMetrics:
-    """Comparison metrics derived from overlaid histograms."""
+    """Numeric distance summary for aligned histogram comparisons.
+
+    Attributes:
+        total_variation_distance: Half the sum of absolute bin differences between the
+            first two aligned distributions.
+        max_absolute_delta: Largest absolute per-bin difference between the first two
+            aligned distributions.
+    """
 
     total_variation_distance: float
     max_absolute_delta: float
@@ -409,7 +548,23 @@ class HistogramCompareMetrics:
 
 @dataclass(frozen=True, slots=True)
 class HistogramCompareResult:
-    """Returned comparison plot handle and aligned histogram values."""
+    """Result returned by ``compare_histograms(...)``.
+
+    Attributes:
+        figure: Matplotlib figure containing the comparison plot.
+        axes: Matplotlib axes used for the comparison.
+        kind: Resolved common ``HistogramKind`` for the displayed data.
+        state_labels: Aligned state labels shared by every series.
+        left_values: Values for the first distribution.
+        right_values: Values for the second distribution.
+        delta_values: ``left_values - right_values`` for each aligned state.
+        metrics: ``HistogramCompareMetrics`` for the first two distributions.
+        qubits: Selected marginal qubits, or ``None`` for full-register comparison.
+        series_labels: Labels for all compared series.
+        series_values: Values for all compared series, including any additional inputs.
+        diagnostics: Non-fatal diagnostics emitted while normalizing or rendering.
+        saved_path: Absolute saved path when ``output_path`` was used.
+    """
 
     figure: Figure
     axes: Axes
@@ -438,13 +593,25 @@ class HistogramCompareResult:
         )
 
     def save(self, path: OutputPath) -> str:
-        """Save the comparison figure and return the absolute saved path."""
+        """Save the comparison figure to disk.
+
+        Args:
+            path: Destination image path accepted by Matplotlib.
+
+        Returns:
+            The absolute path written.
+        """
 
         save_matplotlib_figure(self.figure, path)
         return _resolved_output_path(path)
 
     def to_dict(self) -> dict[str, object]:
-        """Return comparison values and metadata without Matplotlib objects."""
+        """Return comparison values and metadata without Matplotlib objects.
+
+        Returns:
+            A JSON-friendly dictionary with aligned values, metrics, labels, qubits,
+            saved path, and diagnostics.
+        """
 
         return {
             "kind": self.kind.value,
@@ -464,7 +631,14 @@ class HistogramCompareResult:
         }
 
     def to_csv(self, path: OutputPath) -> str:
-        """Write aligned comparison rows to CSV and return the absolute path."""
+        """Write aligned comparison rows to CSV.
+
+        Args:
+            path: Destination CSV path.
+
+        Returns:
+            The absolute path written.
+        """
 
         output_path = Path(path)
         output_path.parent.mkdir(parents=True, exist_ok=True)

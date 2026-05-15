@@ -19,11 +19,22 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class DrawResult:
-    """Normalized draw result for both managed and caller-owned figures.
+    """Result returned by ``draw_quantum_circuit(...)``.
 
-    ``primary_figure`` and ``primary_axes`` give the most direct handle
-    for the common case, while ``figures`` and ``axes`` expose every
-    page produced by managed paged renders.
+    Attributes:
+        primary_figure: Most useful Matplotlib figure for the call. In paged modes this
+            is the first page or the managed container figure.
+        primary_axes: Most useful axes associated with ``primary_figure``.
+        figures: Every Matplotlib figure produced by the call. Explicit ``pages`` mode
+            can contain several figures.
+        axes: Axes aligned with ``figures``.
+        mode: Effective ``DrawMode`` after resolving ``auto``.
+        page_count: Number of rendered or available pages.
+        diagnostics: Non-fatal diagnostics emitted while preparing or rendering.
+        detected_framework: Adapter selected for the input circuit.
+        interactive_enabled: Whether the result contains managed interactive controls.
+        hover_enabled: Whether hover annotations are active.
+        saved_path: Absolute saved path when ``output_path`` was used.
     """
 
     primary_figure: Figure
@@ -67,7 +78,14 @@ class DrawResult:
         )
 
     def save(self, path: OutputPath) -> str:
-        """Save the primary figure and return the absolute saved path."""
+        """Save the primary figure to disk.
+
+        Args:
+            path: Destination image path accepted by Matplotlib.
+
+        Returns:
+            The absolute path written.
+        """
 
         save_matplotlib_figure(self.primary_figure, path)
         return _resolved_output_path(path)
@@ -79,7 +97,16 @@ class DrawResult:
         filename_prefix: str = "page",
         extension: str = ".png",
     ) -> tuple[str, ...]:
-        """Save every figure page and return absolute saved paths."""
+        """Save every figure page to one directory.
+
+        Args:
+            output_dir: Directory to create or reuse for exported pages.
+            filename_prefix: Prefix used before the 1-based page number.
+            extension: Image extension such as ``".png"``, ``"png"``, or ``".svg"``.
+
+        Returns:
+            Absolute paths written, one per figure in ``figures``.
+        """
 
         output_directory = Path(output_dir)
         output_directory.mkdir(parents=True, exist_ok=True)
@@ -92,7 +119,12 @@ class DrawResult:
         return tuple(saved_paths)
 
     def to_dict(self) -> dict[str, object]:
-        """Return result metadata without Matplotlib figure or axes objects."""
+        """Return draw metadata without Matplotlib objects.
+
+        Returns:
+            A JSON-friendly dictionary with mode, page count, framework, interactivity,
+            hover state, saved path, and diagnostics.
+        """
 
         return {
             "mode": self.mode.value,
@@ -108,7 +140,14 @@ class DrawResult:
 def diagnostics_to_dicts(
     diagnostics: tuple[RenderDiagnostic, ...],
 ) -> tuple[dict[str, str], ...]:
-    """Return diagnostics as JSON-friendly dictionaries."""
+    """Return diagnostics as JSON-friendly dictionaries.
+
+    Args:
+        diagnostics: Diagnostics to serialize.
+
+    Returns:
+        Tuple of dictionaries with ``code``, ``message``, and ``severity`` keys.
+    """
 
     return tuple(
         {

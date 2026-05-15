@@ -11,7 +11,13 @@ from .classical_conditions import ClassicalConditionIR
 
 
 class OperationKind(StrEnum):
-    """Supported operation categories."""
+    """Operation categories understood by the renderer.
+
+    Values:
+        ``GATE`` is a normal gate box, ``CONTROLLED_GATE`` has quantum controls,
+        ``SWAP`` draws a swap marker pair, ``BARRIER`` draws a barrier marker, and
+        ``MEASUREMENT`` draws a quantum measurement into a classical target.
+    """
 
     GATE = "gate"
     CONTROLLED_GATE = "controlled_gate"
@@ -21,7 +27,13 @@ class OperationKind(StrEnum):
 
 
 class CanonicalGateFamily(StrEnum):
-    """Framework-independent gate families used for canonical rendering."""
+    """Framework-independent gate families used for symbols and styling.
+
+    Values:
+        The enum includes common single-qubit, controlled, parametric, reset, delay,
+        and two-qubit families. ``CUSTOM`` is used when a framework gate name has no
+        canonical renderer-specific family.
+    """
 
     CUSTOM = "custom"
     I = "I"  # noqa: E741
@@ -121,7 +133,16 @@ def _metadata_wire_dependencies(metadata: Metadata) -> tuple[str, ...]:
 
 
 def infer_canonical_gate_family(name: str) -> CanonicalGateFamily:
-    """Infer the canonical gate family from a display name."""
+    """Infer a canonical gate family from a display name.
+
+    Args:
+        name: Gate name emitted by an adapter or provided by ``CircuitBuilder``.
+            Case, spaces, hyphens, and underscores are normalized before matching.
+
+    Returns:
+        Matching ``CanonicalGateFamily`` or ``CanonicalGateFamily.CUSTOM`` when no
+        known family matches.
+    """
 
     return _CANONICAL_FAMILY_BY_NAME.get(_canonical_name_token(name), CanonicalGateFamily.CUSTOM)
 
@@ -130,8 +151,20 @@ def infer_canonical_gate_family(name: str) -> CanonicalGateFamily:
 class OperationIR:
     """Framework-neutral description of one drawable operation.
 
-    Non-barrier operations must target at least one wire. When ``label`` or
-    ``canonical_family`` is omitted, they are inferred from ``name``.
+    Attributes:
+        kind: ``OperationKind`` describing how the renderer should draw the operation.
+        name: Stable operation name. It must not be empty.
+        target_wires: Quantum wire ids targeted by the operation. Non-barrier
+            operations require at least one target.
+        control_wires: Quantum wire ids used as controls.
+        control_values: Accepted control values aligned with ``control_wires``. Empty
+            means closed controls on ``1``.
+        classical_conditions: Classical conditions that gate this operation.
+        parameters: Display parameters, such as rotation angles.
+        label: Optional visible label. ``None`` defaults to ``name``.
+        canonical_family: Optional canonical family. ``CUSTOM`` triggers inference from
+            ``name``.
+        metadata: Optional adapter metadata used for hover, layout, or provenance.
     """
 
     kind: OperationKind
@@ -184,7 +217,15 @@ class OperationIR:
 
 
 def resolved_control_values(operation: OperationIR) -> tuple[tuple[int, ...], ...]:
-    """Return per-control accepted values, defaulting to closed controls on ``1``."""
+    """Return accepted values for each control wire.
+
+    Args:
+        operation: Operation whose quantum controls should be resolved.
+
+    Returns:
+        Tuple aligned with ``operation.control_wires``. Missing explicit values default
+        to ``(1,)`` for closed controls.
+    """
 
     if operation.control_values:
         return tuple(tuple(entry) for entry in operation.control_values)
@@ -192,7 +233,15 @@ def resolved_control_values(operation: OperationIR) -> tuple[tuple[int, ...], ..
 
 
 def binary_control_states(operation: OperationIR) -> tuple[int, ...] | None:
-    """Return renderable binary control states, or ``None`` when not exact."""
+    """Return exact binary control states when they can be rendered directly.
+
+    Args:
+        operation: Operation whose controls should be inspected.
+
+    Returns:
+        Tuple of ``0`` or ``1`` values aligned with ``control_wires``. Returns ``None``
+        when any control accepts several values or a non-binary value.
+    """
 
     states: list[int] = []
     for entry in resolved_control_values(operation):

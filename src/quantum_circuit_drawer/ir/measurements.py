@@ -9,7 +9,13 @@ from .operations import OperationIR, OperationKind
 
 @dataclass(slots=True)
 class MeasurementIR(OperationIR):
-    """Framework-neutral measurement operation with a required classical target."""
+    """Measurement operation with a required classical target.
+
+    Attributes:
+        classical_target: Classical wire id that receives the measurement result. It is
+            required and is included in ``occupied_wire_ids`` so layout can draw the
+            quantum-to-classical connection.
+    """
 
     classical_target: str | None = None
 

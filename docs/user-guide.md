@@ -22,12 +22,9 @@ The most common user-facing tasks are:
 ### The normal script workflow
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
-result = draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(output=OutputOptions(show=False)),
-)
+result = draw_quantum_circuit(circuit, mode="pages", show=False)
 ```
 
 This is the default recommendation for scripts because it gives you:
@@ -35,6 +32,25 @@ This is the default recommendation for scripts because it gives you:
 - one stable `DrawResult`
 - library-managed figures
 - room to switch modes later without rewriting the call shape
+
+Other common draw calls stay just as flat:
+
+```python
+draw_quantum_circuit(circuit, mode="slider")
+draw_quantum_circuit(circuit, view="3d", topology="grid")
+```
+
+Use `config=DrawConfig(...)` when you want advanced styling, hover, topology resizing, keyboard controls, or adapter-specific options.
+
+Direct draw kwargs:
+
+| kwarg | Accepted values |
+| --- | --- |
+| `mode` | `"auto"`, `"pages"`, `"pages_controls"`, `"slider"`, `"full"` |
+| `view` | `"2d"`, `"3d"` |
+| `composite_mode` | `"compact"`, `"expand"` |
+| `topology_qubits` | `"used"`, `"all"` |
+| `topology` | `"line"`, `"grid"`, `"star"`, `"star_tree"`, `"honeycomb"` or a topology object |
 
 ### Auto mode
 
@@ -175,19 +191,37 @@ draw_quantum_circuit(
 
 This lets you use an interactive mode during work and still export a clean image without widget chrome.
 
+## Circuit Analysis
+
+Use `analyze_quantum_circuit(...)` when you want the same framework detection and preparation pipeline without creating figures:
+
+```python
+from quantum_circuit_drawer import analyze_quantum_circuit
+
+summary = analyze_quantum_circuit(circuit, framework="qiskit", view="3d")
+
+print(summary.operation_count)
+print(summary.page_count)
+```
+
+It accepts the same common preparation kwargs as drawing: `mode`, `framework`, `view`, `composite_mode`, `topology`, and `topology_qubits`. Output kwargs such as `show`, `output_path`, and `figsize` are deliberately absent because analysis does not render.
+
 ## LaTeX Export
 
 Use `circuit_to_latex(...)` when you want source text instead of a Matplotlib figure:
 
 ```python
-from quantum_circuit_drawer import DrawMode, LatexBackend, circuit_to_latex
+from quantum_circuit_drawer import LatexBackend, circuit_to_latex
 
 latex_result = circuit_to_latex(
     circuit,
     backend=LatexBackend.QUANTIKZ,
-    mode=DrawMode.PAGES,
+    mode="pages",
+    framework="qiskit",
 )
 ```
+
+Compact form: `circuit_to_latex(circuit, mode="pages", framework="qiskit")`.
 
 Use this path when:
 
@@ -385,25 +419,19 @@ This can be useful when you are inspecting larger circuits and want to keep visu
 `compare_circuits(...)` is the quickest way to inspect structural change.
 
 ```python
-from quantum_circuit_drawer import (
-    CircuitCompareConfig,
-    CircuitCompareOptions,
-    OutputOptions,
-    compare_circuits,
-)
+from quantum_circuit_drawer import compare_circuits
 
 result = compare_circuits(
     left_circuit,
     right_circuit,
-    config=CircuitCompareConfig(
-        compare=CircuitCompareOptions(
-            left_title="Before",
-            right_title="After",
-        ),
-        output=OutputOptions(show=False),
-    ),
+    mode="full",
+    show=False,
+    left_title="Before",
+    right_title="After",
 )
 ```
+
+Compact form: `compare_circuits(left_circuit, right_circuit, mode="full", show=False)`.
 
 What you get back:
 
@@ -413,7 +441,9 @@ What you get back:
 - metrics such as layers, total operations, multi-qubit operations, swaps, and measurements
 - an optional compact summary card; the summary focuses on stable aggregate metrics and does not report diff-column counts
 
-Pass extra circuits as additional positional arguments when you want to compare 3+ variants. In that case, set `CircuitCompareOptions(titles=(...))` with one title per circuit. The summary table uses one column per circuit instead of a delta column; lower aggregate values are shown in green and higher aggregate values in red for each row.
+Pass extra circuits as additional positional arguments when you want to compare 3+ variants. In that case, pass `titles=(...)` with one title per circuit. The summary table uses one column per circuit instead of a delta column; lower aggregate values are shown in green and higher aggregate values in red for each row.
+
+Use `CircuitCompareConfig` when you need per-side render or appearance overrides, hover styling, unsupported-operation policy, adapter options, or other advanced draw configuration.
 
 Use this for:
 
@@ -426,26 +456,20 @@ Use this for:
 Use `compare_histograms(...)` when you want aligned distributions on the same state space.
 
 ```python
-from quantum_circuit_drawer import (
-    HistogramCompareConfig,
-    HistogramCompareOptions,
-    OutputOptions,
-    compare_histograms,
-)
+from quantum_circuit_drawer import compare_histograms
 
 result = compare_histograms(
-    left_data,
-    right_data,
-    config=HistogramCompareConfig(
-        compare=HistogramCompareOptions(
-            left_label="Ideal",
-            right_label="Sampled",
-            sort="delta_desc",
-        ),
-        output=OutputOptions(show=False),
-    ),
+    left_counts,
+    right_counts,
+    sort="delta_desc",
+    top_k=8,
+    left_label="Ideal",
+    right_label="Sampled",
+    show=False,
 )
 ```
+
+Compact form: `compare_histograms(left_counts, right_counts, sort="delta_desc", top_k=8, show=False)`.
 
 This is especially useful for:
 
@@ -455,20 +479,38 @@ This is especially useful for:
 
 On interactive Matplotlib backends, the compare legend is clickable so you can focus one selected series at a time without rebuilding the figure.
 
-For 3+ distributions, pass more data objects after the first two and provide `HistogramCompareOptions(series_labels=(...))`. The returned `series_values` field contains every aligned series; the older `left_values`, `right_values`, and `delta_values` fields remain as the first-two compatibility view.
+For 3+ distributions, pass more data objects after the first two and provide `series_labels=(...)`. The returned `series_values` field contains every aligned series; the older `left_values`, `right_values`, and `delta_values` fields remain as the first-two compatibility view.
+
+Use `HistogramCompareConfig` when you need hover, presets, or theme customization.
 
 ## Histogram Workflows
 
 ### Single histogram
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
-result = plot_histogram(
-    data,
-    config=HistogramConfig(output=OutputOptions(show=False)),
-)
+result = plot_histogram(counts, sort="value_desc", top_k=8, show=False)
 ```
+
+For common work, the direct kwargs cover the usual data and view choices:
+
+```python
+plot_histogram(quasi, kind="quasi", mode="static")
+plot_histogram(counts, qubits=(0, 2), state_label_mode="decimal")
+```
+
+Use `config=HistogramConfig(...)` when you want advanced appearance, hover, themes, draw styles, or a uniform reference line.
+
+Direct histogram kwargs:
+
+| kwarg | Accepted values |
+| --- | --- |
+| `kind` | `"auto"`, `"counts"`, `"quasi"` |
+| `mode` | `"auto"`, `"static"`, `"interactive"` |
+| `sort` | `"state"`, `"state_desc"`, `"value_desc"`, `"value_asc"` |
+| `state_label_mode` | `"binary"`, `"decimal"` |
+| `qubits` | tuple of qubit indices, such as `(0, 2)` |
 
 ### Counts vs quasi-probabilities
 
@@ -479,12 +521,9 @@ When quasi-probabilities stay non-negative, the histogram keeps a zero-based ver
 You can still force the meaning:
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, HistogramKind, OutputOptions
+from quantum_circuit_drawer import plot_histogram
 
-config = HistogramConfig(
-    data=HistogramDataOptions(kind=HistogramKind.QUASI),
-    output=OutputOptions(show=False),
-)
+result = plot_histogram(quasi, kind="quasi", mode="static", show=False)
 ```
 
 ### Sorting, top-k, and labels
@@ -500,17 +539,15 @@ Useful controls:
 
 ### Marginals
 
-Use `HistogramDataOptions(qubits=(...))` when you want a joint marginal over selected qubits:
+Use `qubits=(...)` when you want a joint marginal over selected qubits:
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"101": 2, "001": 1, "111": 3},
-    config=HistogramConfig(
-        data=HistogramDataOptions(qubits=(0, 2)),
-        output=OutputOptions(show=False),
-    ),
+    qubits=(0, 2),
+    show=False,
 )
 ```
 

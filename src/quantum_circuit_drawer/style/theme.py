@@ -9,7 +9,42 @@ from ..exceptions import StyleValidationError
 
 @dataclass(frozen=True, slots=True)
 class DrawTheme:
-    """Resolved theme palette used by the renderer after style normalization."""
+    """Resolved color palette used by circuit and histogram renderers.
+
+    Attributes:
+        name: Stable theme name.
+        figure_facecolor: Matplotlib figure background color.
+        axes_facecolor: Plot/circuit axes background color.
+        wire_color: Quantum wire color.
+        classical_wire_color: Classical wire color.
+        gate_facecolor: Gate-box fill color.
+        gate_edgecolor: Gate-box edge color.
+        measurement_facecolor: Measurement-box fill color.
+        text_color: Main text color.
+        barrier_color: Barrier marker color.
+        measurement_color: Measurement symbol color.
+        accent_color: General accent color.
+        control_color: Control-dot color.
+        control_connection_color: Control and condition connector color.
+        topology_edge_color: 3D topology edge color.
+        topology_plane_color: 3D topology plane color.
+        hover_text_color: Hover annotation text color.
+        hover_facecolor: Hover annotation background color.
+        hover_edgecolor: Hover annotation edge color.
+        ui_surface_facecolor: Managed-control button background.
+        ui_surface_hover_facecolor: Managed-control hover background.
+        ui_surface_facecolor_disabled: Disabled managed-control background.
+        ui_surface_edgecolor: Managed-control edge color.
+        ui_surface_edgecolor_active: Active managed-control edge color.
+        ui_surface_edgecolor_disabled: Disabled managed-control edge color.
+        ui_text_color: Managed-control primary text color.
+        ui_secondary_text_color: Managed-control secondary text color.
+        ui_disabled_text_color: Disabled managed-control text color.
+        ui_accent_color: Managed-control accent color.
+        ui_accent_edgecolor: Managed-control accent edge color.
+        ui_slider_track_color: Managed slider track color.
+        ui_slider_fill_color: Managed slider fill color.
+    """
 
     name: str
     figure_facecolor: str

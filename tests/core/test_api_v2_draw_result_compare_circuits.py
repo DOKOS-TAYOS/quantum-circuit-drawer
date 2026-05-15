@@ -220,6 +220,136 @@ def test_public_package_exports_compare_circuit_types() -> None:
     assert quantum_circuit_drawer.CircuitCompareResult is CircuitCompareResult
 
 
+def test_package_level_compare_circuits_forwards_flat_common_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    side_result = DrawResult(
+        primary_figure=object(),
+        primary_axes=object(),
+        figures=(object(),),
+        axes=(object(),),
+        mode=DrawMode.FULL,
+        page_count=1,
+    )
+    expected_result = CircuitCompareResult(
+        figure=object(),
+        axes=(object(), object()),
+        left_result=side_result,
+        right_result=side_result,
+        metrics=CircuitCompareMetrics(
+            left_layer_count=0,
+            right_layer_count=0,
+            layer_delta=0,
+            left_operation_count=0,
+            right_operation_count=0,
+            operation_delta=0,
+            left_multi_qubit_count=0,
+            right_multi_qubit_count=0,
+            multi_qubit_delta=0,
+            left_measurement_count=0,
+            right_measurement_count=0,
+            measurement_delta=0,
+            left_swap_count=0,
+            right_swap_count=0,
+            swap_delta=0,
+            differing_layer_count=0,
+            left_only_layer_count=0,
+            right_only_layer_count=0,
+        ),
+    )
+
+    def fake_compare_circuits(
+        left_circuit: object,
+        right_circuit: object,
+        *additional_circuits: object,
+        mode: object = None,
+        show: bool | None = None,
+        output_path: object = None,
+        figsize: tuple[float, float] | None = None,
+        framework: str | None = None,
+        view: object = None,
+        composite_mode: str | None = None,
+        left_title: str | None = None,
+        right_title: str | None = None,
+        titles: tuple[str, ...] | None = None,
+        highlight_differences: bool | None = None,
+        show_summary: bool | None = None,
+        config: CircuitCompareConfig | None = None,
+        axes: tuple[object, ...] | None = None,
+        summary_ax: object = None,
+    ) -> CircuitCompareResult:
+        captured["left_circuit"] = left_circuit
+        captured["right_circuit"] = right_circuit
+        captured["additional_circuits"] = additional_circuits
+        captured["mode"] = mode
+        captured["show"] = show
+        captured["output_path"] = output_path
+        captured["figsize"] = figsize
+        captured["framework"] = framework
+        captured["view"] = view
+        captured["composite_mode"] = composite_mode
+        captured["left_title"] = left_title
+        captured["right_title"] = right_title
+        captured["titles"] = titles
+        captured["highlight_differences"] = highlight_differences
+        captured["show_summary"] = show_summary
+        captured["config"] = config
+        captured["axes"] = axes
+        captured["summary_ax"] = summary_ax
+        return expected_result
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.circuit_compare.compare_circuits",
+        fake_compare_circuits,
+    )
+
+    figure, axes = plt.subplots(1, 2)
+    summary_axes = figure.add_axes((0.1, 0.1, 0.8, 0.2))
+    config = CircuitCompareConfig(output=OutputOptions(show=False))
+
+    result = quantum_circuit_drawer.compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        build_single_qubit_reference_ir(),
+        mode="full",
+        show=False,
+        output_path="compare-circuit.png",
+        figsize=(6.0, 3.0),
+        framework="ir",
+        view="2d",
+        composite_mode="expand",
+        left_title="Before",
+        right_title="After",
+        titles=("Before", "After", "Tiny"),
+        highlight_differences=False,
+        show_summary=False,
+        config=config,
+        axes=(axes[0], axes[1]),
+        summary_ax=summary_axes,
+    )
+
+    assert result is expected_result
+    assert captured["additional_circuits"] == (build_single_qubit_reference_ir(),)
+    assert captured["mode"] == "full"
+    assert captured["show"] is False
+    assert captured["output_path"] == "compare-circuit.png"
+    assert captured["figsize"] == (6.0, 3.0)
+    assert captured["framework"] == "ir"
+    assert captured["view"] == "2d"
+    assert captured["composite_mode"] == "expand"
+    assert captured["left_title"] == "Before"
+    assert captured["right_title"] == "After"
+    assert captured["titles"] == ("Before", "After", "Tiny")
+    assert captured["highlight_differences"] is False
+    assert captured["show_summary"] is False
+    assert captured["config"] is config
+    assert captured["axes"] == (axes[0], axes[1])
+    assert captured["summary_ax"] is summary_axes
+
+    plt.close(figure)
+
+
 def test_draw_result_exposes_runtime_metadata_and_saved_path(
     monkeypatch: pytest.MonkeyPatch,
     sandbox_tmp_path: Path,
@@ -448,6 +578,138 @@ def test_compare_circuits_returns_side_by_side_results_metrics_and_diff_bands() 
         ]
 
     assert_figure_has_visible_content(result.figure)
+
+    plt.close(figure)
+
+
+def test_compare_circuits_accepts_flat_common_kwargs() -> None:
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        mode="full",
+        framework="ir",
+        view="2d",
+        composite_mode="compact",
+        left_title="Before",
+        right_title="After",
+        highlight_differences=False,
+        show_summary=False,
+        show=False,
+        figsize=(6.0, 3.0),
+    )
+
+    assert result.left_result.mode is DrawMode.FULL
+    assert result.right_result.mode is DrawMode.FULL
+    assert result.left_result.detected_framework == "ir"
+    assert result.right_result.detected_framework == "ir"
+    assert result.titles == ("Before", "After")
+    assert tuple(result.left_result.primary_figure.get_size_inches()) == pytest.approx((6.0, 3.0))
+    assert tuple(result.right_result.primary_figure.get_size_inches()) == pytest.approx((6.0, 3.0))
+    assert not any(
+        getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+        for text in result.figure.texts
+    )
+
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
+def test_compare_circuits_flat_kwargs_override_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from quantum_circuit_drawer.drawing import compare as compare_module
+
+    def fail_show(*args: object, **kwargs: object) -> None:
+        pytest.fail("flat show=False should override config.output.show=True")
+
+    monkeypatch.setattr(compare_module, "show_figure_if_supported", fail_show)
+    config = CircuitCompareConfig(
+        shared=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
+        compare=CircuitCompareOptions(
+            left_title="Left",
+            right_title="Right",
+            highlight_differences=True,
+            show_summary=True,
+        ),
+        output=OutputOptions(show=True, figsize=(8.0, 5.0)),
+    )
+
+    result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        mode="full",
+        left_title="Before",
+        right_title="After",
+        highlight_differences=False,
+        show_summary=False,
+        show=False,
+        figsize=(3.0, 2.0),
+        config=config,
+    )
+
+    assert result.left_result.mode is DrawMode.FULL
+    assert result.right_result.mode is DrawMode.FULL
+    assert result.titles == ("Before", "After")
+    assert tuple(result.left_result.primary_figure.get_size_inches()) == pytest.approx((3.0, 2.0))
+    assert not any(
+        getattr(text, "get_gid", lambda: None)() == "circuit-compare-summary-row"
+        for text in result.figure.texts
+    )
+
+    for figure in (*result.left_result.figures, *result.right_result.figures, result.figure):
+        plt.close(figure)
+
+
+def test_compare_circuits_flat_strings_and_enums_match() -> None:
+    enum_result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        mode=DrawMode.FULL,
+        view="2d",
+        composite_mode="compact",
+        show=False,
+        show_summary=False,
+    )
+    string_result = compare_circuits(
+        build_reference_compare_ir(),
+        build_candidate_compare_ir(),
+        mode="full",
+        view="2d",
+        composite_mode="compact",
+        show=False,
+        show_summary=False,
+    )
+
+    assert enum_result.left_result.mode is string_result.left_result.mode
+    assert enum_result.right_result.mode is string_result.right_result.mode
+    assert enum_result.metrics == string_result.metrics
+
+    for figure in (
+        *enum_result.left_result.figures,
+        *enum_result.right_result.figures,
+        enum_result.figure,
+    ):
+        plt.close(figure)
+    for figure in (
+        *string_result.left_result.figures,
+        *string_result.right_result.figures,
+        string_result.figure,
+    ):
+        plt.close(figure)
+
+
+def test_compare_circuits_rejects_flat_figsize_with_existing_axes() -> None:
+    figure, axes = plt.subplots(1, 2)
+
+    with pytest.raises(ValueError, match="figsize cannot be used with axes"):
+        compare_circuits(
+            build_reference_compare_ir(),
+            build_candidate_compare_ir(),
+            mode="full",
+            show=False,
+            figsize=(3.0, 2.0),
+            axes=(axes[0], axes[1]),
+        )
 
     plt.close(figure)
 

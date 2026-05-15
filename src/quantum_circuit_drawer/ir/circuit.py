@@ -15,7 +15,14 @@ OperationNode = OperationIR | MeasurementIR
 
 @dataclass(slots=True)
 class LayerIR:
-    """A drawable circuit layer containing operations that share one time step."""
+    """One drawable time step in a ``CircuitIR``.
+
+    Attributes:
+        operations: Operation and measurement nodes that can be drawn in the same layer
+            without occupying the same wire slot.
+        metadata: Optional framework or adapter metadata. The renderer preserves it but
+            does not require any specific keys.
+    """
 
     operations: Sequence[OperationNode] = field(default_factory=tuple)
     metadata: Metadata = field(default_factory=dict)
@@ -26,11 +33,20 @@ class LayerIR:
 
 @dataclass(slots=True)
 class CircuitIR:
-    """Framework-neutral circuit model consumed by layout engines.
+    """Framework-neutral circuit model accepted by the public draw APIs.
 
-    Quantum and classical wires live in one shared identifier space so layout,
-    routing, and annotation code can reason about every occupied slot in a
-    consistent way.
+    Attributes:
+        quantum_wires: Ordered quantum wires. Wire ids must be unique across quantum and
+            classical wires.
+        classical_wires: Ordered classical wires used by measurements and conditions.
+        layers: Ordered ``LayerIR`` objects. Each layer represents one drawable time
+            step after packing operations.
+        name: Optional circuit name.
+        metadata: Optional framework or adapter metadata. Common keys include
+            ``"framework"`` and diagnostics-related provenance.
+
+    Quantum and classical wires share one identifier space so layout, routing, and
+    annotation code can reason about every occupied slot consistently.
     """
 
     quantum_wires: Sequence[WireIR]

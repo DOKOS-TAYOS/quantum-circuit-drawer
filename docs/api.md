@@ -28,12 +28,27 @@ qcd histogram counts.json --output counts.png
 analyze_quantum_circuit(
     circuit: object,
     *,
+    mode: DrawMode | str | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    topology: TopologyInput | None = None,
+    topology_qubits: TopologyQubitMode | None = None,
     config: DrawConfig | None = None,
 ) -> CircuitAnalysisResult
 
 draw_quantum_circuit(
     circuit: object,
     *,
+    mode: DrawMode | str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    topology: TopologyInput | None = None,
+    topology_qubits: TopologyQubitMode | None = None,
     config: DrawConfig | None = None,
     ax: Axes | None = None,
 ) -> DrawResult
@@ -44,12 +59,26 @@ circuit_to_latex(
     config: DrawConfig | None = None,
     backend: LatexBackend | str = LatexBackend.QUANTIKZ,
     mode: LatexMode | DrawMode | str | None = None,
+    framework: str | None = None,
+    composite_mode: str | None = None,
 ) -> LatexResult
 
 compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *additional_circuits: object,
+    mode: DrawMode | str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    left_title: str | None = None,
+    right_title: str | None = None,
+    titles: tuple[str, ...] | None = None,
+    highlight_differences: bool | None = None,
+    show_summary: bool | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, ...] | None = None,
     summary_ax: Axes | None = None,
@@ -58,6 +87,17 @@ compare_circuits(
 plot_histogram(
     data: object,
     *,
+    kind: HistogramKind | str | None = None,
+    mode: HistogramMode | str | None = None,
+    sort: HistogramSort | str | None = None,
+    state_label_mode: HistogramStateLabelMode | str | None = None,
+    qubits: tuple[int, ...] | None = None,
+    top_k: int | None = None,
+    result_index: int | None = None,
+    data_key: str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
     config: HistogramConfig | None = None,
     ax: Axes | None = None,
 ) -> HistogramResult
@@ -66,6 +106,18 @@ compare_histograms(
     left_data: object,
     right_data: object,
     *additional_data: object,
+    kind: HistogramKind | str | None = None,
+    sort: HistogramCompareSort | str | None = None,
+    qubits: tuple[int, ...] | None = None,
+    top_k: int | None = None,
+    result_index: int | None = None,
+    data_key: str | None = None,
+    left_label: str | None = None,
+    right_label: str | None = None,
+    series_labels: tuple[str, ...] | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
     config: HistogramCompareConfig | None = None,
     ax: Axes | None = None,
 ) -> HistogramCompareResult
@@ -75,11 +127,58 @@ compare_histograms(
 
 `analyze_quantum_circuit(...)` prepares the same normalized circuit pipeline as drawing, but it does not render figures, call `show()`, or save `OutputOptions.output_path`.
 
+Use direct kwargs for the common preparation choices:
+
+```python
+analyze_quantum_circuit(circuit, framework="qiskit", view="3d")
+analyze_quantum_circuit(circuit, mode="full", composite_mode="expand")
+```
+
+When `config=` and direct kwargs are combined, every direct kwarg that is not `None` overrides only its matching render field. Display and file-output fields are intentionally not part of this API because analysis has no visual side effects.
+
+| kwarg | Values | Maps to |
+| --- | --- | --- |
+| `mode` | `"auto"`, `"pages"`, `"pages_controls"`, `"slider"`, `"full"` or `DrawMode` | `DrawConfig.side.render.mode` |
+| `framework` | explicit framework name such as `"ir"`, `"qiskit"`, or `"qasm"` | `DrawConfig.side.render.framework` |
+| `view` | `"2d"`, `"3d"` | `DrawConfig.side.render.view` |
+| `composite_mode` | `"compact"`, `"expand"` | `DrawConfig.side.render.composite_mode` |
+| `topology` | `"line"`, `"grid"`, `"star"`, `"star_tree"`, `"honeycomb"`, or a topology object | `DrawConfig.side.render.topology` |
+| `topology_qubits` | `"used"`, `"all"` | `DrawConfig.side.render.topology_qubits` |
+| `config` | `DrawConfig` | advanced preparation configuration |
+
 `CircuitAnalysisResult` includes framework, mode, view, page count, wire counts, operation counts, diagnostics, `warnings`, and `to_dict()`.
 
 ## Circuit drawing
 
 `draw_quantum_circuit(...)` accepts supported framework objects, public `CircuitIR` objects, OpenQASM 2/3 text, `.qasm` files, and `.qasm3` files. OpenQASM paths use Qiskit for parsing: OpenQASM 2 requires `quantum-circuit-drawer[qiskit]`, and OpenQASM 3 requires `quantum-circuit-drawer[qasm3]`.
+
+### Minimal flat draw API
+
+Use direct kwargs for the common choices you change while working:
+
+```python
+draw_quantum_circuit(circuit, mode="pages", show=False)
+draw_quantum_circuit(circuit, mode="slider")
+draw_quantum_circuit(circuit, view="3d", topology="grid")
+```
+
+When `config=` and direct kwargs are combined, every direct kwarg that is not `None` overrides only its matching field. For example, `draw_quantum_circuit(circuit, config=config, show=False)` keeps the rest of `config` but uses `show=False`.
+
+| kwarg | Values | Maps to |
+| --- | --- | --- |
+| `mode` | `"auto"`, `"pages"`, `"pages_controls"`, `"slider"`, `"full"` or `DrawMode` | `DrawConfig.side.render.mode` |
+| `show` | `True` or `False` | `DrawConfig.output.show` |
+| `output_path` | path-like value | `DrawConfig.output.output_path` |
+| `figsize` | `(width, height)` in inches | `DrawConfig.output.figsize` |
+| `framework` | explicit framework name such as `"ir"`, `"qiskit"`, or `"qasm"` | `DrawConfig.side.render.framework` |
+| `view` | `"2d"`, `"3d"` | `DrawConfig.side.render.view` |
+| `composite_mode` | `"compact"`, `"expand"` | `DrawConfig.side.render.composite_mode` |
+| `topology` | `"line"`, `"grid"`, `"star"`, `"star_tree"`, `"honeycomb"`, or a topology object | `DrawConfig.side.render.topology` |
+| `topology_qubits` | `"used"`, `"all"` | `DrawConfig.side.render.topology_qubits` |
+| `config` | `DrawConfig` | advanced configuration |
+| `ax` | Matplotlib axes | caller-managed static drawing |
+
+Advanced rendering controls such as `hover`, `preset`, `style`, `topology_resize`, `topology_menu`, `keyboard_shortcuts`, `double_click_toggle`, `unsupported_policy`, and `adapter_options` stay in `DrawConfig`.
 
 ### LaTeX export
 
@@ -92,10 +191,23 @@ result = circuit_to_latex(
     circuit,
     backend=LatexBackend.QUANTIKZ,
     mode=DrawMode.PAGES,
+    framework="qiskit",
 )
 
 print(result.source)
 ```
+
+Direct kwargs cover only export-relevant basics:
+
+| kwarg | Values | Maps to |
+| --- | --- | --- |
+| `config` | `DrawConfig` | advanced preparation and style configuration |
+| `backend` | `"quantikz"`, `"tikz"` or `LatexBackend` | LaTeX syntax backend |
+| `mode` | `"full"`, `"pages"`, compatible `DrawMode`, or `LatexMode` | LaTeX pagination mode |
+| `framework` | explicit framework name such as `"ir"`, `"qiskit"`, or `"qasm"` | `DrawConfig.side.render.framework` |
+| `composite_mode` | `"compact"`, `"expand"` | `DrawConfig.side.render.composite_mode` |
+
+`view`, topology, display, and file-output kwargs are intentionally omitted. LaTeX export always prepares a 2D, non-displaying render pipeline and returns source text.
 
 Backends:
 
@@ -310,6 +422,38 @@ Circuit comparison and histogram comparison are the two public comparison APIs.
 
 ## Circuit comparison
 
+### Minimal flat circuit-comparison API
+
+Use direct kwargs for the shared comparison choices you usually change at the call site:
+
+```python
+compare_circuits(left_circuit, right_circuit, mode="full", show=False)
+compare_circuits(left_circuit, right_circuit, mode="slider")
+compare_circuits(left_circuit, right_circuit, left_title="Before", right_title="After")
+```
+
+When `config=` and direct kwargs are combined, every direct kwarg that is not `None` overrides only its matching common field. Per-side render or appearance overrides, hover, styles, unsupported-operation policy, adapter options, and advanced topology controls stay in `CircuitCompareConfig`.
+
+`compare_circuits(...)` is currently a 2D comparison API, so `topology` and `topology_qubits` are not exposed as flat comparison kwargs. Use `draw_quantum_circuit(...)` for direct 3D topology views.
+
+| kwarg | Values | Maps to |
+| --- | --- | --- |
+| `mode` | `"auto"`, `"pages"`, `"pages_controls"`, `"slider"`, `"full"` or `DrawMode` | `CircuitCompareConfig.shared.render.mode` and any configured side render overrides |
+| `show` | `True` or `False` | `CircuitCompareConfig.output.show` |
+| `output_path` | path-like value | `CircuitCompareConfig.output.output_path` |
+| `figsize` | `(width, height)` in inches | `CircuitCompareConfig.output.figsize` |
+| `framework` | explicit framework name such as `"ir"`, `"qiskit"`, or `"qasm"` | `CircuitCompareConfig.shared.render.framework` and any configured side render overrides |
+| `view` | `"2d"` | `CircuitCompareConfig.shared.render.view` and any configured side render overrides |
+| `composite_mode` | `"compact"`, `"expand"` | `CircuitCompareConfig.shared.render.composite_mode` and any configured side render overrides |
+| `left_title` | text label | `CircuitCompareConfig.compare.left_title` |
+| `right_title` | text label | `CircuitCompareConfig.compare.right_title` |
+| `titles` | tuple of text labels | `CircuitCompareConfig.compare.titles` |
+| `highlight_differences` | `True` or `False` | `CircuitCompareConfig.compare.highlight_differences` |
+| `show_summary` | `True` or `False` | `CircuitCompareConfig.compare.show_summary` |
+| `config` | `CircuitCompareConfig` | advanced configuration |
+| `axes` | tuple of Matplotlib axes | caller-managed static comparison |
+| `summary_ax` | Matplotlib axes | caller-managed summary card |
+
 ### `CircuitCompareConfig`
 
 `CircuitCompareConfig` keeps one shared side baseline, optional per-side block overrides, one compare block, and one output block:
@@ -388,6 +532,36 @@ Export helpers:
 Single and comparison histogram APIs share the same normalization path for counts, quasi-probabilities, selected marginals, and framework-native result payloads.
 
 ## Histograms
+
+### Minimal flat histogram API
+
+Use direct kwargs for the common data and view choices:
+
+```python
+plot_histogram(counts, sort="value_desc", top_k=8, show=False)
+plot_histogram(quasi, kind="quasi", mode="static")
+plot_histogram(counts, qubits=(0, 2), state_label_mode="decimal")
+```
+
+When `config=` and direct kwargs are combined, every direct kwarg that is not `None` overrides only its matching field. For example, `plot_histogram(counts, config=config, top_k=8)` keeps the rest of `config` but uses `top_k=8`.
+
+| kwarg | Values | Maps to |
+| --- | --- | --- |
+| `kind` | `"auto"`, `"counts"`, `"quasi"` or `HistogramKind` | `HistogramConfig.data.kind` |
+| `mode` | `"auto"`, `"static"`, `"interactive"` or `HistogramMode` | `HistogramConfig.view.mode` |
+| `sort` | `"state"`, `"state_desc"`, `"value_desc"`, `"value_asc"` or `HistogramSort` | `HistogramConfig.view.sort` |
+| `state_label_mode` | `"binary"`, `"decimal"` or `HistogramStateLabelMode` | `HistogramConfig.view.state_label_mode` |
+| `qubits` | tuple of qubit indices, such as `(0, 2)` | `HistogramConfig.data.qubits` |
+| `top_k` | positive integer | `HistogramConfig.data.top_k` |
+| `result_index` | non-negative integer | `HistogramConfig.data.result_index` |
+| `data_key` | Qiskit data field name | `HistogramConfig.data.data_key` |
+| `show` | `True` or `False` | `HistogramConfig.output.show` |
+| `output_path` | path-like value | `HistogramConfig.output.output_path` |
+| `figsize` | `(width, height)` in inches | `HistogramConfig.output.figsize` |
+| `config` | `HistogramConfig` | advanced configuration |
+| `ax` | Matplotlib axes | caller-managed static plotting |
+
+Advanced appearance and interaction controls such as `hover`, `show_uniform_reference`, `draw_style`, `preset`, and `theme` stay in `HistogramConfig`.
 
 ### `HistogramKind`
 
@@ -493,6 +667,41 @@ Interactive notes:
 - the marginal text box accepts comma-separated qubit indices such as `0,2,5`
 - hovering the marginal text box shows a short multi-line usage hint
 - saved interactive histograms omit widget chrome and keep the current visible data window
+
+### Minimal flat histogram-comparison API
+
+Use direct kwargs for the common comparison choices:
+
+```python
+compare_histograms(left_counts, right_counts, sort="delta_desc", top_k=8, show=False)
+compare_histograms(left_quasi, right_quasi, kind="quasi")
+compare_histograms(
+    left_counts,
+    right_counts,
+    qubits=(0, 2),
+    left_label="Ideal",
+    right_label="Sampled",
+)
+```
+
+When `config=` and direct kwargs are combined, every direct kwarg that is not `None` overrides only its matching field. Hover, presets, and theme customization stay in `HistogramCompareConfig`.
+
+| kwarg | Values | Maps to |
+| --- | --- | --- |
+| `kind` | `"auto"`, `"counts"`, `"quasi"` or `HistogramKind` | `HistogramCompareConfig.data.kind` |
+| `sort` | `"state"`, `"state_desc"`, `"delta_desc"` or `HistogramCompareSort` | `HistogramCompareConfig.compare.sort` |
+| `qubits` | tuple of qubit indices, such as `(0, 2)` | `HistogramCompareConfig.data.qubits` |
+| `top_k` | positive integer | `HistogramCompareConfig.data.top_k` |
+| `result_index` | non-negative integer | `HistogramCompareConfig.data.result_index` |
+| `data_key` | Qiskit data field name | `HistogramCompareConfig.data.data_key` |
+| `left_label` | text label | `HistogramCompareConfig.compare.left_label` |
+| `right_label` | text label | `HistogramCompareConfig.compare.right_label` |
+| `series_labels` | tuple of text labels | `HistogramCompareConfig.compare.series_labels` |
+| `show` | `True` or `False` | `HistogramCompareConfig.output.show` |
+| `output_path` | path-like value | `HistogramCompareConfig.output.output_path` |
+| `figsize` | `(width, height)` in inches | `HistogramCompareConfig.output.figsize` |
+| `config` | `HistogramCompareConfig` | advanced configuration |
+| `ax` | Matplotlib axes | caller-managed static comparison |
 
 ### `HistogramCompareConfig`
 

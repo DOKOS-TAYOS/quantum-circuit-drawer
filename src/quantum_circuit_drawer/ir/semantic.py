@@ -53,7 +53,15 @@ def _parameter_signature_token(value: object) -> object:
 
 
 def semantic_operation_id_from_location(location: Sequence[int]) -> str:
-    """Return a stable operation identifier derived from semantic provenance location."""
+    """Return a stable operation id from semantic provenance location.
+
+    Args:
+        location: Sequence of nested indices that identify an operation inside native
+            framework structure.
+
+    Returns:
+        String id such as ``"op:1.2.0"``. Empty locations return ``"op:root"``.
+    """
 
     resolved_location = tuple(int(index) for index in location)
     if not resolved_location:
@@ -63,7 +71,17 @@ def semantic_operation_id_from_location(location: Sequence[int]) -> str:
 
 @dataclass(frozen=True, slots=True)
 class SemanticProvenanceIR:
-    """Framework-native provenance attached to one semantic operation."""
+    """Framework-native provenance attached to one semantic operation.
+
+    Attributes:
+        framework: Source framework name, such as ``"qiskit"`` or ``"cudaq"``.
+        native_name: Native operation or instruction name.
+        native_kind: Native operation category.
+        grouping: Semantic grouping label, for example control-flow or composite block.
+        decomposition_origin: Name of the operation that produced this expanded body.
+        composite_label: Human-facing label for a composite or control-flow block.
+        location: Stable nested index path within the native circuit structure.
+    """
 
     framework: str | None = None
     native_name: str | None = None
@@ -76,7 +94,25 @@ class SemanticProvenanceIR:
 
 @dataclass(slots=True)
 class SemanticOperationIR:
-    """Operation-level semantic IR preserved before lowering to render IR."""
+    """Operation-level semantic IR preserved before lowering to ``OperationIR``.
+
+    Attributes:
+        kind: ``OperationKind`` describing the drawable category.
+        name: Stable operation name.
+        target_wires: Quantum wire ids targeted by the operation.
+        control_wires: Quantum wire ids used as controls.
+        control_values: Accepted control values aligned with ``control_wires``.
+        classical_conditions: Classical conditions that gate this operation.
+        parameters: Display parameters, such as rotation angles.
+        label: Optional visible label. ``None`` defaults to ``name``.
+        canonical_family: Canonical rendering family, inferred from ``name`` when left
+            as ``CUSTOM``.
+        classical_target: Required classical target for measurements.
+        annotations: Static text annotations rendered with the operation.
+        hover_details: Extra hover text preserved from the adapter.
+        provenance: Framework-native provenance for grouping and managed controls.
+        metadata: Optional adapter metadata used by layout and rendering.
+    """
 
     kind: OperationKind
     name: str
@@ -134,7 +170,12 @@ class SemanticOperationIR:
 
 @dataclass(slots=True)
 class SemanticLayerIR:
-    """A semantic circuit layer preserving native grouping where available."""
+    """One layer of semantic operations before lowering.
+
+    Attributes:
+        operations: Semantic operations that can share one drawable time step.
+        metadata: Optional layer-level metadata preserved from adapters.
+    """
 
     operations: Sequence[SemanticOperationIR] = field(default_factory=tuple)
     metadata: Metadata = field(default_factory=dict)
@@ -145,7 +186,16 @@ class SemanticLayerIR:
 
 @dataclass(slots=True)
 class SemanticCircuitIR:
-    """Semantic circuit model preserved before lowering to render-focused IR."""
+    """Circuit model that preserves native structure before render lowering.
+
+    Attributes:
+        quantum_wires: Ordered quantum wires.
+        classical_wires: Ordered classical wires.
+        layers: Ordered semantic layers.
+        name: Optional circuit name.
+        metadata: Optional circuit-level metadata preserved from adapters.
+        diagnostics: Non-fatal adapter diagnostics that should travel with the circuit.
+    """
 
     quantum_wires: Sequence[WireIR]
     classical_wires: Sequence[WireIR] = field(default_factory=tuple)
@@ -175,7 +225,15 @@ class SemanticCircuitIR:
 def pack_semantic_operations(
     operations: Iterable[SemanticOperationIR],
 ) -> tuple[SemanticLayerIR, ...]:
-    """Pack semantic operations into layers without occupied-wire collisions."""
+    """Pack semantic operations into layers without occupied-wire collisions.
+
+    Args:
+        operations: Semantic operations in source order.
+
+    Returns:
+        Tuple of ``SemanticLayerIR`` objects where no operation in a layer occupies the
+        same wire slot as another operation in that layer.
+    """
 
     layer_operations: list[list[SemanticOperationIR]] = []
     latest_layer_by_slot: dict[str, int] = {}
@@ -194,7 +252,16 @@ def semantic_operation_signature(
     operation: SemanticOperationIR,
     wire_indices: dict[str, int],
 ) -> tuple[object, ...]:
-    """Build a stable signature that preserves native semantic differences."""
+    """Build a stable signature that preserves semantic operation differences.
+
+    Args:
+        operation: Semantic operation to summarize.
+        wire_indices: Mapping from wire id to stable integer position.
+
+    Returns:
+        Tuple containing operation kind, canonical family, parameters, wires,
+        conditions, annotations, hover details, and provenance fields.
+    """
 
     measurement_target: int | str | None
     if operation.classical_target is None:
@@ -232,7 +299,15 @@ def semantic_operation_signature(
 
 
 def semantic_operation_id(operation: SemanticOperationIR) -> str:
-    """Return the stable semantic identifier for one operation."""
+    """Return the stable semantic identifier for one operation.
+
+    Args:
+        operation: Semantic operation whose id should be resolved.
+
+    Returns:
+        Explicit ``semantic_operation_id`` metadata when present, otherwise an id from
+        provenance location, otherwise a deterministic fallback from name and targets.
+    """
 
     explicit_id = operation.metadata.get("semantic_operation_id")
     if isinstance(explicit_id, str) and explicit_id:

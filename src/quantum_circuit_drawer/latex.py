@@ -34,14 +34,26 @@ logger = logging.getLogger(__name__)
 
 
 class LatexBackend(StrEnum):
-    """Supported LaTeX circuit backends."""
+    """LaTeX syntax backends accepted by ``circuit_to_latex(...)``.
+
+    Values:
+        ``QUANTIKZ`` emits ``quantikz`` snippets and is the recommended backend for
+        papers and reports. ``TIKZ`` emits a simpler experimental ``tikzpicture``
+        representation for basic circuits.
+    """
 
     QUANTIKZ = "quantikz"
     TIKZ = "tikz"
 
 
 class LatexMode(StrEnum):
-    """Supported LaTeX export modes."""
+    """Paging mode for LaTeX circuit export.
+
+    Values:
+        ``FULL`` exports the complete 2D circuit as one snippet. ``PAGES`` exports one
+        snippet per draw page and joins them in ``LatexResult.source`` with page
+        comments.
+    """
 
     FULL = "full"
     PAGES = "pages"
@@ -49,7 +61,17 @@ class LatexMode(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class LatexResult:
-    """LaTeX source and metadata returned by ``circuit_to_latex``."""
+    """LaTeX source and metadata returned by ``circuit_to_latex(...)``.
+
+    Attributes:
+        source: Joined LaTeX source for all exported pages.
+        pages: Individual page snippets. In ``FULL`` mode this contains one item.
+        backend: Resolved ``LatexBackend``.
+        mode: Resolved ``LatexMode``.
+        page_count: Number of snippets in ``pages``.
+        detected_framework: Adapter chosen for the input circuit.
+        diagnostics: Non-fatal diagnostics emitted during preparation.
+    """
 
     source: str
     pages: tuple[str, ...]
@@ -60,7 +82,12 @@ class LatexResult:
     diagnostics: tuple[RenderDiagnostic, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
-        """Return result metadata without duplicating the LaTeX source."""
+        """Return result metadata without duplicating the source text.
+
+        Returns:
+            A JSON-friendly dictionary with backend, mode, page count, detected
+            framework, and diagnostics.
+        """
 
         return {
             "backend": self.backend.value,
@@ -77,15 +104,48 @@ def circuit_to_latex(
     config: DrawConfig | None = None,
     backend: LatexBackend | str = LatexBackend.QUANTIKZ,
     mode: LatexMode | DrawMode | str | None = None,
+    framework: str | None = None,
+    composite_mode: str | None = None,
 ) -> LatexResult:
-    """Return LaTeX source for a supported 2D circuit input."""
+    """Return LaTeX source for a supported 2D circuit input.
+
+    Direct kwargs are the small, common API for LaTeX export choices. The export path
+    always prepares a 2D, non-displaying circuit pipeline; visual display, saving,
+    topology, and 3D options stay outside this function.
+
+    Args:
+        circuit: Any supported circuit input, including public ``CircuitIR``,
+            supported framework objects, OpenQASM text, or ``.qasm`` / ``.qasm3``
+            paths.
+        config: Optional ``DrawConfig``. Framework, style, and 2D paging choices are
+            honored; output display and file saving are ignored.
+        backend: ``LatexBackend`` or ``"quantikz"`` / ``"tikz"``.
+        mode: Optional ``LatexMode``, ``DrawMode``, or string. Accepted LaTeX strings
+            are ``"full"`` and ``"pages"``. ``None`` follows compatible draw-mode
+            settings from ``config`` and otherwise uses pages.
+        framework: Optional adapter name, such as ``"ir"``, ``"qiskit"``, or
+            ``"qasm"``.
+        composite_mode: Optional ``"compact"`` or ``"expand"`` composite handling.
+            Non-``None`` direct kwargs override only matching render fields.
+
+    Returns:
+        ``LatexResult`` containing joined source, per-page snippets, backend, mode,
+        page count, framework, and diagnostics.
+    """
 
     from .drawing.preparation import prepare_draw_call
 
     with logged_api_call(logger, api="circuit_to_latex") as started_at:
         normalized_backend = normalize_latex_backend(backend)
         latex_mode = resolve_latex_mode(mode, config=config)
-        prepared_config = _latex_draw_config(config, mode=latex_mode)
+        prepared_config = _latex_draw_config(
+            _merge_latex_config(
+                config,
+                framework=framework,
+                composite_mode=composite_mode,
+            ),
+            mode=latex_mode,
+        )
         prepared = prepare_draw_call(circuit, config=prepared_config, ax=None)
         pipeline = prepared.pipeline
         if normalized_backend is LatexBackend.QUANTIKZ:
@@ -123,7 +183,14 @@ def circuit_to_latex(
 
 
 def normalize_latex_backend(value: LatexBackend | str) -> LatexBackend:
-    """Return a normalized LaTeX backend enum value."""
+    """Validate and normalize a LaTeX backend value.
+
+    Args:
+        value: ``LatexBackend`` or one of ``"quantikz"`` and ``"tikz"``.
+
+    Returns:
+        The corresponding ``LatexBackend`` enum member.
+    """
 
     try:
         return value if isinstance(value, LatexBackend) else LatexBackend(str(value))
@@ -137,7 +204,16 @@ def resolve_latex_mode(
     *,
     config: DrawConfig | None,
 ) -> LatexMode:
-    """Resolve the effective LaTeX export mode."""
+    """Resolve the effective LaTeX export mode.
+
+    Args:
+        value: ``None``, ``LatexMode``, compatible ``DrawMode``, or one of
+            ``"full"`` and ``"pages"``.
+        config: Optional draw config used when ``value`` is ``None``.
+
+    Returns:
+        The resolved ``LatexMode``.
+    """
 
     if value is None:
         config_mode = DrawMode.AUTO if config is None else config.mode
@@ -171,6 +247,29 @@ def _latex_draw_config(config: DrawConfig | None, *, mode: LatexMode) -> DrawCon
     side = DrawSideConfig(render=render, appearance=resolved_config.side.appearance)
     output = OutputOptions(show=False, output_path=None, figsize=resolved_config.figsize)
     return DrawConfig(side=side, output=output)
+
+
+def _merge_latex_config(
+    config: DrawConfig | None,
+    *,
+    framework: str | None = None,
+    composite_mode: str | None = None,
+) -> DrawConfig:
+    resolved_config = DrawConfig() if config is None else config
+    if framework is None and composite_mode is None:
+        return resolved_config
+
+    render = replace(
+        resolved_config.side.render,
+        framework=resolved_config.framework if framework is None else framework,
+        composite_mode=(
+            resolved_config.composite_mode if composite_mode is None else composite_mode
+        ),
+    )
+    return replace(
+        resolved_config,
+        side=replace(resolved_config.side, render=render),
+    )
 
 
 def _quantikz_pages(pipeline: PreparedDrawPipeline, *, mode: LatexMode) -> tuple[str, ...]:

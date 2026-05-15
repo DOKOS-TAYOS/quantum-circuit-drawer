@@ -49,6 +49,71 @@ def test_draw_quantum_circuit_returns_draw_result_for_managed_render() -> None:
     plt.close(result.primary_figure)
 
 
+def test_draw_quantum_circuit_accepts_flat_common_kwargs() -> None:
+    result = draw_quantum_circuit(
+        build_sample_ir(),
+        mode="full",
+        framework="ir",
+        view="2d",
+        composite_mode="compact",
+        topology="grid",
+        topology_qubits="used",
+        show=False,
+        figsize=(4.5, 2.5),
+    )
+
+    assert isinstance(result, DrawResult)
+    assert result.mode is DrawMode.FULL
+    assert result.detected_framework == "ir"
+    assert tuple(result.primary_figure.get_size_inches()) == pytest.approx((4.5, 2.5))
+
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_flat_kwargs_override_config() -> None:
+    config = DrawConfig(
+        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
+        output=OutputOptions(show=True, figsize=(8.0, 5.0)),
+    )
+
+    result = draw_quantum_circuit(
+        build_sample_ir(),
+        mode="full",
+        show=False,
+        figsize=(3.5, 2.0),
+        config=config,
+    )
+
+    assert result.mode is DrawMode.FULL
+    assert tuple(result.primary_figure.get_size_inches()) == pytest.approx((3.5, 2.0))
+
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_flat_strings_and_enums_match() -> None:
+    enum_result = draw_quantum_circuit(
+        build_sample_ir(),
+        mode=DrawMode.FULL,
+        view="2d",
+        composite_mode="compact",
+        show=False,
+    )
+    string_result = draw_quantum_circuit(
+        build_sample_ir(),
+        mode="full",
+        view="2d",
+        composite_mode="compact",
+        show=False,
+    )
+
+    assert enum_result.mode is string_result.mode
+    assert enum_result.page_count == string_result.page_count
+    assert enum_result.detected_framework == string_result.detected_framework
+
+    plt.close(enum_result.primary_figure)
+    plt.close(string_result.primary_figure)
+
+
 def test_draw_result_ipython_display_shows_figures_without_plain_repr(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -114,10 +179,28 @@ def test_package_level_draw_quantum_circuit_forwards_config_and_axes(
     def fake_draw_quantum_circuit(
         circuit: object,
         *,
+        mode: object = None,
+        show: bool | None = None,
+        output_path: object = None,
+        figsize: tuple[float, float] | None = None,
+        framework: str | None = None,
+        view: object = None,
+        composite_mode: str | None = None,
+        topology: object = None,
+        topology_qubits: object = None,
         config: DrawConfig | None = None,
         ax: object = None,
     ) -> DrawResult:
         captured["circuit"] = circuit
+        captured["mode"] = mode
+        captured["show"] = show
+        captured["output_path"] = output_path
+        captured["figsize"] = figsize
+        captured["framework"] = framework
+        captured["view"] = view
+        captured["composite_mode"] = composite_mode
+        captured["topology"] = topology
+        captured["topology_qubits"] = topology_qubits
         captured["config"] = config
         captured["ax"] = ax
         return expected_result
@@ -135,11 +218,29 @@ def test_package_level_draw_quantum_circuit_forwards_config_and_axes(
 
     result = quantum_circuit_drawer.draw_quantum_circuit(
         build_sample_ir(),
+        mode="full",
+        show=False,
+        output_path="circuit.png",
+        figsize=(4.0, 2.0),
+        framework="ir",
+        view="2d",
+        composite_mode="expand",
+        topology="grid",
+        topology_qubits="all",
         config=config,
         ax=axes,
     )
 
     assert result is expected_result
+    assert captured["mode"] == "full"
+    assert captured["show"] is False
+    assert captured["output_path"] == "circuit.png"
+    assert captured["figsize"] == (4.0, 2.0)
+    assert captured["framework"] == "ir"
+    assert captured["view"] == "2d"
+    assert captured["composite_mode"] == "expand"
+    assert captured["topology"] == "grid"
+    assert captured["topology_qubits"] == "all"
     assert captured["config"] is config
     assert captured["ax"] is axes
 
@@ -266,6 +367,21 @@ def test_draw_quantum_circuit_rejects_explicit_interactive_mode_with_existing_ax
                 side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.SLIDER)),
                 output=OutputOptions(show=False),
             ),
+            ax=axes,
+        )
+
+    plt.close(figure)
+
+
+def test_draw_quantum_circuit_rejects_flat_figsize_with_existing_axes() -> None:
+    figure, axes = plt.subplots()
+
+    with pytest.raises(ValueError, match="figsize cannot be used with ax"):
+        draw_quantum_circuit(
+            build_sample_ir(),
+            mode="full",
+            show=False,
+            figsize=(8.0, 3.0),
             ax=axes,
         )
 

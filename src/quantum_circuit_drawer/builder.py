@@ -14,7 +14,19 @@ WireReference = int | str
 
 
 class CircuitBuilder:
-    """Small fluent builder for the public intermediate representation."""
+    """Fluent helper for building a public ``CircuitIR`` in pure Python.
+
+    Attributes:
+        qubits: Constructor argument accepting either a positive qubit count or explicit
+            quantum wire labels.
+        cbits: Constructor argument accepting a non-negative classical-bit count or
+            explicit classical wire labels.
+        name: Optional circuit name stored on the final ``CircuitIR``.
+
+    The builder is useful for tests, examples, and lightweight scripts where importing
+    a framework SDK would be unnecessary. Every mutating method returns ``self`` so
+    calls can be chained before ``build()`` packs operations into layers.
+    """
 
     def __init__(
         self,
@@ -38,7 +50,19 @@ class CircuitBuilder:
         params: Sequence[object] = (),
         label: str | None = None,
     ) -> CircuitBuilder:
-        """Append a gate-like operation to the builder."""
+        """Append a generic gate-like operation.
+
+        Args:
+            name: Gate name displayed in the circuit, such as ``"H"``, ``"RX"``, or a
+                custom operation label. It must not be empty.
+            *targets: Target quantum wires as integer indices or wire ids.
+            controls: Optional control quantum wires as integer indices or wire ids.
+            params: Optional gate parameters stored for display and hover.
+            label: Optional visible label override.
+
+        Returns:
+            This builder so calls can be chained.
+        """
 
         normalized_name = name.strip()
         if not normalized_name:
@@ -64,60 +88,243 @@ class CircuitBuilder:
         return self
 
     def i(self, target: WireReference) -> CircuitBuilder:
+        """Append an identity gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("I", target)
 
     def h(self, target: WireReference) -> CircuitBuilder:
+        """Append a Hadamard gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("H", target)
 
     def x(self, target: WireReference) -> CircuitBuilder:
+        """Append a Pauli-X gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("X", target)
 
     def y(self, target: WireReference) -> CircuitBuilder:
+        """Append a Pauli-Y gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("Y", target)
 
     def z(self, target: WireReference) -> CircuitBuilder:
+        """Append a Pauli-Z gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("Z", target)
 
     def s(self, target: WireReference) -> CircuitBuilder:
+        """Append an S phase gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("S", target)
 
     def sdg(self, target: WireReference) -> CircuitBuilder:
+        """Append an inverse S phase gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("SDG", target)
 
     def t(self, target: WireReference) -> CircuitBuilder:
+        """Append a T phase gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("T", target)
 
     def tdg(self, target: WireReference) -> CircuitBuilder:
+        """Append an inverse T phase gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("TDG", target)
 
     def sx(self, target: WireReference) -> CircuitBuilder:
+        """Append a square-root-X gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("SX", target)
 
     def sxdg(self, target: WireReference) -> CircuitBuilder:
+        """Append an inverse square-root-X gate.
+
+        Args:
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("SXDG", target)
 
     def p(self, theta: object, target: WireReference) -> CircuitBuilder:
+        """Append a phase gate.
+
+        Args:
+            theta: Phase angle or symbolic parameter to display.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("P", target, params=(theta,))
 
     def rx(self, theta: object, target: WireReference) -> CircuitBuilder:
+        """Append an X-axis rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RX", target, params=(theta,))
 
     def ry(self, theta: object, target: WireReference) -> CircuitBuilder:
+        """Append a Y-axis rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RY", target, params=(theta,))
 
     def rz(self, theta: object, target: WireReference) -> CircuitBuilder:
+        """Append a Z-axis rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RZ", target, params=(theta,))
 
     def rxx(self, theta: object, first: WireReference, second: WireReference) -> CircuitBuilder:
+        """Append a two-qubit XX rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            first: First target quantum wire index or wire id.
+            second: Second target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RXX", first, second, params=(theta,))
 
     def ryy(self, theta: object, first: WireReference, second: WireReference) -> CircuitBuilder:
+        """Append a two-qubit YY rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            first: First target quantum wire index or wire id.
+            second: Second target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RYY", first, second, params=(theta,))
 
     def rzz(self, theta: object, first: WireReference, second: WireReference) -> CircuitBuilder:
+        """Append a two-qubit ZZ rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            first: First target quantum wire index or wire id.
+            second: Second target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RZZ", first, second, params=(theta,))
 
     def rzx(self, theta: object, first: WireReference, second: WireReference) -> CircuitBuilder:
+        """Append a two-qubit ZX rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            first: First target quantum wire index or wire id.
+            second: Second target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RZX", first, second, params=(theta,))
 
     def u(
@@ -127,24 +334,98 @@ class CircuitBuilder:
         lam: object,
         target: WireReference,
     ) -> CircuitBuilder:
+        """Append a general single-qubit U gate.
+
+        Args:
+            theta: First U-gate parameter.
+            phi: Second U-gate parameter.
+            lam: Third U-gate parameter.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("U", target, params=(theta, phi, lam))
 
     def u2(self, phi: object, lam: object, target: WireReference) -> CircuitBuilder:
+        """Append a two-parameter U2 gate.
+
+        Args:
+            phi: First U2 parameter.
+            lam: Second U2 parameter.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("U2", target, params=(phi, lam))
 
     def cx(self, control: WireReference, target: WireReference) -> CircuitBuilder:
+        """Append a controlled-X gate.
+
+        Args:
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("X", target, controls=(control,))
 
     def cy(self, control: WireReference, target: WireReference) -> CircuitBuilder:
+        """Append a controlled-Y gate.
+
+        Args:
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("Y", target, controls=(control,))
 
     def cz(self, control: WireReference, target: WireReference) -> CircuitBuilder:
+        """Append a controlled-Z gate.
+
+        Args:
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("Z", target, controls=(control,))
 
     def ch(self, control: WireReference, target: WireReference) -> CircuitBuilder:
+        """Append a controlled-Hadamard gate.
+
+        Args:
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("H", target, controls=(control,))
 
     def cp(self, theta: object, control: WireReference, target: WireReference) -> CircuitBuilder:
+        """Append a controlled phase gate.
+
+        Args:
+            theta: Phase angle or symbolic parameter to display.
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("P", target, controls=(control,), params=(theta,))
 
     def crx(
@@ -153,6 +434,17 @@ class CircuitBuilder:
         control: WireReference,
         target: WireReference,
     ) -> CircuitBuilder:
+        """Append a controlled X-axis rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RX", target, controls=(control,), params=(theta,))
 
     def cry(
@@ -161,6 +453,17 @@ class CircuitBuilder:
         control: WireReference,
         target: WireReference,
     ) -> CircuitBuilder:
+        """Append a controlled Y-axis rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RY", target, controls=(control,), params=(theta,))
 
     def crz(
@@ -169,6 +472,17 @@ class CircuitBuilder:
         control: WireReference,
         target: WireReference,
     ) -> CircuitBuilder:
+        """Append a controlled Z-axis rotation gate.
+
+        Args:
+            theta: Rotation angle or symbolic parameter to display.
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RZ", target, controls=(control,), params=(theta,))
 
     def cu(
@@ -180,9 +494,33 @@ class CircuitBuilder:
         control: WireReference,
         target: WireReference,
     ) -> CircuitBuilder:
+        """Append a controlled general U gate.
+
+        Args:
+            theta: First U parameter.
+            phi: Second U parameter.
+            lam: Third U parameter.
+            gamma: Global phase or fourth controlled-U parameter to display.
+            control: Control quantum wire index or wire id.
+            target: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("U", target, controls=(control,), params=(theta, phi, lam, gamma))
 
     def swap(self, first: WireReference, second: WireReference) -> CircuitBuilder:
+        """Append an uncontrolled two-qubit swap operation.
+
+        Args:
+            first: First target quantum wire index or wire id.
+            second: Second target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         first_wire_id = self._resolve_quantum_wire_id(first)
         second_wire_id = self._resolve_quantum_wire_id(second)
         self._operations.append(
@@ -195,6 +533,16 @@ class CircuitBuilder:
         return self
 
     def barrier(self, *qubits: WireReference) -> CircuitBuilder:
+        """Append a barrier operation.
+
+        Args:
+            *qubits: Optional quantum wire indices or ids. When omitted, the barrier
+                spans every quantum wire.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         target_wire_ids = (
             tuple(wire.id for wire in self._quantum_wires)
             if not qubits
@@ -210,9 +558,28 @@ class CircuitBuilder:
         return self
 
     def reset(self, qubit: WireReference) -> CircuitBuilder:
+        """Append a reset operation on one quantum wire.
+
+        Args:
+            qubit: Target quantum wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         return self.gate("RESET", qubit)
 
     def measure(self, qubit: WireReference, cbit: WireReference) -> CircuitBuilder:
+        """Append one quantum-to-classical measurement.
+
+        Args:
+            qubit: Source quantum wire index or wire id.
+            cbit: Target classical wire index or wire id.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         quantum_wire_id = self._resolve_quantum_wire_id(qubit)
         classical_wire = self._resolve_classical_wire(cbit)
         self._operations.append(
@@ -227,6 +594,12 @@ class CircuitBuilder:
         return self
 
     def measure_all(self) -> CircuitBuilder:
+        """Append one measurement from every qubit to the matching classical bit.
+
+        Returns:
+            This builder so calls can be chained.
+        """
+
         if len(self._classical_wires) != len(self._quantum_wires):
             raise ValueError("measure_all requires the same number of classical and quantum wires")
         for index, _wire in enumerate(self._quantum_wires):
@@ -234,7 +607,12 @@ class CircuitBuilder:
         return self
 
     def build(self) -> CircuitIR:
-        """Build a packed ``CircuitIR`` from the appended operations."""
+        """Build a packed ``CircuitIR`` from the appended operations.
+
+        Returns:
+            ``CircuitIR`` with resolved wires and operations packed into drawable
+            layers.
+        """
 
         return CircuitIR(
             quantum_wires=self._quantum_wires,

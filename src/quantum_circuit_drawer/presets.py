@@ -11,7 +11,14 @@ from .style.theme import resolve_theme
 
 
 class StylePreset(StrEnum):
-    """Named presets shared by circuit and histogram APIs."""
+    """Named appearance presets shared by circuits and histograms.
+
+    Values:
+        ``PAPER`` favors light report-friendly output. ``NOTEBOOK`` uses a light
+        interactive-friendly baseline. ``COMPACT`` reduces spacing for dense circuits.
+        ``PRESENTATION`` uses larger, clearer output. ``ACCESSIBLE`` favors stronger
+        contrast and outlines.
+    """
 
     PAPER = "paper"
     NOTEBOOK = "notebook"
@@ -21,7 +28,15 @@ class StylePreset(StrEnum):
 
 
 def normalize_style_preset(value: StylePreset | str | None) -> StylePreset | None:
-    """Normalize an optional preset name into ``StylePreset``."""
+    """Validate and normalize an optional style preset.
+
+    Args:
+        value: ``None``, a ``StylePreset``, or one of ``"paper"``, ``"notebook"``,
+            ``"compact"``, ``"presentation"``, and ``"accessible"``.
+
+    Returns:
+        The matching ``StylePreset`` or ``None`` when no preset was requested.
+    """
 
     if value is None:
         return None
@@ -37,7 +52,16 @@ def apply_draw_style_preset(
     *,
     preset: StylePreset | None,
 ) -> DrawStyle:
-    """Apply a preset baseline before explicit user overrides."""
+    """Apply a preset baseline before explicit user style overrides.
+
+    Args:
+        style: ``None``, a ``DrawStyle``, or a mapping of draw-style fields.
+        preset: Optional normalized preset to use as the baseline.
+
+    Returns:
+        A validated ``DrawStyle``. Mapping values in ``style`` override the preset
+        baseline; existing ``DrawStyle`` instances are validated as explicit styles.
+    """
 
     if preset is None:
         return normalize_style(style)
@@ -56,7 +80,14 @@ def apply_draw_style_preset(
 
 
 def histogram_theme_for_preset(preset: StylePreset | None) -> DrawTheme | None:
-    """Return the histogram theme baseline for a preset."""
+    """Return the histogram theme baseline for a preset.
+
+    Args:
+        preset: Optional normalized style preset.
+
+    Returns:
+        A ``DrawTheme`` for the preset, or ``None`` when no preset was requested.
+    """
 
     if preset is None:
         return None
@@ -70,7 +101,15 @@ def histogram_theme_for_preset(preset: StylePreset | None) -> DrawTheme | None:
 
 
 def histogram_draw_style_for_preset(preset: StylePreset | None) -> str | None:
-    """Return the histogram draw-style baseline name for a preset."""
+    """Return the histogram draw-style baseline name for a preset.
+
+    Args:
+        preset: Optional normalized style preset.
+
+    Returns:
+        One of ``"solid"``, ``"outline"``, or ``"soft"``, or ``None`` when the
+        default draw style should be kept.
+    """
 
     if preset is None:
         return None
@@ -88,7 +127,15 @@ def histogram_draw_style_for_preset(preset: StylePreset | None) -> str | None:
 def histogram_figsize_for_preset(
     preset: StylePreset | None,
 ) -> tuple[float, float] | None:
-    """Return the histogram figure-size baseline for a preset."""
+    """Return the histogram figure-size baseline for a preset.
+
+    Args:
+        preset: Optional normalized style preset.
+
+    Returns:
+        ``(width, height)`` in inches, or ``None`` when the default figure size should
+        be used.
+    """
 
     if preset is None:
         return None

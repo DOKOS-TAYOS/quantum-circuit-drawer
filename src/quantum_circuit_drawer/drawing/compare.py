@@ -48,8 +48,10 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
+    from ..config import ViewMode
     from ..layout.scene import LayoutScene
     from ..result import DrawResult
+    from ..typing import OutputPath
     from .preparation import PreparedDrawCall
 
 
@@ -85,14 +87,46 @@ def compare_circuits(
     left_circuit: object,
     right_circuit: object,
     *additional_circuits: object,
+    mode: DrawMode | str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    left_title: str | None = None,
+    right_title: str | None = None,
+    titles: tuple[str, ...] | None = None,
+    highlight_differences: bool | None = None,
+    show_summary: bool | None = None,
     config: CircuitCompareConfig | None = None,
     axes: tuple[Axes, ...] | None = None,
     summary_ax: Axes | None = None,
 ) -> CircuitCompareResult:
-    """Render two or more circuits side by side and return structural comparison data."""
+    """Render two or more circuits side by side and return structural comparison data.
+
+    Direct kwargs cover the common shared render, title, summary, and output choices.
+    When ``config`` is also provided, non-``None`` direct kwargs override only their
+    matching common fields while per-side appearance and advanced adapter settings stay
+    in ``CircuitCompareConfig``.
+    """
 
     with logged_api_call(logger, api="compare_circuits") as started_at:
-        resolved_compare_config = config or CircuitCompareConfig()
+        resolved_compare_config = _merge_circuit_compare_config(
+            config,
+            mode=mode,
+            show=show,
+            output_path=output_path,
+            figsize=figsize,
+            framework=framework,
+            view=view,
+            composite_mode=composite_mode,
+            left_title=left_title,
+            right_title=right_title,
+            titles=titles,
+            highlight_differences=highlight_differences,
+            show_summary=show_summary,
+        )
         if axes is not None and resolved_compare_config.figsize is not None:
             raise ValueError("figsize cannot be used with axes in compare_circuits")
         if axes is None and summary_ax is not None:
@@ -251,6 +285,127 @@ def compare_circuits(
                 saved_path=result.saved_path,
             )
             return result
+
+
+def _merge_circuit_compare_config(
+    config: CircuitCompareConfig | None,
+    *,
+    mode: DrawMode | str | None = None,
+    show: bool | None = None,
+    output_path: OutputPath | None = None,
+    figsize: tuple[float, float] | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+    left_title: str | None = None,
+    right_title: str | None = None,
+    titles: tuple[str, ...] | None = None,
+    highlight_differences: bool | None = None,
+    show_summary: bool | None = None,
+) -> CircuitCompareConfig:
+    resolved_config = CircuitCompareConfig() if config is None else config
+
+    shared_config = resolved_config.shared
+    shared_render = _merge_compare_render_options(
+        shared_config.render,
+        mode=mode,
+        framework=framework,
+        view=view,
+        composite_mode=composite_mode,
+    )
+    if shared_render is not shared_config.render:
+        shared_config = replace(shared_config, render=shared_render)
+
+    left_render = (
+        None
+        if resolved_config.left_render is None
+        else _merge_compare_render_options(
+            resolved_config.left_render,
+            mode=mode,
+            framework=framework,
+            view=view,
+            composite_mode=composite_mode,
+        )
+    )
+    right_render = (
+        None
+        if resolved_config.right_render is None
+        else _merge_compare_render_options(
+            resolved_config.right_render,
+            mode=mode,
+            framework=framework,
+            view=view,
+            composite_mode=composite_mode,
+        )
+    )
+
+    compare_options = resolved_config.compare
+    if (
+        left_title is not None
+        or right_title is not None
+        or titles is not None
+        or highlight_differences is not None
+        or show_summary is not None
+    ):
+        compare_options = replace(
+            compare_options,
+            left_title=compare_options.left_title if left_title is None else left_title,
+            right_title=compare_options.right_title if right_title is None else right_title,
+            titles=compare_options.titles if titles is None else titles,
+            highlight_differences=(
+                compare_options.highlight_differences
+                if highlight_differences is None
+                else highlight_differences
+            ),
+            show_summary=(compare_options.show_summary if show_summary is None else show_summary),
+        )
+
+    output_options = resolved_config.output
+    if show is not None or output_path is not None or figsize is not None:
+        output_options = replace(
+            output_options,
+            show=output_options.show if show is None else show,
+            output_path=output_options.output_path if output_path is None else output_path,
+            figsize=output_options.figsize if figsize is None else figsize,
+        )
+
+    if (
+        shared_config is resolved_config.shared
+        and left_render is resolved_config.left_render
+        and right_render is resolved_config.right_render
+        and compare_options is resolved_config.compare
+        and output_options is resolved_config.output
+    ):
+        return resolved_config
+    return replace(
+        resolved_config,
+        shared=shared_config,
+        left_render=left_render,
+        right_render=right_render,
+        compare=compare_options,
+        output=output_options,
+    )
+
+
+def _merge_compare_render_options(
+    render_options: CircuitRenderOptions,
+    *,
+    mode: DrawMode | str | None = None,
+    framework: str | None = None,
+    view: ViewMode | None = None,
+    composite_mode: str | None = None,
+) -> CircuitRenderOptions:
+    if mode is None and framework is None and view is None and composite_mode is None:
+        return render_options
+    return replace(
+        render_options,
+        framework=render_options.framework if framework is None else framework,
+        view=render_options.view if view is None else view,
+        mode=render_options.mode if mode is None else mode,
+        composite_mode=(
+            render_options.composite_mode if composite_mode is None else composite_mode
+        ),
+    )
 
 
 def _compare_circuits_with_managed_side_figures(

@@ -102,3 +102,29 @@ def test_draw_quantum_circuit_show_false_suppresses_notebook_result_display(
     assert display_calls == []
     for figure in result.figures:
         plt.close(figure)
+
+
+def test_draw_quantum_circuit_widget_notebook_displays_ipympl_canvas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    display_calls: list[object] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "IPython.display",
+        SimpleNamespace(display=lambda value: display_calls.append(value)),
+    )
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=True, pyplot_backend="ipympl"),
+    )
+
+    result = draw_quantum_circuit(
+        build_sample_ir(),
+        mode="pages_controls",
+    )
+    setattr(result.primary_figure.canvas, "_repr_mimebundle_", lambda *args, **kwargs: {})
+
+    result._ipython_display_()
+
+    assert display_calls == [result.primary_figure.canvas]
+    plt.close(result.primary_figure)

@@ -9,7 +9,13 @@ from ..typing import Metadata
 
 
 class WireKind(StrEnum):
-    """Supported wire kinds."""
+    """Kinds of wires that can appear in public IR objects.
+
+    Values:
+        ``QUANTUM`` marks wires that carry qubit operations. ``CLASSICAL`` marks wires
+        used for measurement results, classical conditions, and classical register
+        display.
+    """
 
     QUANTUM = "quantum"
     CLASSICAL = "classical"
@@ -19,8 +25,12 @@ class WireKind(StrEnum):
 class WireIR:
     """Framework-neutral wire description.
 
-    ``index`` preserves source ordering, while ``label`` stores the human-facing
-    text drawn next to the wire. When omitted, the label defaults to ``id``.
+    Attributes:
+        id: Unique stable wire identifier used by operations and measurements.
+        index: Source-order index within its quantum or classical register group.
+        kind: ``WireKind.QUANTUM`` or ``WireKind.CLASSICAL``.
+        label: Human-facing text drawn next to the wire. ``None`` defaults to ``id``.
+        metadata: Optional framework metadata preserved for adapters and extensions.
     """
 
     id: str

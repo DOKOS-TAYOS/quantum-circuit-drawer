@@ -108,6 +108,67 @@ def test_analyze_quantum_circuit_returns_public_summary_without_rendering(
     assert not output_path.exists()
 
 
+def test_analyze_quantum_circuit_accepts_flat_common_kwargs() -> None:
+    result = analyze_quantum_circuit(
+        _analysis_ir(),
+        mode="full",
+        framework="ir",
+        view="3d",
+        composite_mode="compact",
+        topology="grid",
+        topology_qubits="used",
+    )
+
+    assert result.detected_framework == "ir"
+    assert result.mode is DrawMode.FULL
+    assert result.view == "3d"
+    assert result.operation_count == 4
+
+
+def test_analyze_quantum_circuit_flat_kwargs_override_config() -> None:
+    config = DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework="ir",
+                mode=DrawMode.PAGES,
+                view="2d",
+            )
+        ),
+        output=OutputOptions(show=True),
+    )
+
+    result = analyze_quantum_circuit(
+        _analysis_ir(),
+        mode="full",
+        view="3d",
+        config=config,
+    )
+
+    assert result.mode is DrawMode.FULL
+    assert result.view == "3d"
+
+
+def test_analyze_quantum_circuit_flat_strings_and_enums_match() -> None:
+    enum_result = analyze_quantum_circuit(
+        _analysis_ir(),
+        mode=DrawMode.FULL,
+        framework="ir",
+        view="2d",
+        composite_mode="compact",
+    )
+    string_result = analyze_quantum_circuit(
+        _analysis_ir(),
+        mode="full",
+        framework="ir",
+        view="2d",
+        composite_mode="compact",
+    )
+
+    assert enum_result.mode is string_result.mode
+    assert enum_result.view == string_result.view
+    assert enum_result.operation_count == string_result.operation_count
+
+
 def test_analyze_quantum_circuit_to_dict_is_json_friendly() -> None:
     result = analyze_quantum_circuit(
         _analysis_ir(),
@@ -128,3 +189,73 @@ def test_public_package_exports_analysis_api() -> None:
     assert quantum_circuit_drawer.CircuitAnalysisResult is CircuitAnalysisResult
     assert public_api.analyze_quantum_circuit is not None
     assert public_api.CircuitAnalysisResult is CircuitAnalysisResult
+
+
+def test_package_level_analyze_quantum_circuit_forwards_flat_common_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    expected_result = CircuitAnalysisResult(
+        detected_framework="ir",
+        mode=DrawMode.FULL,
+        view="2d",
+        page_count=1,
+        quantum_wire_count=1,
+        classical_wire_count=0,
+        total_wire_count=1,
+        layer_count=0,
+        operation_count=0,
+        gate_count=0,
+        controlled_gate_count=0,
+        multi_qubit_operation_count=0,
+        measurement_count=0,
+        swap_count=0,
+        barrier_count=0,
+    )
+
+    def fake_analyze_quantum_circuit(
+        circuit: object,
+        *,
+        mode: object = None,
+        framework: str | None = None,
+        view: object = None,
+        composite_mode: str | None = None,
+        topology: object = None,
+        topology_qubits: object = None,
+        config: DrawConfig | None = None,
+    ) -> CircuitAnalysisResult:
+        captured["circuit"] = circuit
+        captured["mode"] = mode
+        captured["framework"] = framework
+        captured["view"] = view
+        captured["composite_mode"] = composite_mode
+        captured["topology"] = topology
+        captured["topology_qubits"] = topology_qubits
+        captured["config"] = config
+        return expected_result
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.api.analyze_quantum_circuit",
+        fake_analyze_quantum_circuit,
+    )
+    config = DrawConfig(output=OutputOptions(show=False))
+
+    result = quantum_circuit_drawer.analyze_quantum_circuit(
+        _analysis_ir(),
+        mode="full",
+        framework="ir",
+        view="2d",
+        composite_mode="expand",
+        topology="grid",
+        topology_qubits="all",
+        config=config,
+    )
+
+    assert result is expected_result
+    assert captured["mode"] == "full"
+    assert captured["framework"] == "ir"
+    assert captured["view"] == "2d"
+    assert captured["composite_mode"] == "expand"
+    assert captured["topology"] == "grid"
+    assert captured["topology_qubits"] == "all"
+    assert captured["config"] is config

@@ -50,6 +50,117 @@ def test_circuit_to_latex_returns_quantikz_full_source_for_basic_circuit() -> No
     assert result.to_dict()["backend"] == "quantikz"
 
 
+def test_circuit_to_latex_accepts_flat_common_kwargs() -> None:
+    result = circuit_to_latex(
+        build_sample_ir(),
+        backend="quantikz",
+        mode="full",
+        framework="ir",
+        composite_mode="compact",
+    )
+
+    assert result.backend is LatexBackend.QUANTIKZ
+    assert result.mode is LatexMode.FULL
+    assert result.detected_framework == "ir"
+    assert "\\begin{quantikz}" in result.source
+
+
+def test_circuit_to_latex_flat_kwargs_override_config() -> None:
+    config = DrawConfig(
+        side=DrawSideConfig(
+            render=CircuitRenderOptions(
+                framework="ir",
+                mode=DrawMode.PAGES,
+                composite_mode="expand",
+            )
+        )
+    )
+
+    result = circuit_to_latex(
+        build_sample_ir(),
+        mode="full",
+        composite_mode="compact",
+        config=config,
+    )
+
+    assert result.mode is LatexMode.FULL
+    assert result.page_count == 1
+    assert "% Page 1" not in result.source
+
+
+def test_circuit_to_latex_flat_strings_and_enums_match() -> None:
+    enum_result = circuit_to_latex(
+        build_sample_ir(),
+        backend=LatexBackend.QUANTIKZ,
+        mode=LatexMode.FULL,
+        framework="ir",
+        composite_mode="compact",
+    )
+    string_result = circuit_to_latex(
+        build_sample_ir(),
+        backend="quantikz",
+        mode="full",
+        framework="ir",
+        composite_mode="compact",
+    )
+
+    assert enum_result.backend is string_result.backend
+    assert enum_result.mode is string_result.mode
+    assert enum_result.source == string_result.source
+
+
+def test_package_level_circuit_to_latex_forwards_flat_common_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    expected_result = LatexResult(
+        source="",
+        pages=("",),
+        backend=LatexBackend.QUANTIKZ,
+        mode=LatexMode.FULL,
+        page_count=1,
+    )
+
+    def fake_circuit_to_latex(
+        circuit: object,
+        *,
+        config: DrawConfig | None = None,
+        backend: object = LatexBackend.QUANTIKZ,
+        mode: object = None,
+        framework: str | None = None,
+        composite_mode: str | None = None,
+    ) -> LatexResult:
+        captured["circuit"] = circuit
+        captured["config"] = config
+        captured["backend"] = backend
+        captured["mode"] = mode
+        captured["framework"] = framework
+        captured["composite_mode"] = composite_mode
+        return expected_result
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.api.circuit_to_latex",
+        fake_circuit_to_latex,
+    )
+    config = DrawConfig()
+
+    result = quantum_circuit_drawer.circuit_to_latex(
+        build_sample_ir(),
+        config=config,
+        backend="tikz",
+        mode="full",
+        framework="ir",
+        composite_mode="expand",
+    )
+
+    assert result is expected_result
+    assert captured["config"] is config
+    assert captured["backend"] == "tikz"
+    assert captured["mode"] == "full"
+    assert captured["framework"] == "ir"
+    assert captured["composite_mode"] == "expand"
+
+
 def test_circuit_to_latex_pages_mode_returns_one_source_per_wrapped_page() -> None:
     result = circuit_to_latex(
         build_wrapped_ir(),

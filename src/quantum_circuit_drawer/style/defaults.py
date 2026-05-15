@@ -44,11 +44,36 @@ class DrawStyleChanges(TypedDict, total=False):
 
 @dataclass(slots=True)
 class DrawStyle:
-    """Typed style configuration accepted by ``style=...``.
+    """Typed visual style accepted by ``CircuitAppearanceOptions.style``.
 
-    ``DrawStyle`` mirrors the user-facing style options documented for the
-    public API. Instances are typically passed directly or produced by
-    ``normalize_style(...)`` after validating a mapping.
+    Attributes:
+        font_size: Base text size for gates, wire labels, controls, and annotations.
+        wire_spacing: Vertical spacing between adjacent quantum wires.
+        layer_spacing: Horizontal spacing between operation layers.
+        gate_width: Default gate-box width in layout units.
+        gate_height: Default gate-box height in layout units.
+        line_width: Default line width. ``None`` means the library default.
+        wire_line_width: Optional override for quantum wires.
+        classical_wire_line_width: Optional override for classical wires.
+        gate_edge_line_width: Optional override for gate-box edges.
+        barrier_line_width: Optional override for barrier markers.
+        measurement_line_width: Optional override for measurement box edges.
+        connection_line_width: Optional override for control and condition connectors.
+        topology_edge_line_width: Optional override for 3D topology edges.
+        control_radius: Radius of 2D control dots.
+        show_params: Whether operation parameters are displayed when available.
+        show_wire_labels: Whether wire labels are drawn.
+        use_mathtext: ``True``, ``False``, or ``"auto"`` for Matplotlib MathText use.
+        theme: Resolved ``DrawTheme`` color palette.
+        margin_left: Left padding around managed 2D scenes.
+        margin_right: Right padding around managed 2D scenes.
+        margin_top: Top padding around managed 2D scenes.
+        margin_bottom: Bottom padding around managed 2D scenes.
+        label_margin: Gap between wire labels and the first operation column.
+        classical_wire_gap: Gap between quantum and classical register groups.
+        swap_marker_size: Size of swap cross markers.
+        max_page_width: Maximum 2D page width before adaptive paging.
+        page_vertical_gap: Gap between stacked managed pages.
     """
 
     font_size: float = 12.0
@@ -89,7 +114,16 @@ class DrawStyle:
 
 
 def replace_draw_style(style: DrawStyle, /, **changes: Unpack[DrawStyleChanges]) -> DrawStyle:
-    """Return a ``DrawStyle`` replacement while preserving line-width provenance."""
+    """Return a ``DrawStyle`` copy with selected fields changed.
+
+    Args:
+        style: Existing style to copy.
+        **changes: Any field accepted by ``DrawStyleChanges``.
+
+    Returns:
+        A new ``DrawStyle`` while preserving whether ``line_width`` came from the
+        default or from an explicit user value.
+    """
 
     normalized_changes = dict(changes)
 

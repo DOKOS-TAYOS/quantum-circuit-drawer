@@ -45,7 +45,14 @@ TopologyMode = TopologyInput
 
 
 class DrawMode(StrEnum):
-    """Public render modes for managed and caller-owned drawing paths."""
+    """Render modes accepted by ``draw_quantum_circuit(...)``.
+
+    Values:
+        ``AUTO`` chooses a notebook-friendly or script-friendly mode from the runtime.
+        ``PAGES`` creates explicit pages without interactive controls. ``PAGES_CONTROLS``
+        adds page controls, ``SLIDER`` adds a viewport slider, and ``FULL`` draws the
+        complete circuit in one scene.
+    """
 
     AUTO = "auto"
     PAGES = "pages"
@@ -55,7 +62,12 @@ class DrawMode(StrEnum):
 
 
 class UnsupportedPolicy(StrEnum):
-    """Public policy for recoverable unsupported operations."""
+    """Policy for operations that can be represented only approximately.
+
+    Values:
+        ``RAISE`` stops rendering with ``UnsupportedOperationError``. ``PLACEHOLDER``
+        keeps the circuit drawable by inserting a labeled placeholder where possible.
+    """
 
     RAISE = "raise"
     PLACEHOLDER = "placeholder"
@@ -63,7 +75,18 @@ class UnsupportedPolicy(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class OutputOptions:
-    """Shared output controls for public drawing and plotting APIs."""
+    """Shared output controls for drawing, comparison, and histogram APIs.
+
+    Attributes:
+        show: Whether the library should display the managed Matplotlib figure. In
+            notebooks, ``show=False`` also suppresses automatic rich output for the
+            returned result object.
+        output_path: Optional filesystem path where the rendered image is saved.
+            Pass ``None`` to render without writing a file.
+        figsize: Optional managed figure size as ``(width, height)`` in inches.
+            It cannot be combined with caller-owned axes because the caller already
+            owns that figure.
+    """
 
     show: bool = True
     output_path: OutputPath | None = None
@@ -76,7 +99,37 @@ class OutputOptions:
 
 @dataclass(frozen=True, slots=True)
 class CircuitRenderOptions:
-    """Public circuit-rendering controls grouped by rendering responsibility."""
+    """Circuit interpretation and render-mode options used by ``DrawConfig``.
+
+    Attributes:
+        framework: Optional explicit adapter name such as ``"ir"``, ``"qiskit"``,
+            ``"cirq"``, ``"pennylane"``, ``"myqlm"``, ``"cudaq"``, or ``"qasm"``.
+            Leave ``None`` to autodetect supported inputs.
+        backend: Renderer backend. The public value is currently ``"matplotlib"``.
+        layout: Optional custom 2D or 3D layout engine implementing the public layout
+            protocol.
+        view: ``"2d"`` for standard diagrams or ``"3d"`` for topology-aware hardware
+            views.
+        mode: ``DrawMode`` or one of ``"auto"``, ``"pages"``, ``"pages_controls"``,
+            ``"slider"``, or ``"full"``.
+        composite_mode: ``"compact"`` keeps composite/control-flow operations as
+            boxes when possible; ``"expand"`` draws their interior operations.
+        topology: Built-in topology name, ``HardwareTopology``, ``FunctionalTopology``,
+            ``PeriodicTopology1D``, or ``PeriodicTopology2D`` used for 3D views.
+        topology_qubits: ``"used"`` draws only nodes used by the circuit; ``"all"``
+            keeps the whole topology footprint.
+        topology_resize: ``"error"`` rejects undersized flexible topologies; ``"fit"``
+            allows generated topologies to resize to the circuit.
+        topology_menu: Whether managed 3D modes show a topology selector.
+        direct: 3D routing flag used by topology layouts.
+        keyboard_shortcuts: Whether managed interactive circuit viewers respond to
+            keyboard navigation.
+        double_click_toggle: Whether double-clicking semantic blocks toggles collapse
+            and expansion in managed viewers.
+        unsupported_policy: ``UnsupportedPolicy.RAISE`` or ``PLACEHOLDER``.
+        adapter_options: Adapter-specific options, for example CUDA-Q runtime
+            arguments.
+    """
 
     framework: str | None = None
     backend: str = "matplotlib"
@@ -117,7 +170,18 @@ class CircuitRenderOptions:
 
 @dataclass(frozen=True, slots=True)
 class CircuitAppearanceOptions:
-    """Public circuit style and hover controls."""
+    """Circuit appearance options used by ``DrawConfig.side``.
+
+    Attributes:
+        preset: Optional ``StylePreset`` or preset string. Valid strings are
+            ``"paper"``, ``"notebook"``, ``"compact"``, ``"presentation"``, and
+            ``"accessible"``.
+        style: Explicit ``DrawStyle`` or mapping of style fields. Explicit values win
+            over preset defaults.
+        hover: ``False`` disables hover, ``True`` enables default hover, a
+            ``HoverOptions`` instance gives typed control, and a mapping may override
+            selected hover fields.
+    """
 
     preset: StylePreset | str | None = None
     style: DrawStyle | Mapping[str, object] | None = None
@@ -136,7 +200,14 @@ class CircuitAppearanceOptions:
 
 @dataclass(frozen=True, slots=True)
 class DrawSideConfig:
-    """Public circuit-side configuration without output ownership."""
+    """Circuit-side configuration shared by drawing and comparison calls.
+
+    Attributes:
+        render: ``CircuitRenderOptions`` for framework selection, render mode,
+            composite expansion, view, topology, and adapter behavior.
+        appearance: ``CircuitAppearanceOptions`` for preset, style, and hover behavior.
+            Output ownership lives separately in ``OutputOptions``.
+    """
 
     render: CircuitRenderOptions = field(default_factory=CircuitRenderOptions)
     appearance: CircuitAppearanceOptions = field(default_factory=CircuitAppearanceOptions)
@@ -148,7 +219,16 @@ class DrawSideConfig:
 
 @dataclass(frozen=True, slots=True)
 class DrawConfig:
-    """Public draw configuration grouped into typed option blocks."""
+    """Full advanced configuration for ``draw_quantum_circuit(...)``.
+
+    Attributes:
+        side: Circuit-specific configuration. It contains ``side.render`` for
+            framework, mode, view, topology, and adapter choices, plus
+            ``side.appearance`` for styling and hover.
+        output: Shared output controls for ``show``, ``output_path``, and ``figsize``.
+            Direct kwargs on ``draw_quantum_circuit(...)`` override only their matching
+            fields when they are not ``None``.
+    """
 
     side: DrawSideConfig = field(default_factory=DrawSideConfig)
     output: OutputOptions = field(default_factory=OutputOptions)
@@ -257,6 +337,16 @@ class ResolvedDrawConfig:
 
 
 def normalize_draw_mode(value: DrawMode | str) -> DrawMode:
+    """Validate and normalize a draw-mode value.
+
+    Args:
+        value: A ``DrawMode`` member or one of ``"auto"``, ``"pages"``,
+            ``"pages_controls"``, ``"slider"``, or ``"full"``.
+
+    Returns:
+        The corresponding ``DrawMode`` enum member.
+    """
+
     try:
         return value if isinstance(value, DrawMode) else DrawMode(str(value))
     except ValueError as exc:
@@ -265,6 +355,15 @@ def normalize_draw_mode(value: DrawMode | str) -> DrawMode:
 
 
 def normalize_unsupported_policy(value: UnsupportedPolicy | str) -> UnsupportedPolicy:
+    """Validate and normalize unsupported-operation policy input.
+
+    Args:
+        value: ``UnsupportedPolicy`` or one of ``"raise"`` and ``"placeholder"``.
+
+    Returns:
+        The corresponding ``UnsupportedPolicy`` enum member.
+    """
+
     try:
         return value if isinstance(value, UnsupportedPolicy) else UnsupportedPolicy(str(value))
     except ValueError as exc:
@@ -273,7 +372,15 @@ def normalize_unsupported_policy(value: UnsupportedPolicy | str) -> UnsupportedP
 
 
 def validate_output_options(output: OutputOptions) -> None:
-    """Validate one shared output block instance."""
+    """Validate one shared output block instance.
+
+    Args:
+        output: The ``OutputOptions`` object to validate.
+
+    Returns:
+        ``None``. A ``ValueError`` is raised by nested validators if the object is not
+        a valid output block.
+    """
 
     _validate_instance("output", output, OutputOptions)
 
