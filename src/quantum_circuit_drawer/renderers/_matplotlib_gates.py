@@ -68,6 +68,9 @@ class _PreparedGateText:
     is_stacked: bool
 
 
+_WIRE_LABEL_LEFT_PADDING = 0.08
+
+
 def _prepared_gate_text(
     gate: SceneGate,
     *,
@@ -836,6 +839,9 @@ def draw_text(
     text_fit_cache: _GateTextCache | None = None,
 ) -> None:
     visible_text = format_visible_label(text.text, use_mathtext=scene.style.use_mathtext)
+    available_width = _text_available_width(text, scene)
+    available_height = _text_available_height(text, scene)
+    height_fraction = _text_height_fraction(text)
     text_artist = _add_text_artist(
         ax,
         text.x + x_offset,
@@ -846,11 +852,11 @@ def draw_text(
         fontsize=_fit_gate_text_font_size(
             ax=ax,
             scene=scene,
-            width=scene.style.gate_width,
-            height=scene.style.gate_height,
+            width=available_width,
+            height=available_height,
             text=visible_text,
             default_font_size=text.font_size or scene.style.font_size,
-            height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+            height_fraction=height_fraction,
             context=text_fit_context,
             cache=text_fit_cache,
         ),
@@ -865,10 +871,32 @@ def draw_text(
     set_gate_text_metadata(
         text_artist,
         role="wire_label",
-        gate_width=scene.style.gate_width,
-        gate_height=scene.style.gate_height,
-        height_fraction=_SINGLE_LINE_HEIGHT_FRACTION,
+        gate_width=available_width,
+        gate_height=available_height,
+        height_fraction=height_fraction,
     )
+
+
+def _text_available_width(text: SceneText, scene: LayoutScene) -> float:
+    if _uses_expanded_wire_label_lane(text):
+        return max(scene.style.gate_width, text.x - _WIRE_LABEL_LEFT_PADDING)
+    return scene.style.gate_width
+
+
+def _text_available_height(text: SceneText, scene: LayoutScene) -> float:
+    if _uses_expanded_wire_label_lane(text):
+        return scene.style.wire_spacing
+    return scene.style.gate_height
+
+
+def _text_height_fraction(text: SceneText) -> float:
+    if _uses_expanded_wire_label_lane(text):
+        return 0.82
+    return _SINGLE_LINE_HEIGHT_FRACTION
+
+
+def _uses_expanded_wire_label_lane(text: SceneText) -> bool:
+    return text.wire_id is not None and text.ha == "right" and len(text.text) > 4
 
 
 def draw_gate_annotation(

@@ -26,6 +26,12 @@ class _OperationMetrics:
     subtitle: str | None
 
 
+_WIRE_LABEL_MARGIN_FONT_SCALE = 0.32
+_WIRE_LABEL_MARGIN_MAX_PAGE_FRACTION = 0.14
+_WIRE_LABEL_MARGIN_MAX_GATE_MULTIPLIER = 3.5
+_WIRE_LABEL_MARGIN_MIN_GATE_MULTIPLIER = 1.5
+
+
 @dataclass(frozen=True, slots=True)
 class _LayoutScaffold:
     draw_style: DrawStyle
@@ -158,7 +164,7 @@ def _resolve_scene_style(circuit: CircuitIR, style: DrawStyle) -> DrawStyle:
     if style.show_wire_labels:
         widest_label = max(
             (
-                estimate_text_width(wire.label or wire.id, style.font_size * 0.82)
+                _estimate_wire_label_width(wire.label or wire.id, style)
                 for wire in circuit.all_wires
             ),
             default=0.0,
@@ -169,6 +175,26 @@ def _resolve_scene_style(circuit: CircuitIR, style: DrawStyle) -> DrawStyle:
         margin_left=left_margin,
         margin_right=max(0.22, style.margin_right),
     )
+
+
+def _estimate_wire_label_width(label: str, style: DrawStyle) -> float:
+    """Estimate the left label lane without letting long names dominate the scene."""
+
+    if not label:
+        return 0.0
+    estimated_width = estimate_text_width(
+        label,
+        style.font_size * _WIRE_LABEL_MARGIN_FONT_SCALE,
+    )
+    max_label_width = max(
+        style.gate_width,
+        min(
+            style.max_page_width * _WIRE_LABEL_MARGIN_MAX_PAGE_FRACTION,
+            style.gate_width * _WIRE_LABEL_MARGIN_MAX_GATE_MULTIPLIER,
+        ),
+    )
+    min_label_width = style.gate_width * _WIRE_LABEL_MARGIN_MIN_GATE_MULTIPLIER
+    return min(max(estimated_width, min_label_width), max_label_width)
 
 
 def _build_operation_metrics_and_column_widths(

@@ -177,6 +177,30 @@ def test_matplotlib_renderer_repeats_wire_labels_when_wrapping_pages() -> None:
     )
 
 
+def test_matplotlib_renderer_keeps_named_wire_labels_readable() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="qchannel(1)[0]"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="qchannel(1)[1]"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="qchannel(2)"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(use_mathtext=False))
+    figure, axes = plt.subplots(figsize=(5.0, 2.4))
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    figure.canvas.draw()
+
+    label = _find_axis_text(axes, "qchannel(1)[0]")
+
+    assert label.get_fontsize() >= scene.style.font_size * 0.7
+
+
 def test_matplotlib_renderer_draws_canonical_cx_without_gate_box_text() -> None:
     circuit = CircuitIR(
         quantum_wires=[

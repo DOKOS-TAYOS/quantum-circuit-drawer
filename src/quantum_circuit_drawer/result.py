@@ -37,6 +37,17 @@ class DrawResult:
     hover_enabled: bool = False
     saved_path: str | None = None
 
+    def _ipython_display_(self) -> None:
+        """Display contained figures in IPython without showing the dataclass repr."""
+
+        try:
+            from IPython.display import display
+        except Exception:
+            return
+
+        for figure in self.figures:
+            display(figure)
+
     @property
     def resolved_mode(self) -> DrawMode:
         """Return the effective draw mode used for this render."""

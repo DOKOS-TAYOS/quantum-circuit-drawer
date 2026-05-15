@@ -37,8 +37,11 @@ class _QiskitCircuitLike(Protocol):
     qubits: Sequence[object]
     clbits: Sequence[object]
     data: Sequence[object]
+    qregs: Sequence[_QiskitRegisterLike]
     cregs: Sequence[_QiskitRegisterLike]
     name: str | None
+
+    def find_bit(self, bit: object) -> object: ...
 
 
 class QiskitAdapter(BaseAdapter):
@@ -75,10 +78,7 @@ class QiskitAdapter(BaseAdapter):
             clbits,
         )
 
-        quantum_wires = [
-            WireIR(id=qubit_ids[bit], index=index, kind=WireKind.QUANTUM, label=f"q{index}")
-            for index, bit in enumerate(qubits)
-        ]
+        quantum_wires = self._build_quantum_wires(typed_circuit, qubits, qubit_ids)
 
         operations: list[SemanticOperationIR] = []
         for instruction_index, entry in enumerate(typed_circuit.data):
@@ -588,3 +588,77 @@ class QiskitAdapter(BaseAdapter):
                 classical_targets[bit] = (wire_id, f"c[{bit_index}]")
 
         return classical_wires, classical_targets, register_targets
+
+    def _build_quantum_wires(
+        self,
+        circuit: _QiskitCircuitLike,
+        qubits: list[object],
+        qubit_ids: dict[object, str],
+    ) -> list[WireIR]:
+        """Build quantum wires while preserving meaningful Qiskit register names."""
+
+        return [
+            WireIR(
+                id=qubit_ids[bit],
+                index=index,
+                kind=WireKind.QUANTUM,
+                label=self._quantum_wire_label(
+                    circuit,
+                    bit,
+                    fallback_label=qubit_ids[bit],
+                    fallback_index=index,
+                ),
+            )
+            for index, bit in enumerate(qubits)
+        ]
+
+    def _quantum_wire_label(
+        self,
+        circuit: _QiskitCircuitLike,
+        bit: object,
+        *,
+        fallback_label: str,
+        fallback_index: int,
+    ) -> str:
+        register, bit_index = self._quantum_register_location(circuit, bit)
+        if register is None:
+            return fallback_label
+
+        register_name = getattr(register, "name", None)
+        if not register_name or register_name == "q":
+            return fallback_label
+
+        register_size = self._register_size(register)
+        if register_size <= 1:
+            return register_name
+        return f"{register_name}[{bit_index if bit_index is not None else fallback_index}]"
+
+    def _quantum_register_location(
+        self,
+        circuit: _QiskitCircuitLike,
+        bit: object,
+    ) -> tuple[_QiskitRegisterLike | None, int | None]:
+        find_bit = getattr(circuit, "find_bit", None)
+        if callable(find_bit):
+            try:
+                location = find_bit(bit)
+            except Exception:
+                location = None
+            registers = getattr(location, "registers", ()) if location is not None else ()
+            for register, bit_index in registers:
+                return cast(_QiskitRegisterLike, register), int(bit_index)
+
+        for register in tuple(getattr(circuit, "qregs", ()) or ()):
+            for bit_index, registered_bit in enumerate(register):
+                if registered_bit is bit or registered_bit == bit:
+                    return register, bit_index
+
+        register = getattr(bit, "_register", None)
+        bit_index = getattr(bit, "_index", None)
+        if register is None:
+            return None, None
+        resolved_bit_index = int(bit_index) if bit_index is not None else None
+        return cast(_QiskitRegisterLike, register), resolved_bit_index
+
+    def _register_size(self, register: _QiskitRegisterLike) -> int:
+        return len(tuple(register))

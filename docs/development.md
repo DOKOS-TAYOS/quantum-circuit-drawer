@@ -141,6 +141,8 @@ Linux or WSL:
 .venv/bin/python -m bandit -c pyproject.toml -r src scripts
 ```
 
+CodeQL scanning is intentionally managed through GitHub's default setup for this repository. Do not add a repository CodeQL workflow unless default setup is disabled first in GitHub.
+
 To remove local caches and generated build artifacts without touching `.venv`, use:
 
 Windows PowerShell:

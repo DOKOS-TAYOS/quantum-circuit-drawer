@@ -83,13 +83,14 @@ def test_dependabot_monitors_python_and_github_actions() -> None:
 
 def test_security_workflows_are_configured() -> None:
     security_text = Path(".github/workflows/security.yml").read_text(encoding="utf-8")
-    codeql_text = Path(".github/workflows/codeql.yml").read_text(encoding="utf-8")
 
     assert "actions/dependency-review-action@v4" in security_text
     assert "python -m pip_audit" in security_text
     assert "python -m bandit" in security_text
-    assert "github/codeql-action/init@v4" in codeql_text
-    assert "github/codeql-action/analyze@v4" in codeql_text
+
+
+def test_codeql_uses_github_default_setup_instead_of_advanced_workflow() -> None:
+    assert not Path(".github/workflows/codeql.yml").exists()
 
 
 def test_publish_workflow_uses_pypi_trusted_publishing() -> None:

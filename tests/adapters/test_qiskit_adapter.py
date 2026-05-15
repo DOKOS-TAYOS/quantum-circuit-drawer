@@ -196,6 +196,24 @@ def test_qiskit_adapter_groups_classical_bits_by_register() -> None:
     ]
 
 
+def test_qiskit_adapter_preserves_named_quantum_register_labels() -> None:
+    first = qiskit.QuantumRegister(2, name="qchannel(1)")
+    second = qiskit.QuantumRegister(1, name="qchannel(2)")
+    classical = qiskit.ClassicalRegister(3, name="classic")
+    circuit = qiskit.QuantumCircuit(first, second, classical, name="Circuit")
+
+    ir = QiskitAdapter().to_ir(circuit)
+
+    assert_quantum_wire_labels(
+        ir,
+        [
+            "qchannel(1)[0]",
+            "qchannel(1)[1]",
+            "qchannel(2)",
+        ],
+    )
+
+
 def test_qiskit_adapter_keeps_individual_classical_bit_labels() -> None:
     quantum = qiskit.QuantumRegister(2, "q")
     classical = qiskit.ClassicalRegister(2, "alpha")

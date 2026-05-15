@@ -77,6 +77,36 @@ def test_layout_engine_assigns_columns_and_geometry() -> None:
     assert scene.gates[2].column == 1
 
 
+def test_layout_engine_keeps_named_wire_label_margin_compact() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="qchannel(1)[0]"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="qchannel(1)[1]"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="qchannel(2)"),
+        ],
+        classical_wires=[
+            WireIR(
+                id="c0",
+                index=0,
+                kind=WireKind.CLASSICAL,
+                label="classic",
+                metadata={"bundle_size": 3},
+            )
+        ],
+        layers=[
+            LayerIR(
+                operations=[OperationIR(kind=OperationKind.GATE, name="H", target_wires=("q0",))]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert scene.style.margin_left > DrawStyle().margin_left
+    assert scene.style.margin_left < 3.0
+    assert scene.width < 6.0
+
+
 def test_layout_engine_reuses_hover_matrix_resolution_for_repeated_gates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

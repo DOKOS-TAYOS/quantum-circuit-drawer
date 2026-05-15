@@ -49,6 +49,37 @@ def test_draw_quantum_circuit_returns_draw_result_for_managed_render() -> None:
     plt.close(result.primary_figure)
 
 
+def test_draw_result_ipython_display_shows_figures_without_plain_repr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    formatters = pytest.importorskip("IPython.core.formatters")
+    ipython_display = pytest.importorskip("IPython.display")
+
+    displayed_objects: list[object] = []
+
+    def capture_display(obj: object) -> None:
+        displayed_objects.append(obj)
+
+    monkeypatch.setattr(ipython_display, "display", capture_display)
+    figure, axes = plt.subplots()
+    result = DrawResult(
+        primary_figure=figure,
+        primary_axes=axes,
+        figures=(figure,),
+        axes=(axes,),
+        mode=DrawMode.PAGES,
+        page_count=1,
+    )
+
+    data, metadata = formatters.DisplayFormatter().format(result)
+
+    assert data == {}
+    assert metadata == {}
+    assert displayed_objects == [figure]
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_returns_draw_result_for_caller_axes() -> None:
     figure, axes = plt.subplots()
 
