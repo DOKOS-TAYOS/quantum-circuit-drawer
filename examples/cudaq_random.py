@@ -5,18 +5,15 @@ from __future__ import annotations
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from random import Random
-from typing import overload
 
 import cudaq
 
 try:
     from examples._bootstrap import ensure_local_project_on_path
     from examples._render_support import release_rendered_result
-    from examples._shared import ExampleRequest
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
     from _render_support import release_rendered_result
-    from _shared import ExampleRequest
 
 ensure_local_project_on_path(__file__)
 
@@ -24,14 +21,18 @@ from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circu
 
 
 def _resolved_build_kernel_inputs(
-    request: ExampleRequest | None,
+    request: object | None,
     *,
     qubit_count: int | None,
     column_count: int | None,
     seed: int | None,
 ) -> tuple[int, int, int]:
     if request is not None:
-        return request.qubits, request.columns, request.seed
+        return (
+            int(getattr(request, "qubits")),
+            int(getattr(request, "columns")),
+            int(getattr(request, "seed")),
+        )
     if qubit_count is None or column_count is None or seed is None:
         raise TypeError(
             "build_kernel() requires either an ExampleRequest or qubit_count, column_count, and seed"
@@ -39,16 +40,8 @@ def _resolved_build_kernel_inputs(
     return qubit_count, column_count, seed
 
 
-@overload
-def build_kernel(request: ExampleRequest, /) -> object: ...
-
-
-@overload
-def build_kernel(*, qubit_count: int, column_count: int, seed: int) -> object: ...
-
-
 def build_kernel(
-    request: ExampleRequest | None = None,
+    request: object | None = None,
     /,
     *,
     qubit_count: int | None = None,

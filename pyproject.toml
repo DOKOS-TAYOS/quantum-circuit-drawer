@@ -82,6 +82,11 @@ dev = [
   "pyright>=1.1.403",
   "build>=1.2",
   "twine>=5.1",
+  "wheel>=0.45",
+]
+security = [
+  "bandit[toml]>=1.9.4",
+  "pip-audit>=2.10",
 ]
 
 [tool.setuptools]
@@ -122,6 +127,10 @@ ignore = ["E501"]
 "tests/adapters/test_cudaq_adapter_integration.py" = ["F821"]
 "tests/adapters/test_cirq_adapter.py" = ["E402"]
 "tests/adapters/test_qiskit_adapter.py" = ["E402"]
+
+[tool.bandit]
+exclude_dirs = [".venv", ".worktrees", "build", "dist", "tests"]
+skips = ["B101"]
 
 [tool.mypy]
 python_version = "3.11"

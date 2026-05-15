@@ -44,6 +44,20 @@ For CUDA-Q development, use Linux or WSL2:
 
 On native Windows, Cirq and PennyLane can still be limited by upstream SciPy/HiGHS behavior. For reliable end-to-end adapter work on those frameworks, Linux or WSL is the safer path.
 
+For local security checks, install the security extra as well.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,security]"
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python -m pip install -e ".[dev,security]"
+```
+
 ## Repository Layout
 
 The package root keeps the stable public surface intentionally small:
@@ -83,6 +97,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe -m pytest
 .\.venv\Scripts\python.exe -m ruff check .
 .\.venv\Scripts\python.exe -m mypy
+.\.venv\Scripts\python.exe -m pyright -p .
 ```
 
 Linux or WSL:
@@ -91,6 +106,7 @@ Linux or WSL:
 .venv/bin/python -m pytest
 .venv/bin/python -m ruff check .
 .venv/bin/python -m mypy
+.venv/bin/python -m pyright -p .
 ```
 
 Before finishing work, run Ruff with fixes and formatting:
@@ -107,6 +123,22 @@ Linux or WSL:
 ```bash
 .venv/bin/python -m ruff check . --fix
 .venv/bin/python -m ruff format .
+```
+
+Run the security audit tools before publishing or merging dependency changes:
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip_audit --local --strict --skip-editable --progress-spinner off
+.\.venv\Scripts\python.exe -m bandit -c pyproject.toml -r src scripts
+```
+
+Linux or WSL:
+
+```bash
+.venv/bin/python -m pip_audit --local --strict --skip-editable --progress-spinner off
+.venv/bin/python -m bandit -c pyproject.toml -r src scripts
 ```
 
 To remove local caches and generated build artifacts without touching `.venv`, use:

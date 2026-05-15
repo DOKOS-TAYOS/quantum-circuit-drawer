@@ -35,6 +35,16 @@ These only apply if you install the corresponding extra, for example
 |-------|----------------|--------|----------------|
 | `myqlm` | `myqlm` | Review required for the PyPI/GitHub release checklist. The official myQLM documentation describes a mixed model: proprietary runtime under an EULA and open-source components under Apache-2.0. Do not treat this extra as a standard permissive dependency until this is reviewed. | [myQLM license documentation](https://myqlm.github.io/01_getting_started/%3Amyqlm%3Alicense.html) |
 
+## Security audit tools (`security`)
+
+These are used for vulnerability and static security checks. They are not
+runtime dependencies of the wheel published for end users.
+
+| Package (PyPI) | License |
+|----------------|---------|
+| `bandit` | Apache-2.0 |
+| `pip-audit` | Apache-2.0 |
+
 ## Development and publishing tools (`dev`)
 
 These are used for local development, CI, and publishing. They are not runtime
@@ -49,6 +59,7 @@ dependencies of the wheel published for end users.
 | `pyright` | MIT |
 | `build` | MIT |
 | `twine` | Apache-2.0 |
+| `wheel` | MIT |
 
 ## Build toolchain (`[build-system] requires`)
 

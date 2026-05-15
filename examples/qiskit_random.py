@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, ArgumentTypeError, Namespace
+from dataclasses import dataclass
+from pathlib import Path
 from random import Random
+from typing import Literal, cast
 
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 
 try:
     from examples._bootstrap import ensure_local_project_on_path
     from examples._render_support import release_rendered_result
-    from examples._shared import ExampleRequest, add_render_arguments, request_from_namespace
 except ImportError:
     from _bootstrap import ensure_local_project_on_path
     from _render_support import release_rendered_result
-    from _shared import ExampleRequest, add_render_arguments, request_from_namespace
 
 ensure_local_project_on_path(__file__)
 
@@ -33,22 +34,64 @@ DEFAULT_QUBITS = 10
 DEFAULT_COLUMNS = 18
 DEFAULT_SEED = 7
 DEFAULT_FIGSIZE: tuple[float, float] = (10.6, 5.8)
+SUPPORTED_TOPOLOGIES: tuple[str, ...] = ("line", "grid", "star", "star_tree", "honeycomb")
+
+ViewMode = Literal["2d", "3d"]
+RenderMode = Literal["auto", "pages", "pages_controls", "slider", "full"]
+HoverMatrixMode = Literal["never", "auto", "always"]
+CompositeMode = Literal["compact", "expand"]
+UnsupportedPolicyMode = Literal["raise", "placeholder"]
+StylePresetMode = Literal["paper", "notebook", "compact", "presentation", "accessible"]
 
 
-def build_circuit(*, qubit_count: int, column_count: int, seed: int) -> QuantumCircuit:
+@dataclass(frozen=True, slots=True)
+class QiskitRandomRequest:
+    qubits: int
+    columns: int
+    mode: RenderMode
+    view: ViewMode
+    topology: str
+    seed: int
+    output: Path | None
+    show: bool
+    figsize: tuple[float, float]
+    hover: bool
+    hover_matrix: HoverMatrixMode
+    hover_matrix_max_qubits: int
+    hover_show_size: bool
+    preset: StylePresetMode | None
+    composite_mode: CompositeMode
+    unsupported_policy: UnsupportedPolicyMode
+
+
+def build_circuit(
+    request: object | None = None,
+    /,
+    *,
+    qubit_count: int | None = None,
+    column_count: int | None = None,
+    seed: int | None = None,
+) -> QuantumCircuit:
     """Build a deterministic random-looking Qiskit circuit."""
 
-    quantum = QuantumRegister(qubit_count, "q")
-    classical = ClassicalRegister(qubit_count, "c")
+    resolved_qubit_count, resolved_column_count, resolved_seed = _resolved_build_circuit_inputs(
+        request,
+        qubit_count=qubit_count,
+        column_count=column_count,
+        seed=seed,
+    )
+
+    quantum = QuantumRegister(resolved_qubit_count, "q")
+    classical = ClassicalRegister(resolved_qubit_count, "c")
     circuit = QuantumCircuit(quantum, classical, name="qiskit_random_demo")
-    rng = Random(seed)
+    rng = Random(resolved_seed)
 
     single_qubit_gates = ("h", "x", "rx", "ry", "rz")
     two_qubit_gates = ("cx", "cz", "swap")
 
-    for column_index in range(column_count):
+    for column_index in range(resolved_column_count):
         if column_index % 2 == 0:
-            for wire in range(qubit_count):
+            for wire in range(resolved_qubit_count):
                 gate_name = single_qubit_gates[
                     (column_index + wire + rng.randrange(len(single_qubit_gates)))
                     % len(single_qubit_gates)
@@ -60,15 +103,15 @@ def build_circuit(*, qubit_count: int, column_count: int, seed: int) -> QuantumC
                     angle=_angle_for(rng, column_index, wire),
                 )
         else:
-            shuffled_wires = list(range(qubit_count))
+            shuffled_wires = list(range(resolved_qubit_count))
             rng.shuffle(shuffled_wires)
             for pair_index in range(0, len(shuffled_wires) - 1, 2):
                 left = shuffled_wires[pair_index]
                 right = shuffled_wires[pair_index + 1]
                 gate_name = two_qubit_gates[
-                    (column_index + pair_index + seed) % len(two_qubit_gates)
+                    (column_index + pair_index + resolved_seed) % len(two_qubit_gates)
                 ]
-                if gate_name != "swap" and (column_index + pair_index + seed) % 2 == 1:
+                if gate_name != "swap" and (column_index + pair_index + resolved_seed) % 2 == 1:
                     left, right = right, left
                 _apply_two_qubit_gate(circuit, gate_name=gate_name, left=left, right=right)
             if len(shuffled_wires) % 2 == 1:
@@ -81,9 +124,29 @@ def build_circuit(*, qubit_count: int, column_count: int, seed: int) -> QuantumC
                     angle=_angle_for(rng, column_index, leftover_wire),
                 )
 
-    for wire in range(qubit_count):
+    for wire in range(resolved_qubit_count):
         circuit.measure(wire, classical[wire])
     return circuit
+
+
+def _resolved_build_circuit_inputs(
+    request: object | None,
+    *,
+    qubit_count: int | None,
+    column_count: int | None,
+    seed: int | None,
+) -> tuple[int, int, int]:
+    if request is not None:
+        return (
+            int(getattr(request, "qubits")),
+            int(getattr(request, "columns")),
+            int(getattr(request, "seed")),
+        )
+    if qubit_count is None or column_count is None or seed is None:
+        raise TypeError(
+            "build_circuit() requires either a request or qubit_count, column_count, and seed"
+        )
+    return qubit_count, column_count, seed
 
 
 def _apply_single_qubit_gate(
@@ -173,11 +236,24 @@ def main() -> None:
             release_rendered_result(result)
 
 
-def _parse_request(args: Namespace) -> ExampleRequest:
-    return request_from_namespace(
-        args,
-        default_qubits=DEFAULT_QUBITS,
-        default_columns=DEFAULT_COLUMNS,
+def _parse_request(args: Namespace) -> QiskitRandomRequest:
+    return QiskitRandomRequest(
+        qubits=args.qubits,
+        columns=args.columns,
+        mode=cast(RenderMode, args.mode),
+        view=cast(ViewMode, args.view),
+        topology=str(args.topology),
+        seed=args.seed,
+        preset=cast(StylePresetMode | None, args.preset),
+        composite_mode=cast(CompositeMode, args.composite_mode),
+        unsupported_policy=cast(UnsupportedPolicyMode, args.unsupported_policy),
+        output=args.output,
+        show=bool(args.show),
+        figsize=(float(args.figsize[0]), float(args.figsize[1])),
+        hover=bool(args.hover),
+        hover_matrix=cast(HoverMatrixMode, args.hover_matrix),
+        hover_matrix_max_qubits=args.hover_matrix_max_qubits,
+        hover_show_size=bool(args.hover_show_size),
     )
 
 
@@ -185,27 +261,91 @@ def _parse_args() -> Namespace:
     parser = ArgumentParser(
         description="Render a larger Qiskit circuit that is useful for trying draw modes."
     )
-    add_render_arguments(
-        parser,
-        default_qubits=DEFAULT_QUBITS,
-        default_columns=DEFAULT_COLUMNS,
-        columns_help="How many random-looking columns to build.",
-        default_seed=DEFAULT_SEED,
+    parser.add_argument("--qubits", type=_positive_int, default=DEFAULT_QUBITS)
+    parser.add_argument(
+        "--columns",
+        type=_positive_int,
+        default=DEFAULT_COLUMNS,
+        help="How many random-looking columns to build.",
     )
-    parser.set_defaults(figsize=DEFAULT_FIGSIZE)
-    _override_figsize_help(parser)
+    parser.add_argument(
+        "--mode",
+        choices=("auto", "pages", "pages_controls", "slider", "full"),
+        default="auto",
+        help="Draw mode to use for the rendered circuit.",
+    )
+    parser.add_argument(
+        "--view", choices=("2d", "3d"), default="2d", help="Render the circuit in 2D or 3D."
+    )
+    parser.add_argument(
+        "--topology",
+        choices=SUPPORTED_TOPOLOGIES,
+        default="line",
+        help="Topology used by the 3D view and topology-aware hover details.",
+    )
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--preset",
+        choices=("paper", "notebook", "compact", "presentation", "accessible"),
+        help="Optional style preset.",
+    )
+    parser.add_argument(
+        "--composite-mode",
+        choices=("compact", "expand"),
+        default="compact",
+        help="How supported composite instructions should be shown by the adapter.",
+    )
+    parser.add_argument(
+        "--unsupported-policy",
+        choices=("raise", "placeholder"),
+        default="raise",
+        help="How recoverable unsupported operations should be handled.",
+    )
+    parser.add_argument("--output", type=Path, help="Optional output image path.")
+    parser.add_argument(
+        "--figsize",
+        nargs=2,
+        metavar=("WIDTH", "HEIGHT"),
+        type=_positive_float,
+        default=DEFAULT_FIGSIZE,
+        help="Managed figure size in inches.",
+    )
+    parser.add_argument("--show", dest="show", action="store_true", default=True)
+    parser.add_argument("--no-show", dest="show", action="store_false")
+    parser.add_argument("--hover", dest="hover", action="store_true", default=True)
+    parser.add_argument("--no-hover", dest="hover", action="store_false")
+    parser.add_argument(
+        "--hover-matrix",
+        choices=("never", "auto", "always"),
+        default="auto",
+        help="Control whether hover tooltips include the gate matrix.",
+    )
+    parser.add_argument(
+        "--hover-matrix-max-qubits",
+        type=_positive_int,
+        default=2,
+        help="Maximum gate width, in qubits, for showing full matrices in hover.",
+    )
+    parser.add_argument(
+        "--hover-show-size",
+        action="store_true",
+        help="Also include the visual gate size in the hover tooltip.",
+    )
     return parser.parse_args()
 
 
-def _override_figsize_help(parser: ArgumentParser) -> None:
-    default_width, default_height = DEFAULT_FIGSIZE
-    for action in parser._actions:
-        if "--figsize" not in action.option_strings:
-            continue
-        action.help = (
-            f"Managed figure size in inches. Default: {default_width:g} {default_height:g}."
-        )
-        return
+def _positive_int(raw_value: str) -> int:
+    value = int(raw_value)
+    if value < 1:
+        raise ArgumentTypeError("value must be at least 1")
+    return value
+
+
+def _positive_float(raw_value: str) -> float:
+    value = float(raw_value)
+    if value <= 0.0:
+        raise ArgumentTypeError("value must be positive")
+    return value
 
 
 if __name__ == "__main__":

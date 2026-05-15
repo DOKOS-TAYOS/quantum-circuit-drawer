@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added Dependabot version update configuration for Python dependencies and GitHub Actions, with weekly schedules in the Europe/Madrid timezone.
+- Added security automation with dependency review on pull requests, `pip-audit`, Bandit, and CodeQL workflows for public GitHub use.
+- Added a `security` optional dependency extra, `SECURITY.md`, and a tokenless PyPI publish workflow based on trusted publishing.
+
+### Changed
+
+- Hardened GitHub Actions by setting read-only default permissions for CI and updating first-party actions to their current major versions.
+- Updated the third-party license inventory and development guide with the new security audit tooling.
+
+### Fixed
+
+- Removed the remaining legacy shared-helper imports from the direct `qiskit_random.py` and `cudaq_random.py` examples so the full test suite stays green for public CI.
+
 ## [1.0.0] - 2026-04-29
 
 Stable **1.0.0** release with PyPI trove classifier `Development Status :: 5 - Production/Stable`; public API versioning follows semantic versioning from this release onward.

@@ -61,11 +61,8 @@ def restore_managed_canvas_focus(canvas: object | None) -> None:
             tk_widget = None
         focus_set = getattr(tk_widget, "focus_set", None)
         if callable(focus_set):
-            try:
-                focus_set()
+            if _try_call_best_effort(focus_set):
                 return
-            except Exception:
-                pass
 
     for focus_method_name in ("setFocus", "SetFocus", "focus_set"):
         focus_method = getattr(canvas, focus_method_name, None)
@@ -158,10 +155,7 @@ def install_managed_default_key_handler_filter(
         key_press_handler(event, canvas=cast(FigureCanvasBase, canvas), toolbar=toolbar)
 
     callback_id = int(mpl_connect("key_press_event", _filtered_default_key_handler))
-    try:
-        manager.key_press_handler_id = callback_id
-    except Exception:
-        pass
+    _try_store_manager_key_press_handler_id(manager, callback_id)
     setattr(
         canvas,
         _MANAGED_DEFAULT_KEY_HANDLER_FILTER_ATTR,
@@ -193,6 +187,21 @@ def dispatch_managed_key_event(
         guiEvent=gui_event,
     )
     process("key_press_event", event)
+
+
+def _try_call_best_effort(callback: Callable[[], object]) -> bool:
+    try:
+        callback()
+    except Exception:
+        return False
+    return True
+
+
+def _try_store_manager_key_press_handler_id(manager: object, callback_id: int) -> None:
+    try:
+        setattr(manager, "key_press_handler_id", callback_id)
+    except Exception:
+        return
 
 
 def run_managed_canvas_action(canvas: object | None, action: Callable[[], None]) -> None:
