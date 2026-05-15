@@ -82,7 +82,7 @@ dev = [
   "pyright>=1.1.403",
   "build>=1.2",
   "twine>=5.1",
-  "wheel>=0.45",
+  "wheel>=0.47.0",
 ]
 security = [
   "bandit[toml]>=1.9.4",
