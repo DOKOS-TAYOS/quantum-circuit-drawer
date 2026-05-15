@@ -12,8 +12,12 @@ from ..typing import OutputPath
 if TYPE_CHECKING:
     from matplotlib.figure import Figure, SubFigure
 
-NON_INTERACTIVE_BACKENDS = frozenset({"agg", "cairo", "pdf", "pgf", "ps", "svg", "template"})
+NON_INTERACTIVE_BACKENDS = frozenset(
+    {"agg", "cairo", "inline", "pdf", "pgf", "ps", "svg", "template"}
+)
+NOTEBOOK_STATIC_BACKENDS = frozenset({"inline"})
 NOTEBOOK_INTERACTIVE_BACKENDS = frozenset({"nbagg", "ipympl", "widget"})
+NOTEBOOK_DISPLAY_BACKENDS = NOTEBOOK_STATIC_BACKENDS | NOTEBOOK_INTERACTIVE_BACKENDS
 
 
 def save_rendered_figure(
@@ -70,7 +74,7 @@ def show_figure_if_supported(figure: Figure | SubFigure, *, show: bool) -> None:
     backend_name = figure_backend_name(figure)
     if backend_name in NON_INTERACTIVE_BACKENDS and is_builtin_pyplot_show(show_function):
         return
-    if backend_name in NOTEBOOK_INTERACTIVE_BACKENDS and is_builtin_pyplot_show(show_function):
+    if backend_name in NOTEBOOK_DISPLAY_BACKENDS and is_builtin_pyplot_show(show_function):
         return
 
     show_function()
@@ -135,6 +139,18 @@ def normalize_backend_name(backend_name: str) -> str:
     """Normalize Matplotlib backend names into their short lowercase form."""
 
     normalized_name = backend_name.strip().lower()
+    if normalized_name in {
+        "module://matplotlib_inline.backend_inline",
+        "module://ipykernel.pylab.backend_inline",
+        "matplotlib_inline.backend_inline",
+        "ipykernel.pylab.backend_inline",
+    }:
+        return "inline"
+    if normalized_name in {
+        "module://ipympl.backend_nbagg",
+        "ipympl.backend_nbagg",
+    }:
+        return "ipympl"
     for prefix in (
         "module://matplotlib.backends.backend_",
         "matplotlib.backends.backend_",

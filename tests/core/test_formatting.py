@@ -11,6 +11,8 @@ from quantum_circuit_drawer.utils.formatting import (
     format_parameter_text,
     format_parameter_text_mathtext,
     format_parameters,
+    format_state_vector_component,
+    format_state_vector_parameters,
     format_visible_label,
     format_visible_label_mathtext,
 )
@@ -19,8 +21,8 @@ from quantum_circuit_drawer.utils.formatting import (
 @pytest.mark.parametrize(
     ("raw_name", "expected"),
     [
-        ("Sdg", "Sdg"),
-        ("SXdg", "SXdg"),
+        ("Sdg", "S†"),
+        ("SXdg", "SX†"),
         ("iSWAP", "iSWAP"),
         ("u2", "U2"),
         ("rx", "RX"),
@@ -53,6 +55,33 @@ def test_format_parameter_formats_real_numbers_and_numpy_scalars() -> None:
 
 def test_format_parameters_joins_formatted_values() -> None:
     assert format_parameters([np.float64(2.0), 0.125, "phi"]) == "2, 0.125, phi"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (9344, "9344"),
+        (289, "289"),
+        (-0.23, "-0.23"),
+        (0.432, "0.432"),
+        (-1.642e10, "-1.642e10"),
+        (1.2e7, "1.2e7"),
+        (-1.3e-8, "-1.3e-8"),
+        (0, "0"),
+    ],
+)
+def test_format_state_vector_component_uses_compact_significant_digits(
+    value: float,
+    expected: str,
+) -> None:
+    assert format_state_vector_component(value) == expected
+
+
+def test_format_state_vector_parameters_wraps_components() -> None:
+    assert (
+        format_state_vector_parameters([9344, 289, -0.23, 0.432, -1.642e10, 1.2e7, -1.3e-8])
+        == "[9344, 289, -0.23, 0.432, -1.642e10, 1.2e7, -1.3e-8]"
+    )
 
 
 def test_format_gate_name_mathtext_wraps_upright_gate_labels() -> None:

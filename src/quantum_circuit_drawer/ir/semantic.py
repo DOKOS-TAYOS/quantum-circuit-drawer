@@ -35,6 +35,15 @@ def _normalize_texts(values: Sequence[object]) -> tuple[str, ...]:
     return tuple(str(value) for value in values if str(value))
 
 
+def _metadata_wire_dependencies(metadata: Metadata) -> tuple[str, ...]:
+    value = metadata.get("occupied_wire_dependencies")
+    if isinstance(value, str):
+        return (value,)
+    if not isinstance(value, Sequence):
+        return ()
+    return tuple(str(wire_id) for wire_id in value if str(wire_id))
+
+
 def _parameter_signature_token(value: object) -> object:
     try:
         hash(value)
@@ -112,8 +121,11 @@ class SemanticOperationIR:
         classical_wire_ids = tuple(
             wire_id for condition in self.classical_conditions for wire_id in condition.wire_ids
         )
+        dependency_wire_ids = _metadata_wire_dependencies(self.metadata)
         occupied_wire_ids = tuple(
-            dict.fromkeys((*classical_wire_ids, *self.control_wires, *self.target_wires))
+            dict.fromkeys(
+                (*classical_wire_ids, *dependency_wire_ids, *self.control_wires, *self.target_wires)
+            )
         )
         if self.classical_target is None:
             return occupied_wire_ids

@@ -67,6 +67,7 @@ class SceneGate:
     subtitle: str | None
     kind: OperationKind
     render_style: GateRenderStyle = GateRenderStyle.BOX
+    subtitle_font_scale: float = 1.0
     hover_data: SceneHoverData | None = None
     operation_id: str | None = None
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
@@ -176,6 +177,9 @@ class SceneGroupHighlight:
     y: float
     width: float
     height: float
+    label: str | None = None
+    hover_data: SceneHoverData | None = None
+    operation_id: str | None = None
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 

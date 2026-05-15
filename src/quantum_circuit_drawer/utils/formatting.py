@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from functools import lru_cache
-from numbers import Real
+from numbers import Complex, Real
 
 import numpy as np
 
@@ -54,6 +54,7 @@ _VISIBLE_LABEL_ESCAPES = str.maketrans(
 )
 _CONTROL_FLOW_DISPLAY_NAMES: dict[str, str] = {
     "IF": "if",
+    "ELSE": "else",
     "IFELSE": "if/else",
     "SWITCH": "switch",
     "FOR": "for",
@@ -64,6 +65,7 @@ _CIRCUIT_NUMBER_LABEL_PATTERN = re.compile(
     r"^circuit\s*[-_:]?\s*(?P<number>\d+)$",
     flags=re.IGNORECASE,
 )
+_FOR_COUNT_LABEL_PATTERN = re.compile(r"^for\s+x(?P<count>\d+)$", flags=re.IGNORECASE)
 
 
 def format_gate_name(name: str) -> str:
@@ -73,6 +75,9 @@ def format_gate_name(name: str) -> str:
     uppercase = compact.upper()
     if uppercase in _CONTROL_FLOW_DISPLAY_NAMES:
         return _CONTROL_FLOW_DISPLAY_NAMES[uppercase]
+    for_count_match = _FOR_COUNT_LABEL_PATTERN.match(name.strip())
+    if for_count_match is not None:
+        return f"for x{for_count_match.group('count')}"
     circuit_number_match = _CIRCUIT_NUMBER_LABEL_PATTERN.match(name.strip())
     if circuit_number_match is not None:
         return f"circuit {circuit_number_match.group('number')}"
@@ -87,7 +92,7 @@ def format_gate_name(name: str) -> str:
     if uppercase == "ISWAP":
         return "iSWAP"
     if uppercase.endswith("DG") and compact.isalpha() and 3 <= len(compact) <= 5:
-        return f"{uppercase[:-2]}dg"
+        return f"{uppercase[:-2]}†"
     if compact.isalnum() and len(compact) <= 4:
         return uppercase
     return name.replace("_", " ")
@@ -109,6 +114,52 @@ def format_parameters(values: Iterable[object]) -> str:
     """Format gate parameters for labels."""
 
     return ", ".join(format_parameter(value) for value in values)
+
+
+def format_state_vector_component(value: object) -> str:
+    """Return a compact state-vector component label."""
+
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, Complex) and not isinstance(value, Real):
+        complex_value = complex(value)
+        real_part = 0.0 if abs(complex_value.real) < 1e-15 else complex_value.real
+        imaginary_part = 0.0 if abs(complex_value.imag) < 1e-15 else complex_value.imag
+        if imaginary_part == 0.0:
+            return _format_state_vector_real_component(real_part)
+        if real_part == 0.0:
+            return f"{_format_state_vector_real_component(imaginary_part)}j"
+        sign = "+" if imaginary_part >= 0.0 else "-"
+        return (
+            f"{_format_state_vector_real_component(real_part)}"
+            f"{sign}{_format_state_vector_real_component(abs(imaginary_part))}j"
+        )
+    if isinstance(value, Real):
+        return _format_state_vector_real_component(float(value))
+    return str(value)
+
+
+def format_state_vector_parameters(values: Iterable[object]) -> str:
+    """Return a bracketed compact state-vector label."""
+
+    return f"[{', '.join(format_state_vector_component(value) for value in values)}]"
+
+
+def _format_state_vector_real_component(value: float) -> str:
+    if value == 0.0:
+        return "0"
+    absolute_value = abs(value)
+    if 0.001 <= absolute_value < 10000.0:
+        return f"{value:.4g}"
+    return _trim_scientific_notation(f"{value:.3e}")
+
+
+def _trim_scientific_notation(text: str) -> str:
+    mantissa, _, exponent = text.partition("e")
+    mantissa = mantissa.rstrip("0").rstrip(".")
+    exponent_sign = "-" if exponent.startswith("-") else ""
+    exponent_digits = exponent.lstrip("+-").lstrip("0") or "0"
+    return f"{mantissa}e{exponent_sign}{exponent_digits}"
 
 
 def format_gate_name_mathtext(name: str) -> str:

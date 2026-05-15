@@ -1,4 +1,4 @@
-"""Showcase Qiskit example focused on native control-flow support."""
+"""Showcase Qiskit example focused on expanded native control-flow support."""
 
 from __future__ import annotations
 
@@ -19,11 +19,11 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
 
-DEFAULT_FIGSIZE: tuple[float, float] = (11.0, 5.8)
+DEFAULT_FIGSIZE: tuple[float, float] = (12.0, 6.2)
 
 
 def build_circuit(*, qubit_count: int, loop_span: int) -> QuantumCircuit:
-    """Build a Qiskit circuit that highlights compact control-flow rendering."""
+    """Build a Qiskit circuit that highlights expanded control-flow rendering."""
 
     quantum = QuantumRegister(qubit_count, "q")
     classical = ClassicalRegister(qubit_count, "c")
@@ -92,14 +92,23 @@ def main() -> None:
 
 def _parse_args() -> Namespace:
     parser = ArgumentParser(
-        description="Render a Qiskit circuit with if/else, switch, for_loop, and while_loop blocks."
+        description=(
+            "Render a Qiskit circuit with expanded if/else, for_loop, and while_loop "
+            "frames plus static switch_case summaries."
+        )
     )
     parser.add_argument("--qubits", type=int, default=5, help="Number of qubits to allocate.")
     parser.add_argument(
         "--loop-span",
         type=int,
         default=4,
-        help="How many iterations to show in the compact for-loop box.",
+        help="How many iterations to show in the for-loop frame label.",
+    )
+    parser.add_argument(
+        "--columns",
+        dest="loop_span",
+        type=int,
+        help="Alias for --loop-span, kept for consistency with the broader demo family.",
     )
     parser.add_argument("--output", type=Path, help="Optional output image path.")
     parser.add_argument("--show", dest="show", action="store_true", default=True)

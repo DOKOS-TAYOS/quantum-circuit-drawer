@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import replace
+from typing import TYPE_CHECKING, TypeVar
 
+from .._ipython_display import close_figures_in_pyplot
 from .._logging import (
     duration_ms,
     emit_render_diagnostics,
@@ -62,6 +64,11 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 logger = logging.getLogger(__name__)
+_HistogramDisplayResultT = TypeVar(
+    "_HistogramDisplayResultT",
+    HistogramResult,
+    HistogramCompareResult,
+)
 
 
 def plot_histogram(
@@ -189,7 +196,7 @@ def plot_histogram(
                     thin_xlabels=False,
                 )
                 save_histogram_if_requested(figure, output_path=resolved_config.output_path)
-            if resolved_config.show:
+            if resolved_config.show and not runtime_context.is_notebook:
                 from ..renderers._render_support import show_figure_if_supported
 
                 show_figure_if_supported(figure, show=True)
@@ -203,6 +210,11 @@ def plot_histogram(
                 qubits=resolved_config.qubits,
                 diagnostics=tuple(diagnostics),
                 saved_path=normalized_saved_path(resolved_config.output_path),
+            )
+            result = _with_histogram_notebook_output_policy(
+                result,
+                runtime_context=runtime_context,
+                show=resolved_config.show,
             )
             log_event(
                 logger,
@@ -340,7 +352,7 @@ def compare_histograms(
                 kind=comparison_kind,
             )
             save_histogram_if_requested(figure, output_path=resolved_config.output_path)
-            if resolved_config.show:
+            if resolved_config.show and not runtime_context.is_notebook:
                 from ..renderers._render_support import show_figure_if_supported
 
                 show_figure_if_supported(figure, show=True)
@@ -359,6 +371,11 @@ def compare_histograms(
                 series_values=series_values,
                 diagnostics=tuple(diagnostics),
                 saved_path=normalized_saved_path(resolved_config.output_path),
+            )
+            result = _with_histogram_notebook_output_policy(
+                result,
+                runtime_context=runtime_context,
+                show=resolved_config.show,
             )
             series_count = len(result.series_values or (result.left_values, result.right_values))
             log_event(
@@ -412,6 +429,29 @@ def _resolve_compare_series_labels(
         config.left_label,
         config.right_label,
         *(f"Series {index}" for index in range(3, series_count + 1)),
+    )
+
+
+def _with_histogram_notebook_output_policy(
+    result: _HistogramDisplayResultT,
+    *,
+    runtime_context: object,
+    show: bool,
+) -> _HistogramDisplayResultT:
+    """Apply notebook display flags while preserving the returned result object."""
+
+    if not getattr(runtime_context, "is_notebook", False):
+        return result
+    if not show:
+        close_figures_in_pyplot((result.figure,))
+    return replace(
+        result,
+        _ipython_display_enabled=show,
+        _ipython_close_after_display=not getattr(
+            runtime_context,
+            "notebook_backend_active",
+            False,
+        ),
     )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from itertools import product
+from math import cos, radians
 from typing import TYPE_CHECKING
 
 from ..export.figures import save_matplotlib_figure
@@ -22,6 +23,16 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
     from ..typing import OutputPath
+
+_HISTOGRAM_VALUE_LABEL_MAX_FONT_SIZE = 8.0
+_HISTOGRAM_VALUE_LABEL_MIN_FONT_SIZE = 3.0
+_HISTOGRAM_VALUE_LABEL_WIDTH_FRACTION = 0.86
+_HISTOGRAM_VALUE_LABEL_CHAR_WIDTH = 0.58
+_HISTOGRAM_X_LABEL_ROTATION = 35.0
+_HISTOGRAM_X_LABEL_MAX_FONT_SIZE = 9.0
+_HISTOGRAM_X_LABEL_MIN_FONT_SIZE = 3.0
+_HISTOGRAM_X_LABEL_WIDTH_FRACTION = 0.9
+_HISTOGRAM_X_LABEL_CHAR_WIDTH = 0.94
 
 
 def resolve_figure_and_axes(
@@ -89,7 +100,6 @@ def draw_histogram_axes(
         )
         uniform_line.set_gid("histogram-uniform-reference-line")
     axes.set_xticks(list(positions))
-    axes.set_xticklabels(tick_labels_for_states(display_labels, thin=thin_xlabels))
     if positions:
         axes.set_xlim(-0.5, len(positions) - 0.5)
     if y_limits is None:
@@ -100,6 +110,9 @@ def draw_histogram_axes(
         )
     axes.set_ylim(*y_limits)
     axes.margins(x=0.02)
+    axes.set_xticklabels(tick_labels_for_states(display_labels, thin=thin_xlabels))
+    fit_histogram_x_tick_labels(axes, bin_count=len(positions))
+    draw_histogram_value_labels(axes, bars=bars, values=values, kind=kind, theme=theme)
     return bars
 
 
@@ -165,6 +178,97 @@ def tick_labels_for_states(
         return state_labels
     step = max(1, len(state_labels) // 12)
     return tuple(label if index % step == 0 else "" for index, label in enumerate(state_labels))
+
+
+def draw_histogram_value_labels(
+    axes: Axes,
+    *,
+    bars: BarContainer,
+    values: tuple[float, ...],
+    kind: HistogramKind,
+    theme: DrawTheme,
+) -> None:
+    """Draw compact numeric labels above bars while fitting each bin width."""
+
+    for bar, value in zip(bars, values, strict=True):
+        label = format_histogram_value(value, kind)
+        fontsize = _fit_text_font_size_for_data_width(
+            axes,
+            text=label,
+            data_width=float(bar.get_width()) * _HISTOGRAM_VALUE_LABEL_WIDTH_FRACTION,
+            max_font_size=_HISTOGRAM_VALUE_LABEL_MAX_FONT_SIZE,
+            min_font_size=_HISTOGRAM_VALUE_LABEL_MIN_FONT_SIZE,
+            char_width_factor=_HISTOGRAM_VALUE_LABEL_CHAR_WIDTH,
+        )
+        bar_top = float(bar.get_y() + bar.get_height())
+        y_padding = _histogram_value_label_y_padding(axes)
+        axes.text(
+            float(bar.get_x() + (bar.get_width() / 2.0)),
+            bar_top + (y_padding if value >= 0.0 else -y_padding),
+            label,
+            ha="center",
+            va="bottom" if value >= 0.0 else "top",
+            fontsize=fontsize,
+            color=theme.text_color,
+            clip_on=False,
+        )
+
+
+def fit_histogram_x_tick_labels(axes: Axes, *, bin_count: int) -> None:
+    """Rotate and shrink x tick labels so dense state labels stay separated."""
+
+    if bin_count <= 0:
+        return
+
+    tick_labels = tuple(label for label in axes.get_xticklabels() if label.get_text())
+    if not tick_labels:
+        return
+
+    font_size = _fit_text_font_size_for_data_width(
+        axes,
+        text=max((label.get_text() for label in tick_labels), key=len),
+        data_width=_HISTOGRAM_X_LABEL_WIDTH_FRACTION,
+        max_font_size=_HISTOGRAM_X_LABEL_MAX_FONT_SIZE,
+        min_font_size=_HISTOGRAM_X_LABEL_MIN_FONT_SIZE,
+        char_width_factor=(
+            _HISTOGRAM_X_LABEL_CHAR_WIDTH / max(0.35, cos(radians(_HISTOGRAM_X_LABEL_ROTATION)))
+        ),
+    )
+    for label in tick_labels:
+        label.set_rotation(_HISTOGRAM_X_LABEL_ROTATION)
+        label.set_rotation_mode("anchor")
+        label.set_horizontalalignment("right")
+        label.set_fontsize(font_size)
+
+
+def _fit_text_font_size_for_data_width(
+    axes: Axes,
+    *,
+    text: str,
+    data_width: float,
+    max_font_size: float,
+    min_font_size: float,
+    char_width_factor: float,
+) -> float:
+    if not text:
+        return min(max_font_size, max(min_font_size, max_font_size))
+
+    available_pixels = _data_width_to_pixels(axes, data_width)
+    if available_pixels <= 0.0:
+        return min_font_size
+    fitted_size = available_pixels / max(1.0, len(text) * char_width_factor)
+    return min(max_font_size, max(min_font_size, fitted_size))
+
+
+def _data_width_to_pixels(axes: Axes, data_width: float) -> float:
+    left_pixel = axes.transData.transform((0.0, 0.0))[0]
+    right_pixel = axes.transData.transform((data_width, 0.0))[0]
+    return abs(float(right_pixel - left_pixel))
+
+
+def _histogram_value_label_y_padding(axes: Axes) -> float:
+    y_min, y_max = axes.get_ylim()
+    return max(1e-9, abs(float(y_max - y_min)) * 0.012)
 
 
 def resolved_histogram_bit_width(

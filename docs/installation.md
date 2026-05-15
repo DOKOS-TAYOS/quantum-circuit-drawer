@@ -80,6 +80,7 @@ Install only the extras you need.
 | `pennylane` | `quantum-circuit-drawer[pennylane]` | Draw PennyLane tapes, scripts, and wrappers with a materialized tape |
 | `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit`, `Program`, and `QRoutine` objects |
 | `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported CUDA-Q kernels on Linux or WSL2, including scalar runtime arguments through `cudaq_args` |
+| `notebook` | `quantum-circuit-drawer[notebook]` | Install `ipympl` for `%matplotlib widget` notebook interactivity |
 
 Windows PowerShell:
 
@@ -89,6 +90,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[notebook]"
 ```
 
 Linux or WSL:
@@ -99,6 +101,7 @@ Linux or WSL:
 .venv/bin/python -m pip install "quantum-circuit-drawer[cirq]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[notebook]"
 ```
 
 CUDA-Q is currently Linux/WSL2-only; the upstream package does not support native Windows:
@@ -126,26 +129,26 @@ Use this table as the release support contract when choosing an install path.
 
 ## Jupyter Setup
 
-There is no separate `quantum-circuit-drawer[jupyter]` extra. Install normal notebook tools in the same virtual environment.
+Install the `notebook` extra when you want Matplotlib widget interactivity in Jupyter notebooks. It adds `ipympl`, which provides the `%matplotlib widget` backend used by hover, managed circuit controls, and interactive histograms.
 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install jupyter ipykernel
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[notebook]" jupyter ipykernel
 .\.venv\Scripts\python.exe -m ipykernel install --user --name quantum-circuit-drawer --display-name "Python (.venv quantum-circuit-drawer)"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip install jupyter ipykernel
+.venv/bin/python -m pip install "quantum-circuit-drawer[notebook]" jupyter ipykernel
 .venv/bin/python -m ipykernel install --user --name quantum-circuit-drawer --display-name "Python (.venv quantum-circuit-drawer)"
 ```
 
 For notebook work:
 
 - use `show=False` when you want to control display yourself
-- use a widget backend if you want Matplotlib hover or interactive histogram controls
+- run `%matplotlib widget` after installing the `notebook` extra if you want Matplotlib hover or interactive histogram controls
 
 For normal `.py` scripts in WSL2, interactive windows usually depend on WSLg plus a GUI toolkit such as Tk. Notebook widget backends and desktop script windows are separate concerns.
 
@@ -192,13 +195,13 @@ Install development tools and extras the same way:
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,qasm3,cirq,pennylane,myqlm]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,qasm3,cirq,pennylane,myqlm,notebook]"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip install -e ".[dev,qiskit,qasm3,cirq,pennylane,myqlm]"
+.venv/bin/python -m pip install -e ".[dev,qiskit,qasm3,cirq,pennylane,myqlm,notebook]"
 ```
 
 For CUDA-Q development, use Linux or WSL2:

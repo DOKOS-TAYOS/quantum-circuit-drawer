@@ -180,6 +180,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[notebook]"
 ```
 
 Linux or WSL:
@@ -190,6 +191,7 @@ Linux or WSL:
 .venv/bin/python -m pip install "quantum-circuit-drawer[cirq]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[notebook]"
 ```
 
 CUDA-Q is Linux/WSL2-only because the upstream package is not available for native Windows:
@@ -197,6 +199,8 @@ CUDA-Q is Linux/WSL2-only because the upstream package is not available for nati
 ```bash
 .venv/bin/python -m pip install "quantum-circuit-drawer[cudaq]"
 ```
+
+Use the `notebook` extra when you want Jupyter hover, managed circuit controls, or interactive histograms with `%matplotlib widget`. It installs `ipympl` without making notebook tooling part of the base package.
 
 ## Support matrix
 
@@ -666,7 +670,7 @@ The fastest way to see the current strengths of the library is to run one of the
 | --- | --- |
 | `qiskit-2d-exploration-showcase` | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual `Collapse` / `Expand` |
 | `qiskit-3d-exploration-showcase` | Managed 3D exploration with topology-aware selection, persistent expanded-block highlights, and contextual `Collapse` / `Expand` |
-| `qiskit-control-flow-showcase` | Compact Qiskit control-flow boxes plus open controls |
+| `qiskit-control-flow-showcase` | Expanded Qiskit control-flow frames, visible switch summaries, and open controls |
 | `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions on the same workflow |
 | `openqasm-showcase` | OpenQASM text input through the Qiskit parser path |
 | `ir-basic-workflow` | Framework-free rendering from the public `CircuitIR` types |
@@ -679,7 +683,7 @@ The fastest way to see the current strengths of the library is to run one of the
 | `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and CircuitOperation provenance |
 | `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
 | `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
-| `cudaq-kernel-showcase` | The supported CUDA-Q subset with scalar runtime arguments, reset, and basis measurements |
+| `cudaq-kernel-showcase` | The supported CUDA-Q subset with scalar runtime arguments, reset, basis measurements, and static control summaries |
 | `compare-circuits-multi-transpile` | One Qiskit source circuit compared with several transpilation optimization levels |
 | `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend toggles on interactive backends |
 | `compare-histograms-multi-series` | A multi-series overlay for ideal, noisy, raw hardware, and mitigated distributions |

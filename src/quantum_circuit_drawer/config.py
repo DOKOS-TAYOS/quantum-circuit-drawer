@@ -249,6 +249,8 @@ class ResolvedDrawConfig:
     config: DrawConfig
     mode: DrawMode
     interactive_mode_allowed: bool
+    is_notebook: bool
+    pyplot_backend: str
     notebook_backend_active: bool
     caller_axes: Axes | None
     diagnostics: tuple[RenderDiagnostic, ...] = ()

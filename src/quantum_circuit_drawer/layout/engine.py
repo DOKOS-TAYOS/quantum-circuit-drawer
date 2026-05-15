@@ -7,6 +7,7 @@ import logging
 from ..exceptions import LayoutError
 from ..ir.circuit import CircuitIR
 from ..style import DrawStyle, normalize_style
+from ._control_flow_groups import build_control_flow_group_artifacts
 from ._layout_scaffold import _LayoutScaffold, build_layout_scaffold
 from ._operation_layout import _SceneCollections, build_scene_collections
 from .scene import LayoutScene
@@ -44,6 +45,16 @@ class LayoutEngine:
             hover_enabled=hover_enabled,
             hover_topology=hover_topology,
         )
+        control_flow_artifacts = build_control_flow_group_artifacts(
+            circuit=circuit,
+            wire_y_positions=scaffold.wire_positions,
+            gates=scene_collections.gates,
+            measurements=scene_collections.measurements,
+            controls=scene_collections.controls,
+            connections=scene_collections.connections,
+            swaps=scene_collections.swaps,
+            barriers=scene_collections.barriers,
+        )
         scene = LayoutScene(
             width=scaffold.scene_width,
             height=scaffold.scene_height,
@@ -53,7 +64,10 @@ class LayoutEngine:
             gates=scene_collections.gates,
             gate_annotations=scene_collections.gate_annotations,
             controls=scene_collections.controls,
-            connections=scene_collections.connections,
+            connections=(
+                *scene_collections.connections,
+                *control_flow_artifacts.condition_connections,
+            ),
             swaps=scene_collections.swaps,
             barriers=scene_collections.barriers,
             measurements=scene_collections.measurements,
@@ -62,6 +76,7 @@ class LayoutEngine:
             pages=scaffold.pages,
             wire_y_positions=scaffold.wire_positions,
             page_count_for_text_scale=len(scaffold.pages),
+            group_highlights=control_flow_artifacts.highlights,
         )
         logger.debug(
             "Computed layout scene for circuit=%r wires=%d layers=%d pages=%d width=%.2f height=%.2f",

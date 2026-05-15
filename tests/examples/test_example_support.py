@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import importlib
+import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from tests.support import flatten_operations
 
@@ -105,3 +108,32 @@ def test_qiskit_backend_topology_showcase_enables_hover_in_3d(
     assert config.side.render.view == "3d"
     assert config.side.render.topology_qubits == "all"
     assert config.side.appearance.hover.enabled is True
+
+
+def test_qiskit_control_flow_showcase_accepts_columns_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("qiskit")
+    module = importlib.import_module("examples.qiskit_control_flow_showcase")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["qiskit_control_flow_showcase.py", "--columns", "6", "--no-show"],
+    )
+
+    args = module._parse_args()
+
+    assert args.loop_span == 6
+    assert args.show is False
+
+
+def test_qiskit_composite_modes_showcase_includes_state_prep_and_dagger_gates() -> None:
+    pytest.importorskip("qiskit")
+    module = importlib.import_module("examples.qiskit_composite_modes_showcase")
+
+    circuit = module.build_circuit(qubit_count=5, motif_count=2)
+    operation_names = [entry.operation.name for entry in circuit.data]
+
+    assert "initialize" in operation_names
+    assert "sdg" in operation_names
+    assert "tdg" in operation_names

@@ -532,12 +532,16 @@ def apply_scene_visual_state(
 
     scope = selection_scope(circuit, selected_operation_id=selected_operation_id)
     grouped_operation_ids = _expanded_group_operation_ids(circuit)
+    control_flow_group_highlights = _control_flow_group_highlights(scene)
     if scope.selected_operation_id is None:
         return replace(
             scene,
-            group_highlights=_group_highlights_for_operation_ids(
-                scene,
-                grouped_operation_ids=grouped_operation_ids,
+            group_highlights=(
+                *control_flow_group_highlights,
+                *_group_highlights_for_operation_ids(
+                    scene,
+                    grouped_operation_ids=grouped_operation_ids,
+                ),
             ),
         )
 
@@ -633,9 +637,12 @@ def apply_scene_visual_state(
             )
             for text in scene.texts
         ),
-        group_highlights=_group_highlights_for_operation_ids(
-            scene,
-            grouped_operation_ids=grouped_operation_ids,
+        group_highlights=(
+            *control_flow_group_highlights,
+            *_group_highlights_for_operation_ids(
+                scene,
+                grouped_operation_ids=grouped_operation_ids,
+            ),
         ),
     )
 
@@ -1125,6 +1132,10 @@ def _expanded_group_operation_ids(
             continue
         operation_ids.add(semantic_operation_id(operation))
     return frozenset(operation_ids)
+
+
+def _control_flow_group_highlights(scene: LayoutScene) -> tuple[SceneGroupHighlight, ...]:
+    return tuple(highlight for highlight in scene.group_highlights if highlight.label is not None)
 
 
 def _decomposition_group_key(

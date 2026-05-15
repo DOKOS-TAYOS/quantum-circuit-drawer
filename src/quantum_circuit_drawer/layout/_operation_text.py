@@ -32,6 +32,8 @@ def _operation_text_cache_key(
 ) -> tuple[object, ...]:
     return (
         operation.label or operation.name,
+        operation.metadata.get("display_subtitle"),
+        operation.metadata.get("suppress_params"),
         tuple(_cache_token(value) for value in operation.parameters) if style.show_params else (),
         style.show_params,
     )

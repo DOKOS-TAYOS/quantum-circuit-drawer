@@ -8,6 +8,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from .._ipython_display import display_figures_in_ipython
 from .._validation import (
     is_non_negative_integer as _is_non_negative_integer,
 )
@@ -276,6 +277,18 @@ class HistogramResult:
     qubits: tuple[int, ...] | None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
+    _ipython_display_enabled: bool = field(default=True, repr=False, compare=False)
+    _ipython_close_after_display: bool = field(default=False, repr=False, compare=False)
+
+    def _ipython_display_(self) -> None:
+        """Display the histogram figure in IPython without showing the dataclass repr."""
+
+        if not self._ipython_display_enabled:
+            return
+        display_figures_in_ipython(
+            (self.figure,),
+            close_after_display=self._ipython_close_after_display,
+        )
 
     def save(self, path: OutputPath) -> str:
         """Save the histogram figure and return the absolute saved path."""
@@ -411,6 +424,18 @@ class HistogramCompareResult:
     series_values: tuple[tuple[float, ...], ...] = ()
     diagnostics: tuple[RenderDiagnostic, ...] = ()
     saved_path: str | None = None
+    _ipython_display_enabled: bool = field(default=True, repr=False, compare=False)
+    _ipython_close_after_display: bool = field(default=False, repr=False, compare=False)
+
+    def _ipython_display_(self) -> None:
+        """Display the comparison figure in IPython without showing the dataclass repr."""
+
+        if not self._ipython_display_enabled:
+            return
+        display_figures_in_ipython(
+            (self.figure,),
+            close_after_display=self._ipython_close_after_display,
+        )
 
     def save(self, path: OutputPath) -> str:
         """Save the comparison figure and return the absolute saved path."""

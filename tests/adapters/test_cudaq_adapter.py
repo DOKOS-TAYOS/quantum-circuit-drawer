@@ -893,6 +893,8 @@ def test_cudaq_adapter_supports_cc_if_as_compact_semantic_box(
     assert operations[0].name == "IF"
     assert operations[0].label == "IF"
     assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].metadata["display_subtitle"] == "%cond | true=2"
+    assert operations[0].metadata["subtitle_font_scale"] == pytest.approx(0.62)
     assert operations[0].hover_details == (
         "control flow: cc.if",
         "condition: %cond",
@@ -929,6 +931,8 @@ def test_cudaq_adapter_supports_scf_if_else_as_compact_semantic_box(
     assert operations[0].name == "IF/ELSE"
     assert operations[0].label == "IF/ELSE"
     assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].metadata["display_subtitle"] == "%cond | true=1, false=1"
+    assert operations[0].metadata["subtitle_font_scale"] == pytest.approx(0.62)
     assert operations[0].hover_details == (
         "control flow: scf.if",
         "condition: %cond",
@@ -953,9 +957,11 @@ def test_cudaq_adapter_supports_scf_for_as_compact_semantic_box(
     operations = [operation for layer in semantic.layers for operation in layer.operations]
     assert len(operations) == 1
     assert operations[0].kind is OperationKind.GATE
-    assert operations[0].name == "FOR"
-    assert operations[0].label == "FOR"
+    assert operations[0].name == "FOR x4"
+    assert operations[0].label == "FOR x4"
     assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].metadata["display_subtitle"] == "%i = %c0 to %c4 step %c1"
+    assert operations[0].metadata["subtitle_font_scale"] == pytest.approx(0.62)
     assert operations[0].hover_details == (
         "control flow: scf.for",
         "iteration: %i = %c0 to %c4 step %c1",
@@ -982,6 +988,8 @@ def test_cudaq_adapter_supports_cc_loop_as_compact_semantic_box(
     assert operations[0].name == "LOOP"
     assert operations[0].label == "LOOP"
     assert operations[0].target_wires == ("q0", "q1")
+    assert operations[0].metadata["display_subtitle"] == "%cond | while=1, do=2, step=0"
+    assert operations[0].metadata["subtitle_font_scale"] == pytest.approx(0.62)
     assert operations[0].hover_details == (
         "control flow: cc.loop",
         "region count: 3",
@@ -990,6 +998,21 @@ def test_cudaq_adapter_supports_cc_loop_as_compact_semantic_box(
     )
     assert operations[0].provenance.native_name == "cc.loop"
     assert operations[0].provenance.native_kind == "control_flow"
+
+
+def test_draw_cudaq_control_flow_shows_static_conditions_and_iterations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_cudaq(monkeypatch)
+    kernel = FakePyKernel(mlir=build_scf_for_quake_mlir())
+
+    figure, axes = draw_quantum_circuit(kernel, framework="cudaq", show=False)
+
+    assert_axes_contains_circuit_artists(
+        axes,
+        expected_texts={"for x4", "%i = %c0 to %c4 step %c1"},
+    )
+    figure.clear()
 
 
 def test_cudaq_adapter_rejects_cfg_control_flow_constructs(
@@ -1098,7 +1121,7 @@ def test_draw_quantum_circuit_renders_cudaq_controlled_swap_box(
     [
         (build_cc_if_quake_mlir, "if", {"q0", "q1"}),
         (build_scf_if_else_quake_mlir, "if/else", {"q0", "q1"}),
-        (build_scf_for_quake_mlir, "for", {"q0", "q1"}),
+        (build_scf_for_quake_mlir, "for x4", {"q0", "q1"}),
         (build_cc_loop_quake_mlir, "loop", {"q0", "q1"}),
     ],
 )

@@ -111,6 +111,15 @@ def _normalize_classical_conditions(
     return tuple(values)
 
 
+def _metadata_wire_dependencies(metadata: Metadata) -> tuple[str, ...]:
+    value = metadata.get("occupied_wire_dependencies")
+    if isinstance(value, str):
+        return (value,)
+    if not isinstance(value, Sequence):
+        return ()
+    return tuple(str(wire_id) for wire_id in value if str(wire_id))
+
+
 def infer_canonical_gate_family(name: str) -> CanonicalGateFamily:
     """Infer the canonical gate family from a display name."""
 
@@ -166,7 +175,12 @@ class OperationIR:
         classical_wire_ids = tuple(
             wire_id for condition in self.classical_conditions for wire_id in condition.wire_ids
         )
-        return tuple(dict.fromkeys((*classical_wire_ids, *self.control_wires, *self.target_wires)))
+        dependency_wire_ids = _metadata_wire_dependencies(self.metadata)
+        return tuple(
+            dict.fromkeys(
+                (*classical_wire_ids, *dependency_wire_ids, *self.control_wires, *self.target_wires)
+            )
+        )
 
 
 def resolved_control_values(operation: OperationIR) -> tuple[tuple[int, ...], ...]:

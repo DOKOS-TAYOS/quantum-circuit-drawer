@@ -1,4 +1,4 @@
-"""Qiskit showcase centered on compact versus expanded composites."""
+"""Qiskit showcase centered on composites, state preparation, and dagger labels."""
 
 from __future__ import annotations
 
@@ -25,16 +25,19 @@ from quantum_circuit_drawer import (  # noqa: E402
     draw_quantum_circuit,
 )
 
-DEFAULT_FIGSIZE: tuple[float, float] = (10.6, 5.8)
+DEFAULT_FIGSIZE: tuple[float, float] = (11.4, 5.8)
 
 
 def build_circuit(*, qubit_count: int, motif_count: int) -> QuantumCircuit:
-    """Build a Qiskit circuit with a reusable composite block."""
+    """Build a Qiskit circuit with composites and compact semantic labels."""
 
     qft_width = min(3, qubit_count)
     circuit = QuantumCircuit(qubit_count, qubit_count, name="qiskit_composite_modes_showcase")
+    circuit.initialize([0.5, 0.5, 0.5, 0.5], [0, 1])
     circuit.h(0)
     circuit.cx(0, 1)
+    circuit.sdg(0)
+    circuit.tdg(1)
     circuit.append(synth_qft_full(qft_width).to_instruction(label="QFT"), range(qft_width))
     for step in range(motif_count):
         target = 1 + (step % max(1, qubit_count - 1))
@@ -72,7 +75,10 @@ def main() -> None:
 
 def _parse_args() -> Namespace:
     parser = ArgumentParser(
-        description="Render a Qiskit circuit that is useful for comparing compact and expanded composites."
+        description=(
+            "Render a Qiskit circuit that compares compact and expanded composites while "
+            "showing StatePreparation and dagger labels."
+        )
     )
     parser.add_argument("--qubits", type=int, default=5, help="Number of qubits to allocate.")
     parser.add_argument(
@@ -80,6 +86,12 @@ def _parse_args() -> Namespace:
         type=int,
         default=4,
         help="Extra single-qubit motifs to append after the composite block.",
+    )
+    parser.add_argument(
+        "--columns",
+        dest="motifs",
+        type=int,
+        help="Alias for --motifs, kept for consistency with the broader demo family.",
     )
     parser.add_argument(
         "--composite-mode",

@@ -47,7 +47,7 @@ def test_public_package_exports_histogram_types() -> None:
 def test_plot_histogram_returns_histogram_result_for_counts_dict() -> None:
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=build_public_histogram_config(show=False),
+        config=build_public_histogram_config(mode=HistogramMode.STATIC, show=False),
     )
 
     assert isinstance(result, HistogramResult)
@@ -59,6 +59,59 @@ def test_plot_histogram_returns_histogram_result_for_counts_dict() -> None:
     assert result.qubits is None
     assert result.saved_path is None
     assert_figure_has_visible_content(result.figure)
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_draws_value_labels_that_fit_inside_each_bin() -> None:
+    result = plot_histogram(
+        {"0": 123456, "1": 7},
+        config=build_public_histogram_config(
+            mode=HistogramMode.STATIC,
+            show=False,
+            figsize=(3.2, 2.4),
+        ),
+    )
+
+    result.figure.canvas.draw()
+    renderer = result.figure.canvas.get_renderer()
+    bars = [patch for patch in result.axes.patches if isinstance(patch, Rectangle)]
+    value_labels = [text for text in result.axes.texts if text.get_text() in {"123456", "7"}]
+
+    assert [text.get_text() for text in value_labels] == ["123456", "7"]
+    for bar, label in zip(bars, value_labels, strict=True):
+        bar_bbox = bar.get_window_extent(renderer=renderer)
+        label_bbox = label.get_window_extent(renderer=renderer)
+
+        assert label_bbox.width <= bar_bbox.width + 1.0
+        assert bar_bbox.x0 <= label_bbox.x0
+        assert label_bbox.x1 <= bar_bbox.x1
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_rotates_and_shrinks_dense_x_labels_to_avoid_overlap() -> None:
+    data = {format(index, "06b"): index + 1 for index in range(8)}
+
+    result = plot_histogram(
+        data,
+        config=build_public_histogram_config(
+            mode=HistogramMode.STATIC,
+            show=False,
+            figsize=(4.0, 2.8),
+        ),
+    )
+
+    result.figure.canvas.draw()
+    renderer = result.figure.canvas.get_renderer()
+    tick_labels = [text for text in result.axes.get_xticklabels() if text.get_text()]
+    tick_bboxes = [text.get_window_extent(renderer=renderer) for text in tick_labels]
+
+    assert tick_labels
+    assert all(text.get_rotation() == pytest.approx(35.0) for text in tick_labels)
+    assert max(text.get_fontsize() for text in tick_labels) < 10.0
+    for left, right in zip(tick_bboxes, tick_bboxes[1:], strict=False):
+        assert left.x1 <= right.x0 + 1.0
 
     plt.close(result.figure)
 

@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Notebook rendering now suppresses result-object text for `draw_quantum_circuit(...)`,
+  `plot_histogram(...)`, and histogram comparisons while still displaying the figure once when
+  `show=True`.
+- Added a `notebook` extra that installs `ipympl` so Jupyter users can enable `%matplotlib widget` for hover, managed controls, and interactive histograms.
+- Histogram bars now show compact value labels above each bin, and dense x-axis state labels rotate and shrink to avoid overlapping adjacent ticks.
+- Bundled demos now highlight the updated Qiskit control-flow frames, `switch_case` summaries, `StatePreparation`, dagger labels, and dense histogram labels.
+- Qiskit `switch_case` boxes and CUDA-Q structured control-flow boxes now include static condition, case, region, and iteration summaries instead of requiring hover to see the relevant control information.
+- Qiskit `if_else`, `for_loop`, and `while_loop` bodies now render expanded by default with labeled 2D control-flow frames, condition links for `if`/`while`, and visible `for` iteration counts.
+- Dagger-style gate names now render with `†` instead of the textual `dg` suffix.
+
+### Fixed
+
+- Qiskit `initialize` instructions now render as `StatePreparation` with a smaller compact state-vector subtitle and a text-proportional gate width.
+- `show=False` now also suppresses automatic notebook display for returned circuit and histogram
+  result objects.
+
 ## [1.0.1] - 2026-05-15
 
 ### Added

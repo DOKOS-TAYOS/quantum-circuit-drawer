@@ -11,6 +11,7 @@ _COMPACT_RESULT_DISPLAY_LABELS = frozenset({"Prob", "ExpVal", "Counts"})
 _COMPACT_RESULT_TERMINAL_KINDS = frozenset({"probs", "expval", "counts"})
 _COMPACT_RESULT_WIDTH_FACTOR = 0.78
 _COMPACT_LABEL_WIDTH_FONT_SCALE = 0.45
+_DEFAULT_SUBTITLE_WIDTH_FONT_SCALE = 0.8
 
 
 def estimate_text_width(text: str, font_size: float) -> float:
@@ -27,7 +28,12 @@ def operation_label_parts(
     label = operation.label or operation.name
     subtitle_value = operation.metadata.get("display_subtitle")
     subtitle = str(subtitle_value) if isinstance(subtitle_value, str) else None
-    if subtitle is None and style.show_params and operation.parameters:
+    if (
+        subtitle is None
+        and style.show_params
+        and operation.parameters
+        and operation.metadata.get("suppress_params") is not True
+    ):
         subtitle = format_parameters(operation.parameters)
     return label, subtitle
 
@@ -112,5 +118,17 @@ def operation_width_from_parts(
 
     width = max(style.gate_width, label_width)
     if subtitle:
-        width = max(width, estimate_text_width(subtitle, style.font_size * 0.8) + 0.25)
+        width = max(
+            width,
+            estimate_text_width(subtitle, style.font_size * subtitle_font_scale(operation)) + 0.25,
+        )
     return width
+
+
+def subtitle_font_scale(operation: OperationIR | MeasurementIR) -> float:
+    """Return the subtitle font scale requested by operation metadata."""
+
+    value = operation.metadata.get("subtitle_font_scale")
+    if isinstance(value, int | float) and value > 0:
+        return float(value)
+    return _DEFAULT_SUBTITLE_WIDTH_FONT_SCALE

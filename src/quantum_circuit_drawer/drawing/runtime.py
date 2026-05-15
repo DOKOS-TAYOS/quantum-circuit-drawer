@@ -83,6 +83,8 @@ def resolve_draw_config(
         config=resolved_config,
         mode=mode,
         interactive_mode_allowed=interactive_mode_allowed,
+        is_notebook=runtime_context.is_notebook,
+        pyplot_backend=runtime_context.pyplot_backend,
         notebook_backend_active=runtime_context.notebook_backend_active,
         caller_axes=ax,
         diagnostics=tuple(diagnostics),

@@ -18,6 +18,8 @@ from quantum_circuit_drawer.hover import HoverOptions
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.operations import CanonicalGateFamily, OperationKind
 from quantum_circuit_drawer.ir.semantic import SemanticCircuitIR
+from quantum_circuit_drawer.layout.engine import LayoutEngine
+from quantum_circuit_drawer.style import DrawStyle
 from tests.support import (
     OperationSignature,
     assert_axes_contains_circuit_artists,
@@ -426,7 +428,7 @@ def test_qiskit_adapter_expands_multi_operation_if_block() -> None:
     ]
 
 
-def test_qiskit_adapter_keeps_if_else_as_compact_composite() -> None:
+def test_qiskit_adapter_expands_if_else_branches_with_group_metadata() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(1, "c")
     circuit = qiskit.QuantumCircuit(quantum, classical)
@@ -439,8 +441,14 @@ def test_qiskit_adapter_keeps_if_else_as_compact_composite() -> None:
     ir = QiskitAdapter().to_ir(circuit)
     operations = [operation for layer in ir.layers for operation in layer.operations]
 
-    assert len(operations) == 1
-    assert operations[0].name == "IF/ELSE"
+    assert [operation.name for operation in operations] == ["X", "Z"]
+    assert [operation.metadata["control_flow_group"]["label"] for operation in operations] == [
+        "IF",
+        "ELSE",
+    ]
+    assert operations[0].metadata["control_flow_group"]["conditions"][0].expression == ("if c[0]=1")
+    assert operations[1].metadata["control_flow_group"]["conditions"] == ()
+    assert operations[0].metadata["suppress_classical_condition_connections"] is True
 
 
 def test_qiskit_adapter_falls_back_to_compact_if_when_simple_if_condition_is_not_normalizable() -> (
@@ -485,7 +493,7 @@ def test_qiskit_adapter_falls_back_to_compact_if_when_simple_if_condition_is_not
     assert converted[0].metadata["qiskit_control_flow"] == "if_else"
 
 
-def test_qiskit_adapter_keeps_if_else_as_compact_semantic_control_flow() -> None:
+def test_qiskit_adapter_expands_if_else_as_semantic_control_flow_groups() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(1, "c")
     circuit = qiskit.QuantumCircuit(quantum, classical)
@@ -496,24 +504,32 @@ def test_qiskit_adapter_keeps_if_else_as_compact_semantic_control_flow() -> None
         circuit.z(0)
 
     semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
-    operation = flatten_semantic_operations(semantic_ir)[0]
-    lowered_operation = flatten_operations(lower_semantic_circuit(semantic_ir))[0]
+    operations = flatten_semantic_operations(semantic_ir)
+    lowered_operations = flatten_operations(lower_semantic_circuit(semantic_ir))
 
-    assert operation.name == "IF/ELSE"
-    assert operation.kind is OperationKind.GATE
-    assert operation.classical_conditions[0].expression == "if c[0]=1"
-    assert operation.hover_details == (
+    assert [operation.name for operation in operations] == ["X", "Z"]
+    assert [operation.provenance.composite_label for operation in operations] == ["IF", "ELSE"]
+    assert operations[0].classical_conditions[0].expression == "if c[0]=1"
+    assert operations[1].classical_conditions == ()
+    assert operations[0].metadata["control_flow_group"]["details"] == (
         "control flow: if_else",
         "condition: if c[0]=1",
         "branches: true, false",
         "block ops: true=1, false=1",
     )
-    assert operation.provenance.native_name == "if_else"
-    assert lowered_operation.metadata["semantic_provenance"]["native_kind"] == "control_flow"
-    assert lowered_operation.metadata["hover_details"] == operation.hover_details
+    assert operations[1].metadata["control_flow_group"]["details"] == (
+        "control flow: if_else",
+        "condition: if c[0]=1",
+        "branches: true, false",
+        "block ops: true=1, false=1",
+    )
+    assert lowered_operations[0].metadata["semantic_provenance"]["native_kind"] == "gate"
+    assert (
+        lowered_operations[0].metadata["semantic_provenance"]["decomposition_origin"] == "if_else"
+    )
 
 
-def test_qiskit_adapter_keeps_if_else_with_modern_condition_as_compact_semantic_control_flow() -> (
+def test_qiskit_adapter_expands_if_else_with_modern_condition_as_semantic_control_flow_group() -> (
     None
 ):
     quantum = qiskit.QuantumRegister(1, "q")
@@ -531,11 +547,11 @@ def test_qiskit_adapter_keeps_if_else_with_modern_condition_as_compact_semantic_
         circuit.z(0)
 
     semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
-    operation = flatten_semantic_operations(semantic_ir)[0]
+    operations = flatten_semantic_operations(semantic_ir)
 
-    assert operation.name == "IF/ELSE"
-    assert operation.classical_conditions[0].expression == "if (c[0]=1) || (c[1]=0)"
-    assert operation.hover_details == (
+    assert [operation.name for operation in operations] == ["X", "Z"]
+    assert operations[0].classical_conditions[0].expression == "if (c[0]=1) || (c[1]=0)"
+    assert operations[0].metadata["control_flow_group"]["details"] == (
         "control flow: if_else",
         "condition: if (c[0]=1) || (c[1]=0)",
         "branches: true, false",
@@ -608,9 +624,31 @@ def test_qiskit_adapter_keeps_switch_case_as_compact_semantic_control_flow() -> 
         "cases: 0, 1, default",
         "case count: 3",
     )
+    assert operation.metadata["display_subtitle"] == "c[0]: 0, 1, default"
+    assert operation.metadata["subtitle_font_scale"] == pytest.approx(0.62)
 
 
-def test_qiskit_adapter_keeps_for_loop_as_compact_semantic_control_flow() -> None:
+def test_draw_qiskit_switch_case_shows_target_and_cases_in_static_output() -> None:
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.switch(classical[0]) as case:
+        with case(0):
+            circuit.x(0)
+        with case(case.DEFAULT):
+            circuit.h(0)
+
+    figure, axes = draw_quantum_circuit(circuit, framework="qiskit", show=False)
+
+    assert_axes_contains_circuit_artists(
+        axes,
+        expected_texts={"switch", "c[0]: 0, default"},
+    )
+    figure.clear()
+
+
+def test_qiskit_adapter_expands_for_loop_and_keeps_control_flow_hover_metadata() -> None:
     circuit = qiskit.QuantumCircuit(1)
     body = qiskit.QuantumCircuit(1)
     body.x(0)
@@ -619,17 +657,18 @@ def test_qiskit_adapter_keeps_for_loop_as_compact_semantic_control_flow() -> Non
     semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
     operation = flatten_semantic_operations(semantic_ir)[0]
 
-    assert operation.name == "FOR"
+    assert operation.name == "X"
     assert operation.kind is OperationKind.GATE
     assert operation.classical_conditions == ()
-    assert operation.hover_details == (
+    assert operation.provenance.composite_label == "FOR"
+    assert operation.metadata["control_flow_group"]["details"] == (
         "control flow: for_loop",
         "iteration: range(0, 3)",
         "body ops: 1",
     )
 
 
-def test_qiskit_adapter_keeps_while_loop_as_compact_semantic_control_flow() -> None:
+def test_qiskit_adapter_expands_while_loop_and_keeps_control_flow_hover_metadata() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(1, "c")
     circuit = qiskit.QuantumCircuit(quantum, classical)
@@ -640,9 +679,10 @@ def test_qiskit_adapter_keeps_while_loop_as_compact_semantic_control_flow() -> N
     semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
     operation = flatten_semantic_operations(semantic_ir)[0]
 
-    assert operation.name == "WHILE"
-    assert operation.classical_conditions[0].expression == "if c[0]=1"
-    assert operation.hover_details == (
+    assert operation.name == "X"
+    assert operation.classical_conditions == ()
+    assert operation.provenance.composite_label == "WHILE"
+    assert operation.metadata["control_flow_group"]["details"] == (
         "control flow: while_loop",
         "condition: if c[0]=1",
         "body ops: 1",
@@ -670,10 +710,10 @@ def test_qiskit_adapter_normalizes_modern_while_loop_conditions() -> None:
     semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
     operation = flatten_semantic_operations(semantic_ir)[0]
 
-    assert operation.name == "WHILE"
-    assert operation.classical_conditions[0].wire_ids == ("c0",)
-    assert operation.classical_conditions[0].expression == "if !((c[0]=1) && (c[1]=0))"
-    assert operation.hover_details == (
+    assert operation.name == "X"
+    assert operation.classical_conditions == ()
+    assert operation.provenance.composite_label == "WHILE"
+    assert operation.metadata["control_flow_group"]["details"] == (
         "control flow: while_loop",
         "condition: if !((c[0]=1) && (c[1]=0))",
         "body ops: 1",
@@ -753,9 +793,9 @@ def test_prepare_draw_pipeline_keeps_qiskit_control_flow_hover_details() -> None
         options={"hover": HoverOptions()},
     )
     hover_details = next(
-        gate.hover_data.details
-        for gate in pipeline.paged_scene.gates
-        if gate.hover_data is not None and gate.hover_data.name == "if/else"
+        highlight.hover_data.details
+        for highlight in pipeline.paged_scene.group_highlights
+        if highlight.hover_data is not None and highlight.hover_data.name == "if"
     )
 
     assert hover_details == (
@@ -766,7 +806,7 @@ def test_prepare_draw_pipeline_keeps_qiskit_control_flow_hover_details() -> None
     )
 
 
-def test_draw_quantum_circuit_renders_qiskit_compact_control_flow_boxes() -> None:
+def test_draw_quantum_circuit_renders_qiskit_control_flow_labels() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(1, "c")
     circuit = qiskit.QuantumCircuit(quantum, classical)
@@ -791,8 +831,133 @@ def test_draw_quantum_circuit_renders_qiskit_compact_control_flow_boxes() -> Non
 
     assert_axes_contains_circuit_artists(
         axes,
-        expected_texts={"if/else", "switch", "for", "while"},
+        expected_texts={"if", "else", "switch", "for x2", "while", "if c[0]=1"},
     )
+    figure.clear()
+
+
+def test_qiskit_adapter_expands_for_and_while_with_group_metadata_by_default() -> None:
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+    for_body = qiskit.QuantumCircuit(1)
+    for_body.x(0)
+    while_body = qiskit.QuantumCircuit(1, 1)
+    while_body.h(0)
+
+    circuit.for_loop(range(2), None, for_body, quantum, ())
+    circuit.while_loop((classical[0], 1), while_body, quantum, classical)
+
+    semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
+    operations = flatten_semantic_operations(semantic_ir)
+
+    assert [operation.name for operation in operations] == ["X", "H"]
+    assert [operation.provenance.composite_label for operation in operations] == [
+        "FOR",
+        "WHILE",
+    ]
+    assert [operation.provenance.location for operation in operations] == [(0, 0), (1, 0)]
+    assert operations[0].metadata["control_flow_group"]["label"] == "FOR x2"
+    assert operations[1].metadata["control_flow_group"]["label"] == "WHILE"
+    assert "control flow: for_loop" in operations[0].metadata["control_flow_group"]["details"]
+    assert "control flow: while_loop" in operations[1].metadata["control_flow_group"]["details"]
+
+
+def test_layout_engine_draws_qiskit_for_and_while_body_groups_with_hover_data() -> None:
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+    for_body = qiskit.QuantumCircuit(1)
+    for_body.x(0)
+    while_body = qiskit.QuantumCircuit(1, 1)
+    while_body.h(0)
+
+    circuit.for_loop(range(2), None, for_body, quantum, ())
+    circuit.while_loop((classical[0], 1), while_body, quantum, classical)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert [gate.label for gate in scene.gates] == ["X", "H"]
+    assert [highlight.label for highlight in scene.group_highlights] == ["FOR x2", "WHILE"]
+    assert all(highlight.hover_data is not None for highlight in scene.group_highlights)
+    assert scene.group_highlights[0].hover_data is not None
+    assert scene.group_highlights[0].hover_data.name == "for"
+    assert "control flow: for_loop" in scene.group_highlights[0].hover_data.details
+    assert scene.group_highlights[1].hover_data is not None
+    assert scene.group_highlights[1].hover_data.name == "while"
+    assert "control flow: while_loop" in scene.group_highlights[1].hover_data.details
+
+
+def test_layout_engine_draws_qiskit_control_flow_group_conditions_and_for_iterations() -> None:
+    quantum = qiskit.QuantumRegister(2, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test((classical[0], 1)) as else_:
+        circuit.x(0)
+    with else_:
+        circuit.z(1)
+    for_body = qiskit.QuantumCircuit(2)
+    for_body.h(0)
+    circuit.for_loop(range(3), None, for_body, quantum, ())
+    while_body = qiskit.QuantumCircuit(2, 1)
+    while_body.h(1)
+    circuit.while_loop((classical[0], 1), while_body, quantum, classical)
+
+    ir = QiskitAdapter().to_ir(circuit)
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert [highlight.label for highlight in scene.group_highlights] == [
+        "IF",
+        "ELSE",
+        "FOR x3",
+        "WHILE",
+    ]
+    classical_connections = [
+        connection
+        for connection in scene.connections
+        if connection.is_classical and connection.label == "if c[0]=1"
+    ]
+    assert len(classical_connections) == 2
+    for connection in classical_connections:
+        assert connection.double_line is True
+        assert connection.arrow_at_end is True
+        assert connection.y_start == scene.wire_y_positions["c0"]
+        assert connection.y_end < scene.wire_y_positions["c0"]
+    for highlight in scene.group_highlights:
+        assert highlight.y + (highlight.height / 2.0) < scene.wire_y_positions["c0"]
+
+
+def test_qiskit_initialize_uses_state_preparation_label_and_small_state_vector_subtitle() -> None:
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.initialize([1, 0, 0, 0], [0, 1])
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert operation.name == "StatePreparation"
+    assert operation.label == "StatePreparation"
+    assert operation.metadata["display_subtitle"] == "[1, 0, 0, 0]"
+    assert operation.metadata["subtitle_font_scale"] == pytest.approx(0.46)
+    assert scene.gates[0].label == "StatePreparation"
+    assert scene.gates[0].subtitle == "[1, 0, 0, 0]"
+    assert scene.gates[0].subtitle_font_scale == pytest.approx(0.46)
+    assert scene.gates[0].width > scene.style.gate_width
+    assert scene.gates[0].width < scene.style.gate_width * 7.0
+
+
+def test_draw_qiskit_initialize_uses_smaller_font_for_state_vector_subtitle() -> None:
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.initialize([1, 0, 0, 0], [0, 1])
+
+    figure, axes = draw_quantum_circuit(circuit, framework="qiskit", show=False)
+
+    label_text = next(text for text in axes.texts if text.get_text() == "StatePreparation")
+    subtitle_text = next(text for text in axes.texts if text.get_text() == "[1, 0, 0, 0]")
+
+    assert subtitle_text.get_fontsize() < label_text.get_fontsize() * 0.7
     figure.clear()
 
 

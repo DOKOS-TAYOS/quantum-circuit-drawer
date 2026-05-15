@@ -67,6 +67,8 @@ def append_classical_condition_connections(
     anchor_center_y: float,
     anchor_half_extent: float,
 ) -> None:
+    if operation.metadata.get("suppress_classical_condition_connections") is True:
+        return
     operation_id = _operation_id(operation)
     for anchor in iter_classical_condition_anchors(operation.classical_conditions):
         wire_y = builder.scaffold.wire_positions[anchor.wire_id]
@@ -268,6 +270,7 @@ def layout_controlled_gate(
             subtitle=metrics.subtitle,
             kind=operation.kind,
             render_style=GateRenderStyle.BOX,
+            subtitle_font_scale=metrics.subtitle_font_scale,
             hover_data=hover_data,
             operation_id=operation_id,
         )
@@ -497,6 +500,7 @@ def layout_gate(
             subtitle=metrics.subtitle,
             kind=operation.kind,
             render_style=GateRenderStyle.BOX,
+            subtitle_font_scale=metrics.subtitle_font_scale,
             hover_data=hover_data,
             operation_id=operation_id,
         )

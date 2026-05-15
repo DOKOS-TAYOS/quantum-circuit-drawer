@@ -12,6 +12,7 @@ from ..ir.lowering import lower_semantic_circuit
 from ..ir.operations import OperationKind
 from ..ir.semantic import SemanticCircuitIR, SemanticOperationIR, pack_semantic_operations
 from ..ir.wires import WireIR, WireKind
+from ..utils.formatting import format_state_vector_parameters
 from ..utils.matrix_support import square_matrix
 from . import _qiskit_classical as qiskit_classical_helpers
 from . import _qiskit_control_flow as qiskit_control_flow_helpers
@@ -167,7 +168,20 @@ class QiskitAdapter(BaseAdapter):
                 location=location,
                 explicit_matrices=explicit_matrices,
             )
-        if name in {"switch_case", "for_loop", "while_loop"}:
+        if name in {"for_loop", "while_loop"}:
+            return self._convert_loop_control_flow(
+                operation=operation,
+                name=name,
+                qubits=qubits,
+                clbits=clbits,
+                qubit_ids=qubit_ids,
+                classical_targets=classical_targets,
+                register_targets=register_targets,
+                composite_mode=composite_mode,
+                location=location,
+                explicit_matrices=explicit_matrices,
+            )
+        if name == "switch_case":
             return self._convert_compact_control_flow(
                 operation=operation,
                 name=name,
@@ -269,11 +283,13 @@ class QiskitAdapter(BaseAdapter):
                 raise UnsupportedOperationError(
                     f"Qiskit operation '{raw_name}' has no drawable targets"
                 )
+            is_initialize = name == "initialize"
+            compact_label = "StatePreparation" if is_initialize else raw_name
             return [
                 SemanticOperationIR(
                     kind=OperationKind.GATE,
-                    name=raw_name,
-                    label=raw_name,
+                    name=compact_label,
+                    label=compact_label,
                     target_wires=target_wires,
                     parameters=parameters,
                     provenance=semantic_provenance(
@@ -284,7 +300,17 @@ class QiskitAdapter(BaseAdapter):
                         composite_label=raw_name,
                         location=location,
                     ),
-                    metadata=matrix_metadata,
+                    metadata={
+                        **matrix_metadata,
+                        **(
+                            {
+                                "display_subtitle": format_state_vector_parameters(parameters),
+                                "subtitle_font_scale": 0.46,
+                            }
+                            if is_initialize
+                            else {}
+                        ),
+                    },
                 )
             ]
 
@@ -378,6 +404,7 @@ class QiskitAdapter(BaseAdapter):
             explicit_matrices=explicit_matrices,
             condition_from_qiskit=self._condition_from_qiskit,
             convert_compact_control_flow=self._convert_compact_control_flow,
+            control_flow_hover_details=self._control_flow_hover_details,
             instruction_converter=self._convert_instruction,
         )
 
@@ -405,6 +432,37 @@ class QiskitAdapter(BaseAdapter):
             label=label,
             compact_control_flow_conditions=self._compact_control_flow_conditions,
             control_flow_hover_details=self._control_flow_hover_details,
+        )
+
+    def _convert_loop_control_flow(
+        self,
+        *,
+        operation: object,
+        name: str,
+        qubits: tuple[object, ...],
+        clbits: tuple[object, ...],
+        qubit_ids: dict[object, str],
+        classical_targets: dict[object, tuple[str, str]],
+        register_targets: dict[object, tuple[str, str]],
+        composite_mode: str,
+        location: tuple[int, ...],
+        explicit_matrices: bool,
+    ) -> list[SemanticOperationIR]:
+        return qiskit_control_flow_helpers.convert_loop_control_flow(
+            framework_name=self.framework_name,
+            operation=operation,
+            name=name,
+            qubits=qubits,
+            clbits=clbits,
+            qubit_ids=qubit_ids,
+            classical_targets=classical_targets,
+            register_targets=register_targets,
+            composite_mode=composite_mode,
+            location=location,
+            explicit_matrices=explicit_matrices,
+            compact_control_flow_conditions=self._compact_control_flow_conditions,
+            control_flow_hover_details=self._control_flow_hover_details,
+            instruction_converter=self._convert_instruction,
         )
 
     def _compact_control_flow_conditions(

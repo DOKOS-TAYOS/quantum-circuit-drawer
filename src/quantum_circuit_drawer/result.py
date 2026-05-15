@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from importlib import import_module
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ._ipython_display import display_figures_in_ipython
 from .config import DrawMode
 from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 from .export.figures import save_matplotlib_figure
@@ -37,19 +37,18 @@ class DrawResult:
     interactive_enabled: bool = False
     hover_enabled: bool = False
     saved_path: str | None = None
+    _ipython_display_enabled: bool = field(default=True, repr=False, compare=False)
+    _ipython_close_after_display: bool = field(default=False, repr=False, compare=False)
 
     def _ipython_display_(self) -> None:
         """Display contained figures in IPython without showing the dataclass repr."""
 
-        try:
-            display = getattr(import_module("IPython.display"), "display", None)
-        except Exception:
+        if not self._ipython_display_enabled:
             return
-        if not callable(display):
-            return
-
-        for figure in self.figures:
-            display(figure)
+        display_figures_in_ipython(
+            self.figures,
+            close_after_display=self._ipython_close_after_display,
+        )
 
     @property
     def resolved_mode(self) -> DrawMode:

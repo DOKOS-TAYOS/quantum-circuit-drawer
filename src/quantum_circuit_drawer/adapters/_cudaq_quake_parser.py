@@ -54,6 +54,20 @@ _STRUCTURED_CONTROL_FLOW_PREFIXES = ("cc.if", "cc.loop", "scf.if", "scf.for")
 _CC_IF_HEADER_RE = re.compile(r"^cc\.if\s*\((?P<condition>.+)\)\s*\{$")
 _SCF_IF_HEADER_RE = re.compile(r"^scf\.if\s+(?P<condition>.+?)(?:\s+->.+)?\s*\{$")
 _SCF_FOR_HEADER_RE = re.compile(r"^scf\.for\s+(?P<iteration>.+)\s*\{$")
+_SCF_FOR_ITERATION_COUNT_RE = re.compile(
+    r"^%[\w$.]+\s*=\s*(?P<start>\S+)\s+to\s+(?P<stop>\S+)\s+step\s+(?P<step>\S+)"
+    r"(?:\s+.*)?$"
+)
+_CONTROL_FLOW_SUBTITLE_FONT_SCALE = 0.62
+
+
+def _control_flow_subtitle_metadata(subtitle: str | None) -> dict[str, object]:
+    if subtitle is None or not subtitle.strip():
+        return {}
+    return {
+        "display_subtitle": subtitle,
+        "subtitle_font_scale": _CONTROL_FLOW_SUBTITLE_FONT_SCALE,
+    }
 
 
 @dataclass(slots=True)
@@ -199,6 +213,13 @@ class CudaqQuakeParser:
         has_else_branch = bool(false_region_lines)
         label = "IF/ELSE" if has_else_branch else "IF"
         native_name = "scf.if" if header.startswith("scf.if") else "cc.if"
+        false_count = self._count_region_operations(false_region_lines) if has_else_branch else None
+        display_subtitle = self._if_control_flow_subtitle(
+            header=header,
+            condition=condition,
+            true_count=true_count,
+            false_count=false_count,
+        )
         return (
             SemanticOperationIR(
                 kind=OperationKind.GATE,
@@ -212,7 +233,10 @@ class CudaqQuakeParser:
                     native_kind="control_flow",
                     location=location,
                 ),
-                metadata={"cudaq_control_flow": native_name},
+                metadata={
+                    "cudaq_control_flow": native_name,
+                    **_control_flow_subtitle_metadata(display_subtitle),
+                },
             ),
             next_index,
         )
@@ -237,11 +261,14 @@ class CudaqQuakeParser:
         hover_details.append(f"body ops: {self._count_region_operations(body_lines)}")
         hover_details.append(f"wires: {', '.join(target_wires)}")
 
+        iteration_count = self._for_iteration_count(iteration)
+        label = "FOR" if iteration_count is None else f"FOR x{iteration_count}"
+        display_subtitle = iteration or self._trim_control_flow_header(header)
         return (
             SemanticOperationIR(
                 kind=OperationKind.GATE,
-                name="FOR",
-                label="FOR",
+                name=label,
+                label=label,
                 target_wires=target_wires,
                 hover_details=normalized_detail_lines(*hover_details),
                 provenance=semantic_provenance(
@@ -250,7 +277,10 @@ class CudaqQuakeParser:
                     native_kind="control_flow",
                     location=location,
                 ),
-                metadata={"cudaq_control_flow": "scf.for"},
+                metadata={
+                    "cudaq_control_flow": "scf.for",
+                    **_control_flow_subtitle_metadata(display_subtitle),
+                },
             ),
             next_index,
         )
@@ -284,6 +314,11 @@ class CudaqQuakeParser:
             "region ops: " + ", ".join(f"{name}={count}" for name, count in region_counts),
             f"wires: {', '.join(target_wires)}",
         ]
+        region_summary = ", ".join(f"{name}={count}" for name, count in region_counts)
+        condition = self._loop_condition_text(while_lines)
+        display_subtitle = (
+            f"{condition} | {region_summary}" if condition is not None else region_summary
+        )
         return (
             SemanticOperationIR(
                 kind=OperationKind.GATE,
@@ -297,7 +332,10 @@ class CudaqQuakeParser:
                     native_kind="control_flow",
                     location=location,
                 ),
-                metadata={"cudaq_control_flow": "cc.loop"},
+                metadata={
+                    "cudaq_control_flow": "cc.loop",
+                    **_control_flow_subtitle_metadata(display_subtitle),
+                },
             ),
             next_index,
         )
@@ -369,6 +407,50 @@ class CudaqQuakeParser:
         if match is None:
             return None
         return match.group("iteration").strip()
+
+    def _for_iteration_count(self, iteration: str | None) -> int | None:
+        if iteration is None:
+            return None
+        match = _SCF_FOR_ITERATION_COUNT_RE.match(iteration)
+        if match is None:
+            return None
+        try:
+            start = self._resolve_int_token(match.group("start"))
+            stop = self._resolve_int_token(match.group("stop"))
+            step = self._resolve_int_token(match.group("step"))
+        except UnsupportedOperationError:
+            return None
+        if step == 0:
+            return None
+        if step > 0:
+            if start >= stop:
+                return 0
+            return (stop - start + step - 1) // step
+        if start <= stop:
+            return 0
+        absolute_step = abs(step)
+        return (start - stop + absolute_step - 1) // absolute_step
+
+    def _if_control_flow_subtitle(
+        self,
+        *,
+        header: str,
+        condition: str | None,
+        true_count: int,
+        false_count: int | None,
+    ) -> str:
+        condition_text = condition or self._trim_control_flow_header(header)
+        if false_count is None:
+            return f"{condition_text} | true={true_count}"
+        return f"{condition_text} | true={true_count}, false={false_count}"
+
+    def _loop_condition_text(self, while_lines: Sequence[str]) -> str | None:
+        for line in while_lines:
+            if line.startswith("cc.condition"):
+                tokens = _SSA_TOKEN_RE.findall(line)
+                if tokens:
+                    return tokens[0]
+        return None
 
     def _trim_control_flow_header(self, header: str) -> str:
         return header[:-1].strip() if header.endswith("{") else header

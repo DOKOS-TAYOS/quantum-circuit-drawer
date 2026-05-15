@@ -38,6 +38,14 @@ def test_security_dependencies_include_audit_tools() -> None:
     assert any(dependency.startswith("bandit") for dependency in security_dependencies)
 
 
+def test_notebook_extra_includes_ipympl_widget_backend() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+
+    notebook_dependencies = pyproject["project"]["optional-dependencies"]["notebook"]
+
+    assert any(dependency.startswith("ipympl") for dependency in notebook_dependencies)
+
+
 def test_ci_workflow_runs_pyright() -> None:
     workflow_path = Path(".github/workflows/ci.yml")
     workflow_text = workflow_path.read_text(encoding="utf-8")
@@ -84,7 +92,7 @@ def test_dependabot_monitors_python_and_github_actions() -> None:
 def test_security_workflows_are_configured() -> None:
     security_text = Path(".github/workflows/security.yml").read_text(encoding="utf-8")
 
-    assert "actions/dependency-review-action@v4" in security_text
+    assert "actions/dependency-review-action@v5" in security_text
     assert "python -m pip_audit" in security_text
     assert "python -m bandit" in security_text
     assert 'python -m pip install -e ".[dev,security]"' not in security_text

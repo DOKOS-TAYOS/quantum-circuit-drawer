@@ -28,7 +28,7 @@ from ..style import (
     resolved_measurement_line_width,
 )
 from ..typing import UseMathTextMode
-from ..utils.formatting import format_gate_text_block, format_visible_label
+from ..utils.formatting import format_gate_name, format_gate_text_block, format_visible_label
 from ._matplotlib_axes import (
     OCCLUSION_LAYER_ZORDER,
     SYMBOL_LAYER_ZORDER,
@@ -66,6 +66,9 @@ class _PreparedGateText:
     text: str
     height_fraction: float
     is_stacked: bool
+    label_text: str | None = None
+    subtitle_text: str | None = None
+    split_subtitle: bool = False
 
 
 _WIRE_LABEL_LEFT_PADDING = 0.08
@@ -79,6 +82,17 @@ def _prepared_gate_text(
     if gate.render_style is GateRenderStyle.X_TARGET:
         return None
     if gate.subtitle:
+        if gate.subtitle_font_scale < 0.75:
+            visible_label = format_visible_label(gate.label, use_mathtext=use_mathtext)
+            visible_subtitle = format_visible_label(gate.subtitle, use_mathtext=False)
+            return _PreparedGateText(
+                text=f"{visible_label}\n{visible_subtitle}",
+                height_fraction=_STACKED_TEXT_USABLE_HEIGHT_FRACTION,
+                is_stacked=True,
+                label_text=visible_label,
+                subtitle_text=visible_subtitle,
+                split_subtitle=True,
+            )
         return _PreparedGateText(
             text=format_gate_text_block(
                 gate.label,
@@ -102,6 +116,25 @@ def _group_highlight_patch(
     x_offset: float,
     y_offset: float,
 ) -> FancyBboxPatch:
+    if highlight.label is not None:
+        patch = FancyBboxPatch(
+            (
+                highlight.x + x_offset - (highlight.width / 2.0),
+                highlight.y + y_offset - (highlight.height / 2.0),
+            ),
+            highlight.width,
+            highlight.height,
+            boxstyle="round,pad=0.03,rounding_size=0.08",
+            facecolor="none",
+            edgecolor=scene.style.theme.accent_color,
+            linewidth=1.15,
+            linestyle="--",
+            zorder=OCCLUSION_LAYER_ZORDER - 0.5,
+            alpha=0.9 * alpha_for_visual_state(highlight.visual_state),
+        )
+        patch.set_gid("control-flow-group-highlight")
+        return patch
+
     patch = FancyBboxPatch(
         (
             highlight.x + x_offset - (highlight.width / 2.0),
@@ -235,13 +268,43 @@ def draw_group_highlights(
     *,
     x_offset: float = 0.0,
     y_offset: float = 0.0,
-) -> tuple[Patch | PatchCollection, ...] | None:
+) -> tuple[Patch | PatchCollection | Text, ...] | None:
     if not highlights:
         return None
 
-    rendered_artists: list[Patch | PatchCollection] = []
+    rendered_artists: list[Patch | PatchCollection | Text] = []
     highlights_by_state: dict[SceneVisualState, list[SceneGroupHighlight]] = {}
     for highlight in highlights:
+        if highlight.label is not None:
+            rendered_artists.append(
+                _add_patch_artist(
+                    ax,
+                    _group_highlight_patch(
+                        highlight,
+                        scene,
+                        x_offset=x_offset,
+                        y_offset=y_offset,
+                    ),
+                )
+            )
+            label_artist = _add_text_artist(
+                ax,
+                highlight.x + x_offset,
+                highlight.y + y_offset - (highlight.height / 2.0) - 0.08,
+                format_visible_label(
+                    format_gate_name(highlight.label),
+                    use_mathtext=scene.style.use_mathtext,
+                ),
+                ha="center",
+                va="bottom",
+                fontsize=max(6.0, scene.style.font_size * 0.72),
+                color=scene.style.theme.accent_color,
+                zorder=TEXT_LAYER_ZORDER,
+                alpha=alpha_for_visual_state(highlight.visual_state),
+            )
+            label_artist.set_gid("control-flow-group-label")
+            rendered_artists.append(label_artist)
+            continue
         highlights_by_state.setdefault(highlight.visual_state, []).append(highlight)
 
     for state_highlights in highlights_by_state.values():
@@ -480,6 +543,18 @@ def draw_gate_label(
         return None
 
     if resolved_text.is_stacked:
+        if resolved_text.split_subtitle and resolved_text.subtitle_text:
+            return _draw_split_gate_label(
+                ax,
+                gate,
+                scene,
+                prepared_text=resolved_text,
+                label_font_size=label_font_size,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                text_fit_context=text_fit_context,
+                text_fit_cache=text_fit_cache,
+            )
         resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
             ax=ax,
             scene=scene,
@@ -553,6 +628,92 @@ def draw_gate_label(
         height_fraction=resolved_text.height_fraction,
     )
     return label_artist, None
+
+
+def _draw_split_gate_label(
+    ax: Axes,
+    gate: SceneGate,
+    scene: LayoutScene,
+    *,
+    prepared_text: _PreparedGateText,
+    label_font_size: float | None,
+    x_offset: float,
+    y_offset: float,
+    text_fit_context: _GateTextFittingContext | None,
+    text_fit_cache: _GateTextCache | None,
+) -> tuple[Text, Text | None]:
+    label_text = prepared_text.label_text or format_visible_label(
+        gate.label,
+        use_mathtext=scene.style.use_mathtext,
+    )
+    subtitle_text = prepared_text.subtitle_text or gate.subtitle or ""
+    resolved_label_font_size = label_font_size or _fit_gate_text_font_size(
+        ax=ax,
+        scene=scene,
+        width=gate.width,
+        height=gate.height,
+        text=label_text,
+        default_font_size=scene.style.font_size,
+        height_fraction=0.42,
+        context=text_fit_context,
+        cache=text_fit_cache,
+    )
+    resolved_subtitle_font_size = _fit_gate_text_font_size(
+        ax=ax,
+        scene=scene,
+        width=gate.width,
+        height=gate.height,
+        text=subtitle_text,
+        default_font_size=scene.style.font_size * gate.subtitle_font_scale,
+        height_fraction=0.34,
+        context=text_fit_context,
+        cache=text_fit_cache,
+    )
+    text_color = color_for_visual_state(
+        scene.style.theme.text_color,
+        theme=scene.style.theme,
+        visual_state=gate.visual_state,
+    )
+    alpha = alpha_for_visual_state(gate.visual_state)
+    label_artist = _add_text_artist(
+        ax,
+        gate.x + x_offset,
+        gate.y + y_offset - (gate.height * 0.13),
+        label_text,
+        ha="center",
+        va="center",
+        fontsize=resolved_label_font_size,
+        color=text_color,
+        zorder=TEXT_LAYER_ZORDER,
+        alpha=alpha,
+    )
+    subtitle_artist = _add_text_artist(
+        ax,
+        gate.x + x_offset,
+        gate.y + y_offset + (gate.height * 0.2),
+        subtitle_text,
+        ha="center",
+        va="center",
+        fontsize=resolved_subtitle_font_size,
+        color=text_color,
+        zorder=TEXT_LAYER_ZORDER,
+        alpha=alpha,
+    )
+    set_gate_text_metadata(
+        label_artist,
+        role="gate_label",
+        gate_width=gate.width,
+        gate_height=gate.height * 0.42,
+        height_fraction=1.0,
+    )
+    set_gate_text_metadata(
+        subtitle_artist,
+        role="gate_subtitle",
+        gate_width=gate.width,
+        gate_height=gate.height * 0.34,
+        height_fraction=1.0,
+    )
+    return label_artist, subtitle_artist
 
 
 def draw_controls(

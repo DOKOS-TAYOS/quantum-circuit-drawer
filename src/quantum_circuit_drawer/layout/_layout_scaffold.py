@@ -15,7 +15,7 @@ from ..style.defaults import replace_draw_style
 from ._layering import normalize_draw_layers
 from ._operation_text import build_operation_text_metrics
 from .scene import ScenePage
-from .spacing import estimate_text_width, operation_width_from_parts
+from .spacing import estimate_text_width, operation_width_from_parts, subtitle_font_scale
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +24,7 @@ class _OperationMetrics:
     label: str
     display_label: str
     subtitle: str | None
+    subtitle_font_scale: float
 
 
 _WIRE_LABEL_MARGIN_FONT_SCALE = 0.32
@@ -221,6 +222,7 @@ def _build_operation_metrics_and_column_widths(
                 operation.metadata.get("compact_width"),
                 operation.metadata.get("compact_result_width"),
                 operation.metadata.get("pennylane_terminal_kind"),
+                operation.metadata.get("subtitle_font_scale"),
             )
             width = cached_widths.get(width_key)
             if width is None:
@@ -236,6 +238,7 @@ def _build_operation_metrics_and_column_widths(
                 label=operation_text.label,
                 display_label=operation_text.display_label,
                 subtitle=operation_text.subtitle,
+                subtitle_font_scale=subtitle_font_scale(operation),
             )
             if width > column_width:
                 column_width = width

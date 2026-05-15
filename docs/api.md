@@ -162,7 +162,9 @@ Important fields:
 - `side.appearance.preset`: shared style preset baseline
 - `side.appearance.style`: `DrawStyle`, mapping, or `None`
 - `side.appearance.hover`: `bool`, `HoverOptions`, mapping, or `None`
-- `output.show`: whether the library should call `pyplot.show()` when appropriate
+- `output.show`: whether the library should show the figure automatically; in notebooks,
+  `show=True` displays the returned figure once without result-object text, while `show=False`
+  suppresses automatic notebook output
 - `output.output_path`: optional file path for saving
 - `output.figsize`: managed figure size in inches
 

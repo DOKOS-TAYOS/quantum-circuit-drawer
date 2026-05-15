@@ -22,18 +22,18 @@ Linux or WSL:
 .venv/bin/python -m pip install -e ".[dev]"
 ```
 
-For adapter work, install the relevant extras too.
+For adapter or notebook work, install the relevant extras too.
 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm,notebook]"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm]"
+.venv/bin/python -m pip install -e ".[dev,qiskit,cirq,pennylane,myqlm,notebook]"
 ```
 
 For CUDA-Q development, use Linux or WSL2:

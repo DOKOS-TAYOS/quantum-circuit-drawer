@@ -73,12 +73,12 @@ These tables are generated from the package's internal support data so the docum
 | Input path | Basic gates | Measurements | Open controls | Classical/control flow | Composites | Resets/barriers | Terminal outputs | Histograms |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Internal IR | Exact through public IR | Exact | Exact when encoded | Classical conditions only | Caller-defined | Supported | Use explicit IR boxes | Mappings and framework-neutral data |
-| Qiskit | Common gates plus canonical families | Supported | `ctrl_state` supported | Simple `if_test` can expand; richer flow is compact | Compact or expanded instructions | Supported | Not applicable | Counts, quasi, sampler, primitive, bit-array payloads |
+| Qiskit | Common gates plus canonical families | Supported | `ctrl_state` supported | `if`/`for`/`while` bodies framed; `switch` shows cases | Compact or expanded instructions | Supported | Not applicable | Counts, quasi, sampler, primitive, bit-array payloads |
 | OpenQASM 2/3 | Whatever Qiskit parser accepts | Supported after parsing | Through parsed Qiskit circuit | Through parsed Qiskit circuit | Through parsed Qiskit circuit | Through parsed Qiskit circuit | Not applicable | Use normal histogram inputs after execution |
 | Cirq | Common gates | Supported | Singleton binary `control_values` supported | Normalized conditions or hover fallback | `CircuitOperation` compact or expanded | Swap and measurements supported | Not applicable | Measurement dictionaries from Cirq results |
 | PennyLane | Common operations | Mid-circuit `qml.measure` supported | Binary `control_values` supported when exposed | `qml.cond` conditions when normalizable | Decomposable operations such as `QFT` can expand | Supported when present in tape | Compact output boxes for expval, var, probs, sample, counts, state | Direct counts, probabilities, and sample arrays |
 | MyQLM | Common gates and gate definitions | Supported | Controlled gates from definitions | Drawable formulas or hover-preserved fallback | `gateDic`, remap, and ancilla-heavy composites compactly | Qubit resets supported; classical-only reset metadata is limited | Not applicable | `raw_data` probabilities |
-| CUDA-Q | Supported Quake/MLIR gate subset | Basis-preserving measurements | Supported controlled operations in parser subset | Structured flow compact; low-level CFG outside subset | Compact callable boxes for apply/compute/adjoint | Reset supported | Not applicable | Sample-result count containers |
+| CUDA-Q | Supported Quake/MLIR gate subset | Basis-preserving measurements | Supported controlled operations in parser subset | Structured flow compact with visible summaries; low-level CFG outside subset | Compact callable boxes for apply/compute/adjoint | Reset supported | Not applicable | Sample-result count containers |
 
 ## Choosing Between Native Frameworks And IR
 
@@ -124,19 +124,19 @@ circuit.measure(1, 0)
 draw_quantum_circuit(circuit)
 ```
 
-Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions including modern Qiskit expression trees when they can be normalized safely, compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`, composite instructions, swap, barriers, and measurements. Native control-flow boxes use compact lowercase visible labels such as `if/else`, `switch`, and `while`.
+Current support includes common gates, controlled gates including open-control states from `ctrl_state`, classical `if` conditions including modern Qiskit expression trees when they can be normalized safely, compact native boxes for `switch_case` with visible target and case summaries, expanded `if_else`, `for_loop`, and `while_loop` bodies with labeled frames, condition links, loop hover details, and visible `for` iteration counts, composite instructions, swap, barriers, and measurements. Native control-flow labels use compact lowercase visible text such as `if`, `else`, `switch`, `for x3`, and `while`.
 
 For real-device 3D layouts, `HardwareTopology.from_qiskit_backend(backend)` builds a static topology from BackendV2 `coupling_map`, `target.build_coupling_map(...)`, or legacy `configuration().coupling_map` data. Pass that topology through `CircuitRenderOptions(view="3d", topology=topology)` when comparing an original circuit with a transpiled circuit on the backend footprint.
 
-For Qiskit control-flow, the drawer keeps the expanded behavior for simple `if_test(...)` blocks without an `else` when the condition can still be normalized into exact classical conditions. If a simple `if_test(...)` uses a modern condition shape that cannot be normalized safely, it falls back to a compact `IF` box with native hover details instead of failing.
+For Qiskit control-flow, the drawer keeps the expanded behavior for simple `if_test(...)` blocks and `if_else` branches when the condition can still be normalized into exact classical conditions. If a simple `if_test(...)` uses a modern condition shape that cannot be normalized safely, it falls back to a compact `IF` box with native hover details instead of failing.
 
-Richer control-flow such as `if_else` with an `else`, `switch_case`, `for_loop`, and `while_loop` is intentionally rendered as compact boxes with hover details instead of pretending that branches were executed or loops were unrolled.
+Branching control-flow such as `if_else` with an `else` renders each branch inside its own labeled frame, while `switch_case` remains a compact box that shows the target and case summary directly on the static drawing, with full details preserved in hover. Loop control-flow such as `for_loop` and `while_loop` renders the loop body expanded inside a labeled frame; the frame hover preserves loop details without implying that iterations were unrolled.
 
 Bundled demos:
 
 - `qiskit-2d-exploration-showcase` is the best first demo for managed 2D exploration, active-wire filtering, ancilla toggles, folded-wire markers, and contextual block controls on the strongest semantic adapter path.
 - `qiskit-3d-exploration-showcase` is the best first demo for managed 3D exploration, topology-aware selection, and contextual block controls on that same semantic path.
-- `qiskit-control-flow-showcase` is the best first demo for compact native control-flow boxes and open controls.
+- `qiskit-control-flow-showcase` is the best first demo for expanded native control-flow frames, visible `switch_case` summaries, and open controls.
 - `qiskit-composite-modes-showcase` is the best focused demo for compact versus expanded composite instructions.
 - `qiskit-random` and `qiskit-qaoa` are the broader stress-test demos once you want denser scenes or a heavier 3D workload.
 
@@ -427,7 +427,7 @@ draw_quantum_circuit(
 
 Support note:
 
-- Supported parsing now preserves Quake provenance, measurement basis, reset operations, structured control-flow boxes, value-form wire flow, scalar runtime parameters, dynamic qvector sizes resolved through `cudaq_args`, and compact callable blocks for `apply`, `adjoint`, and `compute_action` through the shared semantic adapter pipeline.
+- Supported parsing now preserves Quake provenance, measurement basis, reset operations, structured control-flow boxes with visible condition, region, and iteration summaries, value-form wire flow, scalar runtime parameters, dynamic qvector sizes resolved through `cudaq_args`, and compact callable blocks for `apply`, `adjoint`, and `compute_action` through the shared semantic adapter pipeline.
 
 Bundled demos:
 
@@ -438,7 +438,7 @@ Current limits:
 
 - CUDA-Q support is Linux/WSL2-only because upstream CUDA-Q is not available for native Windows.
 - Runtime arguments must be supplied as `adapter_options={"cudaq_args": (...)}` and currently support scalar `int`, `float`, and `bool` values.
-- Structured `cc.if`, `scf.if`, `scf.for`, and `cc.loop` now render as compact descriptive boxes with hover details instead of being expanded.
+- Structured `cc.if`, `scf.if`, `scf.for`, and `cc.loop` now render as compact descriptive boxes with visible condition, region, and iteration summaries plus hover details instead of being expanded.
 - Low-level CFG control flow such as `cf.cond_br` and broader advanced constructs are still outside the supported subset.
 - `apply`, `compute_action`, and `adjoint` are currently rendered as compact callable boxes with hover details rather than expanded internal structure.
 - Controlled `swap` now renders as a compact controlled `SWAP` box, while unresolved dynamic qvector sizes are still rejected unless they can be resolved from `cudaq_args`.

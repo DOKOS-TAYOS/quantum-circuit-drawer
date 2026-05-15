@@ -19,6 +19,7 @@ from ..layout.scene import (
     SceneControl,
     SceneGate,
     SceneGateAnnotation,
+    SceneGroupHighlight,
     SceneMeasurement,
     ScenePage,
     SceneSwap,
@@ -71,7 +72,7 @@ _PROJECTED_PAGES_CACHE_SIZE = 8
 _CONNECTION_HOVER_LINE_WIDTH_MULTIPLIER = 1.5
 _CONNECTION_HOVER_MIN_HALF_WIDTH_PIXELS = 4.0
 _CONNECTION_HOVER_MIN_HALF_WIDTH_DATA = 1e-6
-_PreparedGateTextCacheKey = tuple[object, str, str | None, UseMathTextMode]
+_PreparedGateTextCacheKey = tuple[object, str, str | None, float, UseMathTextMode]
 
 _SceneColumnItem = TypeVar(
     "_SceneColumnItem",
@@ -214,6 +215,13 @@ class MatplotlibRenderer(BaseRenderer):
             x_offset=x_offset,
             y_offset=y_offset,
         )
+        if hover_enabled:
+            self._add_group_highlight_hover_targets(
+                hover_targets,
+                projected_page.group_highlights,
+                x_offset=x_offset,
+                y_offset=y_offset,
+            )
         draw_barriers(axes, projected_page.barriers, scene, x_offset=x_offset, y_offset=y_offset)
         draw_connections(
             axes,
@@ -278,7 +286,7 @@ class MatplotlibRenderer(BaseRenderer):
                 )
                 if prepared_text is not None:
                     label_font_size = grouped_label_font_sizes.get(id(gate))
-                    if label_font_size is None:
+                    if label_font_size is None and not prepared_text.split_subtitle:
                         label_font_size = _fit_gate_text_font_size_with_context(
                             context=gate_text_context,
                             width=gate.width,
@@ -407,6 +415,8 @@ class MatplotlibRenderer(BaseRenderer):
             )
             if prepared_text is None:
                 continue
+            if prepared_text.split_subtitle:
+                continue
             group_key = (
                 self._gate_label_group_key(gate.label),
                 round(gate.width, 9),
@@ -465,6 +475,7 @@ class MatplotlibRenderer(BaseRenderer):
             gate.render_style,
             gate.label,
             gate.subtitle,
+            gate.subtitle_font_scale,
             scene.style.use_mathtext,
         )
         cached_text = cache.get(cache_key)
@@ -541,6 +552,26 @@ class MatplotlibRenderer(BaseRenderer):
             y_min=gate.y + y_offset - (gate.height / 2.0),
             y_max=gate.y + y_offset + (gate.height / 2.0),
         )
+
+    def _add_group_highlight_hover_targets(
+        self,
+        hover_targets: list[_HoverTarget2D],
+        highlights: tuple[SceneGroupHighlight, ...],
+        *,
+        x_offset: float,
+        y_offset: float,
+    ) -> None:
+        for highlight in highlights:
+            if highlight.hover_data is None:
+                continue
+            add_hover_target(
+                hover_targets,
+                highlight.hover_data,
+                x_min=highlight.x + x_offset - (highlight.width / 2.0),
+                x_max=highlight.x + x_offset + (highlight.width / 2.0),
+                y_min=highlight.y + y_offset - (highlight.height / 2.0),
+                y_max=highlight.y + y_offset + (highlight.height / 2.0),
+            )
 
     def _add_gate_hover_targets(
         self,

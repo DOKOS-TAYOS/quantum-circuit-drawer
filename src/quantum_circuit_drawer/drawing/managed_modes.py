@@ -6,6 +6,7 @@ import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
+from .._ipython_display import close_figures_in_pyplot
 from .._logging import log_event
 from ..config import DrawMode
 from ..diagnostics import RenderDiagnostic
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
+    from ..config import ResolvedDrawConfig
     from ..layout.scene import LayoutScene
     from ..layout.scene_3d import LayoutScene3D
     from ..renderers.base import BaseRenderer
@@ -59,7 +61,11 @@ def draw_result_from_prepared_call(
             _log_render_completed(
                 result, pipeline=pipeline, mode=resolved_config.mode, managed=True
             )
-            return result
+            return _with_notebook_output_policy(
+                result,
+                resolved_config=resolved_config,
+                show=request.show,
+            )
         if resolved_config.mode is DrawMode.PAGES and request.pipeline_options.view == "3d":
             result = _render_managed_3d_pages_result(
                 pipeline,
@@ -73,7 +79,11 @@ def draw_result_from_prepared_call(
             _log_render_completed(
                 result, pipeline=pipeline, mode=resolved_config.mode, managed=True
             )
-            return result
+            return _with_notebook_output_policy(
+                result,
+                resolved_config=resolved_config,
+                show=request.show,
+            )
         if (
             resolved_config.mode is DrawMode.PAGES_CONTROLS
             and request.pipeline_options.view == "3d"
@@ -90,7 +100,11 @@ def draw_result_from_prepared_call(
             _log_render_completed(
                 result, pipeline=pipeline, mode=resolved_config.mode, managed=True
             )
-            return result
+            return _with_notebook_output_policy(
+                result,
+                resolved_config=resolved_config,
+                show=request.show,
+            )
         figure, axes = render_managed_draw_pipeline(
             pipeline,
             output=request.output,
@@ -112,7 +126,11 @@ def draw_result_from_prepared_call(
             output=request.output,
         )
         _log_render_completed(result, pipeline=pipeline, mode=resolved_config.mode, managed=True)
-        return result
+        return _with_notebook_output_policy(
+            result,
+            resolved_config=resolved_config,
+            show=request.show,
+        )
 
     if request.pipeline_options.view == "3d" and not is_3d_axes(request.ax):
         raise ValueError("view='3d' requires a 3D Matplotlib axes")
@@ -135,7 +153,11 @@ def draw_result_from_prepared_call(
         output=request.output,
     )
     _log_render_completed(result, pipeline=pipeline, mode=resolved_config.mode, managed=False)
-    return result
+    return _with_notebook_output_policy(
+        result,
+        resolved_config=resolved_config,
+        show=request.show,
+    )
 
 
 def _log_render_completed(
@@ -157,6 +179,25 @@ def _log_render_completed(
         interactive_enabled=result.interactive_enabled,
         hover_enabled=result.hover_enabled,
         saved_path=result.saved_path,
+    )
+
+
+def _with_notebook_output_policy(
+    result: DrawResult,
+    *,
+    resolved_config: ResolvedDrawConfig,
+    show: bool,
+) -> DrawResult:
+    """Apply notebook result-display flags without changing the Python return value."""
+
+    if not resolved_config.is_notebook:
+        return result
+    if not show:
+        close_figures_in_pyplot(result.figures)
+    return replace(
+        result,
+        _ipython_display_enabled=show,
+        _ipython_close_after_display=not resolved_config.notebook_backend_active,
     )
 
 

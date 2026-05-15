@@ -111,6 +111,7 @@ Install optional extras only for frameworks you actually use:
 | `pennylane` | PennyLane tapes, scripts, materialized wrappers, and result outputs |
 | `myqlm` | MyQLM circuits, programs, routines, and raw result data |
 | `cudaq` | CUDA-Q kernels and samples on Linux or WSL2 |
+| `notebook` | `ipympl` support for `%matplotlib widget` interactivity in Jupyter |
 
 Windows PowerShell:
 
@@ -120,6 +121,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[cirq]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[pennylane]"
 .\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[myqlm]"
+.\.venv\Scripts\python.exe -m pip install "quantum-circuit-drawer[notebook]"
 ```
 
 Linux or WSL:
@@ -131,9 +133,12 @@ Linux or WSL:
 .venv/bin/python -m pip install "quantum-circuit-drawer[pennylane]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[myqlm]"
 .venv/bin/python -m pip install "quantum-circuit-drawer[cudaq]"
+.venv/bin/python -m pip install "quantum-circuit-drawer[notebook]"
 ```
 
 CUDA-Q is Linux/WSL2-only because the upstream CUDA-Q package is not available for native Windows.
+
+The `notebook` extra is cross-platform and intentionally separate from the base install. In a Jupyter notebook, run `%matplotlib widget` after installing it to use the `ipympl` backend for hover, managed circuit controls, and interactive histograms.
 
 ## Supported Inputs At A Glance
 
@@ -1226,7 +1231,7 @@ result = draw_quantum_circuit(
 Useful Qiskit workflows:
 
 - normal `QuantumCircuit` drawing
-- compact control-flow boxes
+- expanded Qiskit control-flow frames with visible switch summaries
 - open controls from `ctrl_state`
 - compact or expanded composite instructions
 - backend-derived 3D topology with `HardwareTopology.from_qiskit_backend(...)`
@@ -1477,7 +1482,8 @@ Recommended demo:
 
 Notebook recommendations:
 
-- Use `OutputOptions(show=False)` and display the returned figure yourself.
+- A plain call such as `draw_quantum_circuit(circuit)` can be the last cell expression; notebook output is displayed once without printing the result object.
+- Use `OutputOptions(show=False)` only when you want to suppress automatic notebook display and handle the returned figures yourself.
 - Use `DrawMode.PAGES` for explicit page figures.
 - Use `%matplotlib widget` when you want hover or interactive histogram controls.
 - Use a non-widget inline backend when you only need static images.
@@ -1485,14 +1491,9 @@ Notebook recommendations:
 Circuit example:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
-result = draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(output=OutputOptions(show=False)),
-)
-
-result.primary_figure
+draw_quantum_circuit(circuit)
 ```
 
 Paged display:
@@ -1510,8 +1511,8 @@ Start with these demos:
 | --- | --- |
 | `qiskit-2d-exploration-showcase` | Managed 2D exploration, active wires, ancillas, folded-wire markers, collapse/expand |
 | `qiskit-3d-exploration-showcase` | Managed 3D exploration, topology-aware selection, topology switching |
-| `qiskit-control-flow-showcase` | Qiskit control-flow boxes and open controls |
-| `qiskit-composite-modes-showcase` | Compact vs expanded composite instructions |
+| `qiskit-control-flow-showcase` | Qiskit control-flow frames, switch summaries, and open controls |
+| `qiskit-composite-modes-showcase` | Compact vs expanded composites, `StatePreparation`, and dagger labels |
 | `openqasm-showcase` | OpenQASM text input through the Qiskit parser path |
 | `ir-basic-workflow` | Framework-free public IR workflow |
 | `public-api-utilities-showcase` | Analysis, result helpers, page exports, and histogram CSV export |
@@ -1523,7 +1524,7 @@ Start with these demos:
 | `cirq-native-controls-showcase` | Cirq controls, classical control, and `CircuitOperation` provenance |
 | `pennylane-terminal-outputs-showcase` | PennyLane terminal outputs and mid-circuit measurement |
 | `myqlm-structural-showcase` | MyQLM compact composite routines |
-| `cudaq-kernel-showcase` | CUDA-Q supported subset and scalar runtime arguments |
+| `cudaq-kernel-showcase` | CUDA-Q supported subset, scalar runtime arguments, and static control summaries |
 | `compare-circuits-multi-transpile` | One Qiskit source circuit compared with several transpilation levels |
 | `compare-histograms-ideal-vs-sampled` | Histogram comparison with clickable legend toggles |
 | `compare-histograms-multi-series` | Multi-series histogram comparison with clickable legend toggles |

@@ -25,6 +25,7 @@ Windows PowerShell:
 .\.venv\Scripts\python.exe -m pip install -e ".[cirq]"
 .\.venv\Scripts\python.exe -m pip install -e ".[pennylane]"
 .\.venv\Scripts\python.exe -m pip install -e ".[myqlm]"
+.\.venv\Scripts\python.exe -m pip install -e ".[notebook]"
 ```
 
 Linux or WSL:
@@ -34,9 +35,10 @@ Linux or WSL:
 .venv/bin/python -m pip install -e ".[cirq]"
 .venv/bin/python -m pip install -e ".[pennylane]"
 .venv/bin/python -m pip install -e ".[myqlm]"
+.venv/bin/python -m pip install -e ".[notebook]"
 ```
 
-Use `.[qasm3]` for OpenQASM 3 and `.[cudaq]` only on Linux or WSL2.
+Use `.[qasm3]` for OpenQASM 3, `.[notebook]` for `%matplotlib widget` notebook interactivity, and `.[cudaq]` only on Linux or WSL2.
 
 OpenQASM 2 text and `.qasm` files do not need a separate runner. Install `quantum-circuit-drawer[qiskit]`, then pass text starting with `OPENQASM` or a `.qasm` path to `draw_quantum_circuit(...)`; use `framework="qasm"` when you want the parser path to be explicit.
 
@@ -59,8 +61,8 @@ If you want one file to open and adapt, start with a direct script:
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | `qiskit-2d-exploration-showcase`      | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and topology-aware hover SWAP estimates | Windows and Linux            |
 | `qiskit-3d-exploration-showcase`      | Managed 3D exploration with topology-aware selection and hover, persistent block highlights, controlled interactions, and contextual block controls | Windows and Linux            |
-| `qiskit-control-flow-showcase`        | Native Qiskit control-flow boxes and open controls                                                                         | Windows and Linux            |
-| `qiskit-composite-modes-showcase`     | Compact versus expanded composite instructions                                                                             | Windows and Linux            |
+| `qiskit-control-flow-showcase`        | Expanded Qiskit control-flow frames, visible switch summaries, and open controls                                           | Windows and Linux            |
+| `qiskit-composite-modes-showcase`     | Compact versus expanded composites, `StatePreparation`, and dagger labels                                                  | Windows and Linux            |
 | `openqasm-showcase`                   | OpenQASM text input through the Qiskit parser path                                                                          | Windows and Linux            |
 | `ir-basic-workflow`                   | Framework-free example built directly from `CircuitIR`                                                                     | Windows and Linux            |
 | `public-api-utilities-showcase`       | `analyze_quantum_circuit`, result metadata, page exports, histogram CSV export, and `circuit_to_latex(...)`                 | Windows and Linux            |
@@ -73,7 +75,7 @@ If you want one file to open and adapt, start with a direct script:
 | `cirq-native-controls-showcase`       | Native controls, classical control, and `CircuitOperation` provenance                                                      | Prefer Linux or WSL          |
 | `pennylane-terminal-outputs-showcase` | `qml.cond(...)`, mid-measurement, and terminal output boxes                                                                | Prefer Linux or WSL          |
 | `myqlm-structural-showcase`           | Native MyQLM adapter path with compact composite routines                                                                  | Windows and Linux with MyQLM |
-| `cudaq-kernel-showcase`               | Supported CUDA-Q subset, including scalar runtime arguments in the direct script                                           | Linux or WSL2                |
+| `cudaq-kernel-showcase`               | Supported CUDA-Q subset, including scalar runtime arguments, reset, basis measurements, and static control summaries       | Linux or WSL2                |
 | `compare-histograms-ideal-vs-sampled` | Quick tour of the public comparison API, including interactive legend toggles on supported backends                        | Windows and Linux            |
 | `compare-histograms-multi-series`     | Multi-series comparison with ideal, noisy, raw hardware, and mitigated distributions                                       | Windows and Linux            |
 
@@ -210,8 +212,8 @@ The CLI export showcase writes `examples/output/cli-export-showcase.png` by defa
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `qiskit-2d-exploration-showcase`      | Managed 2D exploration, active-wire filtering, ancilla toggles, folded-wire markers, topology-aware hover SWAP estimates, contextual collapse/expand | Best first demo for `pages_controls` and `slider` on a circuit with intentional idle wires, reusable composite structure, and 2D topology hover details |
 | `qiskit-3d-exploration-showcase`      | Managed 3D exploration, topology-aware selection and hover, controlled interactions, and contextual block controls | Best first demo for managed 3D exploration, selection, expand/collapse, and hover parity across cubes and controls on the shared semantic path |
-| `qiskit-control-flow-showcase`        | Native `if_else`, `switch_case`, loops, open controls                                                           | Best first Qiskit demo                                                                                                      |
-| `qiskit-composite-modes-showcase`     | Composite instructions that are useful with `--composite-mode compact\|expand`                                  | Shows compact versus expanded composite instructions on the same workflow                                                   |
+| `qiskit-control-flow-showcase`        | Expanded `if_else`, `for_loop`, and `while_loop` frames, `switch_case` summaries, open controls                | Best first Qiskit demo for static control-flow readability                                                                  |
+| `qiskit-composite-modes-showcase`     | Composite instructions, `StatePreparation`, and dagger labels                                                   | Shows compact versus expanded composite instructions on the same workflow                                                   |
 | `openqasm-showcase`                   | OpenQASM text input                                                                                             | Catalog demo for the Qiskit parser path                                                                                    |
 | `qiskit-random`                       | Broad stress test                                                                                               | Good for modes, hover, presets, and large layouts                                                                           |
 | `qiskit-qaoa`                         | Dense structured ansatz                                                                                         | Good as a secondary 3D stress test after the managed 3D exploration showcase                                                |
@@ -223,7 +225,7 @@ The CLI export showcase writes `examples/output/cli-export-showcase.png` by defa
 | `pennylane-qaoa`                      | Dense structured ansatz                                                                                         | Good for workflow parity with Qiskit/Cirq                                                                                   |
 | `myqlm-structural-showcase`           | Native MyQLM adapter path, reusable routines                                                                    | Good for composite structure on the native MyQLM adapter path                                                               |
 | `myqlm-random`                        | Broad stress test                                                                                               | Good for coverage                                                                                                           |
-| `cudaq-kernel-showcase`               | Supported CUDA-Q subset                                                                                          | Good for scalar runtime arguments in the direct script, basis measurements, and reset                                       |
+| `cudaq-kernel-showcase`               | Supported CUDA-Q subset                                                                                          | Good for scalar runtime arguments, basis measurements, reset, and static control summaries                                  |
 | `cudaq-random`                        | Broad stress test                                                                                               | Linux/WSL2 only                                                                                                             |
 | `ir-basic-workflow`                   | Pure public `CircuitIR` workflow                                                                                | Best demo when you want zero framework dependency                                                                           |
 
@@ -377,7 +379,7 @@ Linux or WSL:
 | ----------------------------- | ---------------------------------------------------------------- | ---------- |
 | `histogram-binary-order`      | Natural binary ordering                                          | none       |
 | `histogram-count-order`       | Descending counts                                                | none       |
-| `histogram-interactive-large` | Interactive mode with many bins                                  | none       |
+| `histogram-interactive-large` | Many bins with visible values and adaptive tick labels           | none       |
 | `histogram-multi-register`    | Decimal labels per register                                      | none       |
 | `histogram-uniform-reference` | Uniform reference line                                           | none       |
 | `histogram-quasi`             | Negative quasi-probabilities                                     | none       |

@@ -125,6 +125,20 @@ def test_public_docs_describe_cli_and_qiskit_backend_topologies() -> None:
     assert "Qiskit backend topologies" in changelog_reference
 
 
+def test_public_docs_describe_notebook_extra_for_widget_interactivity() -> None:
+    installation_reference = Path("docs/installation.md").read_text(encoding="utf-8")
+    readme_reference = Path("README.md").read_text(encoding="utf-8")
+    extended_reference = Path("docs/extended_guide.md").read_text(encoding="utf-8")
+    changelog_reference = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+    combined_docs = "\n".join((installation_reference, readme_reference, extended_reference))
+
+    assert "quantum-circuit-drawer[notebook]" in combined_docs
+    assert "ipympl" in combined_docs
+    assert "%matplotlib widget" in combined_docs
+    assert "notebook` extra" in changelog_reference
+
+
 def test_public_docs_describe_openqasm_text_and_file_support() -> None:
     docs_by_path = {
         path: path.read_text(encoding="utf-8")
@@ -309,11 +323,12 @@ def test_framework_docs_describe_semantic_consolidation_scope_for_current_and_fu
     assert "Migrated the Qiskit adapter onto the shared semantic path" in changelog_reference
 
 
-def test_qiskit_docs_describe_compact_control_flow_support() -> None:
+def test_qiskit_docs_describe_control_flow_rendering_support() -> None:
     frameworks_reference = Path("docs/frameworks.md").read_text(encoding="utf-8")
     troubleshooting_reference = Path("docs/troubleshooting.md").read_text(encoding="utf-8")
 
-    assert "compact native boxes for `if_else`, `switch_case`, `for_loop`, and `while_loop`" in (
+    assert "compact native boxes for `switch_case`" in (frameworks_reference)
+    assert "expanded `if_else`, `for_loop`, and `while_loop` bodies with labeled frames" in (
         frameworks_reference
     )
     assert "does not execute branches or unroll loops for display" in troubleshooting_reference

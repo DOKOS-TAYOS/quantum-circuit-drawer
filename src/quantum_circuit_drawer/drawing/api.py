@@ -44,7 +44,10 @@ def draw_quantum_circuit(
             framework=prepared.pipeline.detected_framework,
             backend=prepared.resolved_config.config.backend,
         ):
-            result = draw_result_from_prepared_call(prepared)
+            result = draw_result_from_prepared_call(
+                prepared,
+                defer_show=prepared.resolved_config.is_notebook,
+            )
             emit_render_diagnostics(logger, result.diagnostics)
             if result.saved_path is not None:
                 log_event(

@@ -161,20 +161,28 @@ from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circu
 draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)))
 ```
 
-For notebooks, let the notebook display the returned figure:
+For notebooks, a plain call can be left as the last expression. The notebook displays the figure
+once without printing the result object:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
-result = draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)))
-result.primary_figure
+draw_quantum_circuit(circuit)
 ```
 
-If the backend is interactive, `show=False` only skips the automatic `pyplot.show()` call. The returned figure can still keep hover and other Matplotlib interactivity.
+Use `show=False` when you want no automatic notebook output. The returned result is still usable,
+so you can assign it and display or save the figure yourself.
+
+If the backend is interactive, `show=False` only skips automatic display. The returned figure can
+still keep hover and other Matplotlib interactivity.
 
 ## Hover Does Not Appear
 
 Hover only works on interactive Matplotlib backends. In a notebook, the safest setup is:
+
+```bash
+python -m pip install "quantum-circuit-drawer[notebook]"
+```
 
 ```python
 %matplotlib widget
@@ -386,7 +394,7 @@ draw_quantum_circuit(
 )
 ```
 
-CUDA-Q now supports `reset`, closed kernels, scalar `int` / `float` / `bool` runtime arguments, dynamic qvector sizes resolved from `cudaq_args`, measurement basis preservation, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint`. Structured control-flow boxes use compact lowercase visible labels such as `if/else`, `for`, and `loop`. Those boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
+CUDA-Q now supports `reset`, closed kernels, scalar `int` / `float` / `bool` runtime arguments, dynamic qvector sizes resolved from `cudaq_args`, measurement basis preservation, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap` as a compact controlled `SWAP` box, and compact callable boxes for `apply`, `compute_action`, and `adjoint`. Structured control-flow boxes use compact lowercase visible labels such as `if/else`, `for x4`, and `loop`, and show condition, region, or iteration summaries directly on static drawings when known. Those boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
 
 Low-level CFG control flow, list/vector runtime arguments, and unresolved dynamic qvector sizes are still outside the supported subset.
 
@@ -449,4 +457,4 @@ Framework-specific notes:
 - Cirq classically controlled operations keep exact classical conditions only when every native condition can be normalized safely. Otherwise the drawer still renders the operation and keeps the native condition text in hover instead of failing.
 - Cirq also keeps non-trivial native `control_values` and operation tags in hover details so tagged or richer controls remain inspectable.
 - MyQLM now supports drawable classical formulas, compact `REMAP` boxes, compact ancilla-heavy composites with hover annotations, compact classical `BREAK` / `CLASSIC` boxes on the bundled classical register, and qubit-targeted `RESET` operations keep rendering as quantum resets even if MyQLM carries extra classical metadata. If a MyQLM classical formula cannot be normalized safely, the raw formula in hover instead of raising is preserved; classical-only reset metadata without qubit targets stays outside the supported subset.
-- CUDA-Q now supports scalar runtime arguments via `cudaq_args`, `reset`, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap`, and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported Linux/WSL subset. Those control-flow boxes are descriptive only, so the drawer does not execute branches or unroll loops for display.
+- CUDA-Q now supports scalar runtime arguments via `cudaq_args`, `reset`, structured control flow (`cc.if`, `scf.if`, `scf.for`, `cc.loop`), controlled `swap`, and compact callable boxes for `apply`, `compute_action`, and `adjoint` in the supported Linux/WSL subset. Those control-flow boxes include visible static summaries, but remain descriptive only, so the drawer does not execute branches or unroll loops for display.
