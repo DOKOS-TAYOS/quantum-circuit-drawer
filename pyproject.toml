@@ -76,7 +76,7 @@ cudaq = [
 ]
 dev = [
   "pytest>=8.0",
-  "pytest-cov>=5.0",
+  "pytest-cov>=7.1.0",
   "ruff>=0.6",
   "mypy>=1.11",
   "pyright>=1.1.403",
