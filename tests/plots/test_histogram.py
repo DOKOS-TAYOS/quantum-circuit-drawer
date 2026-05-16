@@ -20,6 +20,7 @@ from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.histogram import plot_histogram
 from quantum_circuit_drawer.plots.histogram_render import (
     comparison_secondary_color,
+    format_histogram_value,
     negative_bar_color,
 )
 from quantum_circuit_drawer.style.theme import resolve_theme
@@ -76,9 +77,9 @@ def test_plot_histogram_draws_value_labels_that_fit_inside_each_bin() -> None:
     result.figure.canvas.draw()
     renderer = result.figure.canvas.get_renderer()
     bars = [patch for patch in result.axes.patches if isinstance(patch, Rectangle)]
-    value_labels = [text for text in result.axes.texts if text.get_text() in {"123456", "7"}]
+    value_labels = [text for text in result.axes.texts if text.get_text() in {"1.235e5", "7"}]
 
-    assert [text.get_text() for text in value_labels] == ["123456", "7"]
+    assert [text.get_text() for text in value_labels] == ["1.235e5", "7"]
     for bar, label in zip(bars, value_labels, strict=True):
         bar_bbox = bar.get_window_extent(renderer=renderer)
         label_bbox = label.get_window_extent(renderer=renderer)
@@ -88,6 +89,25 @@ def test_plot_histogram_draws_value_labels_that_fit_inside_each_bin() -> None:
         assert label_bbox.x1 <= bar_bbox.x1
 
     plt.close(result.figure)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (324, "324"),
+        (1031, "1031"),
+        (-12, "-12"),
+        (1.3234, "1.323"),
+        (12.424, "12.42"),
+        (0.32, "0.32"),
+        (-0.13114, "-0.1311"),
+        (0.00012345, "0.0001234"),
+        (0.000012345, "1.234e-5"),
+        (1.2e10, "1.2e10"),
+    ],
+)
+def test_format_histogram_value_uses_four_significant_digits(value: float, expected: str) -> None:
+    assert format_histogram_value(value, HistogramKind.QUASI) == expected
 
 
 def test_plot_histogram_rotates_and_shrinks_dense_x_labels_to_avoid_overlap() -> None:
@@ -298,6 +318,18 @@ def test_plot_histogram_normalizes_integer_state_keys_to_padded_bitstrings() -> 
 
     assert result.state_labels == ("00", "11")
     assert result.values == (5.0, 3.0)
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_sums_state_keys_that_normalize_to_same_label() -> None:
+    result = plot_histogram(
+        {0: 5, "0": 3, "1": 2},
+        config=build_public_histogram_config(show=False),
+    )
+
+    assert result.state_labels == ("0", "1")
+    assert result.values == (8.0, 2.0)
 
     plt.close(result.figure)
 

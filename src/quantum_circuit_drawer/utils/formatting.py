@@ -94,6 +94,8 @@ def format_gate_name(name: str) -> str:
         return "Counts"
     if uppercase == "ISWAP":
         return "iSWAP"
+    if uppercase == "RESET":
+        return r"$\vert{}0\rangle$"
     if uppercase.endswith("DG") and compact.isalpha() and 3 <= len(compact) <= 5:
         return f"{uppercase[:-2]}†"
     if compact.isalnum() and len(compact) <= 4:
@@ -117,6 +119,12 @@ def format_parameters(values: Iterable[object]) -> str:
     """Format gate parameters for labels."""
 
     return ", ".join(format_parameter(value) for value in values)
+
+
+def format_angle_parameters(values: Iterable[object]) -> str:
+    """Format fixed gate angles with the compact state-vector number rules."""
+
+    return ", ".join(format_state_vector_component(value) for value in values)
 
 
 def format_state_vector_component(value: object) -> str:
@@ -227,6 +235,8 @@ def format_visible_label_mathtext(text: str) -> str:
 
     if not text:
         return text
+    if _is_explicit_mathtext(text):
+        return text
 
     escaped_text = text.translate(_VISIBLE_LABEL_ESCAPES).replace(" ", r"\ ")
     return rf"$\mathrm{{{escaped_text}}}$"
@@ -267,6 +277,8 @@ def _format_resolved_text(
     role: str,
     use_mathtext: UseMathTextMode,
 ) -> str:
+    if _is_explicit_mathtext(text):
+        return text
     if use_mathtext is False or not text:
         return text
     if use_mathtext is True:
@@ -282,6 +294,11 @@ def _format_text_for_role_mathtext(text: str, *, role: str) -> str:
     if role == "parameter":
         return format_parameter_text_mathtext(text)
     return format_visible_label_mathtext(text)
+
+
+def _is_explicit_mathtext(text: str) -> bool:
+    stripped_text = text.strip()
+    return len(stripped_text) >= 2 and stripped_text.startswith("$") and stripped_text.endswith("$")
 
 
 def _parameter_uses_mathtext_auto(text: str) -> bool:

@@ -698,6 +698,49 @@ def test_state_preparation_width_uses_wrapped_subtitle_without_excessive_label_p
     assert width < style.gate_width * 3.5
 
 
+def test_u_gate_parameters_use_state_vector_number_format_and_compact_width() -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="U",
+        target_wires=("q0",),
+        parameters=(1.2e7, -1.3e-8, 9344),
+    )
+
+    label, subtitle = operation_label_parts(operation, style)
+    width = operation_width_from_parts(
+        operation=operation,
+        style=style,
+        label=label,
+        subtitle=subtitle,
+    )
+
+    assert subtitle == "1.2e7, -1.3e-8, 9344"
+    assert width == pytest.approx(style.gate_width)
+
+
+def test_reset_gate_renders_as_compact_ket_zero() -> None:
+    circuit = CircuitIR(
+        quantum_wires=(WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),),
+        layers=(
+            LayerIR(
+                operations=(
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="RESET",
+                        target_wires=("q0",),
+                    ),
+                )
+            ),
+        ),
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert scene.gates[0].label == r"$\vert{}0\rangle$"
+    assert scene.gates[0].width == pytest.approx(scene.style.gate_width)
+
+
 def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() -> None:
     circuit = CircuitIR(
         quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],

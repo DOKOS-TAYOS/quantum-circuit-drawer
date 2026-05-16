@@ -5,7 +5,7 @@ from __future__ import annotations
 from ..ir.measurements import MeasurementIR
 from ..ir.operations import OperationIR, OperationKind
 from ..style import DrawStyle
-from ..utils.formatting import format_gate_name, format_parameters
+from ..utils.formatting import format_angle_parameters, format_gate_name, format_parameters
 
 _COMPACT_RESULT_DISPLAY_LABELS = frozenset({"Prob", "ExpVal", "Counts"})
 _COMPACT_RESULT_TERMINAL_KINDS = frozenset({"probs", "expval", "counts"})
@@ -15,6 +15,7 @@ _STATE_PREPARATION_LABEL_WIDTH_FONT_SCALE = 0.28
 _STATE_PREPARATION_SUBTITLE_WIDTH_FONT_SCALE = 0.28
 _STATE_PREPARATION_SINGLE_QUBIT_LABEL_WIDTH_FONT_SCALE = 0.2
 _STATE_PREPARATION_SINGLE_QUBIT_SUBTITLE_WIDTH_FONT_SCALE = 0.18
+_COMPACT_U_SUBTITLE_FONT_SCALE = 0.46
 _DEFAULT_SUBTITLE_WIDTH_FONT_SCALE = 0.8
 
 
@@ -40,8 +41,23 @@ def operation_label_parts(
         and operation.parameters
         and operation.metadata.get("suppress_params") is not True
     ):
-        subtitle = format_parameters(operation.parameters)
+        subtitle = (
+            format_angle_parameters(operation.parameters)
+            if uses_compact_u_gate_parameters(operation, label)
+            else format_parameters(operation.parameters)
+        )
     return label, subtitle
+
+
+def uses_compact_u_gate_parameters(
+    operation: OperationIR | MeasurementIR,
+    label: str,
+) -> bool:
+    """Return whether fixed U-gate angles should be rendered in compact form."""
+
+    if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:
+        return False
+    return format_gate_name(label) == "U" and len(operation.parameters) in {3, 4}
 
 
 def uses_compact_parametric_width(
@@ -55,6 +71,8 @@ def uses_compact_parametric_width(
         return False
     if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:
         return False
+    if uses_compact_u_gate_parameters(operation, label):
+        return True
     return len(label) <= 4 and len(subtitle) <= 8
 
 
@@ -69,7 +87,10 @@ def uses_compact_label_width(
         return False
     if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:
         return False
-    return len(format_gate_name(label)) <= 4
+    display_label = format_gate_name(label)
+    if display_label == r"$\vert{}0\rangle$":
+        return True
+    return len(display_label) <= 4
 
 
 def uses_compact_result_width(
@@ -160,4 +181,6 @@ def subtitle_font_scale(operation: OperationIR | MeasurementIR) -> float:
     value = operation.metadata.get("subtitle_font_scale")
     if isinstance(value, int | float) and value > 0:
         return float(value)
+    if uses_compact_u_gate_parameters(operation, operation.label or operation.name):
+        return _COMPACT_U_SUBTITLE_FONT_SCALE
     return _DEFAULT_SUBTITLE_WIDTH_FONT_SCALE

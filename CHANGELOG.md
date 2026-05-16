@@ -7,6 +7,8 @@
 - Qiskit `StatePreparation` subtitles now wrap state-vector components by qubit count, keep
   one-qubit vectors on one line, and hide vectors with more than 32 components so the gate box
   stays compact and readable.
+- `U` gate angles now use the same compact number formatting as `StatePreparation` amplitudes,
+  keeping fixed-parameter `U` boxes narrow, and `RESET` now renders as a compact `|0>` ket box.
 - One-qubit Qiskit `StatePreparation` boxes now use a tighter width heuristic, collapsed
   `if_else` blocks show `IF/ELSE` when an else branch exists, and Qiskit `switch_case` bodies now
   render as expanded per-case control-flow groups instead of a single compact box.
@@ -20,6 +22,8 @@
 - Added minimal flat public kwargs to `draw_quantum_circuit(...)`, `analyze_quantum_circuit(...)`, `circuit_to_latex(...)`, `plot_histogram(...)`, `compare_circuits(...)`, and `compare_histograms(...)` for common mode, framework, data selection, labels, and output options while keeping advanced appearance, hover, topology, and adapter settings under `config=`.
 - Expanded public docstrings across the main API, configuration objects, result objects, logging helpers, topology helpers, histogram models, and public IR classes so arguments, accepted values, attributes, and return objects are discoverable from Python help, with installed-import `pydoc` coverage for the main public APIs.
 - Histogram bars now show compact value labels above each bin, and dense x-axis state labels rotate and shrink to avoid overlapping adjacent ticks.
+- Histogram value labels and hover values now use four significant digits, with compact
+  scientific notation for very large or very small values.
 - Bundled demos now highlight the updated Qiskit control-flow frames, `switch_case` summaries, `StatePreparation`, dagger labels, and dense histogram labels.
 - Qiskit `switch_case` boxes and CUDA-Q structured control-flow boxes now include static condition, case, region, and iteration summaries instead of requiring hover to see the relevant control information.
 - Qiskit `if_else`, `for_loop`, and `while_loop` bodies now render expanded by default with labeled 2D control-flow frames, condition links for `if`/`while`, and visible `for` iteration counts.
@@ -28,6 +32,10 @@
 ### Fixed
 
 - Qiskit `initialize` instructions now render as `StatePreparation` with a smaller compact state-vector subtitle and a text-proportional gate width.
+- Histogram inputs with equivalent state keys, such as `0` and `"0"`, now sum their values
+  instead of letting the later normalized key overwrite the earlier one.
+- Compact `U` gates now keep the `U` label at the normal gate-label size while rendering the
+  fixed angle parameters in the smaller subtitle text.
 - Notebook widget backends such as `%matplotlib widget` now inherit the rendered figure
   background around the Matplotlib widget, avoiding the white notebook chrome around dark
   circuit and histogram figures.

@@ -41,6 +41,34 @@ def test_matplotlib_renderer_keeps_numeric_gate_parameters_plain_by_default() ->
     assert "RX\n0.5" in {text.get_text() for text in axes.texts}
 
 
+def test_matplotlib_renderer_keeps_u_label_larger_than_compact_parameters() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="U",
+                        target_wires=("q0",),
+                        parameters=(1.176, 0, 0),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle(show_params=True, use_mathtext=False))
+    figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    label = _find_axis_text(axes, "U")
+    parameters = _find_axis_text(axes, "1.176, 0, 0")
+
+    assert label.get_fontsize() > parameters.get_fontsize() * 1.5
+    plt.close(figure)
+
+
 def test_matplotlib_renderer_formats_symbolic_gate_parameters_with_mathtext_in_auto_mode() -> None:
     circuit = CircuitIR(
         quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],

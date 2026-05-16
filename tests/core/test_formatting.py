@@ -31,6 +31,7 @@ from quantum_circuit_drawer.utils.formatting import (
         ("PROBS", "Prob"),
         ("EXPVAL", "ExpVal"),
         ("COUNTS", "Counts"),
+        ("RESET", r"$\vert{}0\rangle$"),
         ("IF", "if"),
         ("IF/ELSE", "if/else"),
         ("SWITCH", "switch"),

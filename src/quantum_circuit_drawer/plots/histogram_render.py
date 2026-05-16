@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from itertools import product
-from math import cos, radians
+from math import cos, isfinite, radians
 from typing import TYPE_CHECKING
 
 from ..export.figures import save_matplotlib_figure
@@ -416,9 +416,22 @@ def reference_line_color(theme: DrawTheme) -> str:
 def format_histogram_value(value: float, kind: HistogramKind) -> str:
     """Return a compact user-facing histogram number string."""
 
-    if kind is HistogramKind.COUNTS and float(value).is_integer():
-        return str(int(value))
-    return f"{float(value):.6g}"
+    del kind
+    numeric_value = float(value)
+    if numeric_value == 0.0:
+        return "0"
+    if not isfinite(numeric_value):
+        return str(numeric_value)
+    return _normalize_histogram_scientific_notation(f"{numeric_value:.4g}")
+
+
+def _normalize_histogram_scientific_notation(text: str) -> str:
+    mantissa, separator, exponent = text.partition("e")
+    if not separator:
+        return text
+    exponent_sign = "-" if exponent.startswith("-") else ""
+    exponent_digits = exponent.lstrip("+-").lstrip("0") or "0"
+    return f"{mantissa}e{exponent_sign}{exponent_digits}"
 
 
 def negative_bar_color(theme: DrawTheme) -> str:

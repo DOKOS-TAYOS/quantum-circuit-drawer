@@ -374,7 +374,7 @@ def test_draw_quantum_circuit_keeps_supported_myqlm_reset_drawable(
     )
     texts = [normalize_rendered_text(text.get_text()) for text in result.primary_axes.texts]
 
-    assert "RESET" in texts
+    assert r"\vert{}0\rangle" in texts
     assert not any(
         diagnostic.code == "unsupported_operation_placeholder" for diagnostic in result.diagnostics
     )

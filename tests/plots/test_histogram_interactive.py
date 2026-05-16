@@ -360,7 +360,7 @@ def test_histogram_interactive_kind_toggle_switches_counts_to_quasi_view() -> No
     annotation = next(text for text in result.axes.texts if isinstance(text, Annotation))
 
     assert annotation.get_visible() is True
-    assert "Quasi-probability: 0.0454545" in annotation.get_text()
+    assert "Quasi-probability: 0.04545" in annotation.get_text()
 
     plt.close(result.figure)
 

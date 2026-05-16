@@ -403,7 +403,7 @@ def _normalize_distribution_mapping(
     normalized: dict[str, float] = {}
     for raw_key, value in entries:
         state_label = _normalize_state_label(raw_key, bit_width=resolved_bit_width)
-        normalized[state_label] = value
+        normalized[state_label] = normalized.get(state_label, 0.0) + value
 
     ordered_labels = sorted(normalized, key=_state_sort_key)
     return {label: normalized[label] for label in ordered_labels}, resolved_bit_width
