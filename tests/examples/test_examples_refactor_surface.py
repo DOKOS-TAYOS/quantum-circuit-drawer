@@ -80,6 +80,17 @@ def test_runner_entrypoints_do_not_import_legacy_demo_helper_layers() -> None:
         assert "examples._compare_shared" not in source
 
 
+def test_removed_legacy_demo_helper_modules_stay_removed() -> None:
+    legacy_helper_files = (
+        "_histogram_shared.py",
+        "_compare_shared.py",
+        "_families.py",
+    )
+
+    for module_name in legacy_helper_files:
+        assert not (EXAMPLES_DIR / module_name).exists()
+
+
 def test_primary_docs_surface_latex_export_and_direct_examples() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     getting_started = Path("docs/getting-started.md").read_text(encoding="utf-8")

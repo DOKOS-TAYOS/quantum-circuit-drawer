@@ -70,6 +70,8 @@
 - Bundled examples and first-contact docs now prefer the flat public kwargs for
   common circuit, histogram, and comparison options, keeping `config=` focused on
   advanced styling, hover, adapter, and per-side comparison settings.
+- Removed unused legacy example helper modules that were superseded by the direct
+  example scripts and catalog-based runners.
 
 ## [1.0.1] - 2026-05-15
 
