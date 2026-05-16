@@ -34,6 +34,14 @@
 - Notebook widget backends now remove figures from the backend's pending auto-display
   queue after displaying their rich canvas so calls such as `draw_quantum_circuit(circuit)`
   render once while keeping the widget interactive.
+- Interactive notebook `mode="full"` renders now cap automatically sized 2D widget
+  figures to a notebook-friendly size while keeping the full continuous circuit in view,
+  avoiding oversized horizontal widgets and accidental repaging after redraws.
+- Interactive notebook paged figures without visible page controls now show all pages
+  produced by block expansion, so expanded `StatePreparation` and similar blocks do not
+  hide their continuation inside the widget.
+- Interactive notebook paged figures now cap automatically sized 2D widget canvases
+  before adaptive paging, avoiding oversized initial renders for wider circuits.
 - `show=False` now also suppresses automatic notebook display for returned circuit and histogram
   result objects.
 - Notebook widget backends such as `%matplotlib widget` now display the Matplotlib

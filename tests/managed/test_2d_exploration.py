@@ -34,7 +34,10 @@ from quantum_circuit_drawer.managed.exploration_2d import (
     selected_block_action,
     transform_semantic_circuit,
 )
-from quantum_circuit_drawer.managed.page_window import Managed2DPageWindowState
+from quantum_circuit_drawer.managed.page_window import (
+    Managed2DPageWindowState,
+    configure_page_window,
+)
 from quantum_circuit_drawer.managed.slider import Managed2DPageSliderState
 from quantum_circuit_drawer.renderers._matplotlib_figure import (
     create_managed_figure,
@@ -2138,6 +2141,58 @@ def test_pages_mode_respects_disabled_keyboard_shortcuts() -> None:
     finally:
         for figure in result.figures:
             plt.close(figure)
+
+
+def test_page_window_without_controls_shows_expanded_block_continuation() -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    layout_engine = LayoutEngine()
+    style = DrawStyle(max_page_width=2.6)
+    scene = managed_module.compute_paged_scene(
+        current_circuit,
+        layout_engine,
+        style,
+        hover_enabled=True,
+    )
+    figure, axes = create_managed_figure(
+        scene,
+        figure_width=3.2,
+        figure_height=3.0,
+        use_agg=True,
+    )
+
+    try:
+        configure_page_window(
+            figure=figure,
+            axes=axes,
+            circuit=current_circuit,
+            layout_engine=layout_engine,
+            renderer=MatplotlibRenderer(),
+            scene=scene,
+            effective_page_width=style.max_page_width,
+            set_page_window=set_page_window,
+            semantic_ir=current_semantic_ir,
+            expanded_semantic_ir=expanded_semantic_ir,
+            attach_controls=False,
+        )
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.page_box is None
+        assert page_window.visible_pages_box is None
+        assert page_window.visible_page_count == 1
+        assert page_window.window_scene is not None
+        assert "Y" not in [gate.label for gate in page_window.window_scene.gates]
+
+        page_window.select_operation("op:0")
+        page_window.toggle_selected_block()
+
+        assert page_window.total_pages >= 2
+        assert page_window.start_page == 0
+        assert page_window.visible_page_count == page_window.total_pages
+        assert page_window.window_scene is not None
+        assert "Y" in [gate.label for gate in page_window.window_scene.gates]
+    finally:
+        plt.close(figure)
 
 
 def test_page_window_block_toggle_recovers_single_interleaved_collapsed_block() -> None:

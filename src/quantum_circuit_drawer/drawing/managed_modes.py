@@ -15,6 +15,7 @@ from ..managed.rendering import (
     render_draw_pipeline_on_axes,
     render_managed_draw_pipeline,
 )
+from ..renderers._render_support import NOTEBOOK_INTERACTIVE_BACKENDS, pyplot_backend_name
 from ..result import DrawResult
 from .pages import single_page_scenes
 from .results import build_draw_result
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
     from .preparation import PreparedDrawCall
 
 logger = logging.getLogger(__name__)
+_NOTEBOOK_PAGE_WINDOW_FIGURE_MAX_WIDTH = 11.0
+_NOTEBOOK_PAGE_WINDOW_FIGURE_MAX_HEIGHT = 7.0
 
 
 def draw_result_from_prepared_call(
@@ -434,7 +437,7 @@ def _page_window_adapted_2d_scene(
         initial_scene = layout_engine.compute(pipeline.ir, pipeline.normalized_style)
         initial_scene.hover = pipeline.draw_options.hover
 
-    figure_width, figure_height = figsize or (
+    figure_width, figure_height = figsize or _cap_notebook_widget_figsize(
         max(4.6, initial_scene.width * 0.95),
         max(2.1, initial_scene.page_height * 0.72),
     )
@@ -459,6 +462,18 @@ def _page_window_adapted_2d_scene(
 
     adapted_scene.hover = initial_scene.hover
     return adapted_scene
+
+
+def _cap_notebook_widget_figsize(
+    figure_width: float,
+    figure_height: float,
+) -> tuple[float, float]:
+    if pyplot_backend_name() not in NOTEBOOK_INTERACTIVE_BACKENDS:
+        return figure_width, figure_height
+    return (
+        min(figure_width, _NOTEBOOK_PAGE_WINDOW_FIGURE_MAX_WIDTH),
+        min(figure_height, _NOTEBOOK_PAGE_WINDOW_FIGURE_MAX_HEIGHT),
+    )
 
 
 def _windowed_3d_scenes(

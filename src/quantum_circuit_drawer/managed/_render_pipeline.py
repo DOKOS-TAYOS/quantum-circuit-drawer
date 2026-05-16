@@ -7,7 +7,12 @@ import math
 from typing import TYPE_CHECKING, TypeGuard, cast
 
 from ..drawing.pipeline import PreparedDrawPipeline
-from ..renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
+from ..renderers._render_support import (
+    NOTEBOOK_INTERACTIVE_BACKENDS,
+    pyplot_backend_name,
+    should_use_managed_agg_canvas,
+    show_figure_if_supported,
+)
 from ..style import DrawStyle
 from ..style.defaults import replace_draw_style, resolved_line_width, uses_default_line_width
 from ..typing import LayoutEngineLike, OutputPath
@@ -34,6 +39,8 @@ if TYPE_CHECKING:
 _ADAPTIVE_LINE_WIDTH_REFERENCE_PIXELS_PER_UNIT = 96.0
 _ADAPTIVE_LINE_WIDTH_MIN = 0.75
 _ADAPTIVE_LINE_WIDTH_MAX = 2.4
+_NOTEBOOK_FULL_FIGURE_MAX_WIDTH = 11.0
+_NOTEBOOK_FULL_FIGURE_MAX_HEIGHT = 7.0
 logger = logging.getLogger(__name__)
 
 
@@ -186,9 +193,10 @@ def render_managed_draw_pipeline(
         )
     elif page_window:
         scene_2d = cast("LayoutScene", pipeline.paged_scene)
-        figure_width, figure_height = figsize or (
+        figure_width, figure_height = figsize or _notebook_widget_capped_figure_size(
             max(4.6, scene_2d.width * 0.95),
             max(2.1, scene_2d.page_height * 0.72) + 1.0,
+            output=output,
         )
         figure, axes = create_managed_figure(
             scene_2d,
@@ -254,9 +262,14 @@ def render_managed_draw_pipeline(
         )
     else:
         scene_2d = cast("LayoutScene", pipeline.paged_scene)
+        is_full_2d_scene = not math.isfinite(scene_2d.style.max_page_width)
         figure_width, figure_height = figsize or (
-            max(4.6, scene_2d.width * 0.95),
-            max(2.1, scene_2d.page_height * 0.72),
+            _full_2d_figure_size(scene_2d, output=output)
+            if is_full_2d_scene
+            else (
+                max(4.6, scene_2d.width * 0.95),
+                max(2.1, scene_2d.page_height * 0.72),
+            )
         )
         figure, axes = create_managed_figure(
             scene_2d,
@@ -268,7 +281,7 @@ def render_managed_draw_pipeline(
             pipeline,
             axes=axes,
             output=output,
-            respect_precomputed_scene=respect_precomputed_scene,
+            respect_precomputed_scene=respect_precomputed_scene or is_full_2d_scene,
         )
         logger.debug("Rendered managed figure without page slider")
 
@@ -331,6 +344,30 @@ def is_3d_scene(scene: LayoutScene | LayoutScene3D) -> TypeGuard[LayoutScene3D]:
     """Return whether a prepared scene is a 3D scene."""
 
     return hasattr(scene, "depth")
+
+
+def _full_2d_figure_size(
+    scene: LayoutScene,
+    *,
+    output: OutputPath | None,
+) -> tuple[float, float]:
+    width = max(4.6, scene.width * 0.95)
+    height = max(2.1, scene.page_height * 0.72)
+    return _notebook_widget_capped_figure_size(width, height, output=output)
+
+
+def _notebook_widget_capped_figure_size(
+    width: float,
+    height: float,
+    *,
+    output: OutputPath | None,
+) -> tuple[float, float]:
+    if output is not None or pyplot_backend_name() not in NOTEBOOK_INTERACTIVE_BACKENDS:
+        return width, height
+    return (
+        min(width, _NOTEBOOK_FULL_FIGURE_MAX_WIDTH),
+        min(height, _NOTEBOOK_FULL_FIGURE_MAX_HEIGHT),
+    )
 
 
 def _freeze_default_line_width_for_scene(

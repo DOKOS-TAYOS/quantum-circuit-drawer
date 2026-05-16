@@ -180,3 +180,74 @@ def test_draw_quantum_circuit_full_mode_avoids_wrapping_in_2d() -> None:
     assert get_page_window(result.primary_figure) is None
 
     plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_full_mode_caps_widget_notebook_figure_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "module://ipympl.backend_nbagg")
+
+    result = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=30, wire_count=3),
+        config=build_public_draw_config(
+            mode=DrawMode.FULL,
+            show=False,
+        ),
+    )
+
+    try:
+        figure_width, figure_height = result.primary_figure.get_size_inches()
+
+        assert figure_width <= 11.0
+        assert figure_height <= 7.0
+        assert result.page_count == 1
+        assert len(result.primary_axes.get_xlim()) == 2
+        assert result.primary_axes.get_xlim()[1] > 30.0
+    finally:
+        plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_full_mode_keeps_continuous_scene_in_widget_notebook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "module://ipympl.backend_nbagg")
+
+    result = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=30, wire_count=3),
+        config=build_public_draw_config(
+            mode=DrawMode.FULL,
+            style={"max_page_width": 4.0},
+            show=False,
+        ),
+    )
+
+    try:
+        assert result.page_count == 1
+        assert result.primary_axes.get_xlim()[1] > 30.0
+        assert result.primary_axes.get_ylim() == pytest.approx((4.0, 0.0))
+    finally:
+        plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_pages_mode_caps_widget_notebook_figure_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "get_backend", lambda: "module://ipympl.backend_nbagg")
+
+    result = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=20, wire_count=3),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES,
+            show=False,
+        ),
+    )
+
+    try:
+        figure_width, figure_height = result.primary_figure.get_size_inches()
+
+        assert figure_width <= 11.0
+        assert figure_height <= 7.0
+        assert result.page_count >= 2
+    finally:
+        for figure in result.figures:
+            plt.close(figure)

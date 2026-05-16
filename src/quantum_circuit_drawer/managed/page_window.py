@@ -706,13 +706,22 @@ def _refresh_page_window_exploration_context(state: Managed2DPageWindowState) ->
     state.base_scene.hover = base_hover
     _restyle_page_window_scene(state)
     state.total_pages = max(1, len(state.scene.pages))
+    _fit_refreshed_page_window_to_scene(state)
+    state.window_scene = None
+
+
+def _fit_refreshed_page_window_to_scene(state: Managed2DPageWindowState) -> None:
+    if not state.controls_enabled:
+        state.start_page = 0
+        state.visible_page_count = state.total_pages
+        return
+
     state.start_page = _clamp_page_index(state.start_page + 1, state.total_pages)
     state.visible_page_count = _clamp_visible_page_count(
         state.visible_page_count,
         total_pages=state.total_pages,
         start_page=state.start_page,
     )
-    state.window_scene = None
 
 
 def _restyle_page_window_scene(state: Managed2DPageWindowState) -> None:
