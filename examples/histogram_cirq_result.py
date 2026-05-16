@@ -19,13 +19,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramConfig,
-    HistogramStateLabelMode,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram  # noqa: E402
 
 
 def build_result() -> object:
@@ -42,15 +36,6 @@ def build_result() -> object:
     return Simulator(seed=11).run(circuit, repetitions=384)
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
-    """Build the histogram config used by this demo."""
-
-    return HistogramConfig(
-        view=HistogramViewOptions(state_label_mode=HistogramStateLabelMode.DECIMAL),
-        output=OutputOptions(output_path=output, show=show),
-    )
-
-
 def main() -> None:
     """Render a histogram directly from a Cirq Result object."""
 
@@ -59,7 +44,9 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_result(),
-            config=build_config(output=output_path, show=show),
+            state_label_mode="decimal",
+            output_path=output_path,
+            show=show,
         )
         if output_path is not None:
             print(f"Saved histogram-cirq-result to {output_path}")

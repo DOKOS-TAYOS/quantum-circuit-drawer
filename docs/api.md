@@ -301,20 +301,12 @@ OpenQASM example:
 ```python
 from pathlib import Path
 
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 result = draw_quantum_circuit(
     Path("bell.qasm"),
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
-        output=OutputOptions(show=False),
-    ),
+    framework="qasm",
+    show=False,
 )
 ```
 

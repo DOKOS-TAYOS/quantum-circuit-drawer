@@ -65,11 +65,11 @@ def test_qiskit_random_accepts_documented_render_flags_and_passes_them_to_draw_c
     pytest.importorskip("qiskit")
     from examples import qiskit_random as module
 
-    captured_config: list[object] = []
+    captured_kwargs: list[dict[str, object]] = []
 
     def fake_draw_quantum_circuit(*args: object, **kwargs: object) -> object:
         del args
-        captured_config.append(kwargs["config"])
+        captured_kwargs.append(kwargs)
         return object()
 
     monkeypatch.setattr(module, "draw_quantum_circuit", fake_draw_quantum_circuit)
@@ -101,12 +101,15 @@ def test_qiskit_random_accepts_documented_render_flags_and_passes_them_to_draw_c
 
     module.main()
 
-    assert len(captured_config) == 1
-    config = captured_config[0]
+    assert len(captured_kwargs) == 1
+    kwargs = captured_kwargs[0]
+    config = kwargs["config"]
+    assert kwargs["mode"] == "pages_controls"
+    assert kwargs["composite_mode"] == "expand"
+    assert kwargs["show"] is False
+    assert kwargs["figsize"] == (12.0, 6.0)
     assert str(config.preset) == "presentation"
-    assert config.composite_mode == "expand"
     assert str(config.unsupported_policy) == "placeholder"
     assert config.hover.show_matrix == "always"
     assert config.hover.matrix_max_qubits == 4
     assert config.hover.show_size is True
-    assert config.figsize == (12.0, 6.0)

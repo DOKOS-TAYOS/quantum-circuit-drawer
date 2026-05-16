@@ -116,24 +116,16 @@ Use this when the whole circuit fits comfortably in one scene and you want the u
 ```python
 from pathlib import Path
 
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 result = draw_quantum_circuit(
     Path("bell.qasm"),
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
-        output=OutputOptions(show=False),
-    ),
+    framework="qasm",
+    show=False,
 )
 ```
 
-For text input, the string must start with `OPENQASM`. For file input, the path must end in `.qasm` or `.qasm3`, exist on disk, be readable as UTF-8, and contain OpenQASM 2 or OpenQASM 3 text starting with `OPENQASM`. Use `CircuitRenderOptions(framework="qasm")` when you want the parser path to be explicit for either version.
+For text input, the string must start with `OPENQASM`. For file input, the path must end in `.qasm` or `.qasm3`, exist on disk, be readable as UTF-8, and contain OpenQASM 2 or OpenQASM 3 text starting with `OPENQASM`. Use `framework="qasm"` when you want the parser path to be explicit for either version.
 
 ## Caller-Managed Axes
 
@@ -142,23 +134,14 @@ Pass `ax=...` only for static rendering.
 ```python
 import matplotlib.pyplot as plt
 
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 figure, axes = plt.subplots(figsize=(8, 3))
 result = draw_quantum_circuit(
     circuit,
     ax=axes,
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
-        output=OutputOptions(show=False),
-    ),
+    mode="full",
+    show=False,
 )
 ```
 
@@ -172,20 +155,13 @@ Use this when the circuit is just one subplot in a larger figure. Do not combine
 - `full` saves the full unpaged scene
 
 ```python
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 draw_quantum_circuit(
     circuit,
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode="slider")),
-        output=OutputOptions(output_path="circuit.png", show=False),
-    ),
+    mode="slider",
+    output_path="circuit.png",
+    show=False,
 )
 ```
 
@@ -240,25 +216,24 @@ from quantum_circuit_drawer import (
     CircuitRenderOptions,
     DrawConfig,
     DrawSideConfig,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
 result = draw_quantum_circuit(
     circuit,
+    view="3d",
+    mode="pages_controls",
+    topology="grid",
+    topology_qubits="used",
+    show=False,
     config=DrawConfig(
         side=DrawSideConfig(
             render=CircuitRenderOptions(
-                view="3d",
-                mode="pages_controls",
-                topology="grid",
-                topology_qubits="used",
                 topology_resize="error",
                 topology_menu=True,
                 direct=False,
             ),
         ),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -297,18 +272,17 @@ from quantum_circuit_drawer import (
     CircuitAppearanceOptions,
     DrawConfig,
     DrawSideConfig,
-    OutputOptions,
     StylePreset,
     draw_quantum_circuit,
 )
 
 result = draw_quantum_circuit(
     circuit,
+    show=False,
     config=DrawConfig(
         side=DrawSideConfig(
             appearance=CircuitAppearanceOptions(preset=StylePreset.PRESENTATION),
         ),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -596,7 +570,7 @@ It also accepts:
 - MyQLM `qat.core.Result` objects through `raw_data`
 - CUDA-Q `SampleResult`-style objects through `items()`
 
-If a framework returns several payloads at once, pass the tuple or list directly and choose one entry with `HistogramConfig(data=HistogramDataOptions(result_index=...))`.
+If a framework returns several payloads at once, pass the tuple or list directly and choose one entry with `result_index=...`.
 
 ## Working With The Result Objects
 

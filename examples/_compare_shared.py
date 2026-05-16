@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
@@ -26,17 +26,11 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitCompareConfig,
-    CircuitCompareOptions,
-    DrawMode,
-    DrawSideConfig,
-    OutputOptions,
     compare_circuits,
     compare_histograms,
 )
 from quantum_circuit_drawer.histogram import (  # noqa: E402
     HistogramCompareConfig,
-    HistogramCompareOptions,
-    HistogramDataOptions,
 )
 
 CompareKind = Literal["circuits", "histograms"]
@@ -201,6 +195,25 @@ def render_compare_example(
                 payload.left_data,
                 payload.right_data,
                 *payload.extra_data,
+                mode=request.mode,
+                output_path=request.output,
+                show=request.show,
+                figsize=request.figsize,
+                left_title=request.left_label or config.left_title,
+                right_title=request.right_label or config.right_title,
+                titles=_merge_optional_labels(
+                    config.titles,
+                    first_label=request.left_label,
+                    second_label=request.right_label,
+                ),
+                highlight_differences=(
+                    config.highlight_differences
+                    if request.highlight_differences is None
+                    else request.highlight_differences
+                ),
+                show_summary=(
+                    config.show_summary if request.show_summary is None else request.show_summary
+                ),
                 config=config,
             )
         else:
@@ -212,6 +225,22 @@ def render_compare_example(
                 payload.left_data,
                 payload.right_data,
                 *payload.extra_data,
+                kind=config.kind,
+                sort=request.sort or config.sort,
+                qubits=config.qubits,
+                top_k=config.top_k if request.top_k is None else request.top_k,
+                result_index=config.result_index,
+                data_key=config.data_key,
+                left_label=request.left_label or config.left_label,
+                right_label=request.right_label or config.right_label,
+                series_labels=_merge_optional_labels(
+                    config.series_labels,
+                    first_label=request.left_label,
+                    second_label=request.right_label,
+                ),
+                output_path=request.output,
+                show=request.show,
+                figsize=request.figsize,
                 config=config,
             )
         set_result_figure_titles(result=result, saved_label=saved_label)
@@ -243,39 +272,14 @@ def _merge_circuit_compare_config(
     *,
     request: CompareExampleRequest,
 ) -> CircuitCompareConfig:
-    titles = _merge_optional_labels(
-        config.titles,
-        first_label=request.left_label,
-        second_label=request.right_label,
-    )
-    shared = DrawSideConfig(
-        render=replace(config.shared.render, mode=DrawMode(request.mode)),
-        appearance=config.shared.appearance,
-    )
+    _ = request
     return CircuitCompareConfig(
-        shared=shared,
+        shared=config.shared,
         left_render=config.left_render,
         right_render=config.right_render,
         left_appearance=config.left_appearance,
         right_appearance=config.right_appearance,
-        compare=CircuitCompareOptions(
-            left_title=request.left_label or config.left_title,
-            right_title=request.right_label or config.right_title,
-            highlight_differences=(
-                config.highlight_differences
-                if request.highlight_differences is None
-                else request.highlight_differences
-            ),
-            show_summary=(
-                config.show_summary if request.show_summary is None else request.show_summary
-            ),
-            titles=titles,
-        ),
-        output=OutputOptions(
-            output_path=request.output,
-            show=request.show,
-            figsize=request.figsize,
-        ),
+        compare=config.compare,
     )
 
 
@@ -284,33 +288,9 @@ def _merge_histogram_compare_config(
     *,
     request: CompareExampleRequest,
 ) -> HistogramCompareConfig:
-    series_labels = _merge_optional_labels(
-        config.series_labels,
-        first_label=request.left_label,
-        second_label=request.right_label,
-    )
+    _ = request
     return HistogramCompareConfig(
-        data=HistogramDataOptions(
-            kind=config.kind,
-            top_k=config.top_k if request.top_k is None else request.top_k,
-            qubits=config.qubits,
-            result_index=config.result_index,
-            data_key=config.data_key,
-        ),
-        compare=HistogramCompareOptions(
-            sort=config.sort if request.sort is None else request.sort,
-            left_label=request.left_label or config.left_label,
-            right_label=request.right_label or config.right_label,
-            hover=config.hover,
-            preset=config.preset,
-            theme=config.theme,
-            series_labels=series_labels,
-        ),
-        output=OutputOptions(
-            output_path=request.output,
-            show=request.show,
-            figsize=request.figsize,
-        ),
+        compare=config.compare,
     )
 
 

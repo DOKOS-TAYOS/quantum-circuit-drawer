@@ -15,17 +15,9 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitBuilder,
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
-    DrawSideConfig,
-    HistogramConfig,
-    HistogramMode,
-    HistogramViewOptions,
     LogCapture,
     LogFormat,
     LogProfile,
-    OutputOptions,
     capture_logs,
     configure_logging,
     draw_quantum_circuit,
@@ -82,28 +74,16 @@ def main() -> None:
         ) as capture:
             draw_result = draw_quantum_circuit(
                 circuit,
-                config=DrawConfig(
-                    side=DrawSideConfig(
-                        render=CircuitRenderOptions(
-                            mode=DrawMode.PAGES_CONTROLS,
-                            view="2d",
-                        )
-                    ),
-                    output=OutputOptions(
-                        show=args.show,
-                        figsize=DEFAULT_CIRCUIT_FIGSIZE,
-                    ),
-                ),
+                mode="pages_controls",
+                view="2d",
+                show=args.show,
+                figsize=DEFAULT_CIRCUIT_FIGSIZE,
             )
             histogram_result = plot_histogram(
                 build_counts(bit_width=args.histogram_bits),
-                config=HistogramConfig(
-                    view=HistogramViewOptions(mode=HistogramMode.INTERACTIVE),
-                    output=OutputOptions(
-                        show=args.show,
-                        figsize=DEFAULT_HISTOGRAM_FIGSIZE,
-                    ),
-                ),
+                mode="interactive",
+                show=args.show,
+                figsize=DEFAULT_HISTOGRAM_FIGSIZE,
             )
         _print_capture_summary(capture)
         if args.show:

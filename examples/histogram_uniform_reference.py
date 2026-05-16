@@ -17,10 +17,7 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer import (  # noqa: E402
     HistogramAppearanceOptions,
     HistogramConfig,
-    HistogramDataOptions,
     HistogramDrawStyle,
-    HistogramKind,
-    OutputOptions,
     plot_histogram,
 )
 
@@ -50,16 +47,14 @@ def build_counts_data() -> dict[str, int]:
     }
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
+def build_config() -> HistogramConfig:
     """Build the histogram config used by this demo."""
 
     return HistogramConfig(
-        data=HistogramDataOptions(kind=HistogramKind.COUNTS),
         appearance=HistogramAppearanceOptions(
             draw_style=HistogramDrawStyle.OUTLINE,
             show_uniform_reference=True,
         ),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_HISTOGRAM_FIGSIZE),
     )
 
 
@@ -71,7 +66,11 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_counts_data(),
-            config=build_config(output=output_path, show=show),
+            kind="counts",
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
+            config=build_config(),
         )
         if output_path is not None:
             print(f"Saved histogram-uniform-reference to {output_path}")

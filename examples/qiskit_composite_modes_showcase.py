@@ -18,10 +18,6 @@ except ImportError:
 ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawSideConfig,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
@@ -55,16 +51,10 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
-            config=DrawConfig(
-                side=DrawSideConfig(
-                    render=CircuitRenderOptions(composite_mode=args.composite_mode),
-                ),
-                output=OutputOptions(
-                    output_path=args.output,
-                    show=args.show,
-                    figsize=DEFAULT_FIGSIZE,
-                ),
-            ),
+            composite_mode=args.composite_mode,
+            output_path=args.output,
+            show=args.show,
+            figsize=DEFAULT_FIGSIZE,
         )
         if args.output is not None:
             print(f"Saved qiskit-composite-modes-showcase to {args.output}")

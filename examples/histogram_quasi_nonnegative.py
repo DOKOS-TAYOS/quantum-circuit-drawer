@@ -17,10 +17,7 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer import (  # noqa: E402
     HistogramAppearanceOptions,
     HistogramConfig,
-    HistogramDataOptions,
     HistogramDrawStyle,
-    HistogramKind,
-    OutputOptions,
     plot_histogram,
 )
 
@@ -42,16 +39,14 @@ def build_quasi_distribution() -> dict[str, float]:
     }
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
+def build_config() -> HistogramConfig:
     """Build the histogram config used by this demo."""
 
     return HistogramConfig(
-        data=HistogramDataOptions(kind=HistogramKind.QUASI),
         appearance=HistogramAppearanceOptions(
             theme="paper",
             draw_style=HistogramDrawStyle.SOFT,
         ),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_HISTOGRAM_FIGSIZE),
     )
 
 
@@ -63,7 +58,11 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_quasi_distribution(),
-            config=build_config(output=output_path, show=show),
+            kind="quasi",
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
+            config=build_config(),
         )
         if output_path is not None:
             print(f"Saved histogram-quasi-nonnegative to {output_path}")

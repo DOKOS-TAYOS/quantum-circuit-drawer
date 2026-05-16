@@ -43,7 +43,7 @@ These are the three most common patterns:
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
@@ -52,7 +52,8 @@ circuit.measure(1, 0)
 
 draw_quantum_circuit(
     circuit,
-    config=DrawConfig(output=OutputOptions(output_path="bell.png", show=False)),
+    output_path="bell.png",
+    show=False,
 )
 ```
 
@@ -68,15 +69,18 @@ print(latex_result.source)
 ### Plot counts
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 plot_histogram(
     {"00": 51, "01": 14, "10": 9, "11": 49},
-    config=HistogramConfig(output=OutputOptions(show=False)),
+    show=False,
 )
 ```
 
-The public configuration is also intentionally small:
+For everyday use, prefer direct kwargs such as `mode=`, `view=`, `sort=`,
+`top_k=`, `show=`, and `output_path=`. The public configuration objects are
+still available for advanced styling, hover behavior, themes, adapter options,
+and per-side comparison overrides:
 
 - `DrawConfig` for circuit rendering
 - `HistogramConfig` for single histograms
@@ -259,17 +263,14 @@ qcd histogram counts.json --output counts.png
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
 circuit.cx(0, 1)
 circuit.measure(1, 0)
 
-result = draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(output=OutputOptions(show=False)),
-)
+result = draw_quantum_circuit(circuit, show=False)
 
 figure = result.primary_figure
 axes = result.primary_axes
@@ -287,12 +288,9 @@ such as `theta`, `phi`, or `pi/2`.
 Use `analyze_quantum_circuit(...)` when you want a quick summary before opening windows or saving images:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, analyze_quantum_circuit
+from quantum_circuit_drawer import analyze_quantum_circuit
 
-analysis = analyze_quantum_circuit(
-    circuit,
-    config=DrawConfig(output=OutputOptions(show=True, output_path="ignored.png")),
-)
+analysis = analyze_quantum_circuit(circuit)
 
 summary = analysis.to_dict()
 ```
@@ -313,7 +311,7 @@ OpenQASM input uses Qiskit as the parser. Install the Qiskit extra for OpenQASM 
 You can pass OpenQASM 2 or OpenQASM 3 text directly:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 qasm = """
 OPENQASM 2.0;
@@ -325,10 +323,7 @@ cx q[0],q[1];
 measure q[1] -> c[0];
 """
 
-result = draw_quantum_circuit(
-    qasm,
-    config=DrawConfig(output=OutputOptions(show=False)),
-)
+result = draw_quantum_circuit(qasm, show=False)
 ```
 
 Or draw a `.qasm` / `.qasm3` file directly. `framework="qasm"` is optional when the path ends in `.qasm` or `.qasm3`, but it is useful when you want to be explicit:
@@ -336,20 +331,12 @@ Or draw a `.qasm` / `.qasm3` file directly. `framework="qasm"` is optional when 
 ```python
 from pathlib import Path
 
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 result = draw_quantum_circuit(
     Path("bell.qasm"),
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
-        output=OutputOptions(show=False),
-    ),
+    framework="qasm",
+    show=False,
 )
 ```
 
@@ -364,7 +351,6 @@ from quantum_circuit_drawer import (
     CircuitRenderOptions,
     DrawConfig,
     DrawSideConfig,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
@@ -375,14 +361,14 @@ kernel.mz(qubits)
 
 result = draw_quantum_circuit(
     kernel,
+    framework="cudaq",
+    show=False,
     config=DrawConfig(
         side=DrawSideConfig(
             render=CircuitRenderOptions(
-                framework="cudaq",
                 adapter_options={"cudaq_args": (3, 0.25)},
             )
         ),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -392,7 +378,7 @@ result = draw_quantum_circuit(
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
@@ -401,7 +387,8 @@ circuit.measure(1, 0)
 
 draw_quantum_circuit(
     circuit,
-    config=DrawConfig(output=OutputOptions(output_path="bell.png", show=False)),
+    output_path="bell.png",
+    show=False,
 )
 ```
 
@@ -433,19 +420,16 @@ This is useful for papers, lecture notes, or slide decks where you want to keep 
 from quantum_circuit_drawer import (
     HistogramAppearanceOptions,
     HistogramConfig,
-    HistogramDataOptions,
-    HistogramViewOptions,
-    OutputOptions,
     plot_histogram,
 )
 
 result = plot_histogram(
     {"000": 51, "001": 14, "010": 9, "111": 49},
+    sort="value_desc",
+    top_k=3,
+    show=False,
     config=HistogramConfig(
-        data=HistogramDataOptions(top_k=3),
-        view=HistogramViewOptions(sort="value_desc"),
         appearance=HistogramAppearanceOptions(show_uniform_reference=True),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -456,21 +440,18 @@ result = plot_histogram(
 from quantum_circuit_drawer import (
     HistogramAppearanceOptions,
     HistogramConfig,
-    HistogramDataOptions,
-    HistogramKind,
-    OutputOptions,
     plot_histogram,
 )
 
 result = plot_histogram(
     {0: 0.52, 3: -0.08, 4: 0.17, 7: 0.39},
+    kind="quasi",
+    show=False,
     config=HistogramConfig(
-        data=HistogramDataOptions(kind=HistogramKind.QUASI),
         appearance=HistogramAppearanceOptions(
             draw_style="soft",
             show_uniform_reference=True,
         ),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -478,14 +459,12 @@ result = plot_histogram(
 ### Joint marginal on selected qubits
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"101": 2, "001": 1, "111": 3},
-    config=HistogramConfig(
-        data=HistogramDataOptions(qubits=(0, 2)),
-        output=OutputOptions(show=False),
-    ),
+    qubits=(0, 2),
+    show=False,
 )
 ```
 
@@ -496,12 +475,7 @@ result = plot_histogram(
 ```python
 from qiskit import QuantumCircuit, transpile
 
-from quantum_circuit_drawer import (
-    CircuitCompareConfig,
-    CircuitCompareOptions,
-    OutputOptions,
-    compare_circuits,
-)
+from quantum_circuit_drawer import compare_circuits
 
 source = QuantumCircuit(3, 3)
 source.h(0)
@@ -514,13 +488,9 @@ transpiled = transpile(source, basis_gates=["u", "cx"], optimization_level=2)
 result = compare_circuits(
     source,
     transpiled,
-    config=CircuitCompareConfig(
-        compare=CircuitCompareOptions(
-            left_title="Original",
-            right_title="Transpiled",
-        ),
-        output=OutputOptions(show=False),
-    ),
+    left_title="Original",
+    right_title="Transpiled",
+    show=False,
 )
 ```
 
@@ -530,17 +500,12 @@ result = compare_circuits(
 - one `DrawResult` per circuit, with each circuit rendered in its own normal `pages_controls` figure unless you request `mode="full"` or pass caller-owned axes
 - structural metrics such as operation counts, measurement counts, swap counts, and differing layers
 
-For three or more circuits, pass the extra circuits as positional arguments and provide `compare.titles`. The summary table switches from a two-side delta column to one column per circuit; lower aggregate counts are highlighted in green and higher aggregate counts in red for each row.
+For three or more circuits, pass the extra circuits as positional arguments and provide `titles=(...)`. The summary table switches from a two-side delta column to one column per circuit; lower aggregate counts are highlighted in green and higher aggregate counts in red for each row.
 
 ## Compare Two Or More Histograms
 
 ```python
-from quantum_circuit_drawer import (
-    HistogramCompareConfig,
-    HistogramCompareOptions,
-    OutputOptions,
-    compare_histograms,
-)
+from quantum_circuit_drawer import compare_histograms
 
 ideal = {"00": 0.5, "11": 0.5}
 sampled = {"00": 473, "01": 19, "10": 24, "11": 484}
@@ -548,20 +513,16 @@ sampled = {"00": 473, "01": 19, "10": 24, "11": 484}
 result = compare_histograms(
     ideal,
     sampled,
-    config=HistogramCompareConfig(
-        compare=HistogramCompareOptions(
-            sort="delta_desc",
-            left_label="Ideal",
-            right_label="Sampled",
-        ),
-        output=OutputOptions(show=False),
-    ),
+    sort="delta_desc",
+    left_label="Ideal",
+    right_label="Sampled",
+    show=False,
 )
 ```
 
 This is useful when you want one aligned state space and quick metrics such as total variation distance. On interactive Matplotlib backends, the compare legend is clickable so you can focus one selected series at a time while keeping the axes and hover state in sync.
 
-For three or more distributions, pass extra data objects after the first two and set `HistogramCompareOptions(series_labels=(...))`. Sorting with `sort="delta_desc"` uses the largest spread across all visible series.
+For three or more distributions, pass extra data objects after the first two and set `series_labels=(...)`. Sorting with `sort="delta_desc"` uses the largest spread across all visible series.
 
 ## Build With Public IR Tools
 
@@ -570,7 +531,7 @@ If you do not want to depend on a framework, you can build directly with the pub
 ### `CircuitBuilder`
 
 ```python
-from quantum_circuit_drawer import CircuitBuilder, DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import CircuitBuilder, draw_quantum_circuit
 
 circuit = (
     CircuitBuilder(2, 1, name="builder_demo")
@@ -580,7 +541,7 @@ circuit = (
     .build()
 )
 
-draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)))
+draw_quantum_circuit(circuit, show=False)
 ```
 
 ### Raw `CircuitIR`

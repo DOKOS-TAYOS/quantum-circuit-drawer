@@ -20,17 +20,10 @@ from quantum_circuit_drawer import (  # noqa: E402
     CircuitAppearanceOptions,
     CircuitBuilder,
     CircuitCompareConfig,
-    CircuitCompareOptions,
-    CircuitRenderOptions,
     DrawConfig,
-    DrawMode,
     DrawSideConfig,
     HistogramAppearanceOptions,
     HistogramConfig,
-    HistogramDataOptions,
-    HistogramMode,
-    HistogramViewOptions,
-    OutputOptions,
     compare_circuits,
     draw_quantum_circuit,
     plot_histogram,
@@ -107,17 +100,22 @@ def main() -> None:
     draw_quantum_circuit(
         circuit,
         ax=layout.circuit_axes,
+        mode="full",
+        framework="ir",
+        show=False,
         config=DrawConfig(
             side=DrawSideConfig(
-                render=CircuitRenderOptions(mode=DrawMode.FULL, framework="ir"),
                 appearance=CircuitAppearanceOptions(preset="paper"),
             ),
-            output=OutputOptions(show=False),
         ),
     )
     plot_histogram(
         demo_counts(),
         ax=layout.histogram_axes,
+        mode="static",
+        sort="value_desc",
+        top_k=6,
+        show=False,
         config=build_histogram_config(),
     )
     compare_circuits(
@@ -125,6 +123,12 @@ def main() -> None:
         comparison_circuit,
         axes=layout.compare_axes,
         summary_ax=layout.summary_axes,
+        mode="full",
+        framework="ir",
+        left_title="Reference",
+        right_title="Variant",
+        show_summary=True,
+        show=False,
         config=build_compare_config(),
     )
     figure.suptitle("caller-managed axes")
@@ -163,10 +167,7 @@ def build_histogram_config() -> HistogramConfig:
     """Build the light-theme histogram config used by the dashboard."""
 
     return HistogramConfig(
-        data=HistogramDataOptions(top_k=6),
-        view=HistogramViewOptions(mode=HistogramMode.STATIC, sort="value_desc"),
         appearance=HistogramAppearanceOptions(theme="light"),
-        output=OutputOptions(show=False),
     )
 
 
@@ -175,15 +176,8 @@ def build_compare_config() -> CircuitCompareConfig:
 
     return CircuitCompareConfig(
         shared=DrawSideConfig(
-            render=CircuitRenderOptions(mode=DrawMode.FULL, framework="ir"),
             appearance=CircuitAppearanceOptions(preset="notebook"),
         ),
-        compare=CircuitCompareOptions(
-            left_title="Reference",
-            right_title="Variant",
-            show_summary=True,
-        ),
-        output=OutputOptions(show=False),
     )
 
 

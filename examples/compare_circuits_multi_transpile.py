@@ -19,9 +19,7 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitAppearanceOptions,
     CircuitCompareConfig,
-    CircuitCompareOptions,
     DrawSideConfig,
-    OutputOptions,
     compare_circuits,
 )
 
@@ -43,7 +41,7 @@ def build_source_circuit() -> QuantumCircuit:
     return circuit
 
 
-def build_config(*, output: Path | None, show: bool) -> CircuitCompareConfig:
+def build_config() -> CircuitCompareConfig:
     """Build the compare config used by this demo."""
 
     return CircuitCompareConfig(
@@ -52,12 +50,6 @@ def build_config(*, output: Path | None, show: bool) -> CircuitCompareConfig:
                 hover=True,
             )
         ),
-        compare=CircuitCompareOptions(
-            left_title="Source",
-            right_title="Opt level 0",
-            titles=("Source", "Opt level 0", "Opt level 1", "Opt level 3"),
-        ),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_COMPARE_FIGSIZE),
     )
 
 
@@ -91,7 +83,11 @@ def main() -> None:
             level_0,
             level_1,
             level_3,
-            config=build_config(output=output_path, show=show),
+            titles=("Source", "Opt level 0", "Opt level 1", "Opt level 3"),
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_COMPARE_FIGSIZE,
+            config=build_config(),
         )
         if output_path is not None:
             print(f"Saved compare-circuits-multi-transpile to {output_path}")

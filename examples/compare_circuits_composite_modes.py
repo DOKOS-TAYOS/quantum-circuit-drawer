@@ -20,10 +20,8 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitAppearanceOptions,
     CircuitCompareConfig,
-    CircuitCompareOptions,
     CircuitRenderOptions,
     DrawSideConfig,
-    OutputOptions,
     compare_circuits,
 )
 
@@ -42,7 +40,7 @@ def build_workflow_circuit() -> QuantumCircuit:
     return circuit
 
 
-def build_config(*, output: Path | None, show: bool) -> CircuitCompareConfig:
+def build_config() -> CircuitCompareConfig:
     """Build the compare config used by this demo."""
 
     return CircuitCompareConfig(
@@ -59,11 +57,6 @@ def build_config(*, output: Path | None, show: bool) -> CircuitCompareConfig:
             framework="qiskit",
             composite_mode="expand",
         ),
-        compare=CircuitCompareOptions(
-            left_title="Compact composites",
-            right_title="Expanded composites",
-        ),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_COMPARE_FIGSIZE),
     )
 
 
@@ -77,7 +70,12 @@ def main() -> None:
         result = compare_circuits(
             circuit,
             circuit,
-            config=build_config(output=output_path, show=show),
+            left_title="Compact composites",
+            right_title="Expanded composites",
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_COMPARE_FIGSIZE,
+            config=build_config(),
         )
         if output_path is not None:
             print(f"Saved compare-circuits-composite-modes to {output_path}")

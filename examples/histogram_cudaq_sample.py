@@ -16,13 +16,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramConfig,
-    HistogramSort,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram  # noqa: E402
 
 
 def build_sample_result() -> object:
@@ -37,15 +31,6 @@ def build_sample_result() -> object:
     return cudaq.sample(kernel, shots_count=512)
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
-    """Build the histogram config used by this demo."""
-
-    return HistogramConfig(
-        view=HistogramViewOptions(sort=HistogramSort.VALUE_DESC),
-        output=OutputOptions(output_path=output, show=show),
-    )
-
-
 def main() -> None:
     """Render a histogram directly from a CUDA-Q sample result."""
 
@@ -54,7 +39,9 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_sample_result(),
-            config=build_config(output=output_path, show=show),
+            sort="value_desc",
+            output_path=output_path,
+            show=show,
         )
         if output_path is not None:
             print(f"Saved histogram-cudaq-sample to {output_path}")

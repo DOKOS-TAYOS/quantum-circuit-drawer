@@ -14,13 +14,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramConfig,
-    HistogramDataOptions,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram  # noqa: E402
 
 DEFAULT_HISTOGRAM_FIGSIZE: tuple[float, float] = (10.8, 6.1)
 
@@ -48,16 +42,6 @@ def build_counts_data() -> dict[str, int]:
     }
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
-    """Build the histogram config used by this demo."""
-
-    return HistogramConfig(
-        data=HistogramDataOptions(top_k=5),
-        view=HistogramViewOptions(sort="value_desc"),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_HISTOGRAM_FIGSIZE),
-    )
-
-
 def main() -> None:
     """Render a histogram focused on top-k ordering and filtering."""
 
@@ -66,7 +50,11 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_counts_data(),
-            config=build_config(output=output_path, show=show),
+            sort="value_desc",
+            top_k=5,
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
         )
         if output_path is not None:
             print(f"Saved histogram-top-k to {output_path}")

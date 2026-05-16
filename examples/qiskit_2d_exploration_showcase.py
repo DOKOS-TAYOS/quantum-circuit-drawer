@@ -19,11 +19,8 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitAppearanceOptions,
-    CircuitRenderOptions,
     DrawConfig,
-    DrawMode,
     DrawSideConfig,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
@@ -87,18 +84,14 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            mode=args.mode,
+            topology=args.topology,
+            output_path=args.output,
+            show=args.show,
+            figsize=(11.8, 6.2),
             config=DrawConfig(
                 side=DrawSideConfig(
-                    render=CircuitRenderOptions(
-                        mode=DrawMode(args.mode),
-                        topology=args.topology,
-                    ),
                     appearance=CircuitAppearanceOptions(hover=True),
-                ),
-                output=OutputOptions(
-                    output_path=args.output,
-                    show=args.show,
-                    figsize=(11.8, 6.2),
                 ),
             ),
         )

@@ -17,8 +17,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
-from quantum_circuit_drawer.config import CircuitRenderOptions, DrawSideConfig  # noqa: E402
+from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
 
 DEFAULT_FIGSIZE: tuple[float, float] = (10.6, 5.8)
 
@@ -113,14 +112,10 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_circuit(qubit_count=args.qubits, column_count=args.columns, seed=args.seed),
-            config=DrawConfig(
-                side=DrawSideConfig(render=CircuitRenderOptions(framework="myqlm")),
-                output=OutputOptions(
-                    output_path=args.output,
-                    show=args.show,
-                    figsize=DEFAULT_FIGSIZE,
-                ),
-            ),
+            framework="myqlm",
+            output_path=args.output,
+            show=args.show,
+            figsize=DEFAULT_FIGSIZE,
         )
         if args.output is not None:
             print(f"Saved myqlm-random to {args.output}")

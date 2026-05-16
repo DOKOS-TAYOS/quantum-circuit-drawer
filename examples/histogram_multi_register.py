@@ -14,16 +14,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramConfig,
-    HistogramDataOptions,
-    HistogramKind,
-    HistogramSort,
-    HistogramStateLabelMode,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram  # noqa: E402
 
 DEFAULT_HISTOGRAM_FIGSIZE: tuple[float, float] = (10.8, 6.1)
 
@@ -41,19 +32,6 @@ def build_counts_data() -> dict[str, int]:
     }
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
-    """Build the histogram config used by this demo."""
-
-    return HistogramConfig(
-        data=HistogramDataOptions(kind=HistogramKind.COUNTS),
-        view=HistogramViewOptions(
-            sort=HistogramSort.STATE,
-            state_label_mode=HistogramStateLabelMode.DECIMAL,
-        ),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_HISTOGRAM_FIGSIZE),
-    )
-
-
 def main() -> None:
     """Render a counts histogram with several space-separated registers."""
 
@@ -62,7 +40,12 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_counts_data(),
-            config=build_config(output=output_path, show=show),
+            kind="counts",
+            sort="state",
+            state_label_mode="decimal",
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
         )
         if output_path is not None:
             print(f"Saved histogram-multi-register to {output_path}")

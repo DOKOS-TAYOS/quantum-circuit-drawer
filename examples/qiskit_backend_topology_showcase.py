@@ -20,10 +20,8 @@ from quantum_circuit_drawer import (  # noqa: E402
     CircuitBuilder,
     CircuitRenderOptions,
     DrawConfig,
-    DrawMode,
     DrawSideConfig,
     HardwareTopology,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
@@ -77,21 +75,19 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            mode="pages",
+            view="3d",
+            topology=topology,
+            topology_qubits="all",
+            output_path=args.output,
+            show=args.show,
+            figsize=DEFAULT_FIGSIZE,
             config=DrawConfig(
                 side=DrawSideConfig(
                     render=CircuitRenderOptions(
-                        view="3d",
-                        mode=DrawMode.PAGES,
-                        topology=topology,
-                        topology_qubits="all",
                         direct=False,
                     ),
                     appearance=CircuitAppearanceOptions(hover=True),
-                ),
-                output=OutputOptions(
-                    output_path=args.output,
-                    show=args.show,
-                    figsize=DEFAULT_FIGSIZE,
                 ),
             ),
         )

@@ -16,13 +16,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramConfig,
-    HistogramSort,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram  # noqa: E402
 
 DEFAULT_HISTOGRAM_FIGSIZE: tuple[float, float] = (10.8, 6.1)
 
@@ -38,15 +32,6 @@ def build_result() -> Result:
     return result
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
-    """Build the histogram config used by this demo."""
-
-    return HistogramConfig(
-        view=HistogramViewOptions(sort=HistogramSort.VALUE_DESC),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_HISTOGRAM_FIGSIZE),
-    )
-
-
 def main() -> None:
     """Render a histogram directly from a myQLM Result.raw_data payload."""
 
@@ -55,7 +40,10 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_result(),
-            config=build_config(output=output_path, show=show),
+            sort="value_desc",
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
         )
         if output_path is not None:
             print(f"Saved histogram-myqlm-result to {output_path}")

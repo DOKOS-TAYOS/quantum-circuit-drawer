@@ -23,10 +23,8 @@ from quantum_circuit_drawer import (  # noqa: E402
     CircuitAppearanceOptions,
     CircuitRenderOptions,
     DrawConfig,
-    DrawMode,
     DrawSideConfig,
     HoverOptions,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
@@ -200,13 +198,16 @@ def main() -> None:
                 column_count=request.columns,
                 seed=request.seed,
             ),
+            mode=request.mode,
+            show=request.show,
+            output_path=request.output,
+            figsize=request.figsize,
+            view=request.view,
+            composite_mode=request.composite_mode,
+            topology=request.topology,
             config=DrawConfig(
                 side=DrawSideConfig(
                     render=CircuitRenderOptions(
-                        view=request.view,
-                        mode=DrawMode(request.mode),
-                        composite_mode=request.composite_mode,
-                        topology=request.topology,
                         topology_menu=request.view == "3d"
                         and request.mode in {"pages_controls", "slider"},
                         direct=request.view != "3d",
@@ -221,11 +222,6 @@ def main() -> None:
                             matrix_max_qubits=request.hover_matrix_max_qubits,
                         ),
                     ),
-                ),
-                output=OutputOptions(
-                    output_path=request.output,
-                    show=request.show,
-                    figsize=request.figsize,
                 ),
             ),
         )

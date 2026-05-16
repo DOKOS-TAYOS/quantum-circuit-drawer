@@ -22,9 +22,6 @@ from quantum_circuit_drawer import (  # noqa: E402
     HistogramAppearanceOptions,
     HistogramConfig,
     HistogramDrawStyle,
-    HistogramMode,
-    HistogramViewOptions,
-    OutputOptions,
     StylePreset,
     draw_quantum_circuit,
     plot_histogram,
@@ -71,27 +68,27 @@ def main() -> None:
     try:
         circuit_result = draw_quantum_circuit(
             build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
+            output_path=args.output,
+            show=args.show,
+            figsize=DEFAULT_CIRCUIT_FIGSIZE,
             config=DrawConfig(
                 side=DrawSideConfig(
                     appearance=CircuitAppearanceOptions(preset=StylePreset.ACCESSIBLE),
-                ),
-                output=OutputOptions(
-                    output_path=args.output,
-                    show=args.show,
-                    figsize=DEFAULT_CIRCUIT_FIGSIZE,
                 ),
             ),
         )
         histogram_result = plot_histogram(
             demo_counts(),
+            mode="static",
+            sort="value_desc",
+            show=False,
+            figsize=(10.1, 5.5),
             config=HistogramConfig(
-                view=HistogramViewOptions(mode=HistogramMode.STATIC, sort="value_desc"),
                 appearance=HistogramAppearanceOptions(
                     preset=StylePreset.ACCESSIBLE,
                     draw_style=HistogramDrawStyle.OUTLINE,
                     show_uniform_reference=True,
                 ),
-                output=OutputOptions(show=False, figsize=(10.1, 5.5)),
             ),
         )
         _save_companion_histogram(args.output, histogram_result)

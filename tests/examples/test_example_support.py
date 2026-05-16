@@ -96,8 +96,8 @@ def test_qiskit_backend_topology_showcase_enables_hover_in_3d(
     monkeypatch.setattr(
         module,
         "draw_quantum_circuit",
-        lambda circuit, *, config: (
-            captured.update({"circuit": circuit, "config": config}) or SimpleNamespace()
+        lambda circuit, **kwargs: (
+            captured.update({"circuit": circuit, **kwargs}) or SimpleNamespace()
         ),
     )
     monkeypatch.setattr(module, "release_rendered_result", lambda result: None)
@@ -105,8 +105,8 @@ def test_qiskit_backend_topology_showcase_enables_hover_in_3d(
     module.main()
 
     config = captured["config"]
-    assert config.side.render.view == "3d"
-    assert config.side.render.topology_qubits == "all"
+    assert captured["view"] == "3d"
+    assert captured["topology_qubits"] == "all"
     assert config.side.appearance.hover.enabled is True
 
 

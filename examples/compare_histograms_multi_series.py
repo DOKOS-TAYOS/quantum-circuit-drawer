@@ -14,13 +14,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramCompareConfig,
-    HistogramCompareOptions,
-    OutputOptions,
-    compare_histograms,
-)
-from quantum_circuit_drawer.histogram import HistogramDataOptions  # noqa: E402
+from quantum_circuit_drawer import compare_histograms  # noqa: E402
 
 DEFAULT_COMPARE_FIGSIZE: tuple[float, float] = (11.0, 6.1)
 
@@ -71,19 +65,6 @@ def build_inputs() -> tuple[dict[str, float], dict[str, float], dict[str, float]
     return ideal, noisy_simulator, hardware_raw, mitigated
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramCompareConfig:
-    """Build the compare config used by this demo."""
-
-    return HistogramCompareConfig(
-        data=HistogramDataOptions(top_k=8),
-        compare=HistogramCompareOptions(
-            series_labels=("Ideal", "Noisy sim", "Hardware raw", "Mitigated"),
-            sort="delta_desc",
-        ),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_COMPARE_FIGSIZE),
-    )
-
-
 def main() -> None:
     """Compare ideal, noisy, raw hardware, and mitigated distributions."""
 
@@ -96,7 +77,12 @@ def main() -> None:
             noisy_simulator,
             hardware_raw,
             mitigated,
-            config=build_config(output=output_path, show=show),
+            series_labels=("Ideal", "Noisy sim", "Hardware raw", "Mitigated"),
+            sort="delta_desc",
+            top_k=8,
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_COMPARE_FIGSIZE,
         )
         if output_path is not None:
             print(f"Saved compare-histograms-multi-series to {output_path}")

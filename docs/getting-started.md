@@ -9,26 +9,24 @@ If you have not installed the package yet, start with [Installation](installatio
 Most user code has the same shape:
 
 1. build your circuit or result object as usual
-2. choose the public config object only if you need to override defaults
+2. pass common choices directly as kwargs, such as `mode=`, `show=`, or `sort=`
 3. call the public API or export helper you need
-4. keep the returned result object if you want figures, axes, metrics, or diagnostics
+4. use `config=` only for advanced styling, hover, themes, or adapter-specific options
+5. keep the returned result object if you want figures, axes, metrics, or diagnostics
 
 ## Draw Your First Circuit
 
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
 circuit.cx(0, 1)
 circuit.measure(1, 0)
 
-result = draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(output=OutputOptions(show=False)),
-)
+result = draw_quantum_circuit(circuit, show=False)
 ```
 
 What happens by default:
@@ -77,7 +75,7 @@ Then pass either text that starts with `OPENQASM`, a `.qasm` file path, or a `.q
 ```python
 from pathlib import Path
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 qasm = """
 OPENQASM 2.0;
@@ -89,18 +87,16 @@ cx q[0],q[1];
 measure q[1] -> c[0];
 """
 
-text_result = draw_quantum_circuit(
-    qasm,
-    config=DrawConfig(output=OutputOptions(show=False)),
-)
+text_result = draw_quantum_circuit(qasm, show=False)
 
 file_result = draw_quantum_circuit(
     Path("bell.qasm"),
-    config=DrawConfig(output=OutputOptions(show=False)),
+    framework="qasm",
+    show=False,
 )
 ```
 
-Use `CircuitRenderOptions(framework="qasm")` when you want the input path to be explicit in your config. A `.qasm` / `.qasm3` file is read as UTF-8 and must start with `OPENQASM`.
+Use `framework="qasm"` when you want the input path to be explicit. A `.qasm` / `.qasm3` file is read as UTF-8 and must start with `OPENQASM`.
 The same `framework="qasm"` value is used for OpenQASM 3; only the header and file extension decide which Qiskit parser runs.
 
 ## Use The CLI For Quick Images
@@ -121,7 +117,7 @@ This is the most common script workflow:
 ```python
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
@@ -130,7 +126,8 @@ circuit.measure(1, 0)
 
 draw_quantum_circuit(
     circuit,
-    config=DrawConfig(output=OutputOptions(output_path="bell.png", show=False)),
+    output_path="bell.png",
+    show=False,
 )
 ```
 
@@ -144,14 +141,7 @@ Use `ax=...` when the circuit is only one subplot inside a larger Matplotlib lay
 import matplotlib.pyplot as plt
 from qiskit import QuantumCircuit
 
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 circuit = QuantumCircuit(2, 1)
 circuit.h(0)
@@ -162,10 +152,8 @@ figure, axes = plt.subplots(figsize=(7, 3))
 result = draw_quantum_circuit(
     circuit,
     ax=axes,
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
-        output=OutputOptions(show=False),
-    ),
+    mode="full",
+    show=False,
 )
 ```
 
@@ -178,11 +166,11 @@ Keep in mind:
 ## Plot Your First Histogram
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"00": 51, "01": 14, "10": 9, "11": 49},
-    config=HistogramConfig(output=OutputOptions(show=False)),
+    show=False,
 )
 ```
 
@@ -190,7 +178,7 @@ This same entry point also accepts:
 
 - quasi-probabilities
 - framework-native result payloads
-- selected marginals through `HistogramDataOptions(qubits=(...))`
+- selected marginals through `qubits=(...)`
 - interactive or static histogram mode
 
 ## Compare Two Or More Circuits
@@ -198,12 +186,7 @@ This same entry point also accepts:
 ```python
 from qiskit import QuantumCircuit, transpile
 
-from quantum_circuit_drawer import (
-    CircuitCompareConfig,
-    CircuitCompareOptions,
-    OutputOptions,
-    compare_circuits,
-)
+from quantum_circuit_drawer import compare_circuits
 
 source = QuantumCircuit(3, 3)
 source.h(0)
@@ -216,27 +199,18 @@ optimized = transpile(source, basis_gates=["u", "cx"], optimization_level=2)
 result = compare_circuits(
     source,
     optimized,
-    config=CircuitCompareConfig(
-        compare=CircuitCompareOptions(
-            left_title="Source",
-            right_title="Optimized",
-        ),
-        output=OutputOptions(show=False),
-    ),
+    left_title="Source",
+    right_title="Optimized",
+    show=False,
 )
 ```
 
-This is the quickest way to inspect structural differences without writing your own subplot logic. You can pass extra circuits after the first two; for 3+ circuits, set `CircuitCompareOptions(titles=(...))` with one title per circuit.
+This is the quickest way to inspect structural differences without writing your own subplot logic. You can pass extra circuits after the first two; for 3+ circuits, set `titles=(...)` with one title per circuit.
 
 ## Compare Two Or More Histograms
 
 ```python
-from quantum_circuit_drawer import (
-    HistogramCompareConfig,
-    HistogramCompareOptions,
-    OutputOptions,
-    compare_histograms,
-)
+from quantum_circuit_drawer import compare_histograms
 
 ideal = {"00": 0.5, "11": 0.5}
 sampled = {"00": 478, "01": 19, "10": 21, "11": 482}
@@ -244,25 +218,21 @@ sampled = {"00": 478, "01": 19, "10": 21, "11": 482}
 result = compare_histograms(
     ideal,
     sampled,
-    config=HistogramCompareConfig(
-        compare=HistogramCompareOptions(
-            left_label="Ideal",
-            right_label="Sampled",
-            sort="delta_desc",
-        ),
-        output=OutputOptions(show=False),
-    ),
+    left_label="Ideal",
+    right_label="Sampled",
+    sort="delta_desc",
+    show=False,
 )
 ```
 
-This returns one comparison figure and aligned values. You can pass extra distributions after the first two; for 3+ distributions, set `HistogramCompareOptions(series_labels=(...))`.
+This returns one comparison figure and aligned values. You can pass extra distributions after the first two; for 3+ distributions, set `series_labels=(...)`.
 
 ## Framework-Free Start With `CircuitBuilder`
 
 If you want a lightweight path without a framework dependency:
 
 ```python
-from quantum_circuit_drawer import CircuitBuilder, DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import CircuitBuilder, draw_quantum_circuit
 
 circuit = (
     CircuitBuilder(2, 1, name="builder_demo")
@@ -272,7 +242,7 @@ circuit = (
     .build()
 )
 
-draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)))
+draw_quantum_circuit(circuit, show=False)
 ```
 
 This is often the easiest way to generate small circuits in tests, docs, or preprocessing pipelines.

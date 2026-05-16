@@ -8,22 +8,9 @@ For the detailed explanation behind these snippets and the full user-facing feat
 ### Notebook: one figure per page
 
 ```python
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
-result = draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
-        output=OutputOptions(show=False),
-    ),
-)
+result = draw_quantum_circuit(circuit, mode="pages", show=False)
 
 for figure in result.figures:
     display(figure)
@@ -32,40 +19,21 @@ for figure in result.figures:
 ### Script: managed page viewer
 
 ```python
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
-    DrawSideConfig,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
-draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES_CONTROLS)),
-    ),
-)
+draw_quantum_circuit(circuit, mode="pages_controls")
 ```
 
 ### Save a clean export from a script
 
 ```python
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 draw_quantum_circuit(
     circuit,
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES_CONTROLS)),
-        output=OutputOptions(output_path="circuit.png", show=False),
-    ),
+    mode="pages_controls",
+    output_path="circuit.png",
+    show=False,
 )
 ```
 
@@ -89,12 +57,9 @@ Both commands save without opening a window by default. Add `--show` if you want
 ### Analyze before rendering
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, analyze_quantum_circuit
+from quantum_circuit_drawer import analyze_quantum_circuit
 
-analysis = analyze_quantum_circuit(
-    circuit,
-    config=DrawConfig(output=OutputOptions(show=True, output_path="ignored.png")),
-)
+analysis = analyze_quantum_circuit(circuit)
 
 summary = analysis.to_dict()
 ```
@@ -102,12 +67,9 @@ summary = analysis.to_dict()
 ### Export after rendering
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
-result = draw_quantum_circuit(
-    circuit,
-    config=DrawConfig(output=OutputOptions(show=False)),
-)
+result = draw_quantum_circuit(circuit, show=False)
 
 image_path = result.save("circuit.png")
 page_paths = result.save_all_pages("circuit_pages")
@@ -117,11 +79,11 @@ summary = result.to_dict()
 Histogram results also support CSV export:
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"00": 5, "11": 3},
-    config=HistogramConfig(output=OutputOptions(show=False)),
+    show=False,
 )
 
 csv_path = result.to_csv("histogram.csv")
@@ -154,15 +116,13 @@ measure q[1] -> c[0];
 
 text_result = draw_quantum_circuit(
     qasm_text,
-    config=DrawConfig(output=OutputOptions(show=False)),
+    show=False,
 )
 
 file_result = draw_quantum_circuit(
     Path("bell.qasm"),
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(framework="qasm")),
-        output=OutputOptions(show=False),
-    ),
+    framework="qasm",
+    show=False,
 )
 ```
 
@@ -173,24 +133,15 @@ Use the same `framework="qasm"` value for OpenQASM 3; pass text with an `OPENQAS
 ```python
 import matplotlib.pyplot as plt
 
-from quantum_circuit_drawer import (
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
-    DrawSideConfig,
-    OutputOptions,
-    draw_quantum_circuit,
-)
+from quantum_circuit_drawer import draw_quantum_circuit
 
 fig, ax = plt.subplots()
 
 draw_quantum_circuit(
     circuit,
     ax=ax,
-    config=DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
-        output=OutputOptions(show=False),
-    ),
+    mode="full",
+    show=False,
 )
 ```
 
@@ -208,6 +159,7 @@ from quantum_circuit_drawer import (
 
 result = draw_quantum_circuit(
     circuit,
+    show=False,
     config=DrawConfig(
         side=DrawSideConfig(
             appearance=CircuitAppearanceOptions(
@@ -215,7 +167,6 @@ result = draw_quantum_circuit(
                 hover={"enabled": True, "show_size": True},
             ),
         ),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -234,13 +185,13 @@ from quantum_circuit_drawer import (
 
 result = draw_quantum_circuit(
     circuit,
+    show=False,
     config=DrawConfig(
         side=DrawSideConfig(
             render=CircuitRenderOptions(
                 unsupported_policy=UnsupportedPolicy.PLACEHOLDER,
             ),
         ),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -394,12 +345,12 @@ result = compare_circuits(
 )
 ```
 
-Pass more circuits as additional positional arguments when you want to inspect several variants at once. For 3+ variants, set `CircuitCompareOptions(titles=(...))`; the summary table uses one column per circuit.
+Pass more circuits as additional positional arguments when you want to inspect several variants at once. For 3+ variants, set `titles=(...)`; the summary table uses one column per circuit.
 
 ### Build a simple framework-free circuit
 
 ```python
-from quantum_circuit_drawer import CircuitBuilder, DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import CircuitBuilder, draw_quantum_circuit
 
 circuit = (
     CircuitBuilder(2, 1, name="recipe_builder")
@@ -409,7 +360,7 @@ circuit = (
     .build()
 )
 
-draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)))
+draw_quantum_circuit(circuit, show=False)
 ```
 
 ## Histogram Recipes
@@ -417,80 +368,60 @@ draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)
 ### Plot a counts histogram
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"00": 51, "11": 49},
-    config=HistogramConfig(output=OutputOptions(show=False)),
+    show=False,
 )
 ```
 
 ### Plot a quasi-probability distribution
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, HistogramKind, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {0: 0.52, 3: -0.08},
-    config=HistogramConfig(
-        data=HistogramDataOptions(kind=HistogramKind.QUASI),
-        output=OutputOptions(show=False),
-    ),
+    kind="quasi",
+    show=False,
 )
 ```
 
 ### Keep only the largest states
 
 ```python
-from quantum_circuit_drawer import (
-    HistogramConfig,
-    HistogramDataOptions,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"000": 51, "001": 14, "010": 9, "111": 49},
-    config=HistogramConfig(
-        data=HistogramDataOptions(top_k=3),
-        view=HistogramViewOptions(sort="value_desc"),
-        output=OutputOptions(show=False),
-    ),
+    sort="value_desc",
+    top_k=3,
+    show=False,
 )
 ```
 
 ### Plot a joint marginal on selected qubits
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"101": 2, "001": 1, "111": 3},
-    config=HistogramConfig(
-        data=HistogramDataOptions(qubits=(0, 2)),
-        output=OutputOptions(show=False),
-    ),
+    qubits=(0, 2),
+    show=False,
 )
 ```
 
 ### Show decimal labels for several registers
 
 ```python
-from quantum_circuit_drawer import (
-    HistogramConfig,
-    HistogramStateLabelMode,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram
 
 result = plot_histogram(
     {"10 011": 7, "01 101": 3},
-    config=HistogramConfig(
-        view=HistogramViewOptions(state_label_mode=HistogramStateLabelMode.DECIMAL),
-        output=OutputOptions(show=False),
-    ),
+    state_label_mode="decimal",
+    show=False,
 )
 ```
 
@@ -499,13 +430,13 @@ If a state label uses spaces to separate registers, decimal mode converts each r
 ### Show a uniform reference line
 
 ```python
-from quantum_circuit_drawer import HistogramAppearanceOptions, HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import HistogramAppearanceOptions, HistogramConfig, plot_histogram
 
 result = plot_histogram(
     {"00": 51, "01": 14, "10": 9, "11": 49},
+    show=False,
     config=HistogramConfig(
         appearance=HistogramAppearanceOptions(show_uniform_reference=True),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -513,13 +444,13 @@ result = plot_histogram(
 ### Explore a large histogram interactively
 
 ```python
-from quantum_circuit_drawer import HistogramAppearanceOptions, HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import HistogramAppearanceOptions, HistogramConfig, plot_histogram
 
 result = plot_histogram(
     {format(index, "07b"): ((index * 17) % 41) + ((index * 5) % 13) + 3 for index in range(2**7)},
+    show=False,
     config=HistogramConfig(
         appearance=HistogramAppearanceOptions(show_uniform_reference=True),
-        output=OutputOptions(show=False),
     ),
 )
 ```
@@ -529,28 +460,28 @@ With the default `mode="auto"`, this becomes interactive in normal `.py` runs an
 ### Plot framework-style probability vectors or samples directly
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 probabilities = [0.125, 0.375, 0.25, 0.25]  # e.g. PennyLane qml.probs(...)
 samples = [[0, 1], [1, 1], [1, 1], [0, 1]]  # e.g. PennyLane qml.sample(...)
 
 probability_result = plot_histogram(
     probabilities,
-    config=HistogramConfig(output=OutputOptions(show=False)),
+    show=False,
 )
 
 sample_result = plot_histogram(
     samples,
-    config=HistogramConfig(output=OutputOptions(show=False)),
+    show=False,
 )
 ```
 
-This also covers Cirq `Result` / `ResultDict` objects, MyQLM `qat.core.Result`, CUDA-Q `SampleResult`-style containers, and plain tuples or lists of several framework outputs when you select one with `HistogramConfig(data=HistogramDataOptions(result_index=...))`.
+This also covers Cirq `Result` / `ResultDict` objects, MyQLM `qat.core.Result`, CUDA-Q `SampleResult`-style containers, and plain tuples or lists of several framework outputs when you select one with `result_index=...`.
 
 ### Select one result payload from a tuple
 
 ```python
-from quantum_circuit_drawer import HistogramConfig, HistogramDataOptions, OutputOptions, plot_histogram
+from quantum_circuit_drawer import plot_histogram
 
 payloads = (
     {"00": 20, "11": 12},
@@ -559,35 +490,24 @@ payloads = (
 
 result = plot_histogram(
     payloads,
-    config=HistogramConfig(
-        data=HistogramDataOptions(result_index=1),
-        output=OutputOptions(show=False),
-    ),
+    result_index=1,
+    show=False,
 )
 ```
 
 ### Compare histograms
 
 ```python
-from quantum_circuit_drawer import (
-    HistogramCompareConfig,
-    HistogramCompareOptions,
-    OutputOptions,
-    compare_histograms,
-)
+from quantum_circuit_drawer import compare_histograms
 
 result = compare_histograms(
     {"00": 0.5, "11": 0.5},
     {"00": 473, "01": 19, "10": 24, "11": 484},
-    config=HistogramCompareConfig(
-        compare=HistogramCompareOptions(
-            left_label="Ideal",
-            right_label="Sampled",
-            sort="delta_desc",
-        ),
-        output=OutputOptions(show=False),
-    ),
+    left_label="Ideal",
+    right_label="Sampled",
+    sort="delta_desc",
+    show=False,
 )
 ```
 
-Pass more distributions after the first two and set `HistogramCompareOptions(series_labels=(...))` to compare 3+ result series in the same overlay.
+Pass more distributions after the first two and set `series_labels=(...)` to compare 3+ result series in the same overlay.

@@ -156,9 +156,9 @@ If the Tk test window opens, retry your script. If it does not open:
 For scripts and automated exports, use:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
-draw_quantum_circuit(circuit, config=DrawConfig(output=OutputOptions(show=False)))
+draw_quantum_circuit(circuit, show=False)
 ```
 
 For notebooks, a plain call can be left as the last expression. The notebook displays the figure
@@ -191,21 +191,20 @@ from quantum_circuit_drawer import (
     CircuitAppearanceOptions,
     DrawConfig,
     DrawSideConfig,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
 result = draw_quantum_circuit(
     circuit,
+    show=False,
     config=DrawConfig(
         side=DrawSideConfig(appearance=CircuitAppearanceOptions(hover=True)),
-        output=OutputOptions(show=False),
     ),
 )
 result.primary_figure
 ```
 
-If you are saving through `OutputOptions(output_path=...)` or running on a non-interactive backend such as `Agg`, the figure stays static and tooltips are intentionally disabled.
+If you are saving through `output_path=...` or running on a non-interactive backend such as `Agg`, the figure stays static and tooltips are intentionally disabled.
 
 ## Saving Output Fails
 
@@ -223,11 +222,12 @@ Common causes:
 Try saving to a simple local path first:
 
 ```python
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer import draw_quantum_circuit
 
 draw_quantum_circuit(
     circuit,
-    config=DrawConfig(output=OutputOptions(output_path="circuit.png", show=False)),
+    output_path="circuit.png",
+    show=False,
 )
 ```
 
@@ -240,18 +240,16 @@ Do this:
 ```python
 from quantum_circuit_drawer import (
     CircuitAppearanceOptions,
-    CircuitRenderOptions,
     DrawConfig,
-    DrawMode,
     DrawSideConfig,
     draw_quantum_circuit,
 )
 
 result = draw_quantum_circuit(
     circuit,
+    mode="slider",
     config=DrawConfig(
         side=DrawSideConfig(
-            render=CircuitRenderOptions(mode=DrawMode.SLIDER),
             appearance=CircuitAppearanceOptions(style={"max_page_width": 4.0}),
         ),
     ),

@@ -14,12 +14,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramCompareConfig,
-    HistogramCompareOptions,
-    OutputOptions,
-    compare_histograms,
-)
+from quantum_circuit_drawer import compare_histograms  # noqa: E402
 
 DEFAULT_COMPARE_FIGSIZE: tuple[float, float] = (11.0, 6.1)
 
@@ -50,19 +45,6 @@ def build_inputs() -> tuple[dict[str, float], dict[str, int]]:
     return ideal, sampled
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramCompareConfig:
-    """Build the compare config used by this demo."""
-
-    return HistogramCompareConfig(
-        compare=HistogramCompareOptions(
-            left_label="Ideal",
-            right_label="Sampled",
-            sort="delta_desc",
-        ),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_COMPARE_FIGSIZE),
-    )
-
-
 def main() -> None:
     """Compare an ideal distribution against sampled counts."""
 
@@ -73,7 +55,12 @@ def main() -> None:
         result = compare_histograms(
             ideal,
             sampled,
-            config=build_config(output=output_path, show=show),
+            left_label="Ideal",
+            right_label="Sampled",
+            sort="delta_desc",
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_COMPARE_FIGSIZE,
         )
         if output_path is not None:
             print(f"Saved compare-histograms-ideal-vs-sampled to {output_path}")

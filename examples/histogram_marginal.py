@@ -17,14 +17,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramConfig,
-    HistogramDataOptions,
-    HistogramSort,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram  # noqa: E402
 
 
 def build_result() -> object:
@@ -40,16 +33,6 @@ def build_result() -> object:
     return StatevectorSampler().run([circuit], shots=512).result()
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
-    """Build the histogram config used by this demo."""
-
-    return HistogramConfig(
-        data=HistogramDataOptions(qubits=(4, 2, 0)),
-        view=HistogramViewOptions(sort=HistogramSort.STATE),
-        output=OutputOptions(output_path=output, show=show),
-    )
-
-
 def main() -> None:
     """Render a Qiskit joint marginal histogram demo."""
 
@@ -58,7 +41,10 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_result(),
-            config=build_config(output=output_path, show=show),
+            qubits=(4, 2, 0),
+            sort="state",
+            output_path=output_path,
+            show=show,
         )
         if output_path is not None:
             print(f"Saved histogram-marginal to {output_path}")

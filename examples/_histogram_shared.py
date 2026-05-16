@@ -25,7 +25,6 @@ from quantum_circuit_drawer import (  # noqa: E402
     HistogramConfig,
     HistogramDataOptions,
     HistogramViewOptions,
-    OutputOptions,
     plot_histogram,
 )
 
@@ -277,7 +276,21 @@ def render_histogram_example(
     result: object | None = None
     try:
         config = build_histogram_config(payload.config, request=request)
-        result = plot_histogram(payload.data, config=config)
+        result = plot_histogram(
+            payload.data,
+            kind=config.kind,
+            mode=config.mode,
+            sort=config.sort,
+            state_label_mode=config.state_label_mode,
+            qubits=config.qubits,
+            top_k=config.top_k,
+            result_index=config.result_index,
+            data_key=config.data_key,
+            output_path=request.output,
+            show=request.show,
+            figsize=request.figsize,
+            config=HistogramConfig(appearance=config.appearance),
+        )
         set_figure_title(figure=result.figure, title=saved_label)
         if request.output is not None:
             print(f"Saved {saved_label} to {request.output}")
@@ -359,11 +372,6 @@ def build_histogram_config(
             draw_style=resolved_appearance.draw_style,
             hover=resolved_appearance.hover,
             show_uniform_reference=resolved_appearance.show_uniform_reference,
-        ),
-        output=OutputOptions(
-            output_path=request.output,
-            show=request.show,
-            figsize=request.figsize,
         ),
     )
 

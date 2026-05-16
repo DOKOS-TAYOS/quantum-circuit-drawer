@@ -20,9 +20,7 @@ from quantum_circuit_drawer import (  # noqa: E402
     CircuitAppearanceOptions,
     CircuitRenderOptions,
     DrawConfig,
-    DrawMode,
     DrawSideConfig,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
@@ -91,22 +89,20 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_circuit(qubit_count=args.qubits, layer_count=args.layers),
+            mode=args.mode,
+            view=args.view,
+            topology=args.topology,
+            output_path=args.output,
+            show=args.show,
+            figsize=_resolve_figsize(view=args.view, mode=args.mode),
             config=DrawConfig(
                 side=DrawSideConfig(
                     render=CircuitRenderOptions(
-                        view=args.view,
-                        mode=DrawMode(args.mode),
-                        topology=args.topology,
                         topology_menu=args.view == "3d"
                         and args.mode in {"pages_controls", "slider"},
                         direct=args.view != "3d",
                     ),
                     appearance=CircuitAppearanceOptions(hover=True),
-                ),
-                output=OutputOptions(
-                    output_path=args.output,
-                    show=args.show,
-                    figsize=_resolve_figsize(view=args.view, mode=args.mode),
                 ),
             ),
         )

@@ -17,7 +17,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
 
 
 def _resolved_build_kernel_inputs(
@@ -155,9 +155,8 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_kernel(qubit_count=args.qubits, column_count=args.columns, seed=args.seed),
-            config=DrawConfig(
-                output=OutputOptions(output_path=args.output, show=args.show),
-            ),
+            output_path=args.output,
+            show=args.show,
         )
         if args.output is not None:
             print(f"Saved cudaq-random to {args.output}")

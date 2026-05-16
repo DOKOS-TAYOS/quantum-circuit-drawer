@@ -16,19 +16,9 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitBuilder,
-    CircuitRenderOptions,
-    DrawConfig,
-    DrawMode,
     DrawResult,
-    DrawSideConfig,
-    HistogramConfig,
-    HistogramDataOptions,
-    HistogramMode,
     HistogramResult,
-    HistogramSort,
-    HistogramViewOptions,
     LatexBackend,
-    OutputOptions,
     analyze_quantum_circuit,
     circuit_to_latex,
     draw_quantum_circuit,
@@ -72,35 +62,29 @@ def main() -> None:
 
     args = _parse_args()
     circuit = build_circuit(qubit_count=args.qubits, motif_count=args.motifs)
-    draw_config = DrawConfig(
-        side=DrawSideConfig(render=CircuitRenderOptions(mode=DrawMode.PAGES)),
-        output=OutputOptions(
-            output_path=args.output,
-            show=args.show,
-            figsize=DEFAULT_CIRCUIT_FIGSIZE,
-        ),
-    )
-    analysis = analyze_quantum_circuit(circuit, config=draw_config)
+    analysis = analyze_quantum_circuit(circuit, mode="pages")
     latex_result = circuit_to_latex(
         circuit,
-        config=draw_config,
         backend=LatexBackend.QUANTIKZ,
-        mode=DrawMode.PAGES,
+        mode="pages",
     )
     result = None
     histogram_result = None
     try:
-        result = draw_quantum_circuit(circuit, config=draw_config)
+        result = draw_quantum_circuit(
+            circuit,
+            mode="pages",
+            output_path=args.output,
+            show=args.show,
+            figsize=DEFAULT_CIRCUIT_FIGSIZE,
+        )
         histogram_result = plot_histogram(
             demo_counts(),
-            config=HistogramConfig(
-                data=HistogramDataOptions(top_k=6),
-                view=HistogramViewOptions(
-                    mode=HistogramMode.STATIC,
-                    sort=HistogramSort.VALUE_DESC,
-                ),
-                output=OutputOptions(show=False, figsize=(8.6, 4.8)),
-            ),
+            mode="static",
+            sort="value_desc",
+            top_k=6,
+            show=False,
+            figsize=(8.6, 4.8),
         )
         _save_related_outputs(
             output_path=args.output,

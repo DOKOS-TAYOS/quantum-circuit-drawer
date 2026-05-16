@@ -16,8 +16,6 @@ ensure_local_project_on_path(__file__)
 
 from quantum_circuit_drawer import (  # noqa: E402
     CircuitBuilder,
-    DrawConfig,
-    OutputOptions,
     analyze_quantum_circuit,
     draw_quantum_circuit,
 )
@@ -44,17 +42,15 @@ def main() -> None:
 
     args = _parse_args()
     circuit = build_circuit(qubit_count=args.qubits, motif_count=args.motifs)
-    config = DrawConfig(
-        output=OutputOptions(
+    analysis = analyze_quantum_circuit(circuit)
+    result = None
+    try:
+        result = draw_quantum_circuit(
+            circuit,
             output_path=args.output,
             show=args.show,
             figsize=DEFAULT_FIGSIZE,
         )
-    )
-    analysis = analyze_quantum_circuit(circuit, config=config)
-    result = None
-    try:
-        result = draw_quantum_circuit(circuit, config=config)
         result_summary = result.to_dict()
         print(
             "Diagnostics: "

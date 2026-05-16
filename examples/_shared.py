@@ -31,9 +31,7 @@ from quantum_circuit_drawer.config import (  # noqa: E402
     CircuitAppearanceOptions,
     CircuitRenderOptions,
     DrawConfig,
-    DrawMode,
     DrawSideConfig,
-    OutputOptions,
 )
 from quantum_circuit_drawer.hover import HoverOptions  # noqa: E402
 
@@ -454,11 +452,6 @@ def build_draw_config(
     return DrawConfig(
         side=DrawSideConfig(
             render=CircuitRenderOptions(
-                framework=framework,
-                view=request.view,
-                mode=DrawMode(request.mode),
-                composite_mode=request.composite_mode,
-                topology=request.topology,
                 topology_menu=request.view == "3d" and request.mode in {"pages_controls", "slider"},
                 direct=False if request.view == "3d" else True,
                 unsupported_policy=request.unsupported_policy,
@@ -469,11 +462,6 @@ def build_draw_config(
                 style=demo_style(columns=request.columns),
                 hover=demo_hover_options(request),
             ),
-        ),
-        output=OutputOptions(
-            show=request.show,
-            output_path=request.output,
-            figsize=request.figsize,
         ),
     )
 
@@ -493,6 +481,14 @@ def render_example(
         try:
             result = draw_quantum_circuit(
                 subject,
+                mode=request.mode,
+                show=request.show,
+                output_path=request.output,
+                figsize=request.figsize,
+                framework=framework,
+                view=request.view,
+                composite_mode=request.composite_mode,
+                topology=request.topology,
                 config=config,
             )
         except ValueError as error:

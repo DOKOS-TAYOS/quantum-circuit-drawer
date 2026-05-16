@@ -19,7 +19,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
 
 
 def build_tape(*, qubit_count: int, motif_count: int) -> QuantumTape:
@@ -52,9 +52,8 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_tape(qubit_count=args.qubits, motif_count=args.motifs),
-            config=DrawConfig(
-                output=OutputOptions(output_path=args.output, show=args.show),
-            ),
+            output_path=args.output,
+            show=args.show,
         )
         if args.output is not None:
             print(f"Saved pennylane-terminal-outputs-showcase to {args.output}")

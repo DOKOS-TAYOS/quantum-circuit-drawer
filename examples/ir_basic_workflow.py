@@ -14,7 +14,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit  # noqa: E402
+from quantum_circuit_drawer import draw_quantum_circuit  # noqa: E402
 from quantum_circuit_drawer.ir import (  # noqa: E402
     CircuitIR,
     LayerIR,
@@ -103,13 +103,9 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             build_circuit(qubit_count=args.qubits, motif_count=args.motifs),
-            config=DrawConfig(
-                output=OutputOptions(
-                    output_path=args.output,
-                    show=args.show,
-                    figsize=DEFAULT_FIGSIZE,
-                ),
-            ),
+            output_path=args.output,
+            show=args.show,
+            figsize=DEFAULT_FIGSIZE,
         )
         if args.output is not None:
             print(f"Saved ir-basic-workflow to {args.output}")

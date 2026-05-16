@@ -14,13 +14,7 @@ except ImportError:
 
 ensure_local_project_on_path(__file__)
 
-from quantum_circuit_drawer import (  # noqa: E402
-    HistogramConfig,
-    HistogramDataOptions,
-    HistogramViewOptions,
-    OutputOptions,
-    plot_histogram,
-)
+from quantum_circuit_drawer import plot_histogram  # noqa: E402
 
 DEFAULT_HISTOGRAM_FIGSIZE: tuple[float, float] = (10.8, 6.1)
 
@@ -35,16 +29,6 @@ def build_payload() -> tuple[dict[str, int], ...]:
     )
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
-    """Build the histogram config used by this demo."""
-
-    return HistogramConfig(
-        data=HistogramDataOptions(result_index=1),
-        view=HistogramViewOptions(sort="value_desc"),
-        output=OutputOptions(output_path=output, show=show, figsize=DEFAULT_HISTOGRAM_FIGSIZE),
-    )
-
-
 def main() -> None:
     """Render one selected histogram from a tuple of several results."""
 
@@ -53,7 +37,11 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_payload(),
-            config=build_config(output=output_path, show=show),
+            result_index=1,
+            sort="value_desc",
+            output_path=output_path,
+            show=show,
+            figsize=DEFAULT_HISTOGRAM_FIGSIZE,
         )
         if output_path is not None:
             print(f"Saved histogram-result-index to {output_path}")

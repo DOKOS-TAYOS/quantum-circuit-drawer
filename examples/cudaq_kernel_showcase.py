@@ -20,7 +20,6 @@ from quantum_circuit_drawer import (  # noqa: E402
     CircuitRenderOptions,
     DrawConfig,
     DrawSideConfig,
-    OutputOptions,
     draw_quantum_circuit,
 )
 
@@ -60,14 +59,15 @@ def main() -> None:
     try:
         result = draw_quantum_circuit(
             kernel,
+            framework="cudaq",
+            output_path=args.output,
+            show=args.show,
             config=DrawConfig(
                 side=DrawSideConfig(
                     render=CircuitRenderOptions(
-                        framework="cudaq",
                         adapter_options={"cudaq_args": cudaq_args},
                     ),
                 ),
-                output=OutputOptions(output_path=args.output, show=args.show),
             ),
         )
         if args.output is not None:

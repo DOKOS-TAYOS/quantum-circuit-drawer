@@ -19,9 +19,6 @@ ensure_local_project_on_path(__file__)
 from quantum_circuit_drawer import (  # noqa: E402
     HistogramAppearanceOptions,
     HistogramConfig,
-    HistogramSort,
-    HistogramViewOptions,
-    OutputOptions,
     plot_histogram,
 )
 
@@ -42,13 +39,11 @@ def build_probabilities() -> object:
     return probability_demo()
 
 
-def build_config(*, output: Path | None, show: bool) -> HistogramConfig:
+def build_config() -> HistogramConfig:
     """Build the histogram config used by this demo."""
 
     return HistogramConfig(
-        view=HistogramViewOptions(sort=HistogramSort.VALUE_DESC),
         appearance=HistogramAppearanceOptions(show_uniform_reference=True),
-        output=OutputOptions(output_path=output, show=show),
     )
 
 
@@ -60,7 +55,10 @@ def main() -> None:
     try:
         result = plot_histogram(
             build_probabilities(),
-            config=build_config(output=output_path, show=show),
+            sort="value_desc",
+            output_path=output_path,
+            show=show,
+            config=build_config(),
         )
         if output_path is not None:
             print(f"Saved histogram-pennylane-probs to {output_path}")

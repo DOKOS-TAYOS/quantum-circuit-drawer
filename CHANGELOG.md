@@ -64,6 +64,9 @@
 - Control-flow and classically conditioned operation packing now respects adapter
   metadata dependencies on classical bits, preventing collapsed or expanded blocks
   from moving before measurements that feed their condition bits.
+- Bundled examples and first-contact docs now prefer the flat public kwargs for
+  common circuit, histogram, and comparison options, keeping `config=` focused on
+  advanced styling, hover, adapter, and per-side comparison settings.
 
 ## [1.0.1] - 2026-05-15
 
