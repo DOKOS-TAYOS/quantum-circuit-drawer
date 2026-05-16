@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from quantum_circuit_drawer.ir import (
     CircuitIR,
+    ClassicalConditionIR,
     LayerIR,
     OperationIR,
     OperationKind,
@@ -17,6 +18,7 @@ from quantum_circuit_drawer.ir.semantic import (
     SemanticLayerIR,
     SemanticOperationIR,
     SemanticProvenanceIR,
+    pack_semantic_operations,
     semantic_operation_signature,
 )
 
@@ -186,3 +188,86 @@ def test_semantic_operation_signature_distinguishes_control_states() -> None:
     assert semantic_operation_signature(open_control, wire_indices) != semantic_operation_signature(
         closed_control, wire_indices
     )
+
+
+def test_pack_semantic_operations_compacts_control_flow_body_with_classical_dependency() -> None:
+    condition = ClassicalConditionIR(wire_ids=("c0",), expression="c[0]=1")
+    group_metadata = {
+        "id": "op:while",
+        "label": "WHILE",
+        "wire_dependencies": ("c0",),
+        "conditions": (condition,),
+    }
+    operations = [
+        SemanticOperationIR(
+            kind=OperationKind.MEASUREMENT,
+            name="M_BEFORE",
+            target_wires=("q3",),
+            classical_target="c0",
+        ),
+        *(
+            SemanticOperationIR(
+                kind=OperationKind.GATE,
+                name=f"H{index}",
+                target_wires=(wire_id,),
+                metadata={
+                    "control_flow_group": group_metadata,
+                    "occupied_wire_dependencies": ("c0",),
+                },
+            )
+            for index, wire_id in enumerate(("q0", "q1", "q2"))
+        ),
+        SemanticOperationIR(
+            kind=OperationKind.MEASUREMENT,
+            name="M_AFTER",
+            target_wires=("q4",),
+            classical_target="c0",
+        ),
+    ]
+
+    packed_layers = pack_semantic_operations(operations)
+
+    assert [[operation.name for operation in layer.operations] for layer in packed_layers] == [
+        ["M_BEFORE"],
+        ["H0", "H1", "H2"],
+        ["M_AFTER"],
+    ]
+
+
+def test_pack_semantic_operations_reserves_control_flow_span_from_external_gates() -> None:
+    group_metadata = {
+        "id": "op:while",
+        "label": "WHILE",
+        "wire_dependencies": ("c0",),
+    }
+    operations = [
+        SemanticOperationIR(kind=OperationKind.GATE, name="X_OUTSIDE", target_wires=("q1",)),
+        SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name="H0",
+            target_wires=("q0",),
+            metadata={
+                "control_flow_group": group_metadata,
+                "occupied_wire_dependencies": ("c0",),
+            },
+        ),
+        SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name="H2",
+            target_wires=("q2",),
+            metadata={
+                "control_flow_group": group_metadata,
+                "occupied_wire_dependencies": ("c0",),
+            },
+        ),
+    ]
+
+    packed_layers = pack_semantic_operations(
+        operations,
+        wire_order={"q0": 0, "q1": 1, "q2": 2, "c0": 3},
+    )
+
+    assert [[operation.name for operation in layer.operations] for layer in packed_layers] == [
+        ["X_OUTSIDE"],
+        ["H0", "H2"],
+    ]

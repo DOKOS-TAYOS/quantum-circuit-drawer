@@ -698,7 +698,7 @@ def test_state_preparation_width_uses_wrapped_subtitle_without_excessive_label_p
     assert width < style.gate_width * 3.5
 
 
-def test_u_gate_parameters_use_state_vector_number_format_and_compact_width() -> None:
+def test_u_gate_parameters_use_state_vector_number_format_and_two_column_width() -> None:
     style = DrawStyle()
     operation = OperationIR(
         kind=OperationKind.GATE,
@@ -716,7 +716,7 @@ def test_u_gate_parameters_use_state_vector_number_format_and_compact_width() ->
     )
 
     assert subtitle == "1.2e7, -1.3e-8, 9344"
-    assert width == pytest.approx(style.gate_width)
+    assert width == pytest.approx(style.gate_width * 2.0)
 
 
 def test_reset_gate_renders_as_compact_ket_zero() -> None:

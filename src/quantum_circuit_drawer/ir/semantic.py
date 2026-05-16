@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from ..diagnostics import RenderDiagnostic
@@ -224,28 +224,222 @@ class SemanticCircuitIR:
 
 def pack_semantic_operations(
     operations: Iterable[SemanticOperationIR],
+    *,
+    wire_order: Mapping[str, int] | None = None,
 ) -> tuple[SemanticLayerIR, ...]:
     """Pack semantic operations into layers without occupied-wire collisions.
 
     Args:
         operations: Semantic operations in source order.
+        wire_order: Optional wire-id ordering used to reserve the full vertical span of
+            expanded control-flow groups, preventing external gates from being packed
+            visually inside a group box.
 
     Returns:
         Tuple of ``SemanticLayerIR`` objects where no operation in a layer occupies the
         same wire slot as another operation in that layer.
     """
 
+    ordered_operations = list(operations)
     layer_operations: list[list[SemanticOperationIR]] = []
     latest_layer_by_slot: dict[str, int] = {}
-    for operation in operations:
-        slots = tuple(dict.fromkeys(operation.occupied_wire_ids))
-        target_layer = max((latest_layer_by_slot.get(slot, -1) for slot in slots), default=-1) + 1
+    operation_index = 0
+    while operation_index < len(ordered_operations):
+        operation = ordered_operations[operation_index]
+        group_id = _control_flow_group_id(operation)
+        if group_id is None:
+            _pack_single_semantic_operation(
+                operation,
+                layer_operations=layer_operations,
+                latest_layer_by_slot=latest_layer_by_slot,
+                slots=tuple(dict.fromkeys(operation.occupied_wire_ids)),
+            )
+            operation_index += 1
+            continue
+
+        group_operations: list[SemanticOperationIR] = []
+        while operation_index < len(ordered_operations):
+            grouped_operation = ordered_operations[operation_index]
+            if _control_flow_group_id(grouped_operation) != group_id:
+                break
+            group_operations.append(grouped_operation)
+            operation_index += 1
+
+        _pack_control_flow_group_operations(
+            group_operations,
+            layer_operations=layer_operations,
+            latest_layer_by_slot=latest_layer_by_slot,
+            wire_order=wire_order,
+        )
+    return tuple(SemanticLayerIR(operations=layer) for layer in layer_operations)
+
+
+def _pack_control_flow_group_operations(
+    operations: Sequence[SemanticOperationIR],
+    *,
+    layer_operations: list[list[SemanticOperationIR]],
+    latest_layer_by_slot: dict[str, int],
+    wire_order: Mapping[str, int] | None,
+) -> None:
+    if not operations:
+        return
+
+    ignored_dependencies = _control_flow_group_dependency_wire_ids(operations[0])
+    boundary_slots = _control_flow_group_boundary_slots(operations, wire_order=wire_order)
+    start_layer = (
+        max(
+            (latest_layer_by_slot.get(slot, -1) for slot in boundary_slots),
+            default=-1,
+        )
+        + 1
+    )
+    local_layers = _pack_control_flow_group_local_layers(
+        operations,
+        ignored_dependencies=ignored_dependencies,
+    )
+    for local_layer_index, local_layer in enumerate(local_layers):
+        target_layer = start_layer + local_layer_index
         while len(layer_operations) <= target_layer:
             layer_operations.append([])
-        layer_operations[target_layer].append(operation)
-        for slot in slots:
-            latest_layer_by_slot[slot] = target_layer
-    return tuple(SemanticLayerIR(operations=layer) for layer in layer_operations)
+        layer_operations[target_layer].extend(local_layer)
+
+    end_layer = start_layer + len(local_layers) - 1
+    for slot in boundary_slots:
+        latest_layer_by_slot[slot] = end_layer
+
+
+def _pack_control_flow_group_local_layers(
+    operations: Sequence[SemanticOperationIR],
+    *,
+    ignored_dependencies: frozenset[str],
+) -> tuple[tuple[SemanticOperationIR, ...], ...]:
+    local_layers: list[list[SemanticOperationIR]] = []
+    latest_layer_by_slot: dict[str, int] = {}
+    for operation in operations:
+        _pack_single_semantic_operation(
+            operation,
+            layer_operations=local_layers,
+            latest_layer_by_slot=latest_layer_by_slot,
+            slots=_local_control_flow_operation_slots(
+                operation,
+                ignored_dependencies=ignored_dependencies,
+            ),
+        )
+    return tuple(tuple(layer) for layer in local_layers)
+
+
+def _pack_single_semantic_operation(
+    operation: SemanticOperationIR,
+    *,
+    layer_operations: list[list[SemanticOperationIR]],
+    latest_layer_by_slot: dict[str, int],
+    slots: tuple[str, ...],
+) -> None:
+    target_layer = max((latest_layer_by_slot.get(slot, -1) for slot in slots), default=-1) + 1
+    while len(layer_operations) <= target_layer:
+        layer_operations.append([])
+    layer_operations[target_layer].append(operation)
+    for slot in slots:
+        latest_layer_by_slot[slot] = target_layer
+
+
+def _local_control_flow_operation_slots(
+    operation: SemanticOperationIR,
+    *,
+    ignored_dependencies: frozenset[str],
+) -> tuple[str, ...]:
+    classical_wire_ids = tuple(
+        wire_id
+        for condition in operation.classical_conditions
+        for wire_id in condition.wire_ids
+        if wire_id not in ignored_dependencies
+    )
+    dependency_wire_ids = tuple(
+        wire_id
+        for wire_id in _metadata_wire_dependencies(operation.metadata)
+        if wire_id not in ignored_dependencies
+    )
+    occupied_wire_ids = tuple(
+        dict.fromkeys(
+            (
+                *classical_wire_ids,
+                *dependency_wire_ids,
+                *operation.control_wires,
+                *operation.target_wires,
+            )
+        )
+    )
+    if operation.classical_target is None:
+        return occupied_wire_ids
+    return tuple(dict.fromkeys((*occupied_wire_ids, operation.classical_target)))
+
+
+def _control_flow_group_boundary_slots(
+    operations: Sequence[SemanticOperationIR],
+    *,
+    wire_order: Mapping[str, int] | None,
+) -> tuple[str, ...]:
+    occupied_slots: list[str] = []
+    quantum_slots: list[str] = []
+    for operation in operations:
+        occupied_slots.extend(operation.occupied_wire_ids)
+        quantum_slots.extend(operation.control_wires)
+        quantum_slots.extend(operation.target_wires)
+
+    if wire_order is not None:
+        occupied_slots.extend(_contiguous_ordered_slots(quantum_slots, wire_order))
+    return tuple(dict.fromkeys(occupied_slots))
+
+
+def _contiguous_ordered_slots(
+    slots: Sequence[str],
+    wire_order: Mapping[str, int],
+) -> tuple[str, ...]:
+    ordered_indices = [wire_order[slot] for slot in slots if slot in wire_order]
+    if not ordered_indices:
+        return ()
+
+    first_index = min(ordered_indices)
+    last_index = max(ordered_indices)
+    return tuple(
+        slot
+        for slot, index in sorted(wire_order.items(), key=lambda entry: entry[1])
+        if first_index <= index <= last_index
+    )
+
+
+def _control_flow_group_id(operation: SemanticOperationIR) -> str | None:
+    group_metadata = operation.metadata.get("control_flow_group")
+    if not isinstance(group_metadata, Mapping):
+        return None
+    group_id = group_metadata.get("id")
+    if isinstance(group_id, str) and group_id:
+        return group_id
+    return None
+
+
+def _control_flow_group_dependency_wire_ids(operation: SemanticOperationIR) -> frozenset[str]:
+    group_metadata = operation.metadata.get("control_flow_group")
+    if not isinstance(group_metadata, Mapping):
+        return frozenset()
+
+    dependency_wire_ids = set(_wire_dependency_metadata(group_metadata.get("wire_dependencies")))
+    conditions = group_metadata.get("conditions")
+    if isinstance(conditions, ClassicalConditionIR):
+        dependency_wire_ids.update(conditions.wire_ids)
+    elif isinstance(conditions, Sequence) and not isinstance(conditions, str | bytes):
+        for condition in conditions:
+            if isinstance(condition, ClassicalConditionIR):
+                dependency_wire_ids.update(condition.wire_ids)
+    return frozenset(dependency_wire_ids)
+
+
+def _wire_dependency_metadata(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if not isinstance(value, Sequence):
+        return ()
+    return tuple(str(wire_id) for wire_id in value if str(wire_id))
 
 
 def semantic_operation_signature(

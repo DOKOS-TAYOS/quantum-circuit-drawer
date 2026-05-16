@@ -98,7 +98,13 @@ class QiskitAdapter(BaseAdapter):
         return SemanticCircuitIR(
             quantum_wires=quantum_wires,
             classical_wires=classical_wires,
-            layers=pack_semantic_operations(operations),
+            layers=pack_semantic_operations(
+                operations,
+                wire_order={
+                    wire.id: wire_index
+                    for wire_index, wire in enumerate((*quantum_wires, *classical_wires))
+                },
+            ),
             name=typed_circuit.name,
             metadata={"framework": self.framework_name},
         )

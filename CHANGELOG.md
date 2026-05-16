@@ -8,7 +8,7 @@
   one-qubit vectors on one line, and hide vectors with more than 32 components so the gate box
   stays compact and readable.
 - `U` gate angles now use the same compact number formatting as `StatePreparation` amplitudes,
-  keeping fixed-parameter `U` boxes narrow, and `RESET` now renders as a compact `|0>` ket box.
+  using a fixed two-column box, and `RESET` now renders as a compact `|0>` ket box.
 - One-qubit Qiskit `StatePreparation` boxes now use a tighter width heuristic, collapsed
   `if_else` blocks show `IF/ELSE` when an else branch exists, and Qiskit `switch_case` bodies now
   render as expanded per-case control-flow groups instead of a single compact box.
@@ -64,6 +64,9 @@
 - Control-flow and classically conditioned operation packing now respects adapter
   metadata dependencies on classical bits, preventing collapsed or expanded blocks
   from moving before measurements that feed their condition bits.
+- Expanded control-flow blocks now compact independent body operations into the same
+  drawable column through semantic packing and 2D layout normalization while keeping
+  the full block boundary ordered against classical conditions and external gates.
 - Bundled examples and first-contact docs now prefer the flat public kwargs for
   common circuit, histogram, and comparison options, keeping `config=` focused on
   advanced styling, hover, adapter, and per-side comparison settings.

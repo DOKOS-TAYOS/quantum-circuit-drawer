@@ -16,6 +16,7 @@ _STATE_PREPARATION_SUBTITLE_WIDTH_FONT_SCALE = 0.28
 _STATE_PREPARATION_SINGLE_QUBIT_LABEL_WIDTH_FONT_SCALE = 0.2
 _STATE_PREPARATION_SINGLE_QUBIT_SUBTITLE_WIDTH_FONT_SCALE = 0.18
 _COMPACT_U_SUBTITLE_FONT_SCALE = 0.46
+_COMPACT_U_WIDTH_FACTOR = 2.0
 _DEFAULT_SUBTITLE_WIDTH_FONT_SCALE = 0.8
 
 
@@ -128,6 +129,8 @@ def operation_width_from_parts(
 
     if uses_compact_result_width(operation, label, subtitle):
         return max(0.45, style.gate_width * _COMPACT_RESULT_WIDTH_FACTOR)
+    if uses_compact_u_gate_parameters(operation, label):
+        return style.gate_width * _COMPACT_U_WIDTH_FACTOR
     if uses_compact_parametric_width(operation, label, subtitle):
         return style.gate_width
     if uses_compact_label_width(operation, label, subtitle):

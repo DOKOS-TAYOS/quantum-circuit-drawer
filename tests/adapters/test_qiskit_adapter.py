@@ -926,6 +926,35 @@ def test_layout_engine_draws_qiskit_for_and_while_body_groups_with_hover_data() 
     assert "control flow: while_loop" in scene.group_highlights[1].hover_data.details
 
 
+def test_layout_engine_compacts_independent_gates_inside_qiskit_while_group() -> None:
+    quantum = qiskit.QuantumRegister(3, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+    circuit.measure(0, 0)
+
+    with circuit.while_loop((classical[0], 1)):
+        circuit.h([0, 1, 2])
+
+    ir = QiskitAdapter().to_ir(circuit)
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    while_highlight = next(
+        highlight for highlight in scene.group_highlights if highlight.label == "WHILE"
+    )
+    x_min = while_highlight.x - (while_highlight.width / 2.0)
+    x_max = while_highlight.x + (while_highlight.width / 2.0)
+    y_min = while_highlight.y - (while_highlight.height / 2.0)
+    y_max = while_highlight.y + (while_highlight.height / 2.0)
+    while_h_gates = [
+        gate
+        for gate in scene.gates
+        if gate.label == "H" and x_min <= gate.x <= x_max and y_min <= gate.y <= y_max
+    ]
+
+    assert len(while_h_gates) == 3
+    assert {gate.column for gate in while_h_gates} == {1}
+
+
 def test_layout_engine_draws_qiskit_control_flow_group_conditions_and_for_iterations() -> None:
     quantum = qiskit.QuantumRegister(2, "q")
     classical = qiskit.ClassicalRegister(1, "c")
