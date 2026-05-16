@@ -63,10 +63,10 @@ class HistogramMode(StrEnum):
     """Rendering mode for ``plot_histogram(...)``.
 
     Values:
-        ``AUTO`` chooses interactive mode for normal scripts and widget notebook
-        backends, but falls back to static output in inline notebooks. ``STATIC`` draws
-        a normal Matplotlib histogram. ``INTERACTIVE`` adds the managed slider,
-        buttons, hover, and marginal controls.
+        ``AUTO`` chooses static mode for hidden outputs, interactive mode for normal
+        visible scripts and widget notebook backends, and static output in inline
+        notebooks. ``STATIC`` draws a normal Matplotlib histogram. ``INTERACTIVE``
+        adds the managed slider, buttons, hover, and marginal controls.
     """
 
     AUTO = "auto"

@@ -28,6 +28,7 @@ _HISTOGRAM_VALUE_LABEL_MAX_FONT_SIZE = 8.0
 _HISTOGRAM_VALUE_LABEL_MIN_FONT_SIZE = 3.0
 _HISTOGRAM_VALUE_LABEL_WIDTH_FRACTION = 0.86
 _HISTOGRAM_VALUE_LABEL_CHAR_WIDTH = 0.58
+_HISTOGRAM_VALUE_LABEL_MAX_BIN_COUNT = 64
 _HISTOGRAM_X_LABEL_ROTATION = 35.0
 _HISTOGRAM_X_LABEL_MAX_FONT_SIZE = 9.0
 _HISTOGRAM_X_LABEL_MIN_FONT_SIZE = 3.0
@@ -112,7 +113,8 @@ def draw_histogram_axes(
     axes.margins(x=0.02)
     axes.set_xticklabels(tick_labels_for_states(display_labels, thin=thin_xlabels))
     fit_histogram_x_tick_labels(axes, bin_count=len(positions))
-    draw_histogram_value_labels(axes, bars=bars, values=values, kind=kind, theme=theme)
+    if should_draw_histogram_value_labels(bin_count=len(positions)):
+        draw_histogram_value_labels(axes, bars=bars, values=values, kind=kind, theme=theme)
     return bars
 
 
@@ -212,6 +214,12 @@ def draw_histogram_value_labels(
             color=theme.text_color,
             clip_on=False,
         )
+
+
+def should_draw_histogram_value_labels(*, bin_count: int) -> bool:
+    """Return whether per-bin value labels remain useful and affordable."""
+
+    return bin_count <= _HISTOGRAM_VALUE_LABEL_MAX_BIN_COUNT
 
 
 def fit_histogram_x_tick_labels(axes: Axes, *, bin_count: int) -> None:

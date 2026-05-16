@@ -303,6 +303,12 @@ def test_lazy_managed_and_renderer_packages_reexport_split_modules() -> None:
         getattr(renderer_facade, "missing_renderer_export")
 
 
+def test_matplotlib_renderer_does_not_keep_redundant_single_connection_hover_helper() -> None:
+    from quantum_circuit_drawer.renderers.matplotlib_renderer import MatplotlibRenderer
+
+    assert not hasattr(MatplotlibRenderer, "_add_connection_hover_target")
+
+
 def test_second_pass_managed_facades_reexport_split_helpers() -> None:
     from quantum_circuit_drawer.managed.controls import managed_3d_axes_bounds
     from quantum_circuit_drawer.managed.page_window_3d import (

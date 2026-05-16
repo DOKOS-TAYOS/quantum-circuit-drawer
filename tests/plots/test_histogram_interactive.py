@@ -722,7 +722,7 @@ def test_histogram_hover_is_enabled_by_default_and_can_be_disabled(
 
     default_result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
-        config=build_public_histogram_config(show=False),
+        config=build_public_histogram_config(mode=HistogramMode.INTERACTIVE, show=False),
     )
     default_state = get_histogram_state(default_result.figure)
 

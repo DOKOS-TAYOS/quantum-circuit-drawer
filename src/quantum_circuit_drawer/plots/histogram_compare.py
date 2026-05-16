@@ -29,10 +29,10 @@ from .histogram_render import (
 )
 
 if TYPE_CHECKING:
+    from matplotlib.artist import Artist
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
     from matplotlib.legend import Legend
-    from matplotlib.lines import Line2D
 
 _HOVER_ZORDER = 10_000
 
@@ -43,7 +43,7 @@ class HistogramCompareArtists:
 
     series_labels: tuple[str, ...]
     bars_by_series: tuple[tuple[Rectangle, ...], ...]
-    edges_by_series: tuple[tuple[Line2D, ...], ...]
+    edges_by_series: tuple[tuple[Artist, ...], ...]
     legend: Legend | None
     visible_series: dict[str, bool] = field(default_factory=dict)
 
@@ -62,11 +62,11 @@ class HistogramCompareArtists:
         return self.bars_by_series[1] if len(self.bars_by_series) > 1 else ()
 
     @property
-    def left_edges(self) -> tuple[Line2D, ...]:
+    def left_edges(self) -> tuple[Artist, ...]:
         return self.edges_by_series[0] if self.edges_by_series else ()
 
     @property
-    def right_edges(self) -> tuple[Line2D, ...]:
+    def right_edges(self) -> tuple[Artist, ...]:
         return self.edges_by_series[1] if len(self.edges_by_series) > 1 else ()
 
 
@@ -167,46 +167,47 @@ def draw_histogram_compare_axes(
         for color, label in zip(colors, series_labels, strict=True)
     ]
     bars_by_series: list[list[Rectangle]] = [[] for _ in series_values]
-    edges_by_series: list[list[Line2D]] = [[] for _ in series_values]
+    edges_by_series: list[list[Artist]] = [[] for _ in series_values]
+    zorders_by_series, alphas_by_series, linewidths_by_series = _comparison_bar_styles(
+        series_values
+    )
 
-    for state_index, position in enumerate(positions):
-        order = sorted(
-            range(len(series_values)),
-            key=lambda series_index: abs(float(series_values[series_index][state_index])),
-            reverse=True,
+    for series_index, values in enumerate(series_values):
+        key = series_key(series_index)
+        edge_segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
+        bars = axes.bar(
+            positions,
+            tuple(float(value) for value in values),
+            width=bar_width,
+            color=colors[series_index],
+            edgecolor=theme.gate_edgecolor,
+            linewidth=1.1,
+            alpha=0.5,
+            zorder=2 + series_index,
         )
-        zorders_by_series = {
-            series_index: 2 + draw_index for draw_index, series_index in enumerate(order)
-        }
-        alphas_by_series = {
-            series_index: 0.24 + (0.36 * (draw_index / max(1, len(order) - 1)))
-            for draw_index, series_index in enumerate(order)
-        }
-        for series_index in order:
-            value = float(series_values[series_index][state_index])
-            key = series_key(series_index)
-            bar = axes.bar(
-                position,
-                (value,),
-                width=bar_width,
-                color=colors[series_index],
-                edgecolor=theme.gate_edgecolor,
-                linewidth=1.6 if zorders_by_series[series_index] == 2 + len(order) - 1 else 1.1,
-                alpha=alphas_by_series[series_index],
-                zorder=zorders_by_series[series_index],
-            )[0]
+        for state_index, (position, value, bar) in enumerate(
+            zip(positions, values, bars.patches, strict=True)
+        ):
             bar.set_label("_nolegend_")
             bar.set_gid(f"histogram-compare:{key}")
-            edge = _draw_bar_top_edge(
-                axes=axes,
-                position=float(position),
-                value=value,
-                width=bar_width,
-                color=colors[series_index],
-                series_name=key,
+            bar.set_alpha(alphas_by_series[series_index][state_index])
+            bar.set_zorder(zorders_by_series[series_index][state_index])
+            bar.set_linewidth(linewidths_by_series[series_index][state_index])
+            edge_segments.append(
+                _bar_top_edge_segment(
+                    position=float(position),
+                    value=float(value),
+                    width=bar_width,
+                )
             )
             bars_by_series[series_index].append(bar)
-            edges_by_series[series_index].append(edge)
+        edge = _draw_bar_top_edges(
+            axes=axes,
+            segments=tuple(edge_segments),
+            color=colors[series_index],
+            series_name=key,
+        )
+        edges_by_series[series_index].append(edge)
 
     axes.set_xlabel("State")
     axes.set_ylabel("Counts" if kind is HistogramKind.COUNTS else "Quasi-probability")
@@ -240,6 +241,32 @@ def draw_histogram_compare_axes(
     )
 
 
+def _comparison_bar_styles(
+    series_values: tuple[tuple[float, ...], ...],
+) -> tuple[list[list[int]], list[list[float]], list[list[float]]]:
+    state_count = len(series_values[0]) if series_values else 0
+    zorders_by_series = [[2 for _ in range(state_count)] for _ in series_values]
+    alphas_by_series = [[0.5 for _ in range(state_count)] for _ in series_values]
+    linewidths_by_series = [[1.1 for _ in range(state_count)] for _ in series_values]
+
+    for state_index in range(state_count):
+        order = sorted(
+            range(len(series_values)),
+            key=lambda series_index: abs(float(series_values[series_index][state_index])),
+            reverse=True,
+        )
+        front_zorder = 2 + len(order) - 1
+        for draw_index, series_index in enumerate(order):
+            zorder = 2 + draw_index
+            zorders_by_series[series_index][state_index] = zorder
+            alphas_by_series[series_index][state_index] = 0.24 + (
+                0.36 * (draw_index / max(1, len(order) - 1))
+            )
+            linewidths_by_series[series_index][state_index] = 1.6 if zorder == front_zorder else 1.1
+
+    return zorders_by_series, alphas_by_series, linewidths_by_series
+
+
 def _compare_series_colors(theme: DrawTheme, series_count: int) -> tuple[str, ...]:
     palette = (
         theme.accent_color,
@@ -254,26 +281,35 @@ def _compare_series_colors(theme: DrawTheme, series_count: int) -> tuple[str, ..
     return tuple(palette[index % len(palette)] for index in range(series_count))
 
 
-def _draw_bar_top_edge(
+def _bar_top_edge_segment(
     *,
-    axes: Axes,
     position: float,
     value: float,
     width: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    half_width = width / 2.0
+    return ((position - half_width, value), (position + half_width, value))
+
+
+def _draw_bar_top_edges(
+    *,
+    axes: Axes,
+    segments: tuple[tuple[tuple[float, float], tuple[float, float]], ...],
     color: str,
     series_name: str,
-) -> Line2D:
-    half_width = width / 2.0
-    line = axes.plot(
-        [position - half_width, position + half_width],
-        [value, value],
-        color=color,
-        linewidth=1.6,
-        solid_capstyle="round",
+) -> Artist:
+    from matplotlib.collections import LineCollection
+
+    collection = LineCollection(
+        segments,
+        colors=[color],
+        linewidths=[1.6],
         zorder=4,
-    )[0]
-    line.set_gid(f"histogram-compare:{series_name}")
-    return line
+    )
+    collection.set_capstyle("round")
+    collection.set_gid(f"histogram-compare:{series_name}")
+    axes.add_collection(collection)
+    return collection
 
 
 def attach_histogram_compare_hover(
@@ -443,8 +479,9 @@ def attach_histogram_compare_legend_toggle(
             zip(artists.bars_by_series, artists.edges_by_series, strict=True)
         ):
             visible = artists.visible_series[series_key(series_index)]
-            for bar, edge in zip(bars, edges, strict=True):
+            for bar in bars:
                 bar.set_visible(visible)
+            for edge in edges:
                 edge.set_visible(visible)
 
         active_values: list[float] = []

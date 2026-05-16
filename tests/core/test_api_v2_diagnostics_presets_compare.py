@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseEvent, PickEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.collections import LineCollection
+from matplotlib.container import BarContainer
 from matplotlib.figure import Figure
 from matplotlib.text import Annotation
 
@@ -476,6 +480,57 @@ def test_histogram_preset_applies_theme_and_explicit_theme_keeps_priority() -> N
     plt.close(override_result.figure)
 
 
+def test_compare_histograms_batches_bar_drawing_by_series(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_bar = Axes.bar
+    bar_call_count = 0
+
+    def count_bar(self: Axes, *args: Any, **kwargs: Any) -> BarContainer:
+        nonlocal bar_call_count
+        bar_call_count += 1
+        return original_bar(self, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "bar", count_bar)
+
+    result = compare_histograms(
+        {"00": 7, "01": 3, "10": 1, "11": 5},
+        {"00": 2, "01": 6, "10": 4, "11": 1},
+        {"00": 4, "01": 1, "10": 5, "11": 3},
+        config=build_public_histogram_compare_config(show=False, hover=False),
+    )
+
+    assert bar_call_count == 3
+    assert len(result.axes.patches) == 12
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_batches_top_edge_drawing_by_series(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    line_plot_call_count = 0
+
+    def count_plot(self: Axes, *args: Any, **kwargs: Any) -> list[object]:
+        nonlocal line_plot_call_count
+        del self, args, kwargs
+        line_plot_call_count += 1
+        pytest.fail("compare_histograms should batch bar top edges without Axes.plot")
+
+    monkeypatch.setattr(Axes, "plot", count_plot)
+
+    result = compare_histograms(
+        {"00": 7, "01": 3, "10": 1, "11": 5},
+        {"00": 2, "01": 6, "10": 4, "11": 1},
+        {"00": 4, "01": 1, "10": 5, "11": 3},
+        config=build_public_histogram_compare_config(show=False, hover=False),
+    )
+
+    assert line_plot_call_count == 0
+
+    plt.close(result.figure)
+
+
 def test_compare_histograms_returns_overlay_result_with_metrics_and_diagnostics() -> None:
     result = compare_histograms(
         {"00": 8, "01": 2, "11": 5},
@@ -638,9 +693,18 @@ def test_compare_histograms_overlay_uses_same_bin_position_colors_and_front_bar_
     for patch in result.axes.patches:
         center_x = round(float(patch.get_x() + (patch.get_width() / 2.0)), 6)
         grouped_patches[center_x].append(patch)
+    top_edge_collections = [
+        collection
+        for collection in result.axes.collections
+        if isinstance(collection, LineCollection)
+        and str(collection.get_gid()).startswith("histogram-compare:")
+    ]
 
     assert len(grouped_patches) == len(result.state_labels)
-    assert len(result.axes.lines) >= len(result.state_labels)
+    assert len(top_edge_collections) == len(result.series_labels)
+    assert sum(len(collection.get_segments()) for collection in top_edge_collections) == (
+        len(result.state_labels) * len(result.series_labels)
+    )
 
     for index, center_x in enumerate(sorted(grouped_patches)):
         patches = grouped_patches[center_x]

@@ -24,6 +24,13 @@
 - Histogram bars now show compact value labels above each bin, and dense x-axis state labels rotate and shrink to avoid overlapping adjacent ticks.
 - Histogram value labels and hover values now use four significant digits, with compact
   scientific notation for very large or very small values.
+- Histogram `mode="auto"` now resolves to static rendering when `show=False`, avoiding
+  interactive widget setup for hidden script outputs, and static histograms now skip
+  per-bin value labels when more than 64 bars are visible.
+- Histogram comparisons now batch Matplotlib bar drawing by series, reducing render
+  overhead for dense overlays without changing hover or legend behavior.
+- Removed a redundant single-connection hover helper from the Matplotlib renderer,
+  keeping the batched connection-hover path as the single implementation.
 - Bundled demos now highlight the updated Qiskit control-flow frames, `switch_case` summaries, `StatePreparation`, dagger labels, and dense histogram labels.
 - Qiskit `switch_case` boxes and CUDA-Q structured control-flow boxes now include static condition, case, region, and iteration summaries instead of requiring hover to see the relevant control information.
 - Qiskit `if_else`, `for_loop`, and `while_loop` bodies now render expanded by default with labeled 2D control-flow frames, condition links for `if`/`while`, and visible `for` iteration counts.

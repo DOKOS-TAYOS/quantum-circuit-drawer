@@ -144,6 +144,7 @@ def plot_histogram(
             resolved_config.mode,
             runtime_context=runtime_context,
             ax=ax,
+            show=resolved_config.show,
         )
         diagnostics: list[RenderDiagnostic] = []
         with push_log_context(mode=resolved_mode.value, backend=runtime_context.pyplot_backend):
@@ -719,10 +720,13 @@ def _resolve_histogram_mode(
     *,
     runtime_context: object,
     ax: Axes | None,
+    show: bool,
 ) -> HistogramMode:
     if mode is not HistogramMode.AUTO:
         return mode
     if ax is not None:
+        return HistogramMode.STATIC
+    if not show:
         return HistogramMode.STATIC
     if getattr(runtime_context, "is_notebook", False):
         if getattr(runtime_context, "notebook_backend_active", False):

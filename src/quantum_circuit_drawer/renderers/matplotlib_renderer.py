@@ -703,27 +703,6 @@ class MatplotlibRenderer(BaseRenderer):
                 y_offset=y_offset,
             )
 
-    def _add_connection_hover_target(
-        self,
-        hover_targets: list[_HoverTarget2D],
-        connection: SceneConnection,
-        scene: LayoutScene,
-        *,
-        axes: Axes,
-        x_offset: float,
-        y_offset: float,
-    ) -> None:
-        assert connection.hover_data is not None
-        half_width = self._connection_hover_half_width(axes, scene)
-        add_hover_target(
-            hover_targets,
-            connection.hover_data,
-            x_min=connection.x + x_offset - half_width,
-            x_max=connection.x + x_offset + half_width,
-            y_min=connection.y_start + y_offset,
-            y_max=connection.y_end + y_offset,
-        )
-
     def _add_connection_hover_targets(
         self,
         hover_targets: list[_HoverTarget2D],

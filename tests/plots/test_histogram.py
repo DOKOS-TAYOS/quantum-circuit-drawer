@@ -91,6 +91,22 @@ def test_plot_histogram_draws_value_labels_that_fit_inside_each_bin() -> None:
     plt.close(result.figure)
 
 
+def test_plot_histogram_skips_value_labels_for_dense_static_histograms() -> None:
+    data = {format(index, "07b"): index + 1 for index in range(65)}
+
+    result = plot_histogram(
+        data,
+        config=build_public_histogram_config(
+            mode=HistogramMode.STATIC,
+            show=False,
+        ),
+    )
+
+    assert len(result.axes.texts) == 0
+
+    plt.close(result.figure)
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
@@ -521,7 +537,7 @@ def test_plot_histogram_rejects_interactive_mode_in_non_widget_notebook(
         )
 
 
-def test_plot_histogram_resolves_auto_mode_to_interactive_for_scripts(
+def test_plot_histogram_resolves_auto_mode_to_static_for_hidden_script_outputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from quantum_circuit_drawer.renderers._matplotlib_figure import get_histogram_state
@@ -534,6 +550,26 @@ def test_plot_histogram_resolves_auto_mode_to_interactive_for_scripts(
     result = plot_histogram(
         {"00": 5, "11": 3},
         config=build_public_histogram_config(show=False),
+    )
+
+    assert get_histogram_state(result.figure) is None
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_resolves_auto_mode_to_interactive_for_visible_scripts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from quantum_circuit_drawer.renderers._matplotlib_figure import get_histogram_state
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.plots.histogram.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=False, pyplot_backend="agg"),
+    )
+
+    result = plot_histogram(
+        {"00": 5, "11": 3},
+        config=build_public_histogram_config(show=True),
     )
 
     assert get_histogram_state(result.figure) is not None
@@ -553,7 +589,7 @@ def test_plot_histogram_resolves_auto_mode_to_interactive_for_widget_notebooks(
 
     result = plot_histogram(
         {"00": 5, "11": 3},
-        config=build_public_histogram_config(show=False),
+        config=build_public_histogram_config(show=True),
     )
 
     assert get_histogram_state(result.figure) is not None
