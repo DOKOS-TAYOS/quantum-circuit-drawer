@@ -59,6 +59,11 @@
 - Notebook widget backends such as `%matplotlib widget` now display the Matplotlib
   canvas object for returned circuit figures, preserving `pages_controls` and other
   interactive controls instead of showing a static figure representation.
+- Classical condition labels on circuit control connectors now render smaller to
+  reduce overlap in dense expanded control-flow views.
+- Control-flow and classically conditioned operation packing now respects adapter
+  metadata dependencies on classical bits, preventing collapsed or expanded blocks
+  from moving before measurements that feed their condition bits.
 
 ## [1.0.1] - 2026-05-15
 

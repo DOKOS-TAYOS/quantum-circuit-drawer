@@ -969,14 +969,7 @@ def _semantic_operation_draw_span_slots(
     operation: SemanticOperationIR,
     wire_order: dict[str, int],
 ) -> tuple[int, ...]:
-    wire_ids: list[str] = []
-    wire_ids.extend(operation.control_wires)
-    wire_ids.extend(operation.target_wires)
-    for condition in operation.classical_conditions:
-        wire_ids.extend(condition.wire_ids)
-    if operation.classical_target is not None:
-        wire_ids.append(operation.classical_target)
-    return _wire_span_slots(tuple(wire_ids), wire_order)
+    return _wire_span_slots(operation.occupied_wire_ids, wire_order)
 
 
 def _wire_span_slots(

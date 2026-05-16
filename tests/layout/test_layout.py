@@ -814,6 +814,44 @@ def test_layout_engine_splits_measurements_and_classically_conditioned_gates_by_
     assert [gate.column for gate in scene.gates] == [1]
 
 
+def test_layout_engine_splits_measurements_and_metadata_classical_dependencies() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+        ],
+        classical_wires=[
+            WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c[0]"),
+            WireIR(id="c1", index=1, kind=WireKind.CLASSICAL, label="c[1]"),
+            WireIR(id="c2", index=2, kind=WireKind.CLASSICAL, label="c[2]"),
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    MeasurementIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q2",),
+                        classical_target="c2",
+                    ),
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="WHILE",
+                        target_wires=("q0",),
+                        metadata={"occupied_wire_dependencies": ("c2",)},
+                    ),
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+
+    assert [measurement.column for measurement in scene.measurements] == [0]
+    assert [gate.column for gate in scene.gates] == [1]
+
+
 def test_layout_engine_draws_classical_condition_connection_and_label() -> None:
     circuit = CircuitIR(
         quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],

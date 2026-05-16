@@ -400,6 +400,55 @@ def test_collapsed_qiskit_switch_case_block_uses_switch_box_for_all_cases() -> N
     assert operation.classical_conditions == (condition,)
 
 
+def test_semantic_transform_respects_metadata_classical_dependencies() -> None:
+    circuit = SemanticCircuitIR(
+        quantum_wires=(
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+        ),
+        classical_wires=(
+            WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c[0]"),
+            WireIR(id="c1", index=1, kind=WireKind.CLASSICAL, label="c[1]"),
+            WireIR(id="c2", index=2, kind=WireKind.CLASSICAL, label="c[2]"),
+        ),
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.MEASUREMENT,
+                        name="M",
+                        target_wires=("q2",),
+                        classical_target="c2",
+                        provenance=SemanticProvenanceIR(location=(0,)),
+                    ),
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="WHILE",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(location=(1,)),
+                        metadata={"occupied_wire_dependencies": ("c2",)},
+                    ),
+                )
+            ),
+        ),
+    )
+    catalog = build_exploration_catalog(circuit, circuit)
+
+    transformed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids=set(),
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+
+    assert _semantic_operation_names(transformed.semantic_ir) == ["M", "WHILE"]
+    assert [operation.name for operation in transformed.semantic_ir.layers[0].operations] == ["M"]
+    assert [operation.name for operation in transformed.semantic_ir.layers[1].operations] == [
+        "WHILE"
+    ]
+
+
 def test_nested_location_compact_block_can_be_expanded_from_selected_operation() -> None:
     quantum_wires = (
         WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),

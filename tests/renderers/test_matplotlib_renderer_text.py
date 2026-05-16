@@ -889,6 +889,35 @@ def test_matplotlib_renderer_keeps_full_measurement_classical_label_when_space_a
     assert "[1]" not in axis_texts
 
 
+def test_matplotlib_renderer_draws_condition_connection_labels_smaller() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        classical_wires=[WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c[0]")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        classical_conditions=(
+                            ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1"),
+                        ),
+                    )
+                ]
+            )
+        ],
+    )
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    _figure, axes = plt.subplots()
+
+    MatplotlibRenderer().render(scene, ax=axes)
+
+    condition_label = _find_axis_text(axes, "if c[0]=1")
+
+    assert condition_label.get_fontsize() <= scene.style.font_size * 0.56
+
+
 def test_matplotlib_renderer_does_not_add_empty_connection_labels() -> None:
     figure, axes = plt.subplots()
 

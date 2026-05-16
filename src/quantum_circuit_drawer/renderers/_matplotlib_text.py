@@ -27,6 +27,7 @@ _MATHTEXT_WIDTH_PADDING_FACTOR = 1.25
 _MATHTEXT_HEIGHT_PADDING_FACTOR = 1.1
 _MEASUREMENT_LABEL_FONT_SCALE = 0.62
 _MEASUREMENT_CLASSICAL_LABEL_FONT_SCALE = 0.56
+_CLASSICAL_CONDITION_LABEL_FONT_SCALE = 0.52
 _MEASUREMENT_CLASSICAL_LABEL_PATTERN = re.compile(r"^.+\[(\d+)\]$")
 _PLAIN_TEXT_CONNECTION_LABEL_PATTERN = re.compile(r"[&|!<>()]")
 _GATE_TEXT_CONTEXT_CACHE_ATTR = "_quantum_circuit_drawer_gate_text_context_cache"
@@ -119,9 +120,10 @@ def _connection_label_style(
         "edgecolor": "none",
     }
     if not _is_measurement_classical_connection_label(connection):
+        font_scale = _CLASSICAL_CONDITION_LABEL_FONT_SCALE if connection.is_classical else 0.7
         return _ConnectionLabelStyle(
             text=_format_connection_label(label, use_mathtext=scene.style.use_mathtext),
-            font_size=scene.style.font_size * 0.7,
+            font_size=scene.style.font_size * font_scale,
             bbox=default_bbox,
         )
 
