@@ -4,6 +4,15 @@
 
 ### Changed
 
+- Qiskit `StatePreparation` subtitles now wrap state-vector components by qubit count, keep
+  one-qubit vectors on one line, and hide vectors with more than 32 components so the gate box
+  stays compact and readable.
+- One-qubit Qiskit `StatePreparation` boxes now use a tighter width heuristic, collapsed
+  `if_else` blocks show `IF/ELSE` when an else branch exists, and Qiskit `switch_case` bodies now
+  render as expanded per-case control-flow groups instead of a single compact box.
+- Collapsing expanded Qiskit control-flow blocks now produces a single semantic box for the full
+  block: `switch_case` collapses to `SWITCH`, and `if_else` collapses to `IF/ELSE` over the
+  involved quantum wires while keeping the classical condition as a connector.
 - Notebook rendering now suppresses result-object text for `draw_quantum_circuit(...)`,
   `plot_histogram(...)`, and histogram comparisons while still displaying the figure once when
   `show=True`.
@@ -19,6 +28,12 @@
 ### Fixed
 
 - Qiskit `initialize` instructions now render as `StatePreparation` with a smaller compact state-vector subtitle and a text-proportional gate width.
+- Notebook widget backends such as `%matplotlib widget` now inherit the rendered figure
+  background around the Matplotlib widget, avoiding the white notebook chrome around dark
+  circuit and histogram figures.
+- Notebook widget backends now remove figures from the backend's pending auto-display
+  queue after displaying their rich canvas so calls such as `draw_quantum_circuit(circuit)`
+  render once while keeping the widget interactive.
 - `show=False` now also suppresses automatic notebook display for returned circuit and histogram
   result objects.
 - Notebook widget backends such as `%matplotlib widget` now display the Matplotlib

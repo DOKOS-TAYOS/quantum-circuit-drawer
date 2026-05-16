@@ -79,9 +79,44 @@ def test_format_state_vector_component_uses_compact_significant_digits(
 
 def test_format_state_vector_parameters_wraps_components() -> None:
     assert (
-        format_state_vector_parameters([9344, 289, -0.23, 0.432, -1.642e10, 1.2e7, -1.3e-8])
-        == "[9344, 289, -0.23, 0.432, -1.642e10, 1.2e7, -1.3e-8]"
+        format_state_vector_parameters(
+            [9344, 289, -0.23, 0.432, -1.642e10, 1.2e7, -1.3e-8],
+            qubit_count=3,
+        )
+        == "[9344, 289, -0.23, 0.432,\n-1.642e10, 1.2e7, -1.3e-8]"
     )
+
+
+def test_format_state_vector_parameters_keeps_one_qubit_state_on_one_line() -> None:
+    assert format_state_vector_parameters([0.8321, 0.5547], qubit_count=1) == "[0.8321, 0.5547]"
+
+
+@pytest.mark.parametrize(
+    ("qubit_count", "expected"),
+    [
+        (2, "[0, 1,\n2, 3]"),
+        (3, "[0, 1, 2, 3,\n4, 5, 6, 7]"),
+        (4, "[0, 1, 2, 3,\n4, 5, 6, 7,\n8, 9, 10, 11,\n12, 13, 14, 15]"),
+        (
+            5,
+            "[0, 1, 2, 3, 4, 5, 6, 7,\n"
+            "8, 9, 10, 11, 12, 13, 14, 15,\n"
+            "16, 17, 18, 19, 20, 21, 22, 23,\n"
+            "24, 25, 26, 27, 28, 29, 30, 31]",
+        ),
+    ],
+)
+def test_format_state_vector_parameters_wraps_by_qubit_grid(
+    qubit_count: int,
+    expected: str,
+) -> None:
+    formatted = format_state_vector_parameters(range(2**qubit_count), qubit_count=qubit_count)
+
+    assert formatted == expected
+
+
+def test_format_state_vector_parameters_omits_large_vectors() -> None:
+    assert format_state_vector_parameters(range(33), qubit_count=6) is None
 
 
 def test_format_gate_name_mathtext_wraps_upright_gate_labels() -> None:

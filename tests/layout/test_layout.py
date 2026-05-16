@@ -512,6 +512,12 @@ def test_estimate_text_width_returns_zero_for_empty_labels() -> None:
     assert estimate_text_width("", font_size=12.0) == 0.0
 
 
+def test_estimate_text_width_uses_widest_line_for_multiline_labels() -> None:
+    single_line_width = estimate_text_width("abc", font_size=12.0)
+
+    assert estimate_text_width("abc\ndef", font_size=12.0) == pytest.approx(single_line_width)
+
+
 def test_operation_width_from_parts_expands_for_long_labels_and_subtitles() -> None:
     style = DrawStyle(show_params=True)
     operation = OperationIR(
@@ -669,6 +675,27 @@ def test_long_named_gate_without_parameters_expands_to_readable_width() -> None:
     )
 
     assert width > style.gate_width * 3.5
+
+
+def test_state_preparation_width_uses_wrapped_subtitle_without_excessive_label_padding() -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="StatePreparation",
+        label="StatePreparation",
+        target_wires=("q0",),
+        metadata={"display_subtitle": "[0.8321, 0.5547]", "subtitle_font_scale": 0.46},
+    )
+    label, subtitle = operation_label_parts(operation, style)
+    width = operation_width_from_parts(
+        operation=operation,
+        style=style,
+        label=label,
+        subtitle=subtitle,
+    )
+
+    assert width > style.gate_width
+    assert width < style.gate_width * 3.5
 
 
 def test_layout_engine_prefers_specific_classical_bit_labels_for_measurements() -> None:

@@ -599,7 +599,7 @@ def test_qiskit_adapter_lowered_semantic_if_else_matches_direct_ir() -> None:
     ]
 
 
-def test_qiskit_adapter_keeps_switch_case_as_compact_semantic_control_flow() -> None:
+def test_qiskit_adapter_expands_switch_case_branches_with_group_metadata() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(2, "c")
     circuit = qiskit.QuantumCircuit(quantum, classical)
@@ -613,19 +613,48 @@ def test_qiskit_adapter_keeps_switch_case_as_compact_semantic_control_flow() -> 
             circuit.h(0)
 
     semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
-    operation = flatten_semantic_operations(semantic_ir)[0]
+    operations = flatten_semantic_operations(semantic_ir)
 
-    assert operation.name == "SWITCH"
-    assert operation.kind is OperationKind.GATE
-    assert operation.classical_conditions[0].expression == "switch on c[0]"
-    assert operation.hover_details == (
+    assert [operation.name for operation in operations] == ["X", "Z", "H"]
+    assert [operation.provenance.composite_label for operation in operations] == [
+        "case 0",
+        "case 1",
+        "case default",
+    ]
+    assert [operation.metadata["control_flow_group"]["label"] for operation in operations] == [
+        "case 0",
+        "case 1",
+        "case default",
+    ]
+    assert operations[0].metadata["control_flow_group"]["conditions"][0].expression == (
+        "switch on c[0]"
+    )
+    assert operations[0].metadata["control_flow_group"]["details"] == (
         "control flow: switch_case",
         "target: c[0]",
-        "cases: 0, 1, default",
-        "case count: 3",
+        "case: 0",
+        "case ops: 1",
     )
-    assert operation.metadata["display_subtitle"] == "c[0]: 0, 1, default"
-    assert operation.metadata["subtitle_font_scale"] == pytest.approx(0.62)
+
+
+def test_qiskit_adapter_expands_switch_case_multi_value_case_label() -> None:
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(2, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.switch(classical) as case:
+        with case(0, 1):
+            circuit.x(0)
+        with case(case.DEFAULT):
+            circuit.h(0)
+
+    semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
+    operations = flatten_semantic_operations(semantic_ir)
+
+    assert [operation.metadata["control_flow_group"]["label"] for operation in operations] == [
+        "case 0, 1",
+        "case default",
+    ]
 
 
 def test_draw_qiskit_switch_case_shows_target_and_cases_in_static_output() -> None:
@@ -643,7 +672,7 @@ def test_draw_qiskit_switch_case_shows_target_and_cases_in_static_output() -> No
 
     assert_axes_contains_circuit_artists(
         axes,
-        expected_texts={"switch", "c[0]: 0, default"},
+        expected_texts={"case 0", "case default", "switch on c[0]", "X", "H"},
     )
     figure.clear()
 
@@ -831,7 +860,15 @@ def test_draw_quantum_circuit_renders_qiskit_control_flow_labels() -> None:
 
     assert_axes_contains_circuit_artists(
         axes,
-        expected_texts={"if", "else", "switch", "for x2", "while", "if c[0]=1"},
+        expected_texts={
+            "if",
+            "else",
+            "case 0",
+            "case default",
+            "for x2",
+            "while",
+            "if c[0]=1",
+        },
     )
     figure.clear()
 
@@ -939,13 +976,41 @@ def test_qiskit_initialize_uses_state_preparation_label_and_small_state_vector_s
 
     assert operation.name == "StatePreparation"
     assert operation.label == "StatePreparation"
-    assert operation.metadata["display_subtitle"] == "[1, 0, 0, 0]"
+    assert operation.metadata["display_subtitle"] == "[1, 0,\n0, 0]"
     assert operation.metadata["subtitle_font_scale"] == pytest.approx(0.46)
     assert scene.gates[0].label == "StatePreparation"
-    assert scene.gates[0].subtitle == "[1, 0, 0, 0]"
+    assert scene.gates[0].subtitle == "[1, 0,\n0, 0]"
     assert scene.gates[0].subtitle_font_scale == pytest.approx(0.46)
     assert scene.gates[0].width > scene.style.gate_width
-    assert scene.gates[0].width < scene.style.gate_width * 7.0
+    assert scene.gates[0].width < scene.style.gate_width * 4.5
+
+
+def test_qiskit_initialize_keeps_one_qubit_state_vector_subtitle_on_one_line() -> None:
+    circuit = qiskit.QuantumCircuit(1)
+    circuit.initialize([0.8, 0.6], [0])
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert operation.metadata["display_subtitle"] == "[0.8, 0.6]"
+    assert scene.gates[0].subtitle == "[0.8, 0.6]"
+    assert scene.gates[0].width < scene.style.gate_width * 3.5
+
+
+def test_qiskit_initialize_omits_large_state_vector_subtitle() -> None:
+    circuit = qiskit.QuantumCircuit(6)
+    circuit.initialize([1, *([0] * 63)], range(6))
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert "display_subtitle" not in operation.metadata
+    assert operation.metadata["suppress_params"] is True
+    assert scene.gates[0].label == "StatePreparation"
+    assert scene.gates[0].subtitle is None
+    assert scene.gates[0].width < scene.style.gate_width * 4.5
 
 
 def test_draw_qiskit_initialize_uses_smaller_font_for_state_vector_subtitle() -> None:
@@ -955,7 +1020,7 @@ def test_draw_qiskit_initialize_uses_smaller_font_for_state_vector_subtitle() ->
     figure, axes = draw_quantum_circuit(circuit, framework="qiskit", show=False)
 
     label_text = next(text for text in axes.texts if text.get_text() == "StatePreparation")
-    subtitle_text = next(text for text in axes.texts if text.get_text() == "[1, 0, 0, 0]")
+    subtitle_text = next(text for text in axes.texts if text.get_text() == "[1, 0,\n0, 0]")
 
     assert subtitle_text.get_fontsize() < label_text.get_fontsize() * 0.7
     figure.clear()

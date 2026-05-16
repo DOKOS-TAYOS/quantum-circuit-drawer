@@ -12,6 +12,7 @@ import quantum_circuit_drawer.managed.rendering as managed_module
 from quantum_circuit_drawer import DrawMode
 from quantum_circuit_drawer import draw_quantum_circuit as public_draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
+from quantum_circuit_drawer.ir.classical_conditions import ClassicalConditionIR
 from quantum_circuit_drawer.ir.lowering import lower_semantic_circuit
 from quantum_circuit_drawer.ir.measurements import MeasurementIR
 from quantum_circuit_drawer.ir.operations import OperationIR, OperationKind
@@ -136,6 +137,264 @@ def test_simple_qiskit_if_body_operations_do_not_become_collapsible_blocks() -> 
 
     assert "op:7" not in catalog.blocks
     assert catalog.block_id_by_operation_id == {}
+
+
+def test_collapsed_qiskit_if_else_block_label_mentions_else_branch() -> None:
+    condition = ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1")
+    control_flow_details = (
+        "control flow: if_else",
+        "condition: if c[0]=1",
+        "branches: true, false",
+        "block ops: true=1, false=1",
+    )
+    circuit = SemanticCircuitIR(
+        quantum_wires=(WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),),
+        classical_wires=(WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c"),),
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="x",
+                            native_kind="gate",
+                            decomposition_origin="if_else",
+                            composite_label="IF",
+                            location=(0, 0, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:if",
+                                "label": "IF",
+                                "native_name": "if_else",
+                                "details": control_flow_details,
+                                "conditions": (condition,),
+                            },
+                        },
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Z",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="z",
+                            native_kind="gate",
+                            decomposition_origin="if_else",
+                            composite_label="ELSE",
+                            location=(0, 1, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:else",
+                                "label": "ELSE",
+                                "native_name": "if_else",
+                                "details": control_flow_details,
+                                "conditions": (),
+                            },
+                        },
+                    ),
+                )
+            ),
+        ),
+    )
+
+    catalog = build_exploration_catalog(circuit, circuit)
+    collapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:0"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+
+    assert catalog.blocks["op:0"].label == "IF/ELSE"
+    assert _semantic_operation_names(collapsed.semantic_ir) == ["IF/ELSE"]
+
+
+def test_collapsed_qiskit_if_else_block_spans_only_quantum_branch_wires() -> None:
+    condition = ClassicalConditionIR(wire_ids=("c0",), expression="if c[0]=1")
+    control_flow_details = (
+        "control flow: if_else",
+        "condition: if c[0]=1",
+        "branches: true, false",
+        "block ops: true=1, false=1",
+    )
+    circuit = SemanticCircuitIR(
+        quantum_wires=(
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ),
+        classical_wires=(WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c"),),
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        classical_conditions=(condition,),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="x",
+                            native_kind="gate",
+                            decomposition_origin="if_else",
+                            composite_label="IF",
+                            location=(0, 0, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:if",
+                                "label": "IF",
+                                "native_name": "if_else",
+                                "details": control_flow_details,
+                                "conditions": (condition,),
+                            },
+                            "suppress_classical_condition_connections": True,
+                        },
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Z",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="z",
+                            native_kind="gate",
+                            decomposition_origin="if_else",
+                            composite_label="ELSE",
+                            location=(0, 1, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:else",
+                                "label": "ELSE",
+                                "native_name": "if_else",
+                                "details": control_flow_details,
+                                "conditions": (),
+                            },
+                        },
+                    ),
+                )
+            ),
+        ),
+    )
+
+    catalog = build_exploration_catalog(circuit, circuit)
+    collapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:0"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    operation = collapsed.semantic_ir.layers[0].operations[0]
+
+    assert operation.name == "IF/ELSE"
+    assert operation.target_wires == ("q0", "q1")
+    assert operation.classical_conditions == (condition,)
+
+
+def test_collapsed_qiskit_switch_case_block_uses_switch_box_for_all_cases() -> None:
+    condition = ClassicalConditionIR(wire_ids=("c0",), expression="switch on c[0]")
+    first_details = (
+        "control flow: switch_case",
+        "target: c[0]",
+        "case: 0",
+        "case ops: 1",
+    )
+    second_details = (
+        "control flow: switch_case",
+        "target: c[0]",
+        "case: 1",
+        "case ops: 1",
+    )
+    circuit = SemanticCircuitIR(
+        quantum_wires=(
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+        ),
+        classical_wires=(WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c"),),
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="x",
+                            native_kind="gate",
+                            decomposition_origin="switch_case",
+                            composite_label="case 0",
+                            location=(0, 0, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:case:0",
+                                "label": "case 0",
+                                "hover_label": "SWITCH",
+                                "native_name": "switch_case",
+                                "details": first_details,
+                                "conditions": (condition,),
+                            },
+                        },
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="Z",
+                        target_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="z",
+                            native_kind="gate",
+                            decomposition_origin="switch_case",
+                            composite_label="case 1",
+                            location=(0, 1, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:case:1",
+                                "label": "case 1",
+                                "hover_label": "SWITCH",
+                                "native_name": "switch_case",
+                                "details": second_details,
+                                "conditions": (condition,),
+                            },
+                        },
+                    ),
+                )
+            ),
+        ),
+    )
+
+    catalog = build_exploration_catalog(circuit, circuit)
+    collapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:0"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    operation = collapsed.semantic_ir.layers[0].operations[0]
+
+    assert catalog.blocks["op:0"].label == "SWITCH"
+    assert operation.name == "SWITCH"
+    assert operation.target_wires == ("q0", "q1")
+    assert operation.classical_conditions == (condition,)
 
 
 def test_nested_location_compact_block_can_be_expanded_from_selected_operation() -> None:

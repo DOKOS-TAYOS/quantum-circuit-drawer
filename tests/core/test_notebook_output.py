@@ -128,3 +128,74 @@ def test_draw_quantum_circuit_widget_notebook_displays_ipympl_canvas(
 
     assert display_calls == [result.primary_figure.canvas]
     plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_widget_notebook_suppresses_backend_auto_display(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    display_calls: list[object] = []
+    backend = SimpleNamespace(
+        _to_show=[],
+        _draw_called=True,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "IPython.display",
+        SimpleNamespace(display=lambda value: display_calls.append(value)),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "ipympl.backend_nbagg",
+        SimpleNamespace(_Backend_ipympl=backend),
+    )
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=True, pyplot_backend="ipympl"),
+    )
+
+    result = draw_quantum_circuit(
+        build_sample_ir(),
+        mode="pages_controls",
+    )
+    setattr(result.primary_figure.canvas, "_repr_mimebundle_", lambda *args, **kwargs: {})
+    backend._to_show.append(result.primary_figure)
+
+    assert result._ipython_close_after_display is False
+
+    result._ipython_display_()
+
+    assert backend._to_show == []
+    assert backend._draw_called is False
+    assert result.primary_figure.number in plt.get_fignums()
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_widget_notebook_injects_matching_widget_background(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    display_calls: list[object] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "IPython.display",
+        SimpleNamespace(
+            HTML=lambda value: ("html", value),
+            display=lambda value: display_calls.append(value),
+        ),
+    )
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.drawing.runtime.detect_runtime_context",
+        lambda: RuntimeContext(is_notebook=True, pyplot_backend="ipympl"),
+    )
+
+    result = draw_quantum_circuit(
+        build_sample_ir(),
+        mode="pages_controls",
+    )
+    setattr(result.primary_figure.canvas, "_repr_mimebundle_", lambda *args, **kwargs: {})
+
+    result._ipython_display_()
+
+    assert display_calls[0][0] == "html"
+    assert "#0b0f14" in display_calls[0][1]
+    assert ".jupyter-matplotlib" in display_calls[0][1]
+    assert display_calls[1] == result.primary_figure.canvas

@@ -182,14 +182,16 @@ class QiskitAdapter(BaseAdapter):
                 explicit_matrices=explicit_matrices,
             )
         if name == "switch_case":
-            return self._convert_compact_control_flow(
+            return self._convert_switch_case(
                 operation=operation,
-                name=name,
                 qubits=qubits,
+                clbits=clbits,
                 qubit_ids=qubit_ids,
                 classical_targets=classical_targets,
                 register_targets=register_targets,
+                composite_mode=composite_mode,
                 location=location,
+                explicit_matrices=explicit_matrices,
             )
         if name == "barrier":
             return [
@@ -285,6 +287,26 @@ class QiskitAdapter(BaseAdapter):
                 )
             is_initialize = name == "initialize"
             compact_label = "StatePreparation" if is_initialize else raw_name
+            state_vector_subtitle = (
+                format_state_vector_parameters(parameters, qubit_count=len(target_wires))
+                if is_initialize
+                else None
+            )
+            initialize_metadata = (
+                {
+                    "suppress_params": True,
+                    **(
+                        {
+                            "display_subtitle": state_vector_subtitle,
+                            "subtitle_font_scale": 0.46,
+                        }
+                        if state_vector_subtitle is not None
+                        else {}
+                    ),
+                }
+                if is_initialize
+                else {}
+            )
             return [
                 SemanticOperationIR(
                     kind=OperationKind.GATE,
@@ -302,14 +324,7 @@ class QiskitAdapter(BaseAdapter):
                     ),
                     metadata={
                         **matrix_metadata,
-                        **(
-                            {
-                                "display_subtitle": format_state_vector_parameters(parameters),
-                                "subtitle_font_scale": 0.46,
-                            }
-                            if is_initialize
-                            else {}
-                        ),
+                        **initialize_metadata,
                     },
                 )
             ]
@@ -432,6 +447,36 @@ class QiskitAdapter(BaseAdapter):
             label=label,
             compact_control_flow_conditions=self._compact_control_flow_conditions,
             control_flow_hover_details=self._control_flow_hover_details,
+        )
+
+    def _convert_switch_case(
+        self,
+        *,
+        operation: object,
+        qubits: tuple[object, ...],
+        clbits: tuple[object, ...],
+        qubit_ids: dict[object, str],
+        classical_targets: dict[object, tuple[str, str]],
+        register_targets: dict[object, tuple[str, str]],
+        composite_mode: str,
+        location: tuple[int, ...],
+        explicit_matrices: bool,
+    ) -> list[SemanticOperationIR]:
+        return qiskit_control_flow_helpers.convert_switch_case(
+            framework_name=self.framework_name,
+            operation=operation,
+            qubits=qubits,
+            clbits=clbits,
+            qubit_ids=qubit_ids,
+            classical_targets=classical_targets,
+            register_targets=register_targets,
+            composite_mode=composite_mode,
+            location=location,
+            explicit_matrices=explicit_matrices,
+            compact_control_flow_conditions=self._compact_control_flow_conditions,
+            control_flow_hover_details=self._control_flow_hover_details,
+            instruction_converter=self._convert_instruction,
+            native_text=self._native_text,
         )
 
     def _convert_loop_control_flow(

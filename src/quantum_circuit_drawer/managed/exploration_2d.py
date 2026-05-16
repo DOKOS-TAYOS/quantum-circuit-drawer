@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import TypeVar
 
@@ -14,6 +14,7 @@ from matplotlib.backend_bases import MouseEvent
 from .._compat import StrEnum
 from ..drawing.pages import _items_for_page
 from ..ir.circuit import CircuitIR
+from ..ir.classical_conditions import ClassicalConditionIR
 from ..ir.lowering import lower_semantic_circuit
 from ..ir.operations import OperationKind
 from ..ir.semantic import (
@@ -879,6 +880,7 @@ def _collapse_top_level_blocks(
     collapsed_block_ids: set[str] | frozenset[str],
 ) -> tuple[_TopLevelOperationGroup, ...]:
     wire_order = {wire.id: index for index, wire in enumerate(expanded_semantic_ir.all_wires)}
+    quantum_wire_ids = frozenset(wire.id for wire in expanded_semantic_ir.quantum_wires)
     grouped_operations = {
         semantic_operation_id_from_location(top_level_location): operations
         for top_level_location, operations in _operations_by_top_level_location(
@@ -911,6 +913,7 @@ def _collapse_top_level_blocks(
                         block,
                         operations=grouped_operations[block_id],
                         wire_order=wire_order,
+                        quantum_wire_ids=quantum_wire_ids,
                     ),
                 ),
                 barrier_wire_ids=block.wire_ids,
@@ -1015,24 +1018,44 @@ def _collapsed_block_operation(
     *,
     operations: Sequence[SemanticOperationIR],
     wire_order: dict[str, int],
+    quantum_wire_ids: frozenset[str],
 ) -> SemanticOperationIR:
     if block.original_collapsed_operation is not None:
         return block.original_collapsed_operation
 
     first_operation = operations[0]
     visible_label = _rounded_collapsed_block_label(block.label)
+    control_flow_metadata = _collapsed_control_flow_metadata(
+        operations,
+        quantum_wire_ids=quantum_wire_ids,
+    )
+    collapsed_target_wire_ids = (
+        control_flow_metadata.target_wires if control_flow_metadata is not None else block.wire_ids
+    )
+    collapsed_hover_details = (
+        control_flow_metadata.hover_details
+        if control_flow_metadata is not None
+        else (
+            f"collapsed block: {block.label}",
+            f"operations: {block.operation_count}",
+        )
+    )
+    collapsed_classical_conditions = (
+        control_flow_metadata.classical_conditions if control_flow_metadata is not None else ()
+    )
     target_wires = tuple(
-        sorted(block.wire_ids, key=lambda wire_id: wire_order.get(wire_id, len(wire_order)))
+        sorted(
+            collapsed_target_wire_ids,
+            key=lambda wire_id: wire_order.get(wire_id, len(wire_order)),
+        )
     )
     return SemanticOperationIR(
         kind=OperationKind.GATE,
         name=block.label,
         label=visible_label,
         target_wires=target_wires,
-        hover_details=(
-            f"collapsed block: {block.label}",
-            f"operations: {block.operation_count}",
-        ),
+        classical_conditions=collapsed_classical_conditions,
+        hover_details=collapsed_hover_details,
         provenance=SemanticProvenanceIR(
             framework=first_operation.provenance.framework,
             native_name=block.label,
@@ -1046,6 +1069,90 @@ def _collapsed_block_operation(
             "suppress_target_annotations": True,
         },
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _CollapsedControlFlowMetadata:
+    target_wires: tuple[str, ...]
+    classical_conditions: tuple[ClassicalConditionIR, ...]
+    hover_details: tuple[str, ...]
+
+
+def _collapsed_control_flow_metadata(
+    operations: Sequence[SemanticOperationIR],
+    *,
+    quantum_wire_ids: frozenset[str],
+) -> _CollapsedControlFlowMetadata | None:
+    group_entries = _control_flow_group_entries(operations)
+    if not group_entries:
+        return None
+
+    target_wires = tuple(
+        dict.fromkeys(
+            wire_id
+            for operation in operations
+            for wire_id in operation.target_wires
+            if wire_id in quantum_wire_ids
+        )
+    )
+    if not target_wires:
+        return None
+
+    classical_conditions = _control_flow_group_conditions(group_entries)
+    hover_details = _control_flow_group_hover_details(group_entries)
+    return _CollapsedControlFlowMetadata(
+        target_wires=target_wires,
+        classical_conditions=classical_conditions,
+        hover_details=hover_details,
+    )
+
+
+def _control_flow_group_entries(
+    operations: Sequence[SemanticOperationIR],
+) -> tuple[Mapping[object, object], ...]:
+    return tuple(
+        metadata
+        for operation in operations
+        if isinstance(metadata := operation.metadata.get("control_flow_group"), Mapping)
+    )
+
+
+def _control_flow_group_conditions(
+    group_entries: Sequence[Mapping[object, object]],
+) -> tuple[ClassicalConditionIR, ...]:
+    conditions: list[ClassicalConditionIR] = []
+    seen: set[tuple[tuple[str, ...], str]] = set()
+    for entry in group_entries:
+        raw_conditions = entry.get("conditions", ())
+        if not isinstance(raw_conditions, Sequence):
+            continue
+        for condition in raw_conditions:
+            if not isinstance(condition, ClassicalConditionIR):
+                continue
+            key = (tuple(condition.wire_ids), condition.expression)
+            if key in seen:
+                continue
+            seen.add(key)
+            conditions.append(condition)
+    return tuple(conditions)
+
+
+def _control_flow_group_hover_details(
+    group_entries: Sequence[Mapping[object, object]],
+) -> tuple[str, ...]:
+    details: list[str] = []
+    seen: set[str] = set()
+    for entry in group_entries:
+        raw_details = entry.get("details", ())
+        if not isinstance(raw_details, Sequence):
+            continue
+        for detail in raw_details:
+            text = str(detail)
+            if text in seen:
+                continue
+            seen.add(text)
+            details.append(text)
+    return tuple(details)
 
 
 def _rounded_collapsed_block_label(label: str) -> str:
@@ -1390,6 +1497,9 @@ def _collapse_label(operations: Sequence[SemanticOperationIR]) -> str | None:
         return None
     if not any(len(operation.provenance.location) > 1 for operation in operations):
         return None
+    control_flow_label = _control_flow_collapse_label(operations)
+    if control_flow_label is not None:
+        return control_flow_label
     for operation in operations:
         for candidate in (
             operation.provenance.composite_label,
@@ -1399,6 +1509,20 @@ def _collapse_label(operations: Sequence[SemanticOperationIR]) -> str | None:
                 return candidate
     if _is_measurement_block(operations):
         return operations[0].provenance.native_name or operations[0].name
+    return None
+
+
+def _control_flow_collapse_label(operations: Sequence[SemanticOperationIR]) -> str | None:
+    group_entries = _control_flow_group_entries(operations)
+    if not group_entries:
+        return None
+
+    native_names = {str(entry.get("native_name")) for entry in group_entries}
+    labels = {str(entry.get("label")) for entry in group_entries}
+    if native_names == {"if_else"} and "ELSE" in labels:
+        return "IF/ELSE"
+    if native_names == {"switch_case"}:
+        return "SWITCH"
     return None
 
 

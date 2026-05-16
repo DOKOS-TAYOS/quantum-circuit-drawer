@@ -59,6 +59,7 @@ def convert_if_else(
             register_targets,
         )
     except UnsupportedOperationError:
+        fallback_label = CONTROL_FLOW_LABELS["if_else"] if false_block is not None else "IF"
         return convert_compact_control_flow(
             operation=operation,
             name="if_else",
@@ -67,7 +68,7 @@ def convert_if_else(
             classical_targets=classical_targets,
             register_targets=register_targets,
             location=location,
-            label="IF",
+            label=fallback_label,
         )
 
     condition_details = normalized_detail_lines(f"condition: {condition.expression}")
@@ -126,6 +127,113 @@ def convert_if_else(
             )
         )
     return converted_operations
+
+
+def convert_switch_case(
+    *,
+    framework_name: str,
+    operation: object,
+    qubits: tuple[object, ...],
+    clbits: tuple[object, ...],
+    qubit_ids: dict[object, str],
+    classical_targets: dict[object, tuple[str, str]],
+    register_targets: dict[object, tuple[str, str]],
+    composite_mode: str,
+    location: tuple[int, ...],
+    explicit_matrices: bool,
+    compact_control_flow_conditions: Callable[
+        ..., tuple[tuple[ClassicalConditionIR, ...], tuple[str, ...]]
+    ],
+    control_flow_hover_details: Callable[..., tuple[str, ...]],
+    instruction_converter: Callable[..., list[SemanticOperationIR]],
+    native_text: Callable[[object], str],
+) -> list[SemanticOperationIR]:
+    """Expand Qiskit switch cases and mark each case as one drawable group."""
+
+    case_specs = switch_case_block_specs(operation)
+    if not case_specs:
+        return convert_compact_control_flow(
+            framework_name=framework_name,
+            operation=operation,
+            name="switch_case",
+            qubits=qubits,
+            qubit_ids=qubit_ids,
+            classical_targets=classical_targets,
+            register_targets=register_targets,
+            location=location,
+            compact_control_flow_conditions=compact_control_flow_conditions,
+            control_flow_hover_details=control_flow_hover_details,
+        )
+
+    classical_conditions, condition_details = compact_control_flow_conditions(
+        name="switch_case",
+        operation=operation,
+        classical_targets=classical_targets,
+        register_targets=register_targets,
+    )
+    base_group_id = semantic_operation_id_from_location(location)
+    converted_operations: list[SemanticOperationIR] = []
+    for case_index, (case_values, block) in enumerate(case_specs):
+        case_label = switch_case_values_label(case_values, native_text=native_text)
+        group_label = f"case {case_label}"
+        group_metadata = _control_flow_group_metadata(
+            group_id=f"{base_group_id}:case:{case_index}",
+            label=group_label,
+            native_name="switch_case",
+            details=normalized_detail_lines(
+                "control flow: switch_case",
+                *condition_details,
+                f"case: {case_label}",
+                f"case ops: {operation_block_size(block)}",
+            ),
+            hover_label=CONTROL_FLOW_LABELS["switch_case"],
+            conditions=classical_conditions,
+        )
+        nested_qubit_ids, nested_classical_targets = _nested_block_wire_maps(
+            block=block,
+            block_name=group_label,
+            name="switch_case",
+            qubits=qubits,
+            clbits=clbits,
+            qubit_ids=qubit_ids,
+            classical_targets=classical_targets,
+        )
+        for nested_index, inner_entry in enumerate(getattr(block, "data", ()) or ()):
+            nested_operations = instruction_converter(
+                inner_entry,
+                nested_qubit_ids,
+                nested_classical_targets,
+                register_targets={},
+                composite_mode=composite_mode,
+                location=(*location, case_index, nested_index),
+                explicit_matrices=explicit_matrices,
+                decomposition_origin="switch_case",
+                composite_label=group_label,
+            )
+            converted_operations.extend(
+                _with_control_flow_group_metadata(
+                    nested_operation,
+                    group_metadata=group_metadata,
+                    fallback_framework=framework_name,
+                    fallback_location=(*location, case_index, nested_index),
+                )
+                for nested_operation in nested_operations
+            )
+
+    if converted_operations:
+        return converted_operations
+    return convert_compact_control_flow(
+        framework_name=framework_name,
+        operation=operation,
+        name="switch_case",
+        qubits=qubits,
+        qubit_ids=qubit_ids,
+        classical_targets=classical_targets,
+        register_targets=register_targets,
+        location=location,
+        compact_control_flow_conditions=compact_control_flow_conditions,
+        control_flow_hover_details=control_flow_hover_details,
+    )
 
 
 def convert_compact_control_flow(
@@ -506,6 +614,48 @@ def switch_case_values(operation: object) -> tuple[object, ...]:
     if callable(cases_specifier):
         return tuple(case_value for case_value, _ in cases_specifier())
     return ()
+
+
+def switch_case_block_specs(operation: object) -> tuple[tuple[tuple[object, ...], object], ...]:
+    cases_specifier = getattr(operation, "cases_specifier", None)
+    if callable(cases_specifier):
+        return tuple(
+            (_case_values_tuple(case_values), block) for case_values, block in cases_specifier()
+        )
+
+    cases_getter = getattr(operation, "cases", None)
+    if not callable(cases_getter):
+        return ()
+
+    grouped_specs: list[tuple[list[object], object]] = []
+    block_index_by_id: dict[int, int] = {}
+    for case_value, block in cases_getter().items():
+        block_id = id(block)
+        grouped_index = block_index_by_id.get(block_id)
+        if grouped_index is None:
+            block_index_by_id[block_id] = len(grouped_specs)
+            grouped_specs.append(([case_value], block))
+            continue
+        grouped_specs[grouped_index][0].append(case_value)
+    return tuple((tuple(case_values), block) for case_values, block in grouped_specs)
+
+
+def switch_case_values_label(
+    values: Sequence[object],
+    *,
+    native_text: Callable[[object], str],
+) -> str:
+    if not values:
+        return "unknown"
+    return ", ".join(switch_case_value_text(value, native_text=native_text) for value in values)
+
+
+def _case_values_tuple(values: object) -> tuple[object, ...]:
+    if isinstance(values, str | bytes):
+        return (values,)
+    if isinstance(values, Sequence):
+        return tuple(values)
+    return (values,)
 
 
 def if_else_block_sizes(operation: object) -> tuple[int, int | None]:

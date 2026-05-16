@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterable
 from functools import lru_cache
@@ -66,6 +67,8 @@ _CIRCUIT_NUMBER_LABEL_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 _FOR_COUNT_LABEL_PATTERN = re.compile(r"^for\s+x(?P<count>\d+)$", flags=re.IGNORECASE)
+_MAX_STATE_VECTOR_VISIBLE_COMPONENTS = 32
+_MAX_STATE_VECTOR_COMPONENTS_PER_LINE = 10
 
 
 def format_gate_name(name: str) -> str:
@@ -139,10 +142,51 @@ def format_state_vector_component(value: object) -> str:
     return str(value)
 
 
-def format_state_vector_parameters(values: Iterable[object]) -> str:
-    """Return a bracketed compact state-vector label."""
+def format_state_vector_parameters(
+    values: Iterable[object],
+    *,
+    qubit_count: int | None = None,
+) -> str | None:
+    """Return a compact multiline state-vector label, or ``None`` when too large."""
 
-    return f"[{', '.join(format_state_vector_component(value) for value in values)}]"
+    components = tuple(format_state_vector_component(value) for value in values)
+    if len(components) > _MAX_STATE_VECTOR_VISIBLE_COMPONENTS:
+        return None
+    if not components:
+        return "[]"
+
+    components_per_line = _state_vector_components_per_line(
+        len(components),
+        qubit_count=qubit_count,
+    )
+    lines = [
+        ", ".join(components[start : start + components_per_line])
+        for start in range(0, len(components), components_per_line)
+    ]
+    if len(lines) == 1:
+        return f"[{lines[0]}]"
+    continued_lines = [f"{line}," for line in lines[:-1]]
+    return "[" + "\n".join((*continued_lines, lines[-1])) + "]"
+
+
+def _state_vector_components_per_line(
+    component_count: int,
+    *,
+    qubit_count: int | None,
+) -> int:
+    if component_count <= 1:
+        return 1
+    resolved_qubit_count = (
+        max(1, qubit_count)
+        if qubit_count is not None
+        else max(1, math.ceil(math.log2(component_count)))
+    )
+    squareish_power_of_two_width = 2 ** math.ceil(resolved_qubit_count / 2)
+    return min(
+        component_count,
+        _MAX_STATE_VECTOR_COMPONENTS_PER_LINE,
+        squareish_power_of_two_width,
+    )
 
 
 def _format_state_vector_real_component(value: float) -> str:
