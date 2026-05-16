@@ -838,6 +838,34 @@ def test_histogram_interactive_layout_keeps_plot_clear_of_controls_when_slider_i
     plt.close(result.figure)
 
 
+def test_histogram_interactive_y_axis_label_stays_inside_default_figure() -> None:
+    result = plot_histogram(
+        {
+            "000": 0.0244141,
+            "001": 0.0175781,
+            "010": 0.03125,
+            "011": 0.0273438,
+            "100": 0.214844,
+            "101": 0.227539,
+            "110": 0.231445,
+            "111": 0.225586,
+        },
+        config=build_public_histogram_config(
+            kind=HistogramKind.QUASI,
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+        ),
+    )
+
+    result.figure.canvas.draw()
+    renderer = result.figure.canvas.get_renderer()
+    label_bbox = result.axes.yaxis.label.get_window_extent(renderer=renderer)
+
+    assert label_bbox.x0 >= 0.0
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_hides_slider_button_when_slider_would_never_appear() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},

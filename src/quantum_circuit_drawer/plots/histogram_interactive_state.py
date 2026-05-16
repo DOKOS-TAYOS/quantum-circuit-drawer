@@ -58,8 +58,8 @@ if TYPE_CHECKING:
     from ..typing import OutputPath
     from .histogram_models import HistogramDrawStyle
 
-_MAIN_AXES_BOUNDS = (0.08, 0.23, 0.88, 0.66)
-_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.08, 0.25, 0.88, 0.64)
+_MAIN_AXES_BOUNDS = (0.105, 0.23, 0.855, 0.66)
+_MAIN_AXES_WITH_SLIDER_BOUNDS = (0.105, 0.25, 0.855, 0.64)
 _MESSAGE_TEXT_POSITION = (0.5, 0.965)
 _MIN_BIN_WIDTH_PIXELS = 18.0
 _SORT_CYCLE: tuple[HistogramSort, ...] = (
