@@ -2,10 +2,10 @@
 
 # Quantum Circuit Drawer
 
-[CI](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
-[Python 3.11+](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
-[Windows%20%7C%20Linux](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
-[MIT License](LICENSE)
+[![CI](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml/badge.svg)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
+[![Windows | Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 `quantum-circuit-drawer` is a Matplotlib-based library for drawing quantum circuits, exporting them to LaTeX, plotting measurement results, and comparing outputs across several quantum ecosystems with one consistent public API.
 

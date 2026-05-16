@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- Fixed the README header badges so they render as badges instead of plain
+  text links.
 - Restored pre-PyPI Security workflow compatibility by installing the project
   editably, freezing only non-editable packages, and auditing that pinned list
   with `pip-audit --strict`.
