@@ -134,9 +134,8 @@ The library renders normal static images, managed exploration views, 3D topology
 
 | Static 2D circuit                                        | Managed 2D exploration                             | 3D topology view                                 |
 | -------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------ |
-| Static 2D circuit render                                 | Managed 2D controls with a selected expanded block | 3D honeycomb topology render without gate labels |
-| Slider navigation                                        | 3D selected gate hover                             | Histogram comparison                             |
-| Managed slider with selected block and horizontal slider | 3D managed scene with a selected gate hover        | Histogram comparison render                      |
+| ![Static 2D circuit render](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_circuit_2d.png) | ![Managed 2D controls with a selected expanded block](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_managed_controls_2d.png) | ![3D honeycomb topology render without gate labels](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_topology_3d.png) |
+| ![Managed slider with selected block and horizontal slider](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_slider_2d.png) | ![3D managed scene with a selected gate hover](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_3d_hover.png) | ![Histogram comparison render](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_histogram_compare.png) |
 
 
 ## Install
@@ -145,6 +144,9 @@ Inside your local `.venv`:
 
 The core package supports Python 3.11, 3.12, and 3.13. Optional framework extras
 can have narrower platform support depending on their upstream packages.
+The base install declares Matplotlib `3.8+` and NumPy `1.26+`; optional extras
+currently use Qiskit `2.0+`, Cirq Core `1.6+`, PennyLane `0.42+`, MyQLM `1.11+`,
+CUDA-Q `0.14+` on Linux, and ipympl `0.10+`.
 
 Windows PowerShell:
 
@@ -721,4 +723,3 @@ Use these pages depending on what you need:
 - [Extension API](docs/extensions.md)
 - [Development](docs/development.md)
 - [Changelog](CHANGELOG.md)
-

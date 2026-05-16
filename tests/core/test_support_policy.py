@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,6 +34,18 @@ _MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _RAW_GITHUB_IMAGE_PREFIX = (
     "https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/"
 )
+_MINIMUM_RUNTIME_DEPENDENCIES: tuple[str, ...] = (
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+)
+_MINIMUM_OPTIONAL_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "qiskit": ("qiskit>=2.0",),
+    "qasm3": ("qiskit>=2.0", "qiskit-qasm3-import>=0.6"),
+    "cirq": ("cirq-core>=1.6",),
+    "pennylane": ("pennylane>=0.42",),
+    "cudaq": ("cudaq>=0.14; platform_system == 'Linux'",),
+    "notebook": ("ipympl>=0.10",),
+}
 
 
 def _python_signature_block(text: str, name: str, result_type: str) -> str:
@@ -60,6 +73,17 @@ def _markdown_anchors(path: Path) -> set[str]:
         counts[base_anchor] = duplicate_count + 1
         anchors.add(base_anchor if duplicate_count == 0 else f"{base_anchor}-{duplicate_count}")
     return anchors
+
+
+def test_project_metadata_declares_current_supported_dependency_floors() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    project = pyproject["project"]
+
+    assert tuple(project["dependencies"]) == _MINIMUM_RUNTIME_DEPENDENCIES
+
+    optional_dependencies = project["optional-dependencies"]
+    for extra_name, expected_dependencies in _MINIMUM_OPTIONAL_DEPENDENCIES.items():
+        assert tuple(optional_dependencies[extra_name]) == expected_dependencies
 
 
 @pytest.mark.parametrize("path", _SUPPORT_MATRIX_PATHS)

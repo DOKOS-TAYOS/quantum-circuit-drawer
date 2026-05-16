@@ -7,6 +7,7 @@ All commands assume you are working inside a local `.venv`, because that is the 
 ## Requirements
 
 - Python `3.11+`; the core package is tested on Python 3.11, 3.12, and 3.13
+- Core runtime dependencies: Matplotlib `3.8+` and NumPy `1.26+`
 - A virtual environment such as `.venv`
 - Optional extras only for the frameworks you actually want to draw directly
 
@@ -81,6 +82,8 @@ Install only the extras you need.
 | `myqlm` | `quantum-circuit-drawer[myqlm]` | Draw `qat.core.Circuit`, `Program`, and `QRoutine` objects |
 | `cudaq` | `quantum-circuit-drawer[cudaq]` | Draw supported CUDA-Q kernels on Linux or WSL2, including scalar runtime arguments through `cudaq_args` |
 | `notebook` | `quantum-circuit-drawer[notebook]` | Install `ipympl` for `%matplotlib widget` notebook interactivity |
+
+The current extras declare Qiskit `2.0+`, Cirq Core `1.6+`, PennyLane `0.42+`, MyQLM `1.11+`, CUDA-Q `0.14+` on Linux, and ipympl `0.10+`.
 
 Windows PowerShell:
 
