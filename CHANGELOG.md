@@ -42,6 +42,8 @@
   hide their continuation inside the widget.
 - Interactive notebook paged figures now cap automatically sized 2D widget canvases
   before adaptive paging, avoiding oversized initial renders for wider circuits.
+- Interactive histogram buttons now scale their label font to the available control
+  box, keeping labels such as `Order: Binary ascending` inside compact notebook widgets.
 - `show=False` now also suppresses automatic notebook display for returned circuit and histogram
   result objects.
 - Notebook widget backends such as `%matplotlib widget` now display the Matplotlib

@@ -5,13 +5,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .._logging import InteractionSource
-from ..managed.controls import _style_control_axes, _style_slider, _style_text_box
+from ..managed.controls import (
+    _fit_button_label_font_size,
+    _style_control_axes,
+    _style_slider,
+    _style_text_box,
+)
 from ..managed.ui_palette import managed_ui_palette
 from .histogram_interactive_hover import attach_usage_hover
 from .histogram_models import HistogramKind, HistogramSort, HistogramStateLabelMode
 
 if TYPE_CHECKING:
-    from matplotlib.widgets import Slider
+    from matplotlib.widgets import Button, Slider
 
     from .histogram_interactive_state import HistogramInteractiveState
     from .histogram_models import HistogramConfig
@@ -22,6 +27,17 @@ _CONTROL_KIND_TOGGLE_BOUNDS = (0.475, 0.025, 0.14, 0.06)
 _CONTROL_SLIDER_TOGGLE_BOUNDS = (0.63, 0.025, 0.12, 0.06)
 _CONTROL_MARGINAL_BOUNDS = (0.765, 0.025, 0.175, 0.06)
 _HORIZONTAL_SLIDER_BOUNDS = (0.08, 0.115, 0.88, 0.045)
+_ORDER_BUTTON_LABELS = (
+    "Order: Binary ascending",
+    "Order: Binary descending",
+    "Order: Counts ascending",
+    "Order: Counts descending",
+    "Order: Probability ascending",
+    "Order: Probability descending",
+)
+_LABEL_MODE_BUTTON_LABELS = ("Labels: Binary", "Labels: Decimal")
+_KIND_BUTTON_LABELS = ("Mode: Counts", "Mode: Quasi")
+_SLIDER_TOGGLE_BUTTON_LABELS = ("Slider On", "Slider Off")
 
 
 def attach_histogram_controls(
@@ -44,6 +60,7 @@ def attach_histogram_controls(
         hovercolor=palette.surface_hover_facecolor,
     )
     order_button.label.set_color(palette.text_color)
+    _fit_histogram_button_label(order_button, possible_labels=_ORDER_BUTTON_LABELS)
     order_button.on_clicked(lambda _event: state.cycle_sort(source=InteractionSource.BUTTON))
     state.order_axes = order_axes
     state.order_button = order_button
@@ -60,6 +77,10 @@ def attach_histogram_controls(
         hovercolor=palette.surface_hover_facecolor,
     )
     label_mode_button.label.set_color(palette.text_color)
+    _fit_histogram_button_label(
+        label_mode_button,
+        possible_labels=_LABEL_MODE_BUTTON_LABELS,
+    )
     label_mode_button.on_clicked(
         lambda _event: state.toggle_label_mode(source=InteractionSource.BUTTON)
     )
@@ -79,6 +100,10 @@ def attach_histogram_controls(
             hovercolor=palette.surface_hover_facecolor,
         )
         kind_toggle_button.label.set_color(palette.text_color)
+        _fit_histogram_button_label(
+            kind_toggle_button,
+            possible_labels=_KIND_BUTTON_LABELS,
+        )
         kind_toggle_button.on_clicked(
             lambda _event: state.toggle_kind(source=InteractionSource.BUTTON)
         )
@@ -150,6 +175,10 @@ def ensure_slider_toggle_control(
         hovercolor=palette.surface_hover_facecolor,
     )
     slider_toggle_button.label.set_color(palette.text_color)
+    _fit_histogram_button_label(
+        slider_toggle_button,
+        possible_labels=_SLIDER_TOGGLE_BUTTON_LABELS,
+    )
     slider_toggle_button.on_clicked(
         lambda _event: state.toggle_slider(source=InteractionSource.BUTTON)
     )
@@ -259,18 +288,44 @@ def refresh_histogram_controls(state: HistogramInteractiveState) -> None:
     """Refresh visible button labels after one state transition."""
 
     if state.order_button is not None:
-        state.order_button.label.set_text(
-            f"Order: {sort_description(state.current_sort, state.kind)}"
+        _fit_histogram_button_label(
+            state.order_button,
+            text=f"Order: {sort_description(state.current_sort, state.kind)}",
+            possible_labels=_ORDER_BUTTON_LABELS,
         )
     if state.label_mode_button is not None:
-        state.label_mode_button.label.set_text(
-            f"Labels: {label_mode_description(state.label_mode)}"
+        _fit_histogram_button_label(
+            state.label_mode_button,
+            text=f"Labels: {label_mode_description(state.label_mode)}",
+            possible_labels=_LABEL_MODE_BUTTON_LABELS,
         )
     if state.kind_toggle_button is not None:
-        state.kind_toggle_button.label.set_text(f"Mode: {kind_description(state.kind)}")
+        _fit_histogram_button_label(
+            state.kind_toggle_button,
+            text=f"Mode: {kind_description(state.kind)}",
+            possible_labels=_KIND_BUTTON_LABELS,
+        )
     if state.slider_toggle_button is not None:
         slider_label = "On" if state.slider_enabled else "Off"
-        state.slider_toggle_button.label.set_text(f"Slider {slider_label}")
+        _fit_histogram_button_label(
+            state.slider_toggle_button,
+            text=f"Slider {slider_label}",
+            possible_labels=_SLIDER_TOGGLE_BUTTON_LABELS,
+        )
+
+
+def _fit_histogram_button_label(
+    button: Button,
+    *,
+    text: str | None = None,
+    possible_labels: tuple[str, ...],
+) -> None:
+    _fit_button_label_font_size(
+        button,
+        text=text,
+        possible_labels=possible_labels,
+        fontweight="normal",
+    )
 
 
 def handle_marginal_submit(

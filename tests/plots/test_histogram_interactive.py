@@ -254,6 +254,41 @@ def test_histogram_interactive_order_button_keeps_probability_label_inside_bound
     plt.close(result.figure)
 
 
+def test_histogram_interactive_button_labels_fit_default_figure_controls() -> None:
+    result = plot_histogram(
+        {"00": 7, "01": 5, "10": 9, "11": 1},
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            sort=HistogramSort.STATE,
+        ),
+    )
+
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    result.figure.canvas.draw()
+    renderer = result.figure.canvas.get_renderer()
+
+    for button, axes in (
+        (state.order_button, state.order_axes),
+        (state.label_mode_button, state.label_mode_axes),
+        (state.kind_toggle_button, state.kind_toggle_axes),
+    ):
+        assert button is not None
+        assert axes is not None
+
+        label_bbox = button.label.get_window_extent(renderer=renderer)
+        button_bbox = axes.get_window_extent(renderer=renderer)
+
+        assert label_bbox.x0 >= button_bbox.x0
+        assert label_bbox.x1 <= button_bbox.x1
+        assert label_bbox.y0 >= button_bbox.y0
+        assert label_bbox.y1 <= button_bbox.y1
+
+    plt.close(result.figure)
+
+
 def test_histogram_interactive_counts_show_kind_toggle_button() -> None:
     result = plot_histogram(
         {"00": 7, "01": 5, "10": 9, "11": 1},
