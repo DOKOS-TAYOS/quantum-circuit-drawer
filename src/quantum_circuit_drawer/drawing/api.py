@@ -14,7 +14,7 @@ from .._logging import (
     push_log_context,
 )
 from ..circuit_compare import CircuitCompareConfig, CircuitCompareResult
-from ..config import DrawConfig
+from ..config import DrawConfig, normalize_draw_mode
 from ..renderers._render_support import figure_backend_name as _figure_backend_name
 from ..result import DrawResult
 
@@ -155,7 +155,7 @@ def _merge_draw_config(
             render_options,
             framework=render_options.framework if framework is None else framework,
             view=render_options.view if view is None else view,
-            mode=render_options.mode if mode is None else mode,
+            mode=render_options.mode if mode is None else normalize_draw_mode(mode),
             composite_mode=(
                 render_options.composite_mode if composite_mode is None else composite_mode
             ),

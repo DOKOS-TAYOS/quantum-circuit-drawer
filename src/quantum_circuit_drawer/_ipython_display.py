@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from importlib import import_module
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
+
+logger = logging.getLogger(__name__)
 
 
 def display_figures_in_ipython(
@@ -100,7 +103,7 @@ def _suppress_pending_widget_auto_display(figure: Figure) -> None:
         return
     while figure in pending_figures:
         pending_figures.remove(figure)
-    if not pending_figures and hasattr(backend, "_draw_called"):
+    if backend is not None and not pending_figures and hasattr(backend, "_draw_called"):
         backend._draw_called = False
 
 
@@ -119,4 +122,7 @@ def close_figures_in_pyplot(figures: Iterable[Figure]) -> None:
         try:
             plt.close(figure)
         except Exception:
-            continue
+            logger.debug(
+                "Unable to close Matplotlib figure after IPython display.",
+                exc_info=True,
+            )

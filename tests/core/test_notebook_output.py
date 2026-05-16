@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 from types import SimpleNamespace
 
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 from quantum_circuit_drawer import DrawConfig, OutputOptions, draw_quantum_circuit
+from quantum_circuit_drawer._ipython_display import close_figures_in_pyplot
 from quantum_circuit_drawer.drawing.runtime import RuntimeContext
 from quantum_circuit_drawer.histogram import plot_histogram
 from quantum_circuit_drawer.renderers._render_support import (
@@ -199,3 +201,21 @@ def test_draw_quantum_circuit_widget_notebook_injects_matching_widget_background
     assert "#0b0f14" in display_calls[0][1]
     assert ".jupyter-matplotlib" in display_calls[0][1]
     assert display_calls[1] == result.primary_figure.canvas
+
+
+def test_close_figures_in_pyplot_logs_best_effort_close_failures(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    figure = plt.figure()
+
+    def fail_close(target: object) -> None:
+        del target
+        raise RuntimeError("close failed")
+
+    monkeypatch.setattr(plt, "close", fail_close)
+    caplog.set_level(logging.DEBUG, logger="quantum_circuit_drawer._ipython_display")
+
+    close_figures_in_pyplot((figure,))
+
+    assert "Unable to close Matplotlib figure after IPython display." in caplog.text

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from ..renderers.matplotlib_primitives import _PreparedGateText
     from .page_window import Managed2DPageWindowState
 
-_PreparedGateTextCacheKey = tuple[object, str, str | None, UseMathTextMode]
+_PreparedGateTextCacheKey = tuple[object, str, str | None, float, UseMathTextMode]
 
 
 def _render_current_window(state: Managed2DPageWindowState) -> None:

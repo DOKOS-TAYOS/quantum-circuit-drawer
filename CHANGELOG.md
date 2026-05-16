@@ -31,6 +31,10 @@
   overhead for dense overlays without changing hover or legend behavior.
 - Removed a redundant single-connection hover helper from the Matplotlib renderer,
   keeping the batched connection-hover path as the single implementation.
+- Restored full `mypy` cleanliness across the source package after the flat public
+  kwargs and histogram rendering updates.
+- Notebook figure cleanup now logs best-effort Matplotlib close failures instead of
+  silently continuing, keeping the security scan clean while preserving display behavior.
 - Bundled demos now highlight the updated Qiskit control-flow frames, `switch_case` summaries, `StatePreparation`, dagger labels, and dense histogram labels.
 - Qiskit `switch_case` boxes and CUDA-Q structured control-flow boxes now include static condition, case, region, and iteration summaries instead of requiring hover to see the relevant control information.
 - Qiskit `if_else`, `for_loop`, and `while_loop` bodies now render expanded by default with labeled 2D control-flow frames, condition links for `if`/`while`, and visible `for` iteration counts.

@@ -45,6 +45,11 @@ from .histogram_models import (
     HistogramSort,
     HistogramStateLabelMode,
     HistogramViewOptions,
+    _normalize_compare_sort,
+    _normalize_kind,
+    _normalize_mode,
+    _normalize_sort,
+    _normalize_state_label_mode,
 )
 from .histogram_normalize import normalize_histogram_data
 from .histogram_render import (
@@ -332,7 +337,7 @@ def _merge_histogram_config(
     ):
         data_options = replace(
             data_options,
-            kind=data_options.kind if kind is None else kind,
+            kind=data_options.kind if kind is None else _normalize_kind(kind),
             top_k=data_options.top_k if top_k is None else top_k,
             qubits=data_options.qubits if qubits is None else qubits,
             result_index=data_options.result_index if result_index is None else result_index,
@@ -343,10 +348,12 @@ def _merge_histogram_config(
     if mode is not None or sort is not None or state_label_mode is not None:
         view_options = replace(
             view_options,
-            mode=view_options.mode if mode is None else mode,
-            sort=view_options.sort if sort is None else sort,
+            mode=view_options.mode if mode is None else _normalize_mode(mode),
+            sort=view_options.sort if sort is None else _normalize_sort(sort),
             state_label_mode=(
-                view_options.state_label_mode if state_label_mode is None else state_label_mode
+                view_options.state_label_mode
+                if state_label_mode is None
+                else _normalize_state_label_mode(state_label_mode)
             ),
         )
 
@@ -625,7 +632,7 @@ def _merge_histogram_compare_config(
     ):
         data_options = replace(
             data_options,
-            kind=data_options.kind if kind is None else kind,
+            kind=data_options.kind if kind is None else _normalize_kind(kind),
             top_k=data_options.top_k if top_k is None else top_k,
             qubits=data_options.qubits if qubits is None else qubits,
             result_index=data_options.result_index if result_index is None else result_index,
@@ -641,7 +648,7 @@ def _merge_histogram_compare_config(
     ):
         compare_options = replace(
             compare_options,
-            sort=compare_options.sort if sort is None else sort,
+            sort=compare_options.sort if sort is None else _normalize_compare_sort(sort),
             left_label=compare_options.left_label if left_label is None else left_label,
             right_label=compare_options.right_label if right_label is None else right_label,
             series_labels=(

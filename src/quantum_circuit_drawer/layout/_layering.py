@@ -196,7 +196,9 @@ def _local_control_flow_operation_wire_ids(
     )
     if not isinstance(operation, MeasurementIR):
         return occupied_wire_ids
-    return tuple(dict.fromkeys((*occupied_wire_ids, operation.classical_target)))
+    classical_target = operation.classical_target
+    assert classical_target is not None
+    return tuple(dict.fromkeys((*occupied_wire_ids, classical_target)))
 
 
 def _control_flow_group_boundary_span_slots(

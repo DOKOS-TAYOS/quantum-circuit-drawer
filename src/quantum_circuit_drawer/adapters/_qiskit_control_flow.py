@@ -734,7 +734,7 @@ def for_loop_iteration_count(operation: object) -> int | None:
     if indexset is None:
         return None
     try:
-        count = len(indexset)  # type: ignore[arg-type]
+        count = len(indexset)
     except TypeError:
         return None
     return int(count) if count >= 0 else None

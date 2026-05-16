@@ -13,7 +13,7 @@ from ._logging import (
     logged_api_call,
     push_log_context,
 )
-from .config import DrawConfig, DrawMode, OutputOptions
+from .config import DrawConfig, DrawMode, OutputOptions, normalize_draw_mode
 from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 from .ir.circuit import CircuitIR
 from .ir.operations import OperationIR, OperationKind
@@ -255,7 +255,7 @@ def _merge_analysis_config(
             render_options,
             framework=render_options.framework if framework is None else framework,
             view=render_options.view if view is None else view,
-            mode=render_options.mode if mode is None else mode,
+            mode=render_options.mode if mode is None else normalize_draw_mode(mode),
             composite_mode=(
                 render_options.composite_mode if composite_mode is None else composite_mode
             ),

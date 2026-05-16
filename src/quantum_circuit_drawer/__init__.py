@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from ._version import __version__
 from .analysis import CircuitAnalysisResult
@@ -149,7 +149,7 @@ def draw_quantum_circuit(
     if topology_qubits is not None:
         kwargs["topology_qubits"] = topology_qubits
 
-    return _draw_quantum_circuit(circuit, **kwargs)
+    return _draw_quantum_circuit(circuit, **cast(Any, kwargs))
 
 
 def analyze_quantum_circuit(
@@ -205,7 +205,7 @@ def analyze_quantum_circuit(
     if topology_qubits is not None:
         kwargs["topology_qubits"] = topology_qubits
 
-    return _analyze_quantum_circuit(circuit, **kwargs)
+    return _analyze_quantum_circuit(circuit, **cast(Any, kwargs))
 
 
 def circuit_to_latex(
@@ -253,7 +253,7 @@ def circuit_to_latex(
     if composite_mode is not None:
         kwargs["composite_mode"] = composite_mode
 
-    return _circuit_to_latex(circuit, **kwargs)
+    return _circuit_to_latex(circuit, **cast(Any, kwargs))
 
 
 def plot_histogram(
@@ -331,7 +331,7 @@ def plot_histogram(
     if figsize is not None:
         kwargs["figsize"] = figsize
 
-    return _plot_histogram(data, **kwargs)
+    return _plot_histogram(data, **cast(Any, kwargs))
 
 
 def compare_histograms(
@@ -416,7 +416,7 @@ def compare_histograms(
     if figsize is not None:
         kwargs["figsize"] = figsize
 
-    return _compare_histograms(left_data, right_data, *additional_data, **kwargs)
+    return _compare_histograms(left_data, right_data, *additional_data, **cast(Any, kwargs))
 
 
 def compare_circuits(
@@ -503,7 +503,12 @@ def compare_circuits(
     if show_summary is not None:
         kwargs["show_summary"] = show_summary
 
-    return _compare_circuits(left_circuit, right_circuit, *additional_circuits, **kwargs)
+    return _compare_circuits(
+        left_circuit,
+        right_circuit,
+        *additional_circuits,
+        **cast(Any, kwargs),
+    )
 
 
 __all__ = [

@@ -29,6 +29,7 @@ from ..config import (
     DrawMode,
     DrawSideConfig,
     OutputOptions,
+    normalize_draw_mode,
 )
 from ..ir.circuit import CircuitIR
 from ..ir.operations import OperationKind
@@ -401,7 +402,7 @@ def _merge_compare_render_options(
         render_options,
         framework=render_options.framework if framework is None else framework,
         view=render_options.view if view is None else view,
-        mode=render_options.mode if mode is None else mode,
+        mode=render_options.mode if mode is None else normalize_draw_mode(mode),
         composite_mode=(
             render_options.composite_mode if composite_mode is None else composite_mode
         ),
