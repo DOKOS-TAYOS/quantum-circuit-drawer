@@ -1,17 +1,11 @@
-<p align="center">
-  <img
-    src="https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/Quantum_Circuit_Drawer_logo.png"
-    alt="Quantum Circuit Drawer logo"
-    width="880"
-  />
-</p>
+
 
 # Quantum Circuit Drawer
 
-[![CI](https://img.shields.io/github/actions/workflow/status/DOKOS-TAYOS/quantum-circuit-drawer/ci.yml?branch=main&label=CI)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
-[![Windows%20%7C%20Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0A7BBB)](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
-[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[CI](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
+[Python 3.11+](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer)
+[Windows%20%7C%20Linux](https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/actions/workflows/ci.yml)
+[MIT License](LICENSE)
 
 `quantum-circuit-drawer` is a Matplotlib-based library for drawing quantum circuits, exporting them to LaTeX, plotting measurement results, and comparing outputs across several quantum ecosystems with one consistent public API.
 
@@ -25,14 +19,16 @@ The main idea is simple:
 
 The library is centered on a few practical workflows that match normal scripts:
 
-| Workflow | Public API | Typical use |
-| --- | --- | --- |
-| Analyze one circuit | `analyze_quantum_circuit(...)` | Inspect framework, size, mode, pages, operations, and diagnostics without rendering |
-| Draw one circuit | `draw_quantum_circuit(...)` | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2/3, or IR circuit |
-| Export one circuit to LaTeX | `circuit_to_latex(...)` | Generate `quantikz` or basic `tikzpicture` snippets for papers, notes, or slides |
-| Compare circuits | `compare_circuits(...)` | Show before/after or multi-circuit structure, for example transpilation levels |
-| Plot one result distribution | `plot_histogram(...)` | Plot counts, quasi-probabilities, marginals, or framework-native result objects |
-| Compare result distributions | `compare_histograms(...)` | Overlay two or more ideal, sampled, baseline, or hardware distributions |
+
+| Workflow                     | Public API                     | Typical use                                                                         |
+| ---------------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| Analyze one circuit          | `analyze_quantum_circuit(...)` | Inspect framework, size, mode, pages, operations, and diagnostics without rendering |
+| Draw one circuit             | `draw_quantum_circuit(...)`    | Render a Qiskit, Cirq, PennyLane, MyQLM, CUDA-Q, OpenQASM 2/3, or IR circuit        |
+| Export one circuit to LaTeX  | `circuit_to_latex(...)`        | Generate `quantikz` or basic `tikzpicture` snippets for papers, notes, or slides    |
+| Compare circuits             | `compare_circuits(...)`        | Show before/after or multi-circuit structure, for example transpilation levels      |
+| Plot one result distribution | `plot_histogram(...)`          | Plot counts, quasi-probabilities, marginals, or framework-native result objects     |
+| Compare result distributions | `compare_histograms(...)`      | Overlay two or more ideal, sampled, baseline, or hardware distributions             |
+
 
 ## Quick Start
 
@@ -133,13 +129,15 @@ print(capture.to_dicts()[0]["request_id"])
 
 ## Visual Gallery
 
-The library renders normal static images, managed exploration views, 3D topology scenes, and result distributions with the same public API shape. Gallery images use absolute raw GitHub URLs so they render from both GitHub Markdown and the PyPI project description.
+The library renders normal static images, managed exploration views, 3D topology scenes, and result distributions with the same public API shape.
 
-| Static 2D circuit | Managed 2D exploration | 3D topology view |
-| --- | --- | --- |
-| ![Static 2D circuit render](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_circuit_2d.png) | ![Managed 2D controls with a selected expanded block](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_managed_controls_2d.png) | ![3D honeycomb topology render without gate labels](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_topology_3d.png) |
-| Slider navigation | 3D selected gate hover | Histogram comparison |
-| ![Managed slider with selected block and horizontal slider](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_slider_2d.png) | ![3D managed scene with a selected gate hover](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_3d_hover.png) | ![Histogram comparison render](https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/readme_histogram_compare.png) |
+
+| Static 2D circuit                                        | Managed 2D exploration                             | 3D topology view                                 |
+| -------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------ |
+| Static 2D circuit render                                 | Managed 2D controls with a selected expanded block | 3D honeycomb topology render without gate labels |
+| Slider navigation                                        | 3D selected gate hover                             | Histogram comparison                             |
+| Managed slider with selected block and horizontal slider | 3D managed scene with a selected gate hover        | Histogram comparison render                      |
+
 
 ## Install
 
@@ -210,33 +208,37 @@ Use the `notebook` extra when you want Jupyter hover, managed circuit controls, 
 
 This is the production support contract for the current release.
 
-| Input path | Support level | Platform notes |
-| --- | --- | --- |
-| Internal IR | Strong support | Core built-in path on Windows and Linux |
-| Qiskit | Strong support | Primary external backend on Windows and Linux |
-| OpenQASM 2 text and `.qasm` files | Strong support through the Qiskit extra | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux |
-| OpenQASM 3 text and `.qasm3` files | Strong support through Qiskit plus `qiskit-qasm3-import` | Install `quantum-circuit-drawer[qasm3]`; works on Windows and Linux when Qiskit's importer is available |
-| Cirq | Best-effort on native Windows | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; prefer Linux or WSL for the most reliable repeated runs |
-| PennyLane | Best-effort on native Windows | Prefer Linux or WSL for the most reliable repeated runs |
-| MyQLM | Scoped adapter + contract support | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
-| CUDA-Q | Linux/WSL2 only | Supports closed kernels plus scalar `cudaq_args` for runtime-argument kernels; upstream CUDA-Q is not available for native Windows |
+
+| Input path                         | Support level                                            | Platform notes                                                                                                                           |
+| ---------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Internal IR                        | Strong support                                           | Core built-in path on Windows and Linux                                                                                                  |
+| Qiskit                             | Strong support                                           | Primary external backend on Windows and Linux                                                                                            |
+| OpenQASM 2 text and `.qasm` files  | Strong support through the Qiskit extra                  | Install `quantum-circuit-drawer[qiskit]`; works on Windows and Linux                                                                     |
+| OpenQASM 3 text and `.qasm3` files | Strong support through Qiskit plus `qiskit-qasm3-import` | Install `quantum-circuit-drawer[qasm3]`; works on Windows and Linux when Qiskit's importer is available                                  |
+| Cirq                               | Best-effort on native Windows                            | Accepts `cirq.Circuit` and `cirq.FrozenCircuit`; prefer Linux or WSL for the most reliable repeated runs                                 |
+| PennyLane                          | Best-effort on native Windows                            | Prefer Linux or WSL for the most reliable repeated runs                                                                                  |
+| MyQLM                              | Scoped adapter + contract support                        | Accepts `qat.core.Circuit`, `Program`, and `QRoutine`; adapter contract is covered, but it is not a first-class multiplatform CI backend |
+| CUDA-Q                             | Linux/WSL2 only                                          | Supports closed kernels plus scalar `cudaq_args` for runtime-argument kernels; upstream CUDA-Q is not available for native Windows       |
+
 
 ## Choose Your First Task
 
-| If you want to... | Start here |
-| --- | --- |
-| Inspect a circuit before rendering | [Analyze a circuit](#analyze-a-circuit-without-rendering) |
-| Draw a circuit from a supported framework | [Draw one circuit](#draw-one-circuit) |
-| Draw OpenQASM 2/3 text or a `.qasm` / `.qasm3` file | [Draw OpenQASM](#draw-openqasm) |
-| Generate images from your terminal | [Command line](#command-line) |
-| Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file) |
-| Export LaTeX for papers or notes | [Export a circuit to LaTeX](#export-a-circuit-to-latex) |
-| Plot counts or probabilities | [Plot one histogram](#plot-one-histogram) |
-| Compare circuit versions | [Compare circuits](#compare-two-or-more-circuits) |
-| Compare distributions | [Compare histograms](#compare-two-or-more-histograms) |
-| Build a circuit without a framework dependency | [Build with public IR tools](#build-with-public-ir-tools) |
-| Learn the full user-facing feature set | [Extended guide](docs/extended_guide.md) |
-| Explore framework-specific demos | [Recommended demos](#recommended-demos) |
+
+| If you want to...                                    | Start here                                                |
+| ---------------------------------------------------- | --------------------------------------------------------- |
+| Inspect a circuit before rendering                   | [Analyze a circuit](#analyze-a-circuit-without-rendering) |
+| Draw a circuit from a supported framework            | [Draw one circuit](#draw-one-circuit)                     |
+| Draw OpenQASM 2/3 text or a `.qasm` / `.qasm3` file  | [Draw OpenQASM](#draw-openqasm)                           |
+| Generate images from your terminal                   | [Command line](#command-line)                             |
+| Save a render from a script without opening a window | [Save directly to a file](#save-directly-to-a-file)       |
+| Export LaTeX for papers or notes                     | [Export a circuit to LaTeX](#export-a-circuit-to-latex)   |
+| Plot counts or probabilities                         | [Plot one histogram](#plot-one-histogram)                 |
+| Compare circuit versions                             | [Compare circuits](#compare-two-or-more-circuits)         |
+| Compare distributions                                | [Compare histograms](#compare-two-or-more-histograms)     |
+| Build a circuit without a framework dependency       | [Build with public IR tools](#build-with-public-ir-tools) |
+| Learn the full user-facing feature set               | [Extended guide](docs/extended_guide.md)                  |
+| Explore framework-specific demos                     | [Recommended demos](#recommended-demos)                   |
+
 
 ## Command Line
 
@@ -627,28 +629,30 @@ If you want the same style of managed exploration in 3D, start with `qiskit-3d-e
 
 The fastest way to see the current strengths of the library is to run one of the bundled showcase demos:
 
-| Demo id | What it highlights |
-| --- | --- |
-| `qiskit-2d-exploration-showcase` | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual `Collapse` / `Expand` |
-| `qiskit-3d-exploration-showcase` | Managed 3D exploration with topology-aware selection, persistent expanded-block highlights, and contextual `Collapse` / `Expand` |
-| `qiskit-control-flow-showcase` | Expanded Qiskit control-flow frames, visible switch summaries, and open controls |
-| `qiskit-composite-modes-showcase` | Compact versus expanded composite instructions on the same workflow |
-| `openqasm-showcase` | OpenQASM text input through the Qiskit parser path |
-| `ir-basic-workflow` | Framework-free rendering from the public `CircuitIR` types |
-| `public-api-utilities-showcase` | Analysis, result metadata, page exports, histogram CSV export, and `circuit_to_latex(...)` |
-| `caller-managed-axes-showcase` | Circuit, histogram, and comparison rendering on caller-managed axes |
-| `style-accessible-showcase` | Accessible circuit and histogram styling |
-| `diagnostics-showcase` | Diagnostics, warnings, and resolved-mode metadata |
-| `cli-export-showcase` | Terminal-oriented `qcd` JSON histogram export |
-| `qiskit-backend-topology-showcase` | Qiskit backend topology conversion into a 3D hardware view |
-| `cirq-native-controls-showcase` | Cirq native controls, classical conditions, and CircuitOperation provenance |
-| `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes |
-| `myqlm-structural-showcase` | Compact composite routines on the native MyQLM adapter path |
-| `cudaq-kernel-showcase` | The supported CUDA-Q subset with scalar runtime arguments, reset, basis measurements, and static control summaries |
-| `compare-circuits-multi-transpile` | One Qiskit source circuit compared with several transpilation optimization levels |
-| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend toggles on interactive backends |
-| `compare-histograms-multi-series` | A multi-series overlay for ideal, noisy, raw hardware, and mitigated distributions |
-| `histogram-quasi-nonnegative` | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero |
+
+| Demo id                               | What it highlights                                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `qiskit-2d-exploration-showcase`      | Managed 2D exploration with `Wires: All/Active`, `Ancillas: Show/Hide`, folded-wire markers, and contextual `Collapse` / `Expand` |
+| `qiskit-3d-exploration-showcase`      | Managed 3D exploration with topology-aware selection, persistent expanded-block highlights, and contextual `Collapse` / `Expand`  |
+| `qiskit-control-flow-showcase`        | Expanded Qiskit control-flow frames, visible switch summaries, and open controls                                                  |
+| `qiskit-composite-modes-showcase`     | Compact versus expanded composite instructions on the same workflow                                                               |
+| `openqasm-showcase`                   | OpenQASM text input through the Qiskit parser path                                                                                |
+| `ir-basic-workflow`                   | Framework-free rendering from the public `CircuitIR` types                                                                        |
+| `public-api-utilities-showcase`       | Analysis, result metadata, page exports, histogram CSV export, and `circuit_to_latex(...)`                                        |
+| `caller-managed-axes-showcase`        | Circuit, histogram, and comparison rendering on caller-managed axes                                                               |
+| `style-accessible-showcase`           | Accessible circuit and histogram styling                                                                                          |
+| `diagnostics-showcase`                | Diagnostics, warnings, and resolved-mode metadata                                                                                 |
+| `cli-export-showcase`                 | Terminal-oriented `qcd` JSON histogram export                                                                                     |
+| `qiskit-backend-topology-showcase`    | Qiskit backend topology conversion into a 3D hardware view                                                                        |
+| `cirq-native-controls-showcase`       | Cirq native controls, classical conditions, and CircuitOperation provenance                                                       |
+| `pennylane-terminal-outputs-showcase` | PennyLane mid-measurement, `qml.cond(...)`, plus terminal output boxes                                                            |
+| `myqlm-structural-showcase`           | Compact composite routines on the native MyQLM adapter path                                                                       |
+| `cudaq-kernel-showcase`               | The supported CUDA-Q subset with scalar runtime arguments, reset, basis measurements, and static control summaries                |
+| `compare-circuits-multi-transpile`    | One Qiskit source circuit compared with several transpilation optimization levels                                                 |
+| `compare-histograms-ideal-vs-sampled` | A lightweight comparison workflow with no framework extra required, including clickable legend toggles on interactive backends    |
+| `compare-histograms-multi-series`     | A multi-series overlay for ideal, noisy, raw hardware, and mitigated distributions                                                |
+| `histogram-quasi-nonnegative`         | A compact histogram demo for non-negative quasi-probabilities that keep the vertical axis anchored at zero                        |
+
 
 In the examples catalog, each showcase has both a direct script filename such as `examples/qiskit_2d_exploration_showcase.py` and, when you use the shared runners, a matching `demo_id` such as `qiskit-2d-exploration-showcase`.
 
@@ -717,3 +721,4 @@ Use these pages depending on what you need:
 - [Extension API](docs/extensions.md)
 - [Development](docs/development.md)
 - [Changelog](CHANGELOG.md)
+

@@ -173,8 +173,10 @@ draw_quantum_circuit(circuit)
 Use `show=False` when you want no automatic notebook output. The returned result is still usable,
 so you can assign it and display or save the figure yourself.
 
-If the backend is interactive, `show=False` only skips automatic display. The returned figure can
-still keep hover and other Matplotlib interactivity.
+For circuit figures, if the backend is interactive, `show=False` only skips automatic display.
+The returned figure can still keep hover and other Matplotlib interactivity. For histograms,
+`mode="auto"` uses the static renderer when `show=False`; pass `mode="interactive"` explicitly
+when you want managed histogram controls without automatic display.
 
 ## Hover Does Not Appear
 

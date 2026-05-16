@@ -36,17 +36,65 @@ for %%D in (
     call :remove_dir "%ROOT%\%%~D"
 )
 
-for /d /r "%ROOT%" %%D in (__pycache__) do call :remove_dir "%%~fD"
-for /d /r "%ROOT%" %%D in (*.egg-info) do call :remove_dir "%%~fD"
+rem Recursive walks avoid .git / .venv / .worktrees so we do not scan trees we never delete.
+call :purge_generated_dirs_under "%ROOT%"
+call :purge_generated_files_under "%ROOT%"
 
 call :remove_file "%ROOT%\.coverage"
 call :remove_file "%ROOT%\coverage.xml"
 
-for /r "%ROOT%" %%F in (*.pyc) do call :remove_file "%%~fF"
-for /r "%ROOT%" %%F in (*.pyo) do call :remove_file "%%~fF"
-
 echo.
 echo Removed !removed_dirs! directorie(s) and !removed_files! file(s).
+exit /b 0
+
+:purge_generated_dirs_under
+set "DIR=%~f1"
+if not exist "%DIR%\*" exit /b 0
+for /d %%D in ("%DIR%\*") do call :purge_generated_dir_child "%%~fD"
+exit /b 0
+
+:purge_generated_dir_child
+set "FULL=%~f1"
+for %%N in ("%FULL%") do set "BASE=%%~nxN"
+
+if /i "%BASE%"==".git" exit /b 0
+if /i "%BASE%"==".venv" exit /b 0
+if /i "%BASE%"==".worktrees" exit /b 0
+
+if /i "%BASE%"=="__pycache__" (
+    call :remove_dir "%FULL%"
+    exit /b 0
+)
+
+set "SUF=!BASE:~-9!"
+if /i "!SUF!"==".egg-info" (
+    call :remove_dir "%FULL%"
+    exit /b 0
+)
+
+call :purge_generated_dirs_under "%FULL%"
+exit /b 0
+
+:purge_generated_files_under
+set "DIR=%~f1"
+if exist "%DIR%\*.pyc" (
+    for %%F in ("%DIR%\*.pyc") do call :remove_file "%%~fF"
+)
+if exist "%DIR%\*.pyo" (
+    for %%F in ("%DIR%\*.pyo") do call :remove_file "%%~fF"
+)
+for /d %%D in ("%DIR%\*") do call :purge_generated_files_child "%%~fD"
+exit /b 0
+
+:purge_generated_files_child
+set "FULL=%~f1"
+for %%N in ("%FULL%") do set "BASE=%%~nxN"
+
+if /i "%BASE%"==".git" exit /b 0
+if /i "%BASE%"==".venv" exit /b 0
+if /i "%BASE%"==".worktrees" exit /b 0
+
+call :purge_generated_files_under "%FULL%"
 exit /b 0
 
 :remove_dir

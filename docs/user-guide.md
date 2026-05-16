@@ -531,9 +531,15 @@ The qubit order is preserved exactly as passed.
 
 `HistogramMode.AUTO` resolves by runtime context:
 
-- normal script: `interactive`
+- normal script with `show=True`: `interactive`
+- hidden output with `show=False`: `static`
 - notebook widget backend such as `nbagg`, `ipympl`, or `widget`: `interactive`
 - inline or non-widget notebook backend: `static`
+
+Static histograms show compact value labels while the number of visible bars is modest.
+When more than 64 bars are visible, per-bin value labels are skipped so dense plots stay
+readable and render faster. Use `mode="interactive"` explicitly when you want the managed
+histogram controls even with `show=False`.
 
 In interactive mode, the managed figure can add:
 

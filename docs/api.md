@@ -568,7 +568,8 @@ Advanced appearance and interaction controls such as `hover`, `show_uniform_refe
 ### `HistogramMode`
 
 - `AUTO`
-  - normal script: `interactive`
+  - normal script with `show=True`: `interactive`
+  - hidden output with `show=False`: `static`
   - notebook widget backend such as `nbagg`, `ipympl`, or `widget`: `interactive`
   - inline or non-widget notebook backend: `static`
 - `STATIC`
@@ -648,6 +649,12 @@ Important fields:
 - `appearance.show_uniform_reference`: draw a uniform reference line for easier visual comparison
 - `output.output_path`: optional file path for saving
 - `output.figsize`: managed figure size in inches
+
+Static histogram notes:
+
+- visible bars show compact value labels while the plot is sparse enough to keep labels readable
+- dense static histograms with more than 64 visible bars skip per-bin value labels and rely on the y-axis and hover-capable interactive mode instead
+- use `mode="interactive"` explicitly when you want managed histogram controls even with `show=False`
 
 Interactive notes:
 

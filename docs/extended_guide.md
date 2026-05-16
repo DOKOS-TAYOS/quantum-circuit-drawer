@@ -1012,9 +1012,16 @@ The qubit order is preserved exactly as passed. For example, `qubits=(0, 2)` mea
 
 `HistogramMode.AUTO` resolves by runtime context:
 
-- normal script: `interactive`
+- normal script with `show=True`: `interactive`
+- hidden output with `show=False`: `static`
 - notebook widget backend such as `nbagg`, `ipympl`, or `widget`: `interactive`
 - inline or non-widget notebook backend: `static`
+
+Static histograms draw compact value labels when the visible bin count is modest. Once
+more than 64 bars are visible, those per-bin labels are skipped so dense histograms stay
+readable and avoid unnecessary Matplotlib text overhead. Use `HistogramMode.INTERACTIVE`
+explicitly when you want managed histogram controls even while suppressing automatic
+display with `show=False`.
 
 Interactive mode can add:
 
