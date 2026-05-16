@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored pre-PyPI Security workflow compatibility by installing the project
+  editably, freezing only non-editable packages, and auditing that pinned list
+  with `pip-audit --strict`.
+
 ## [1.1.0] - 2026-05-16
 
 ### Changed

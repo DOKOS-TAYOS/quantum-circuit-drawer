@@ -44,19 +44,20 @@ For CUDA-Q development, use Linux or WSL2:
 
 On native Windows, Cirq and PennyLane can still be limited by upstream SciPy/HiGHS behavior. For reliable end-to-end adapter work on those frameworks, Linux or WSL is the safer path.
 
-For local security checks, install the package non-editably in a clean environment so
-`pip-audit --skip-editable` does not stop on the project distribution itself.
+For local security checks, install the package editably in a clean environment so
+the audit can freeze installed dependencies without including the local project
+distribution before the new version exists on PyPI.
 
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install ".[dev,security]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,security]"
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip install ".[dev,security]"
+.venv/bin/python -m pip install -e ".[dev,security]"
 ```
 
 ## Repository Layout
@@ -131,14 +132,18 @@ Run the security audit tools before publishing or merging dependency changes:
 Windows PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip_audit --local --strict --skip-editable --progress-spinner off
+New-Item -ItemType Directory -Force .pytest_tmp
+.\.venv\Scripts\python.exe -m pip list --format=freeze --exclude-editable > .pytest_tmp\audit-requirements.txt
+.\.venv\Scripts\python.exe -m pip_audit -r .pytest_tmp\audit-requirements.txt --strict --no-deps --progress-spinner off
 .\.venv\Scripts\python.exe -m bandit -c pyproject.toml -r src scripts
 ```
 
 Linux or WSL:
 
 ```bash
-.venv/bin/python -m pip_audit --local --strict --skip-editable --progress-spinner off
+mkdir -p .pytest_tmp
+.venv/bin/python -m pip list --format=freeze --exclude-editable > .pytest_tmp/audit-requirements.txt
+.venv/bin/python -m pip_audit -r .pytest_tmp/audit-requirements.txt --strict --no-deps --progress-spinner off
 .venv/bin/python -m bandit -c pyproject.toml -r src scripts
 ```
 
