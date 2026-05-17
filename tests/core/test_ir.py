@@ -12,6 +12,7 @@ from quantum_circuit_drawer.ir.operations import (
     OperationKind,
     infer_canonical_gate_family,
 )
+from quantum_circuit_drawer.ir.packing import pack_operation_nodes
 from quantum_circuit_drawer.ir.semantic import (
     SemanticCircuitIR,
     SemanticLayerIR,
@@ -99,6 +100,126 @@ def test_circuit_ir_rejects_duplicate_wire_ids() -> None:
         )
 
 
+def test_circuit_ir_rejects_wires_in_wrong_wire_groups() -> None:
+    with pytest.raises(ValueError, match="quantum_wires must contain only quantum wires"):
+        CircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.CLASSICAL)],
+        )
+
+    with pytest.raises(ValueError, match="classical_wires must contain only classical wires"):
+        CircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM)],
+            classical_wires=[WireIR(id="c0", index=0, kind=WireKind.QUANTUM)],
+        )
+
+
+def test_circuit_ir_rejects_operations_that_reference_unknown_wires() -> None:
+    with pytest.raises(ValueError, match="operation references unknown wire id 'q1'"):
+        CircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM)],
+            layers=[
+                LayerIR(
+                    operations=[
+                        OperationIR(
+                            kind=OperationKind.GATE,
+                            name="H",
+                            target_wires=("q1",),
+                        )
+                    ]
+                )
+            ],
+        )
+
+
+def test_circuit_ir_rejects_operations_that_use_wrong_wire_kinds() -> None:
+    wires = {
+        "quantum_wires": [WireIR(id="q0", index=0, kind=WireKind.QUANTUM)],
+        "classical_wires": [WireIR(id="c0", index=0, kind=WireKind.CLASSICAL)],
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="operation control_wires must reference quantum wire ids",
+    ):
+        CircuitIR(
+            **wires,
+            layers=[
+                LayerIR(
+                    operations=[
+                        OperationIR(
+                            kind=OperationKind.CONTROLLED_GATE,
+                            name="X",
+                            target_wires=("q0",),
+                            control_wires=("c0",),
+                        )
+                    ]
+                )
+            ],
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="classical condition wire_ids must reference classical wire ids",
+    ):
+        CircuitIR(
+            **wires,
+            layers=[
+                LayerIR(
+                    operations=[
+                        OperationIR(
+                            kind=OperationKind.GATE,
+                            name="X",
+                            target_wires=("q0",),
+                            classical_conditions=(
+                                ClassicalConditionIR(wire_ids=("q0",), expression="q0 == 1"),
+                            ),
+                        )
+                    ]
+                )
+            ],
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="measurement target_wires must reference quantum wire ids",
+    ):
+        CircuitIR(
+            **wires,
+            layers=[
+                LayerIR(
+                    operations=[
+                        MeasurementIR(
+                            kind=OperationKind.MEASUREMENT,
+                            name="M",
+                            target_wires=("c0",),
+                            classical_target="c0",
+                        )
+                    ]
+                )
+            ],
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="measurement classical_target must reference a classical wire id",
+    ):
+        CircuitIR(
+            **wires,
+            layers=[
+                LayerIR(
+                    operations=[
+                        MeasurementIR(
+                            kind=OperationKind.MEASUREMENT,
+                            name="M",
+                            target_wires=("q0",),
+                            classical_target="q0",
+                        )
+                    ]
+                )
+            ],
+        )
+
+
 def test_operation_ir_normalizes_tuple_fields() -> None:
     operation = OperationIR(
         kind=OperationKind.CONTROLLED_GATE,
@@ -111,6 +232,34 @@ def test_operation_ir_normalizes_tuple_fields() -> None:
     assert operation.target_wires == ("q1",)
     assert operation.control_wires == ("q0",)
     assert operation.parameters == (3.1415,)
+
+
+def test_public_ir_normalizes_enum_strings() -> None:
+    wire = WireIR(id="q0", index=0, kind="quantum")  # type: ignore[arg-type]
+    operation = OperationIR(
+        kind="gate",  # type: ignore[arg-type]
+        name="H",
+        target_wires=("q0",),
+        canonical_family="custom",  # type: ignore[arg-type]
+    )
+    barrier = OperationIR(
+        kind="barrier",  # type: ignore[arg-type]
+        name="BARRIER",
+        target_wires=(),
+    )
+    semantic_operation = SemanticOperationIR(
+        kind="measurement",  # type: ignore[arg-type]
+        name="M",
+        target_wires=("q0",),
+        classical_target="c0",
+    )
+
+    assert wire.kind is WireKind.QUANTUM
+    assert operation.kind is OperationKind.GATE
+    assert operation.canonical_family is CanonicalGateFamily.H
+    assert barrier.kind is OperationKind.BARRIER
+    assert barrier.target_wires == ()
+    assert semantic_operation.kind is OperationKind.MEASUREMENT
 
 
 def test_operation_ir_normalizes_control_values_and_requires_alignment() -> None:
@@ -143,6 +292,9 @@ def test_classical_condition_ir_normalizes_wire_ids_and_requires_expression() ->
 
     with pytest.raises(ValueError, match="classical condition expression cannot be empty"):
         ClassicalConditionIR(wire_ids=("c0",), expression="")
+
+    with pytest.raises(ValueError, match="wire id cannot be empty"):
+        ClassicalConditionIR(wire_ids=("",), expression="if c=3")
 
 
 def test_operation_ir_normalizes_classical_conditions_and_occupied_wire_ids() -> None:
@@ -185,6 +337,19 @@ def test_operation_ir_occupied_wire_ids_preserve_first_occurrence() -> None:
     assert operation.occupied_wire_ids == ("q0", "q1")
 
 
+def test_operation_ir_rejects_empty_wire_ids() -> None:
+    with pytest.raises(ValueError, match="wire id cannot be empty"):
+        OperationIR(kind=OperationKind.GATE, name="H", target_wires=("",))
+
+    with pytest.raises(ValueError, match="wire id cannot be empty"):
+        OperationIR(
+            kind=OperationKind.CONTROLLED_GATE,
+            name="X",
+            target_wires=("q1",),
+            control_wires=("",),
+        )
+
+
 def test_measurement_ir_requires_classical_target_and_tracks_classical_slot() -> None:
     with pytest.raises(ValueError, match="measurement operations require a classical_target"):
         MeasurementIR(
@@ -192,6 +357,17 @@ def test_measurement_ir_requires_classical_target_and_tracks_classical_slot() ->
             name="M",
             target_wires=("q0",),
             classical_target=None,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="measurement operation must reference at least one target wire",
+    ):
+        MeasurementIR(
+            kind=OperationKind.BARRIER,
+            name="M",
+            target_wires=(),
+            classical_target="c0",
         )
 
     measurement = MeasurementIR(
@@ -204,6 +380,67 @@ def test_measurement_ir_requires_classical_target_and_tracks_classical_slot() ->
     assert measurement.kind is OperationKind.MEASUREMENT
     assert "q0" in measurement.occupied_wire_ids
     assert "c0" in measurement.occupied_wire_ids
+
+
+def test_measurement_ir_normalizes_classical_target_and_rejects_empty_target() -> None:
+    measurement = MeasurementIR(
+        kind=OperationKind.MEASUREMENT,
+        name="M",
+        target_wires=("q0",),
+        classical_target=0,  # type: ignore[arg-type]
+    )
+
+    assert measurement.classical_target == "0"
+    assert measurement.occupied_wire_ids == ("q0", "0")
+
+    with pytest.raises(ValueError, match="measurement classical_target cannot be empty"):
+        MeasurementIR(
+            kind=OperationKind.MEASUREMENT,
+            name="M",
+            target_wires=("q0",),
+            classical_target="",
+        )
+
+
+def test_measurement_ir_tracks_metadata_wire_dependencies_for_packing() -> None:
+    measurement = MeasurementIR(
+        kind=OperationKind.MEASUREMENT,
+        name="M",
+        target_wires=("q0",),
+        classical_target="c1",
+        metadata={"occupied_wire_dependencies": ("c0",)},
+    )
+    dependent_gate = OperationIR(
+        kind=OperationKind.GATE,
+        name="H",
+        target_wires=("q1",),
+        metadata={"occupied_wire_dependencies": ("c0",)},
+    )
+
+    assert "c0" in measurement.occupied_wire_ids
+    assert [
+        [operation.name for operation in layer.operations]
+        for layer in pack_operation_nodes((measurement, dependent_gate))
+    ] == [["M"], ["H"]]
+
+
+def test_ir_operations_ignore_empty_metadata_wire_dependencies() -> None:
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="H",
+        target_wires=("q0",),
+        metadata={"occupied_wire_dependencies": ""},
+    )
+    measurement = MeasurementIR(
+        kind=OperationKind.MEASUREMENT,
+        name="M",
+        target_wires=("q1",),
+        classical_target="c0",
+        metadata={"occupied_wire_dependencies": ""},
+    )
+
+    assert operation.occupied_wire_ids == ("q0",)
+    assert measurement.occupied_wire_ids == ("q1", "c0")
 
 
 def test_lower_semantic_circuit_preserves_measurement_targets_and_semantic_metadata() -> None:

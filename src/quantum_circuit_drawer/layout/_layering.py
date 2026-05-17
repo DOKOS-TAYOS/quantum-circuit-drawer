@@ -310,7 +310,7 @@ def _control_flow_group_dependency_wire_ids(operation: OperationNode) -> frozens
 
 def _wire_dependency_metadata(value: object) -> tuple[str, ...]:
     if isinstance(value, str):
-        return (value,)
+        return (value,) if value else ()
     if not isinstance(value, Sequence):
         return ()
     return tuple(str(wire_id) for wire_id in value if str(wire_id))

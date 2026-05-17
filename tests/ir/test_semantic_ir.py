@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from quantum_circuit_drawer.ir import (
     CircuitIR,
     ClassicalConditionIR,
@@ -101,6 +103,143 @@ def test_semantic_circuit_from_plain_circuit_ir_keeps_legacy_contract_intact() -
     assert semantic_operation.hover_details == ()
     assert semantic_operation.provenance.framework == "ir"
     assert semantic_operation.provenance.native_name is None
+
+
+def test_semantic_circuit_ir_rejects_wires_in_wrong_wire_groups() -> None:
+    with pytest.raises(
+        ValueError,
+        match="semantic quantum_wires must contain only quantum wires",
+    ):
+        SemanticCircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.CLASSICAL)],
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="semantic classical_wires must contain only classical wires",
+    ):
+        SemanticCircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM)],
+            classical_wires=[WireIR(id="c0", index=0, kind=WireKind.QUANTUM)],
+        )
+
+
+def test_semantic_circuit_ir_rejects_operations_that_reference_unknown_wires() -> None:
+    with pytest.raises(ValueError, match="semantic operation references unknown wire id 'q1'"):
+        SemanticCircuitIR(
+            quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+            layers=[
+                SemanticLayerIR(
+                    operations=[
+                        SemanticOperationIR(
+                            kind=OperationKind.GATE,
+                            name="H",
+                            target_wires=("q1",),
+                        )
+                    ]
+                )
+            ],
+        )
+
+
+def test_semantic_operation_ir_normalizes_classical_target_and_rejects_empty_target() -> None:
+    operation = SemanticOperationIR(
+        kind=OperationKind.MEASUREMENT,
+        name="M",
+        target_wires=("q0",),
+        classical_target=0,  # type: ignore[arg-type]
+    )
+
+    assert operation.classical_target == "0"
+    assert operation.occupied_wire_ids == ("q0", "0")
+
+    with pytest.raises(ValueError, match="semantic classical_target cannot be empty"):
+        SemanticOperationIR(
+            kind=OperationKind.MEASUREMENT,
+            name="M",
+            target_wires=("q0",),
+            classical_target="",
+        )
+
+
+def test_semantic_operation_ir_rejects_empty_wire_ids() -> None:
+    with pytest.raises(ValueError, match="wire id cannot be empty"):
+        SemanticOperationIR(kind=OperationKind.GATE, name="H", target_wires=("",))
+
+    with pytest.raises(ValueError, match="wire id cannot be empty"):
+        SemanticOperationIR(
+            kind=OperationKind.CONTROLLED_GATE,
+            name="X",
+            target_wires=("q1",),
+            control_wires=("",),
+        )
+
+
+def test_semantic_circuit_ir_rejects_operations_that_use_wrong_wire_kinds() -> None:
+    wires = {
+        "quantum_wires": [WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        "classical_wires": [WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c0")],
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="semantic operation control_wires must reference quantum wire ids",
+    ):
+        SemanticCircuitIR(
+            **wires,
+            layers=[
+                SemanticLayerIR(
+                    operations=[
+                        SemanticOperationIR(
+                            kind=OperationKind.CONTROLLED_GATE,
+                            name="X",
+                            target_wires=("q0",),
+                            control_wires=("c0",),
+                        )
+                    ]
+                )
+            ],
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="semantic measurement target_wires must reference quantum wire ids",
+    ):
+        SemanticCircuitIR(
+            **wires,
+            layers=[
+                SemanticLayerIR(
+                    operations=[
+                        SemanticOperationIR(
+                            kind=OperationKind.MEASUREMENT,
+                            name="M",
+                            target_wires=("c0",),
+                            classical_target="c0",
+                        )
+                    ]
+                )
+            ],
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="semantic measurement classical_target must reference a classical wire id",
+    ):
+        SemanticCircuitIR(
+            **wires,
+            layers=[
+                SemanticLayerIR(
+                    operations=[
+                        SemanticOperationIR(
+                            kind=OperationKind.MEASUREMENT,
+                            name="M",
+                            target_wires=("q0",),
+                            classical_target="q0",
+                        )
+                    ]
+                )
+            ],
+        )
 
 
 def test_semantic_circuit_from_circuit_ir_preserves_lowered_semantic_provenance() -> None:
@@ -232,6 +371,29 @@ def test_pack_semantic_operations_compacts_control_flow_body_with_classical_depe
         ["H0", "H1", "H2"],
         ["M_AFTER"],
     ]
+
+
+def test_pack_semantic_operations_ignores_empty_metadata_wire_dependencies() -> None:
+    operations = [
+        SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name="H",
+            target_wires=("q0",),
+            metadata={"occupied_wire_dependencies": ""},
+        ),
+        SemanticOperationIR(
+            kind=OperationKind.GATE,
+            name="X",
+            target_wires=("q1",),
+            metadata={"occupied_wire_dependencies": ""},
+        ),
+    ]
+
+    assert operations[0].occupied_wire_ids == ("q0",)
+    assert [
+        [operation.name for operation in layer.operations]
+        for layer in pack_semantic_operations(operations)
+    ] == [["H", "X"]]
 
 
 def test_pack_semantic_operations_reserves_control_flow_span_from_external_gates() -> None:

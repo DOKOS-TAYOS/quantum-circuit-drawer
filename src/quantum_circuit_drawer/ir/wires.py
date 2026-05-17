@@ -21,6 +21,14 @@ class WireKind(StrEnum):
     CLASSICAL = "classical"
 
 
+def _normalize_wire_kind(value: WireKind | str) -> WireKind:
+    try:
+        return value if isinstance(value, WireKind) else WireKind(str(value))
+    except ValueError as exc:
+        choices = ", ".join(kind.value for kind in WireKind)
+        raise ValueError(f"wire kind must be one of: {choices}") from exc
+
+
 @dataclass(slots=True)
 class WireIR:
     """Framework-neutral wire description.
@@ -40,6 +48,7 @@ class WireIR:
     metadata: Metadata = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        self.kind = _normalize_wire_kind(self.kind)
         if not self.id:
             raise ValueError("wire id cannot be empty")
         if self.label is None:

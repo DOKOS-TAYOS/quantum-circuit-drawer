@@ -11,14 +11,19 @@ from .classical_conditions import ClassicalConditionIR
 from .operations import (
     CanonicalGateFamily,
     OperationKind,
+    _normalize_canonical_gate_family,
     _normalize_control_values,
+    _normalize_operation_kind,
     infer_canonical_gate_family,
 )
-from .wires import WireIR
+from .wires import WireIR, WireKind
 
 
 def _normalize_wire_ids(values: Sequence[str]) -> tuple[str, ...]:
-    return tuple(str(value) for value in values)
+    normalized = tuple(str(value) for value in values)
+    if any(not wire_id for wire_id in normalized):
+        raise ValueError("wire id cannot be empty")
+    return normalized
 
 
 def _normalize_parameters(values: Sequence[object]) -> tuple[object, ...]:
@@ -38,7 +43,7 @@ def _normalize_texts(values: Sequence[object]) -> tuple[str, ...]:
 def _metadata_wire_dependencies(metadata: Metadata) -> tuple[str, ...]:
     value = metadata.get("occupied_wire_dependencies")
     if isinstance(value, str):
-        return (value,)
+        return (value,) if value else ()
     if not isinstance(value, Sequence):
         return ()
     return tuple(str(wire_id) for wire_id in value if str(wire_id))
@@ -132,6 +137,7 @@ class SemanticOperationIR:
     def __post_init__(self) -> None:
         normalized_name = self.name.strip()
         self.name = normalized_name
+        self.kind = _normalize_operation_kind(self.kind)
         self.target_wires = _normalize_wire_ids(self.target_wires)
         self.control_wires = _normalize_wire_ids(self.control_wires)
         self.control_values = _normalize_control_values(self.control_values)
@@ -139,6 +145,7 @@ class SemanticOperationIR:
         self.parameters = _normalize_parameters(self.parameters)
         self.annotations = _normalize_texts(self.annotations)
         self.hover_details = _normalize_texts(self.hover_details)
+        self.canonical_family = _normalize_canonical_gate_family(self.canonical_family)
         if not normalized_name:
             raise ValueError("semantic operation name cannot be empty")
         if not self.target_wires and self.kind is not OperationKind.BARRIER:
@@ -151,6 +158,10 @@ class SemanticOperationIR:
             self.canonical_family = infer_canonical_gate_family(self.name)
         if self.kind is OperationKind.MEASUREMENT and self.classical_target is None:
             raise ValueError("semantic measurement operations require a classical_target")
+        if self.classical_target is not None:
+            self.classical_target = str(self.classical_target)
+            if not self.classical_target:
+                raise ValueError("semantic classical_target cannot be empty")
 
     @property
     def occupied_wire_ids(self) -> tuple[str, ...]:
@@ -209,9 +220,13 @@ class SemanticCircuitIR:
         self.classical_wires = tuple(self.classical_wires)
         self.layers = tuple(self.layers)
         self.diagnostics = tuple(self.diagnostics)
+        _validate_semantic_wire_group_kinds(self.quantum_wires, self.classical_wires)
         wire_ids = [wire.id for wire in self.all_wires]
         if len(wire_ids) != len(set(wire_ids)):
             raise ValueError("wire ids must be unique across semantic quantum and classical wires")
+        wire_map = {wire.id: wire for wire in self.all_wires}
+        _validate_semantic_operation_wire_references(self.layers, known_wire_ids=set(wire_ids))
+        _validate_semantic_operation_wire_kinds(self.layers, wire_map=wire_map)
 
     @property
     def all_wires(self) -> tuple[WireIR, ...]:
@@ -220,6 +235,79 @@ class SemanticCircuitIR:
     @property
     def wire_map(self) -> dict[str, WireIR]:
         return {wire.id: wire for wire in self.all_wires}
+
+
+def _validate_semantic_wire_group_kinds(
+    quantum_wires: tuple[WireIR, ...],
+    classical_wires: tuple[WireIR, ...],
+) -> None:
+    if any(wire.kind is not WireKind.QUANTUM for wire in quantum_wires):
+        raise ValueError("semantic quantum_wires must contain only quantum wires")
+    if any(wire.kind is not WireKind.CLASSICAL for wire in classical_wires):
+        raise ValueError("semantic classical_wires must contain only classical wires")
+
+
+def _validate_semantic_operation_wire_references(
+    layers: tuple[SemanticLayerIR, ...],
+    *,
+    known_wire_ids: set[str],
+) -> None:
+    for layer in layers:
+        for operation in layer.operations:
+            for wire_id in operation.occupied_wire_ids:
+                if wire_id not in known_wire_ids:
+                    raise ValueError(f"semantic operation references unknown wire id {wire_id!r}")
+
+
+def _validate_semantic_operation_wire_kinds(
+    layers: tuple[SemanticLayerIR, ...],
+    *,
+    wire_map: dict[str, WireIR],
+) -> None:
+    for layer in layers:
+        for operation in layer.operations:
+            _validate_semantic_wire_ids_have_kind(
+                operation.control_wires,
+                wire_map=wire_map,
+                expected_kind=WireKind.QUANTUM,
+                message="semantic operation control_wires must reference quantum wire ids",
+            )
+            for condition in operation.classical_conditions:
+                _validate_semantic_wire_ids_have_kind(
+                    condition.wire_ids,
+                    wire_map=wire_map,
+                    expected_kind=WireKind.CLASSICAL,
+                    message=(
+                        "semantic classical condition wire_ids must reference classical wire ids"
+                    ),
+                )
+            if operation.kind is OperationKind.MEASUREMENT:
+                _validate_semantic_wire_ids_have_kind(
+                    operation.target_wires,
+                    wire_map=wire_map,
+                    expected_kind=WireKind.QUANTUM,
+                    message="semantic measurement target_wires must reference quantum wire ids",
+                )
+            if operation.classical_target is not None:
+                _validate_semantic_wire_ids_have_kind(
+                    (operation.classical_target,),
+                    wire_map=wire_map,
+                    expected_kind=WireKind.CLASSICAL,
+                    message=(
+                        "semantic measurement classical_target must reference a classical wire id"
+                    ),
+                )
+
+
+def _validate_semantic_wire_ids_have_kind(
+    wire_ids: Sequence[str],
+    *,
+    wire_map: dict[str, WireIR],
+    expected_kind: WireKind,
+    message: str,
+) -> None:
+    if any(wire_map[wire_id].kind is not expected_kind for wire_id in wire_ids):
+        raise ValueError(message)
 
 
 def pack_semantic_operations(
@@ -495,7 +583,7 @@ def _control_flow_group_dependency_wire_ids(operation: SemanticOperationIR) -> f
 
 def _wire_dependency_metadata(value: object) -> tuple[str, ...]:
     if isinstance(value, str):
-        return (value,)
+        return (value,) if value else ()
     if not isinstance(value, Sequence):
         return ()
     return tuple(str(wire_id) for wire_id in value if str(wire_id))

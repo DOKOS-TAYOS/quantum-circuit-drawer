@@ -89,6 +89,24 @@
   `CircuitAnalysisResult`, and histogram results before dictionary serialization.
 - Rejected misaligned histogram result values during construction before they can
   produce inconsistent dictionaries or late CSV export failures.
+- Normalized public IR enum strings in `WireIR`, `OperationIR`, and
+  `SemanticOperationIR` so directly built `CircuitIR` objects render reliably.
+- Rejected public `CircuitIR` and `SemanticCircuitIR` operations that reference
+  unknown wire ids before layout can fail with a late `KeyError`.
+- Rejected public `CircuitIR` and `SemanticCircuitIR` operations that use classical
+  wires as quantum controls or quantum wires as classical conditions/destinations.
+- Rejected public `CircuitIR` and `SemanticCircuitIR` wire groups that contain wires
+  with the wrong `WireKind` before counts and rendering can drift apart.
+- Included measurement `occupied_wire_dependencies` metadata in `MeasurementIR`
+  occupancy so packing does not place dependent operations in the same layer.
+- Rejected `MeasurementIR` objects that become measurements without target wires
+  after construction-time kind normalization.
+- Normalized non-string measurement `classical_target` values and rejected empty
+  classical targets before wire validation.
+- Rejected empty operation and classical-condition wire ids during public IR
+  construction before they can reach packing or layout.
+- Ignored empty string metadata wire dependencies consistently instead of treating
+  them as a real blank wire id.
 
 ## [1.1.0] - 2026-05-16
 

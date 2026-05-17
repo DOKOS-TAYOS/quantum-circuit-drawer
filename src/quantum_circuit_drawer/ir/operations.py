@@ -106,7 +106,10 @@ def _canonical_name_token(name: str) -> str:
 
 
 def _normalize_wire_ids(values: Sequence[str]) -> tuple[str, ...]:
-    return tuple(str(value) for value in values)
+    normalized = tuple(str(value) for value in values)
+    if any(not wire_id for wire_id in normalized):
+        raise ValueError("wire id cannot be empty")
+    return normalized
 
 
 def _normalize_parameters(values: Sequence[object]) -> tuple[object, ...]:
@@ -123,10 +126,28 @@ def _normalize_classical_conditions(
     return tuple(values)
 
 
+def _normalize_operation_kind(value: OperationKind | str) -> OperationKind:
+    try:
+        return value if isinstance(value, OperationKind) else OperationKind(str(value))
+    except ValueError as exc:
+        choices = ", ".join(kind.value for kind in OperationKind)
+        raise ValueError(f"operation kind must be one of: {choices}") from exc
+
+
+def _normalize_canonical_gate_family(
+    value: CanonicalGateFamily | str,
+) -> CanonicalGateFamily:
+    try:
+        return value if isinstance(value, CanonicalGateFamily) else CanonicalGateFamily(str(value))
+    except ValueError as exc:
+        choices = ", ".join(family.value for family in CanonicalGateFamily)
+        raise ValueError(f"canonical_family must be one of: {choices}") from exc
+
+
 def _metadata_wire_dependencies(metadata: Metadata) -> tuple[str, ...]:
     value = metadata.get("occupied_wire_dependencies")
     if isinstance(value, str):
-        return (value,)
+        return (value,) if value else ()
     if not isinstance(value, Sequence):
         return ()
     return tuple(str(wire_id) for wire_id in value if str(wire_id))
@@ -181,11 +202,13 @@ class OperationIR:
     def __post_init__(self) -> None:
         normalized_name = self.name.strip()
         self.name = normalized_name
+        self.kind = _normalize_operation_kind(self.kind)
         self.target_wires = _normalize_wire_ids(self.target_wires)
         self.control_wires = _normalize_wire_ids(self.control_wires)
         self.control_values = _normalize_control_values(self.control_values)
         self.classical_conditions = _normalize_classical_conditions(self.classical_conditions)
         self.parameters = _normalize_parameters(self.parameters)
+        self.canonical_family = _normalize_canonical_gate_family(self.canonical_family)
         if not normalized_name:
             raise ValueError("operation name cannot be empty")
         if not self.target_wires and self.kind is not OperationKind.BARRIER:

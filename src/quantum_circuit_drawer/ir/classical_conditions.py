@@ -9,7 +9,10 @@ from ..typing import Metadata
 
 
 def _normalize_wire_ids(values: Sequence[str]) -> tuple[str, ...]:
-    return tuple(str(value) for value in values)
+    normalized = tuple(str(value) for value in values)
+    if any(not wire_id for wire_id in normalized):
+        raise ValueError("wire id cannot be empty")
+    return normalized
 
 
 @dataclass(frozen=True, slots=True)
