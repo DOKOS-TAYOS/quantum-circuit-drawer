@@ -9,6 +9,8 @@
   `1.6+`, PennyLane `0.42+`, CUDA-Q `0.14+` on Linux, and ipympl `0.10+`.
 - Removed unused private layout helpers while keeping compatibility facades
   intact.
+- Fixed Matplotlib path-code typing so `mypy` accepts continued control-flow
+  frame rendering.
 
 ### Fixed
 

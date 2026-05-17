@@ -177,7 +177,7 @@ def _continued_group_highlight_patch(
 
     def append_segment(start: tuple[float, float], end: tuple[float, float]) -> None:
         vertices.extend((start, end))
-        codes.extend((Path.MOVETO, Path.LINETO))
+        codes.extend((int(Path.MOVETO), int(Path.LINETO)))
 
     append_segment((x_min, y_min), (x_max, y_min))
     append_segment((x_min, y_max), (x_max, y_max))
