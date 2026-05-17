@@ -223,6 +223,24 @@ def test_internal_modules_import_real_owners_not_root_compatibility_shims() -> N
     assert sorted(set(violations)) == []
 
 
+def test_internal_modules_use_stdlib_strenum_directly() -> None:
+    repo_root = next(
+        parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()
+    )
+    package_root = repo_root / "src" / "quantum_circuit_drawer"
+
+    violations: list[str] = []
+    if (package_root / "_compat.py").exists():
+        violations.append("src/quantum_circuit_drawer/_compat.py")
+
+    for source_file in package_root.rglob("*.py"):
+        source_text = source_file.read_text(encoding="utf-8")
+        if "._compat import StrEnum" in source_text or ".._compat import StrEnum" in source_text:
+            violations.append(str(source_file.relative_to(repo_root)).replace("\\", "/"))
+
+    assert sorted(set(violations)) == []
+
+
 def test_managed_modules_import_owner_modules_not_managed_drawing_facade() -> None:
     repo_root = next(
         parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()

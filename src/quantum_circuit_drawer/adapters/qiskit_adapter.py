@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Protocol, cast
 
@@ -26,6 +28,11 @@ from ._helpers import (
     semantic_provenance,
 )
 from .base import BaseAdapter
+
+_PERMUTATION_NAME_PATTERN = re.compile(
+    r"^permutation(?:_\[(?P<values>[^\]]*)\])?$",
+    flags=re.IGNORECASE,
+)
 
 
 class _QiskitRegisterLike(Protocol):
@@ -121,6 +128,7 @@ class QiskitAdapter(BaseAdapter):
         explicit_matrices: bool = True,
         decomposition_origin: str | None = None,
         composite_label: str | None = None,
+        matrix_gate_label_override: str | None = None,
     ) -> list[SemanticOperationIR]:
         operation, qubits, clbits = self._normalize_entry(entry)
         raw_name = str(getattr(operation, "name", operation.__class__.__name__))
@@ -233,13 +241,45 @@ class QiskitAdapter(BaseAdapter):
                 )
             ]
 
+        if self._is_permutation_instruction(operation, raw_name=raw_name):
+            if not target_wires:
+                raise UnsupportedOperationError(
+                    f"Qiskit permutation operation '{raw_name}' has no drawable targets"
+                )
+            return [
+                SemanticOperationIR(
+                    kind=OperationKind.GATE,
+                    name="PERMUT",
+                    label="PERMUT",
+                    target_wires=target_wires,
+                    parameters=(),
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=raw_name,
+                        native_kind="gate",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=location,
+                    ),
+                    metadata={
+                        **matrix_metadata,
+                        "suppress_params": True,
+                        **self._permutation_subtitle_metadata(operation, raw_name=raw_name),
+                    },
+                )
+            ]
+
         control_count = int(getattr(operation, "num_ctrl_qubits", 0) or 0)
         if control_count > 0 and len(target_wires) > control_count:
             base_gate = getattr(operation, "base_gate", None)
-            if composite_mode == "expand" and self._can_expand_matrix_gate_definition(
-                operation,
-                raw_name=raw_name,
-                base_gate=base_gate,
+            if (
+                matrix_gate_label_override is None
+                and composite_mode == "expand"
+                and self._can_expand_matrix_gate_definition(
+                    operation,
+                    raw_name=raw_name,
+                    base_gate=base_gate,
+                )
             ):
                 expanded_matrix_gate = self._expand_definition(
                     operation=operation,
@@ -259,6 +299,7 @@ class QiskitAdapter(BaseAdapter):
                 operation,
                 raw_name=raw_name,
                 base_gate=base_gate,
+                label_override=matrix_gate_label_override,
             )
             canonical_gate = canonical_gate_spec(str(base_name))
             operation_label = matrix_gate_label or canonical_gate.label
@@ -309,7 +350,11 @@ class QiskitAdapter(BaseAdapter):
             if expanded_matrix_gate:
                 return expanded_matrix_gate
 
-        matrix_gate_label = self._matrix_gate_display_label(operation, raw_name=raw_name)
+        matrix_gate_label = self._matrix_gate_display_label(
+            operation,
+            raw_name=raw_name,
+            label_override=matrix_gate_label_override,
+        )
         if matrix_gate_label is not None:
             if not target_wires:
                 raise UnsupportedOperationError(
@@ -462,9 +507,13 @@ class QiskitAdapter(BaseAdapter):
         *,
         raw_name: str,
         base_gate: object | None = None,
+        label_override: str | None = None,
     ) -> str | None:
         if not self._has_matrix_parameter(operation) and not self._has_matrix_parameter(base_gate):
             return None
+
+        if label_override is not None:
+            return label_override
 
         explicit_label = self._explicit_label(operation) or self._explicit_label(base_gate)
         if explicit_label is not None:
@@ -511,6 +560,67 @@ class QiskitAdapter(BaseAdapter):
     def _is_default_matrix_gate_name(self, name: str) -> bool:
         token = "".join(character for character in name.lower() if character.isalnum())
         return token in {"unitary", "cunitary"} or token.startswith("unitary")
+
+    def _is_permutation_instruction(self, operation: object, *, raw_name: str) -> bool:
+        if _PERMUTATION_NAME_PATTERN.fullmatch(raw_name.strip()) is not None:
+            return True
+        return getattr(operation, "pattern", None) is not None
+
+    def _permutation_subtitle_metadata(
+        self,
+        operation: object,
+        *,
+        raw_name: str,
+    ) -> dict[str, object]:
+        pattern = self._permutation_pattern(operation, raw_name=raw_name)
+        if pattern is None:
+            return {}
+        subtitle = self._format_permutation_pattern(pattern)
+        if subtitle is None:
+            return {}
+        return {
+            "display_subtitle": subtitle,
+            "subtitle_font_scale": 0.46,
+        }
+
+    def _permutation_pattern(
+        self,
+        operation: object,
+        *,
+        raw_name: str,
+    ) -> tuple[object, ...] | None:
+        pattern = getattr(operation, "pattern", None)
+        if pattern is not None and not isinstance(pattern, str | bytes):
+            try:
+                return tuple(pattern)
+            except TypeError:
+                return None
+
+        match = _PERMUTATION_NAME_PATTERN.fullmatch(raw_name.strip())
+        if match is None:
+            return None
+        values = match.group("values")
+        if values is None:
+            return None
+        return tuple(self._parse_permutation_value(value) for value in values.split(","))
+
+    def _format_permutation_pattern(self, pattern: Sequence[object]) -> str | None:
+        if not pattern:
+            return "[]"
+        pseudo_qubit_count = max(1, math.ceil(math.log2(len(pattern))))
+        return format_state_vector_parameters(
+            pattern,
+            qubit_count=pseudo_qubit_count,
+        )
+
+    def _parse_permutation_value(self, value: str) -> object:
+        stripped_value = value.strip()
+        if not stripped_value:
+            return stripped_value
+        try:
+            return int(stripped_value)
+        except ValueError:
+            return stripped_value
 
     def _compact_composite_label(
         self,
@@ -771,6 +881,10 @@ class QiskitAdapter(BaseAdapter):
         }
 
         expanded_operations: list[SemanticOperationIR] = []
+        matrix_label_overrides = self._definition_matrix_label_overrides(
+            definition=definition,
+            composite_name=composite_name,
+        )
         for nested_index, inner_entry in enumerate(definition.data):
             expanded_operations.extend(
                 self._convert_instruction(
@@ -783,9 +897,54 @@ class QiskitAdapter(BaseAdapter):
                     explicit_matrices=explicit_matrices,
                     decomposition_origin=composite_name,
                     composite_label=composite_name,
+                    matrix_gate_label_override=matrix_label_overrides.get(nested_index),
                 )
             )
         return expanded_operations
+
+    def _definition_matrix_label_overrides(
+        self,
+        *,
+        definition: object,
+        composite_name: str,
+    ) -> dict[int, str]:
+        if not self._is_inverse_qpe_name(composite_name):
+            return {}
+
+        controlled_unitary_indexes: list[int] = []
+        for nested_index, inner_entry in enumerate(getattr(definition, "data", ()) or ()):
+            operation, _, _ = self._normalize_entry(inner_entry)
+            raw_name = str(getattr(operation, "name", operation.__class__.__name__))
+            if self._explicit_label(operation) is not None:
+                continue
+            base_gate = getattr(operation, "base_gate", None)
+            if self._explicit_label(base_gate) is not None:
+                continue
+            if self._is_controlled_default_unitary(operation, raw_name=raw_name):
+                controlled_unitary_indexes.append(nested_index)
+
+        return {
+            nested_index: f"unitary^{2**power_index}_dg"
+            for nested_index, power_index in zip(
+                controlled_unitary_indexes,
+                reversed(range(len(controlled_unitary_indexes))),
+                strict=True,
+            )
+        }
+
+    def _is_inverse_qpe_name(self, name: str) -> bool:
+        token = name.strip().lower().replace("-", "_")
+        return token in {"qpe_dg", "phase_estimation_dg", "phaseestimation_dg"}
+
+    def _is_controlled_default_unitary(self, operation: object, *, raw_name: str) -> bool:
+        control_count = int(getattr(operation, "num_ctrl_qubits", 0) or 0)
+        if control_count <= 0:
+            return False
+        base_gate = getattr(operation, "base_gate", None)
+        if not self._has_matrix_parameter(operation) and not self._has_matrix_parameter(base_gate):
+            return False
+        candidate_name = str(getattr(base_gate, "name", raw_name) or raw_name)
+        return self._is_default_matrix_gate_name(candidate_name)
 
     def _is_composite_instruction(self, operation: object) -> bool:
         definition = getattr(operation, "definition", None)
@@ -800,9 +959,6 @@ class QiskitAdapter(BaseAdapter):
     ) -> tuple[object, tuple[object, ...], tuple[object, ...]]:
         if hasattr(entry, "operation") and hasattr(entry, "qubits") and hasattr(entry, "clbits"):
             return entry.operation, tuple(entry.qubits), tuple(entry.clbits)
-        if isinstance(entry, tuple) and len(entry) == 3:
-            operation, qubits, clbits = entry
-            return operation, tuple(qubits), tuple(clbits)
         raise UnsupportedOperationError(f"unsupported Qiskit instruction shape: {type(entry)!r}")
 
     def _build_classical_wires(
@@ -904,27 +1060,10 @@ class QiskitAdapter(BaseAdapter):
         circuit: _QiskitCircuitLike,
         bit: object,
     ) -> tuple[_QiskitRegisterLike | None, int | None]:
-        find_bit = getattr(circuit, "find_bit", None)
-        if callable(find_bit):
-            try:
-                location = find_bit(bit)
-            except Exception:
-                location = None
-            registers = getattr(location, "registers", ()) if location is not None else ()
-            for register, bit_index in registers:
-                return cast(_QiskitRegisterLike, register), int(bit_index)
-
-        for register in tuple(getattr(circuit, "qregs", ()) or ()):
-            for bit_index, registered_bit in enumerate(register):
-                if registered_bit is bit or registered_bit == bit:
-                    return register, bit_index
-
-        register = getattr(bit, "_register", None)
-        bit_index = getattr(bit, "_index", None)
-        if register is None:
-            return None, None
-        resolved_bit_index = int(bit_index) if bit_index is not None else None
-        return cast(_QiskitRegisterLike, register), resolved_bit_index
+        location = circuit.find_bit(bit)
+        for register, bit_index in getattr(location, "registers", ()):
+            return cast(_QiskitRegisterLike, register), int(bit_index)
+        return None, None
 
     def _register_size(self, register: _QiskitRegisterLike) -> int:
         return len(tuple(register))

@@ -260,9 +260,12 @@ class HistogramInteractiveState:
         """Move the active histogram window to one new starting bin."""
 
         previous_window_start = self.window_start
-        self.window_start = min(max(0, int(start)), self.max_window_start)
-        self.redraw()
-        level = logging.INFO if self.window_start != previous_window_start else logging.DEBUG
+        requested_window_start = int(start)
+        self.window_start = min(max(0, requested_window_start), self.max_window_start)
+        changed = self.window_start != previous_window_start
+        if changed:
+            self.redraw(refresh_controls=False, sync_marginal_text=False)
+        level = logging.INFO if changed else logging.DEBUG
         _log_histogram_interaction(
             self,
             level,
@@ -273,12 +276,16 @@ class HistogramInteractiveState:
             source=source,
             before=previous_window_start,
             after=self.window_start,
-            requested=int(start),
+            requested=requested_window_start,
             max_window_start=self.max_window_start,
             reason=(
                 None
                 if level == logging.INFO
-                else ("already_active" if int(start) == previous_window_start else "clamped")
+                else (
+                    "already_active"
+                    if requested_window_start == previous_window_start
+                    else "clamped"
+                )
             ),
         )
 
@@ -331,6 +338,8 @@ class HistogramInteractiveState:
         self,
         *,
         precomputed_values_by_state: Mapping[str, float] | None = None,
+        refresh_controls: bool = True,
+        sync_marginal_text: bool = True,
     ) -> None:
         """Recompute the visible histogram view and redraw the managed figure."""
 
@@ -422,8 +431,10 @@ class HistogramInteractiveState:
                 ),
             )
         sync_slider(self)
-        sync_marginal_text_box(self)
-        refresh_histogram_controls(self)
+        if sync_marginal_text:
+            sync_marginal_text_box(self)
+        if refresh_controls:
+            refresh_histogram_controls(self)
         canvas = getattr(self.figure, "canvas", None)
         if canvas is not None:
             canvas.draw_idle()

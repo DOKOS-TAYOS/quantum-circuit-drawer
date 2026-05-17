@@ -345,7 +345,7 @@ Public topology helpers:
 
 - `HardwareTopology`
   - static topology with explicit node ids, edges, optional coordinates, and a name
-  - `HardwareTopology.from_qiskit_backend(backend, two_q_gate=None, filter_idle_qubits=False)` builds a static topology from BackendV2 `coupling_map`, `target.build_coupling_map(...)`, or legacy `configuration().coupling_map` data without importing Qiskit
+  - `HardwareTopology.from_qiskit_backend(backend, two_q_gate=None, filter_idle_qubits=False)` builds a static topology from BackendV2-style `coupling_map` or `target.build_coupling_map(...)` data without importing Qiskit
 - `FunctionalTopology`
   - wraps a `Callable[[int], HardwareTopology]`
 - `PeriodicTopology1D`

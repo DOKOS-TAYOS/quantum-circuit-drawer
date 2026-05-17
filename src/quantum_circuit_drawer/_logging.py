@@ -8,13 +8,13 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
+from enum import StrEnum
 from os import PathLike
 from time import perf_counter
 from types import TracebackType
 from typing import TextIO, TypeAlias, cast
 from uuid import uuid4
 
-from ._compat import StrEnum
 from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 
 _PACKAGE_LOGGER_NAME = "quantum_circuit_drawer"

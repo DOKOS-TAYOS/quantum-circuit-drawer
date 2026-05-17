@@ -8,6 +8,7 @@ from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.figure import Figure
 from matplotlib.text import Annotation
 
+import quantum_circuit_drawer.plots.histogram_interactive_controls as histogram_controls
 from quantum_circuit_drawer import (
     HistogramKind,
     HistogramMode,
@@ -804,6 +805,75 @@ def test_histogram_interactive_slider_keeps_fixed_y_scale_across_windows() -> No
 
     assert max(moved_bar_heights) == 50
     assert moved_y_limits == pytest.approx(initial_y_limits)
+
+    plt.close(result.figure)
+
+
+def test_histogram_slider_window_update_does_not_refit_static_control_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = plot_histogram(
+        _dense_histogram_counts(bit_width=8),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.max_window_start > 0
+
+    refit_calls = 0
+
+    def count_label_refit(*args: object, **kwargs: object) -> float:
+        nonlocal refit_calls
+        refit_calls += 1
+        return 8.0
+
+    monkeypatch.setattr(
+        histogram_controls,
+        "_fit_button_label_font_size",
+        count_label_refit,
+    )
+
+    state.set_window_start(1)
+
+    assert state.window_start == 1
+    assert refit_calls == 0
+
+    plt.close(result.figure)
+
+
+def test_histogram_slider_widget_defers_draw_until_window_redraw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = plot_histogram(
+        _dense_histogram_counts(bit_width=8),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.horizontal_slider is not None
+
+    draw_idle_calls = 0
+
+    def count_draw_idle(*args: object, **kwargs: object) -> None:
+        nonlocal draw_idle_calls
+        draw_idle_calls += 1
+
+    monkeypatch.setattr(result.figure.canvas, "draw_idle", count_draw_idle)
+
+    state.horizontal_slider.set_val(1.0)
+
+    assert state.window_start == 1
+    assert draw_idle_calls == 1
 
     plt.close(result.figure)
 

@@ -8,11 +8,7 @@ This page is a lightweight benchmark snapshot for repository context. It is usef
 
 ```bash
 python - <<'PY'
-import enum, runpy, sys
-if not hasattr(enum, 'StrEnum'):
-    class StrEnum(str, enum.Enum):
-        pass
-    enum.StrEnum = StrEnum
+import runpy, sys
 sys.argv = [
     'scripts/benchmark_render.py',
     '--benchmark', 'synthetic',
@@ -27,11 +23,7 @@ PY
 
 ```bash
 python - <<'PY'
-import enum, runpy, sys
-if not hasattr(enum, 'StrEnum'):
-    class StrEnum(str, enum.Enum):
-        pass
-    enum.StrEnum = StrEnum
+import runpy, sys
 sys.argv = ['scripts/benchmark_render.py', '--benchmark', 'demo-suite', '--repeats', '1', '--json']
 runpy.run_path('scripts/benchmark_render.py', run_name='__main__')
 PY

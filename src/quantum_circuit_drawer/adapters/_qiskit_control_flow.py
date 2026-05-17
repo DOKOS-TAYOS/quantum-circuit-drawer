@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 
 from ..exceptions import UnsupportedOperationError
@@ -776,6 +776,17 @@ def _wire_dependency_metadata(value: object) -> tuple[str, ...]:
     return tuple(str(wire_id) for wire_id in value if str(wire_id))
 
 
+def _control_flow_group_stack(metadata: Mapping[str, object]) -> tuple[dict[str, object], ...]:
+    stacked_groups = metadata.get("control_flow_groups")
+    if isinstance(stacked_groups, Sequence) and not isinstance(stacked_groups, str | bytes):
+        return tuple(dict(group) for group in stacked_groups if isinstance(group, Mapping))
+
+    group_metadata = metadata.get("control_flow_group")
+    if isinstance(group_metadata, Mapping):
+        return (dict(group_metadata),)
+    return ()
+
+
 def _with_control_flow_group_metadata(
     operation: SemanticOperationIR,
     *,
@@ -807,6 +818,10 @@ def _with_control_flow_group_metadata(
     metadata = {
         **operation.metadata,
         "control_flow_group": dict(group_metadata),
+        "control_flow_groups": (
+            *_control_flow_group_stack(operation.metadata),
+            dict(group_metadata),
+        ),
     }
     if dependencies:
         metadata["occupied_wire_dependencies"] = dependencies

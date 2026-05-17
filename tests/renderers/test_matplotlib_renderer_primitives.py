@@ -185,6 +185,42 @@ def test_matplotlib_renderer_preserves_final_group_highlight_padding_at_page_edg
     assert projected_highlight.width == pytest.approx(highlight.width)
 
 
+def test_matplotlib_renderer_thins_nested_control_flow_highlight_lines() -> None:
+    figure, axes = plt.subplots()
+    scene = build_sample_scene()
+    scene.group_highlights = (
+        SceneGroupHighlight(
+            column=0,
+            x=1.5,
+            y=1.2,
+            width=2.4,
+            height=1.6,
+            label="IF",
+            nesting_depth=0,
+        ),
+        SceneGroupHighlight(
+            column=0,
+            x=1.5,
+            y=1.2,
+            width=1.5,
+            height=1.0,
+            label="IF",
+            nesting_depth=1,
+        ),
+    )
+
+    MatplotlibRenderer().render(scene, ax=axes)
+    group_patches = [
+        patch
+        for patch in axes.patches
+        if getattr(patch, "get_gid", lambda: None)() == "control-flow-group-highlight"
+    ]
+
+    assert len(group_patches) == 2
+    assert group_patches[0].get_linewidth() > group_patches[1].get_linewidth()
+    figure.clear()
+
+
 def test_matplotlib_renderer_draws_classical_bus_marker_and_size() -> None:
     circuit = CircuitIR(
         quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
