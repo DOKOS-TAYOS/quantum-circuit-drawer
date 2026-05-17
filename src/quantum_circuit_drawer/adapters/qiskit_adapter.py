@@ -12,7 +12,7 @@ from ..ir.lowering import lower_semantic_circuit
 from ..ir.operations import OperationKind
 from ..ir.semantic import SemanticCircuitIR, SemanticOperationIR, pack_semantic_operations
 from ..ir.wires import WireIR, WireKind
-from ..utils.formatting import format_state_vector_parameters
+from ..utils.formatting import format_gate_name, format_state_vector_parameters
 from ..utils.matrix_support import square_matrix
 from . import _qiskit_classical as qiskit_classical_helpers
 from . import _qiskit_control_flow as qiskit_control_flow_helpers
@@ -236,12 +236,42 @@ class QiskitAdapter(BaseAdapter):
         control_count = int(getattr(operation, "num_ctrl_qubits", 0) or 0)
         if control_count > 0 and len(target_wires) > control_count:
             base_gate = getattr(operation, "base_gate", None)
+            if composite_mode == "expand" and self._can_expand_matrix_gate_definition(
+                operation,
+                raw_name=raw_name,
+                base_gate=base_gate,
+            ):
+                expanded_matrix_gate = self._expand_definition(
+                    operation=operation,
+                    qubits=qubits,
+                    clbits=clbits,
+                    qubit_ids=qubit_ids,
+                    classical_targets=classical_targets,
+                    composite_mode=composite_mode,
+                    location=location,
+                    explicit_matrices=explicit_matrices,
+                )
+                if expanded_matrix_gate:
+                    return expanded_matrix_gate
+
             base_name = getattr(base_gate, "name", None) or name.removeprefix("c")
+            matrix_gate_label = self._matrix_gate_display_label(
+                operation,
+                raw_name=raw_name,
+                base_gate=base_gate,
+            )
             canonical_gate = canonical_gate_spec(str(base_name))
+            operation_label = matrix_gate_label or canonical_gate.label
+            operation_parameters = () if matrix_gate_label is not None else parameters
+            operation_metadata = (
+                {**matrix_metadata, "suppress_params": True}
+                if matrix_gate_label is not None
+                else matrix_metadata
+            )
             return [
                 SemanticOperationIR(
                     kind=OperationKind.CONTROLLED_GATE,
-                    name=canonical_gate.label,
+                    name=operation_label,
                     canonical_family=canonical_gate.family,
                     target_wires=target_wires[control_count:],
                     control_wires=target_wires[:control_count],
@@ -249,7 +279,7 @@ class QiskitAdapter(BaseAdapter):
                         operation,
                         control_count=control_count,
                     ),
-                    parameters=parameters,
+                    parameters=operation_parameters,
                     provenance=semantic_provenance(
                         framework=self.framework_name,
                         native_name=raw_name,
@@ -258,7 +288,49 @@ class QiskitAdapter(BaseAdapter):
                         composite_label=composite_label,
                         location=location,
                     ),
-                    metadata=matrix_metadata,
+                    metadata=operation_metadata,
+                )
+            ]
+
+        if composite_mode == "expand" and self._can_expand_matrix_gate_definition(
+            operation,
+            raw_name=raw_name,
+        ):
+            expanded_matrix_gate = self._expand_definition(
+                operation=operation,
+                qubits=qubits,
+                clbits=clbits,
+                qubit_ids=qubit_ids,
+                classical_targets=classical_targets,
+                composite_mode=composite_mode,
+                location=location,
+                explicit_matrices=explicit_matrices,
+            )
+            if expanded_matrix_gate:
+                return expanded_matrix_gate
+
+        matrix_gate_label = self._matrix_gate_display_label(operation, raw_name=raw_name)
+        if matrix_gate_label is not None:
+            if not target_wires:
+                raise UnsupportedOperationError(
+                    f"Qiskit matrix operation '{raw_name}' has no drawable targets"
+                )
+            return [
+                SemanticOperationIR(
+                    kind=OperationKind.GATE,
+                    name=matrix_gate_label,
+                    label=matrix_gate_label,
+                    target_wires=target_wires,
+                    parameters=(),
+                    provenance=semantic_provenance(
+                        framework=self.framework_name,
+                        native_name=raw_name,
+                        native_kind="matrix_gate",
+                        decomposition_origin=decomposition_origin,
+                        composite_label=composite_label,
+                        location=location,
+                    ),
+                    metadata={**matrix_metadata, "suppress_params": True},
                 )
             ]
 
@@ -292,7 +364,11 @@ class QiskitAdapter(BaseAdapter):
                     f"Qiskit operation '{raw_name}' has no drawable targets"
                 )
             is_initialize = name == "initialize"
-            compact_label = "StatePreparation" if is_initialize else raw_name
+            compact_label = self._compact_composite_label(
+                operation,
+                raw_name=raw_name,
+                is_initialize=is_initialize,
+            )
             state_vector_subtitle = (
                 format_state_vector_parameters(parameters, qubit_count=len(target_wires))
                 if is_initialize
@@ -379,6 +455,87 @@ class QiskitAdapter(BaseAdapter):
         if square_matrix(matrix) is None:
             return {}
         return {"matrix": matrix}
+
+    def _matrix_gate_display_label(
+        self,
+        operation: object,
+        *,
+        raw_name: str,
+        base_gate: object | None = None,
+    ) -> str | None:
+        if not self._has_matrix_parameter(operation) and not self._has_matrix_parameter(base_gate):
+            return None
+
+        explicit_label = self._explicit_label(operation) or self._explicit_label(base_gate)
+        if explicit_label is not None:
+            return explicit_label
+
+        candidate_name = str(getattr(base_gate, "name", raw_name) or raw_name)
+        if self._is_default_matrix_gate_name(candidate_name):
+            return "M_custom"
+        return candidate_name
+
+    def _can_expand_matrix_gate_definition(
+        self,
+        operation: object,
+        *,
+        raw_name: str,
+        base_gate: object | None = None,
+    ) -> bool:
+        if not self._has_matrix_parameter(operation) and not self._has_matrix_parameter(base_gate):
+            return False
+
+        candidate_name = str(getattr(base_gate, "name", raw_name) or raw_name)
+        if not self._is_default_matrix_gate_name(candidate_name):
+            return False
+
+        definition = getattr(operation, "definition", None)
+        return definition is not None and bool(getattr(definition, "data", None))
+
+    def _has_matrix_parameter(self, operation: object | None) -> bool:
+        if operation is None:
+            return False
+        return any(
+            square_matrix(parameter) is not None for parameter in getattr(operation, "params", ())
+        )
+
+    def _explicit_label(self, operation: object | None) -> str | None:
+        if operation is None:
+            return None
+        label = getattr(operation, "label", None)
+        if label is None:
+            return None
+        resolved_label = str(label).strip()
+        return resolved_label or None
+
+    def _is_default_matrix_gate_name(self, name: str) -> bool:
+        token = "".join(character for character in name.lower() if character.isalnum())
+        return token in {"unitary", "cunitary"} or token.startswith("unitary")
+
+    def _compact_composite_label(
+        self,
+        operation: object,
+        *,
+        raw_name: str,
+        is_initialize: bool,
+    ) -> str:
+        if is_initialize:
+            return "StatePreparation"
+
+        explicit_label = self._explicit_label(operation)
+        if explicit_label is not None:
+            return explicit_label
+
+        qft_label = self._qft_display_label(raw_name)
+        if qft_label is not None:
+            return qft_label
+        return raw_name
+
+    def _qft_display_label(self, raw_name: str) -> str | None:
+        token = raw_name.strip().lower().replace("-", "_")
+        if token in {"qft", "qft_dg"}:
+            return format_gate_name(raw_name)
+        return None
 
     def _control_values_from_qiskit(
         self,

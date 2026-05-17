@@ -498,7 +498,8 @@ def test_histogram_interactive_question_shortcut_toggles_shortcut_help() -> None
     assert state.shortcut_help_text.get_visible() is True
     shortcut_help_text = state.shortcut_help_text.get_text()
     assert "Shortcuts" in shortcut_help_text
-    assert state.shortcut_help_text.get_ha() == "left"
+    assert state.shortcut_help_text.get_ha() == "right"
+    assert state.shortcut_help_text.get_position()[0] > 0.95
     assert "View" in shortcut_help_text
     assert "$\\mathbf{Left/Right}$: Move slider window" in shortcut_help_text
     assert "$\\mathbf{o}$: Toggle slider" in shortcut_help_text
@@ -803,6 +804,35 @@ def test_histogram_interactive_slider_keeps_fixed_y_scale_across_windows() -> No
 
     assert max(moved_bar_heights) == 50
     assert moved_y_limits == pytest.approx(initial_y_limits)
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_slider_drag_keeps_window_after_widget_resize() -> None:
+    result = plot_histogram(
+        _dense_histogram_counts(),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    horizontal_slider = state.horizontal_slider
+    assert horizontal_slider is not None
+    initial_visible_bin_count = state.visible_bin_count
+    assert initial_visible_bin_count < len(state.current_labels)
+
+    result.figure.set_size_inches(40.0, 4.0, forward=False)
+    horizontal_slider.set_val(1.0)
+
+    assert state.slider_enabled is True
+    assert state.horizontal_slider is not None
+    assert state.window_start == 1
+    assert state.visible_bin_count == initial_visible_bin_count
+    assert len(result.axes.patches) == initial_visible_bin_count
 
     plt.close(result.figure)
 

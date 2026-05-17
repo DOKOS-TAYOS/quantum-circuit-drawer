@@ -137,6 +137,8 @@ class HistogramDataOptions:
             after the selected ordering is applied.
         qubits: Optional tuple of qubit indices for a joint marginal. The tuple order is
             preserved in the returned state labels.
+        reverse_bits: Whether to reverse each bitstring before marginal selection,
+            ordering, and decimal display.
         result_index: Non-negative index used when the input is a tuple/list or a
             framework result container with several histogram payloads.
         data_key: Optional Qiskit ``DataBin`` field name when several measurement data
@@ -146,12 +148,14 @@ class HistogramDataOptions:
     kind: HistogramKind = HistogramKind.AUTO
     top_k: int | None = None
     qubits: tuple[int, ...] | None = None
+    reverse_bits: bool = False
     result_index: int = 0
     data_key: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "kind", _normalize_kind(self.kind))
         _validate_qubits(self.qubits)
+        _validate_bool("reverse_bits", self.reverse_bits)
         _validate_top_k(self.top_k)
         _validate_result_index(self.result_index)
 
@@ -302,6 +306,10 @@ class HistogramConfig:
     @property
     def qubits(self) -> tuple[int, ...] | None:
         return self.data.qubits
+
+    @property
+    def reverse_bits(self) -> bool:
+        return self.data.reverse_bits
 
     @property
     def result_index(self) -> int:
@@ -481,6 +489,10 @@ class HistogramCompareConfig:
     @property
     def qubits(self) -> tuple[int, ...] | None:
         return self.data.qubits
+
+    @property
+    def reverse_bits(self) -> bool:
+        return self.data.reverse_bits
 
     @property
     def result_index(self) -> int:

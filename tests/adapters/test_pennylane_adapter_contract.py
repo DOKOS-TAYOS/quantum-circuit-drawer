@@ -61,6 +61,17 @@ class FakeMidMeasureOperation(FakeOperation):
         self.id = measurement_id
 
 
+class FakeModernMidMeasureOperation(FakeOperation):
+    def __init__(self, *, wires: tuple[object, ...], measurement_id: str) -> None:
+        super().__init__(name="MidMeasureMP", wires=wires)
+        self.meas_uid = measurement_id
+        self.hyperparameters = {"meas_uid": measurement_id}
+
+    @property
+    def id(self) -> object:
+        raise AssertionError("deprecated id property should not be read")
+
+
 class FakeMeasurement:
     def __init__(self, wires: tuple[object, ...], *, obs: object | None = None) -> None:
         self.wires = wires
@@ -591,10 +602,14 @@ def test_pennylane_adapter_contract_normalizes_control_values_and_mid_measure_id
     adapter = PennyLaneAdapter()
     operation = SimpleNamespace(control_values=(False, (1, 0)))
     no_control_values = SimpleNamespace(control_values=None)
+    modern_measure = FakeModernMidMeasureOperation(wires=(0,), measurement_id="mid-modern")
+    modern_hyper_measure = SimpleNamespace(hyperparameters={"meas_uid": "mid-modern-hyper"})
     hyper_measure = SimpleNamespace(id=None, hyperparameters={"id": "mid-1"})
 
     assert adapter._control_values_for_operation(operation) == ((0,), (1, 0))
     assert adapter._control_values_for_operation(no_control_values) == ()
+    assert adapter._mid_measure_id(modern_measure) == "mid-modern"
+    assert adapter._mid_measure_id(modern_hyper_measure) == "mid-modern-hyper"
     assert adapter._mid_measure_id(hyper_measure) == "mid-1"
 
 

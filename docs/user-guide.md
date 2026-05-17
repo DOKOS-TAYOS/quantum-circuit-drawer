@@ -472,6 +472,7 @@ For common work, the direct kwargs cover the usual data and view choices:
 ```python
 plot_histogram(quasi, kind="quasi", mode="static")
 plot_histogram(counts, qubits=(0, 2), state_label_mode="decimal")
+plot_histogram(counts, reverse_bits=True, state_label_mode="decimal")
 ```
 
 Use `config=HistogramConfig(...)` when you want advanced appearance, hover, themes, draw styles, or a uniform reference line.
@@ -484,6 +485,7 @@ Direct histogram kwargs:
 | `mode` | `"auto"`, `"static"`, `"interactive"` |
 | `sort` | `"state"`, `"state_desc"`, `"value_desc"`, `"value_asc"` |
 | `state_label_mode` | `"binary"`, `"decimal"` |
+| `reverse_bits` | `True`, `False` |
 | `qubits` | tuple of qubit indices, such as `(0, 2)` |
 
 ### Counts vs quasi-probabilities
@@ -510,6 +512,7 @@ Useful controls:
 - `sort="value_asc"`
 - `top_k=<n>`
 - `state_label_mode="binary" | "decimal"`
+- `reverse_bits=True` when a framework reports bitstrings in the opposite order; the reversal happens before marginal selection and decimal conversion
 
 ### Marginals
 

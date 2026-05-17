@@ -121,6 +121,7 @@ class HistogramInteractiveState:
     visible_display_labels: tuple[str, ...] = ()
     visible_values: tuple[float, ...] = ()
     visible_bin_count: int = 0
+    active_slider_bin_count: int | None = None
     window_start: int = 0
     max_window_start: int = 0
     resize_callback_id: int | None = None
@@ -510,6 +511,7 @@ class HistogramInteractiveState:
         self.slider_enabled = self.initial_slider_enabled
         self.show_uniform_reference = self.initial_show_uniform_reference
         self.window_start = 0
+        self.active_slider_bin_count = None
         self._set_message("")
         self.redraw()
         _log_histogram_interaction(
@@ -592,10 +594,15 @@ class HistogramInteractiveState:
     def _resolved_visible_bin_count(self) -> int:
         total_bin_count = len(self.current_labels)
         if total_bin_count == 0:
+            self.active_slider_bin_count = None
             return 0
-        if not self.slider_enabled or not self._slider_available_for_label_count(total_bin_count):
+        if not self._slider_available_for_label_count(total_bin_count):
             return total_bin_count
-        return self._resolved_slider_bin_count(total_bin_count)
+        slider_bin_count = self._slider_window_bin_count(total_bin_count)
+        if self.slider_enabled:
+            self.active_slider_bin_count = slider_bin_count
+            return slider_bin_count
+        return total_bin_count
 
     def _resolved_slider_bin_count(self, total_bin_count: int) -> int:
         axes_width_fraction = _MAIN_AXES_WITH_SLIDER_BOUNDS[2]
@@ -603,10 +610,20 @@ class HistogramInteractiveState:
         visible_count = int((figure_width_pixels * axes_width_fraction) / _MIN_BIN_WIDTH_PIXELS)
         return min(total_bin_count, max(1, visible_count))
 
+    def _slider_window_bin_count(self, total_bin_count: int) -> int:
+        resolved_bin_count = self._resolved_slider_bin_count(total_bin_count)
+        if self.active_slider_bin_count is not None:
+            return min(total_bin_count, self.active_slider_bin_count, resolved_bin_count)
+        return resolved_bin_count
+
     def _slider_available_for_label_count(self, total_bin_count: int) -> bool:
         if total_bin_count <= 0:
+            self.active_slider_bin_count = None
             return False
-        return total_bin_count > self._resolved_slider_bin_count(total_bin_count)
+        slider_available = total_bin_count > self._slider_window_bin_count(total_bin_count)
+        if not slider_available:
+            self.active_slider_bin_count = None
+        return slider_available
 
     def _set_message(self, message: str, *, error: bool = False) -> None:
         self.message_text.set_text(message)

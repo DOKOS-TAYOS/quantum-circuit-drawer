@@ -184,6 +184,7 @@ def build_public_histogram_config(
     sort: object = "state",
     top_k: int | None = None,
     qubits: tuple[int, ...] | None = None,
+    reverse_bits: bool = False,
     result_index: int = 0,
     data_key: str | None = None,
     preset: object = None,
@@ -203,6 +204,7 @@ def build_public_histogram_config(
             kind=kind,  # type: ignore[arg-type]
             top_k=top_k,
             qubits=qubits,
+            reverse_bits=reverse_bits,
             result_index=result_index,
             data_key=data_key,
         ),

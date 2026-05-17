@@ -91,6 +91,7 @@ plot_histogram(
     mode: HistogramMode | str | None = None,
     sort: HistogramSort | str | None = None,
     state_label_mode: HistogramStateLabelMode | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -533,6 +534,7 @@ Use direct kwargs for the common data and view choices:
 plot_histogram(counts, sort="value_desc", top_k=8, show=False)
 plot_histogram(quasi, kind="quasi", mode="static")
 plot_histogram(counts, qubits=(0, 2), state_label_mode="decimal")
+plot_histogram(counts, reverse_bits=True, state_label_mode="decimal")
 ```
 
 When `config=` and direct kwargs are combined, every direct kwarg that is not `None` overrides only its matching field. For example, `plot_histogram(counts, config=config, top_k=8)` keeps the rest of `config` but uses `top_k=8`.
@@ -543,6 +545,7 @@ When `config=` and direct kwargs are combined, every direct kwarg that is not `N
 | `mode` | `"auto"`, `"static"`, `"interactive"` or `HistogramMode` | `HistogramConfig.view.mode` |
 | `sort` | `"state"`, `"state_desc"`, `"value_desc"`, `"value_asc"` or `HistogramSort` | `HistogramConfig.view.sort` |
 | `state_label_mode` | `"binary"`, `"decimal"` or `HistogramStateLabelMode` | `HistogramConfig.view.state_label_mode` |
+| `reverse_bits` | `True` or `False` | `HistogramConfig.data.reverse_bits` |
 | `qubits` | tuple of qubit indices, such as `(0, 2)` | `HistogramConfig.data.qubits` |
 | `top_k` | positive integer | `HistogramConfig.data.top_k` |
 | `result_index` | non-negative integer | `HistogramConfig.data.result_index` |
@@ -639,6 +642,7 @@ Important fields:
 - `view.sort`: `STATE`, `STATE_DESC`, `VALUE_DESC`, or `VALUE_ASC`
 - `data.top_k`: keep only the highest-ranked bins after sorting
 - `data.qubits`: joint marginal over a subset of qubits
+- `data.reverse_bits`: reverse each binary register before marginal selection, ordering, and decimal labels
 - `data.result_index`: which entry to read when the input object or tuple/list contains several histogram payloads
 - `data.data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
 - `appearance.preset`: shared preset baseline

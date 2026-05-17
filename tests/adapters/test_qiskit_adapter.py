@@ -334,6 +334,62 @@ def test_qiskit_adapter_skips_framework_matrices_when_explicit_matrices_are_disa
     assert "matrix" not in operations[1].metadata
 
 
+def test_qiskit_adapter_keeps_unitary_matrix_gate_labels_compact() -> None:
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.append(qiskit.circuit.library.UnitaryGate(np.eye(4)), [0, 1])
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert operation.name == "M_custom"
+    assert operation.label == "M_custom"
+    assert operation.parameters == ()
+    assert "matrix" in operation.metadata
+    assert scene.gates[0].label == "M custom"
+    assert scene.gates[0].subtitle is None
+    assert scene.gates[0].width < scene.style.gate_width * 2.0
+
+
+def test_qiskit_adapter_preserves_named_unitary_matrix_gate_label() -> None:
+    circuit = qiskit.QuantumCircuit(1)
+    circuit.append(qiskit.circuit.library.UnitaryGate(np.eye(2), label="OracleU"), [0])
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+
+    assert operation.name == "OracleU"
+    assert operation.label == "OracleU"
+    assert operation.parameters == ()
+
+
+def test_qiskit_adapter_expands_state_preparation_unitaries_to_u_gates() -> None:
+    circuit = qiskit.QuantumCircuit(2)
+    circuit.append(qiskit.circuit.library.StatePreparation([0.5, 0.5, 0.5, 0.5]), [0, 1])
+
+    ir = QiskitAdapter().to_ir(circuit, options={"composite_mode": "expand"})
+    operations = flatten_operations(ir)
+
+    assert [operation.name for operation in operations] == ["U", "U"]
+    assert all(len(operation.parameters) == 3 for operation in operations)
+
+
+def test_qiskit_adapter_keeps_qft_gate_compact_and_drawable() -> None:
+    circuit = qiskit.QuantumCircuit(3)
+    circuit.append(qiskit.circuit.library.QFTGate(3), range(3))
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert operation.name == "QFT"
+    assert operation.label == "QFT"
+    assert operation.parameters == ()
+    assert len(scene.gates) == 1
+    assert scene.gates[0].label == "QFT"
+    assert scene.gates[0].subtitle is None
+
+
 def test_qiskit_adapter_converts_bit_if_test_into_classically_conditioned_operation() -> None:
     quantum = qiskit.QuantumRegister(2, "q")
     classical = qiskit.ClassicalRegister(2, "c")
@@ -1025,6 +1081,22 @@ def test_qiskit_initialize_keeps_one_qubit_state_vector_subtitle_on_one_line() -
     assert operation.metadata["display_subtitle"] == "[0.8, 0.6]"
     assert scene.gates[0].subtitle == "[0.8, 0.6]"
     assert scene.gates[0].width < scene.style.gate_width * 3.5
+
+
+def test_qiskit_initialize_keeps_three_qubit_state_vector_subtitle_compact() -> None:
+    circuit = qiskit.QuantumCircuit(3)
+    circuit.initialize([1, *([0] * 7)], [0, 1, 2])
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert operation.name == "StatePreparation"
+    assert operation.metadata["display_subtitle"] == "[1, 0, 0, 0,\n0, 0, 0, 0]"
+    assert operation.metadata["suppress_params"] is True
+    assert scene.gates[0].label == "StatePreparation"
+    assert scene.gates[0].subtitle == "[1, 0, 0, 0,\n0, 0, 0, 0]"
+    assert scene.gates[0].width < scene.style.gate_width * 3.6
 
 
 def test_qiskit_initialize_omits_large_state_vector_subtitle() -> None:

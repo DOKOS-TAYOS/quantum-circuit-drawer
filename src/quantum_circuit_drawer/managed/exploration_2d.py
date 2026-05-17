@@ -1084,7 +1084,7 @@ def _collapsed_control_flow_metadata(
         dict.fromkeys(
             wire_id
             for operation in operations
-            for wire_id in operation.target_wires
+            for wire_id in operation.occupied_wire_ids
             if wire_id in quantum_wire_ids
         )
     )

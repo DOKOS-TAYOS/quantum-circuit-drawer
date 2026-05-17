@@ -3,7 +3,11 @@ from matplotlib.collections import PatchCollection
 from matplotlib.colors import to_hex
 
 import quantum_circuit_drawer.renderers._matplotlib_axes as matplotlib_axes_module
-from quantum_circuit_drawer.layout.scene import SceneGroupHighlight
+from quantum_circuit_drawer.drawing.pages import single_page_scenes
+from quantum_circuit_drawer.layout.scene import SceneGroupHighlight, ScenePage
+from quantum_circuit_drawer.renderers._matplotlib_page_projection import (
+    project_group_highlights_by_page,
+)
 from tests._matplotlib_renderer_support import *
 
 
@@ -102,6 +106,83 @@ def test_matplotlib_renderer_projects_pages_without_relying_on_dense_page_indexe
     assert len(projected_pages) == 1
     assert projected_pages[0].gates == scene.gates
     assert projected_pages[0].barriers == ()
+
+
+def test_matplotlib_renderer_continues_control_flow_highlights_across_wrapped_pages() -> None:
+    group_metadata = {
+        "id": "loop-0",
+        "label": "WHILE",
+        "hover_label": "WHILE",
+        "details": ("control flow: while_loop",),
+        "conditions": (),
+    }
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        metadata={
+                            "semantic_operation_id": f"loop-op-{index}",
+                            "control_flow_group": group_metadata,
+                        },
+                    )
+                ]
+            )
+            for index in range(5)
+        ],
+    )
+    scene = LayoutEngine().compute(
+        circuit,
+        DrawStyle(max_page_width=1.2, show_wire_labels=False),
+    )
+    renderer = MatplotlibRenderer()
+
+    projected_highlights = [page.group_highlights for page in renderer._project_pages(scene)]
+    page_scenes = single_page_scenes(scene)
+
+    assert len(scene.pages) >= 3
+    assert len(scene.group_highlights) == 1
+    assert all(len(highlights) == 1 for highlights in projected_highlights)
+    assert projected_highlights[0][0].continues_left is False
+    assert projected_highlights[0][0].continues_right is True
+    assert projected_highlights[1][0].continues_left is True
+    assert projected_highlights[1][0].continues_right is True
+    assert projected_highlights[-1][0].continues_left is True
+    assert projected_highlights[-1][0].continues_right is False
+    assert all(len(page_scene.group_highlights) == 1 for page_scene in page_scenes)
+
+
+def test_matplotlib_renderer_preserves_final_group_highlight_padding_at_page_edge() -> None:
+    page = ScenePage(
+        index=0,
+        start_column=0,
+        end_column=0,
+        content_x_start=1.0,
+        content_x_end=2.0,
+        content_width=1.0,
+        y_offset=0.0,
+    )
+    highlight = SceneGroupHighlight(
+        column=0,
+        x=1.6,
+        y=1.0,
+        width=1.2,
+        height=0.8,
+        label="IF",
+        start_column=0,
+        end_column=0,
+    )
+
+    projected_highlight = project_group_highlights_by_page((highlight,), (page,))[0][0]
+
+    assert projected_highlight.continues_left is False
+    assert projected_highlight.continues_right is False
+    assert projected_highlight.x == pytest.approx(highlight.x)
+    assert projected_highlight.width == pytest.approx(highlight.width)
 
 
 def test_matplotlib_renderer_draws_classical_bus_marker_and_size() -> None:

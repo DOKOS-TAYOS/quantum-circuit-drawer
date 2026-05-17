@@ -55,6 +55,10 @@ from quantum_circuit_drawer.plots.histogram_models import (
             "qubits must not contain duplicates",
         ),
         (
+            lambda: HistogramConfig(data=HistogramDataOptions(reverse_bits=1)),  # type: ignore[arg-type]
+            "reverse_bits must be a boolean",
+        ),
+        (
             lambda: HistogramConfig(
                 appearance=HistogramAppearanceOptions(show_uniform_reference=1)  # type: ignore[arg-type]
             ),

@@ -12,6 +12,7 @@ from ..ir.operations import OperationIR, OperationKind, binary_control_states
 from ..ir.wires import WireIR, WireKind
 from ..style import DrawStyle, normalize_style
 from ..topology import TopologyInput, TopologyQubitMode, TopologyResizeMode
+from ..utils.formatting import format_gate_name
 from ..utils.matrix_support import operation_matrix_dimension, resolved_operation_matrix
 from ._engine_3d_classical import append_classical_condition_connections_3d
 from ._engine_3d_metrics import _OperationMetrics3D, build_operation_metrics_3d
@@ -378,6 +379,50 @@ class LayoutEngine3D:
                 )
             return
 
+        if operation.kind is OperationKind.CONTROLLED_GATE and self._uses_controlled_swap(
+            operation
+        ):
+            operation_hover_data = self._build_hover_data(
+                operation=operation,
+                metrics=metrics,
+                column=column,
+                topology=topology,
+                wire_map=wire_map,
+                quantum_wire_positions=quantum_wire_positions,
+                gate_z=gate_z,
+                draw_style=draw_style,
+                hover_enabled=hover_options.enabled,
+            )
+            self._layout_controlled_swap(
+                operation=operation,
+                column=column,
+                gate_z=gate_z,
+                topology=topology,
+                direct=direct,
+                quantum_wire_positions=quantum_wire_positions,
+                draw_style=draw_style,
+                hover_data=operation_hover_data,
+                markers=markers,
+                connections=connections,
+            )
+            controlled_swap_points = tuple(
+                self._point_for_wire(wire_id, quantum_wire_positions, gate_z)
+                for wire_id in (*operation.control_wires, *operation.target_wires)
+            )
+            gate_center = Point3D(
+                x=sum(point.x for point in controlled_swap_points) / len(controlled_swap_points),
+                y=sum(point.y for point in controlled_swap_points) / len(controlled_swap_points),
+                z=gate_z,
+            )
+            self._append_classical_condition_connections(
+                operation=operation,
+                column=column,
+                gate_center=gate_center,
+                classical_wire_positions=classical_wire_positions,
+                connections=connections,
+            )
+            return
+
         target_points = tuple(
             self._point_for_wire(wire_id, quantum_wire_positions, gate_z)
             for wire_id in operation.target_wires
@@ -631,6 +676,91 @@ class LayoutEngine3D:
                 )
             )
 
+    def _layout_controlled_swap(
+        self,
+        *,
+        operation: OperationIR,
+        column: int,
+        gate_z: float,
+        topology: Topology3D,
+        direct: bool,
+        quantum_wire_positions: dict[str, Point3D],
+        draw_style: DrawStyle,
+        hover_data: SceneHoverData | None,
+        markers: list[SceneMarker3D],
+        connections: list[SceneConnection3D],
+    ) -> None:
+        target_points = tuple(
+            self._point_for_wire(wire_id, quantum_wire_positions, gate_z)
+            for wire_id in operation.target_wires
+        )
+        for point in target_points:
+            markers.append(
+                SceneMarker3D(
+                    column=column,
+                    center=point,
+                    style=MarkerStyle3D.SWAP,
+                    size=draw_style.swap_marker_size * _SWAP_MARKER_SCALE,
+                    hover_data=hover_data,
+                    operation_id=_operation_id_3d(operation),
+                )
+            )
+        if len(target_points) == 2:
+            connections.append(
+                SceneConnection3D(
+                    column=column,
+                    points=target_points,
+                    hover_data=hover_data,
+                    operation_id=_operation_id_3d(operation),
+                )
+            )
+
+        simple_binary_states = binary_control_states(operation)
+        for control_index, control_wire_id in enumerate(operation.control_wires):
+            control_point = self._point_for_wire(control_wire_id, quantum_wire_positions, gate_z)
+            markers.append(
+                SceneMarker3D(
+                    column=column,
+                    center=control_point,
+                    style=MarkerStyle3D.CONTROL,
+                    size=draw_style.control_radius * _CONTROL_MARKER_SCALE,
+                    state=(
+                        simple_binary_states[control_index]
+                        if simple_binary_states is not None
+                        else 1
+                    ),
+                    hover_data=hover_data,
+                    operation_id=_operation_id_3d(operation),
+                )
+            )
+            anchor_wire_id = self._nearest_anchor_wire(
+                control_wire_id=control_wire_id,
+                anchor_wire_ids=operation.target_wires,
+                topology=topology,
+            )
+            anchor_point = self._point_for_wire(anchor_wire_id, quantum_wire_positions, gate_z)
+            connection_points = self._connection_points(
+                topology=topology,
+                control_wire_id=control_wire_id,
+                target_wire_id=anchor_wire_id,
+                control_point=control_point,
+                anchor_point=anchor_point,
+                direct=direct,
+            )
+            hover_text = None
+            if not direct:
+                hover_text = f"{max(0, len(connection_points) - 2)} intermediate qubits"
+            connections.append(
+                SceneConnection3D(
+                    column=column,
+                    points=connection_points,
+                    render_style=ConnectionRenderStyle3D.CONTROL,
+                    hover_text=hover_text,
+                    hover_data=hover_data,
+                    operation_id=_operation_id_3d(operation),
+                )
+            )
+
     def _build_gate(
         self,
         *,
@@ -808,6 +938,14 @@ class LayoutEngine3D:
 
     def _uses_canonical_controlled_z(self, operation: OperationIR) -> bool:
         return uses_canonical_controlled_z_3d(operation)
+
+    def _uses_controlled_swap(self, operation: OperationIR) -> bool:
+        return (
+            operation.kind is OperationKind.CONTROLLED_GATE
+            and len(operation.target_wires) == 2
+            and bool(operation.control_wires)
+            and format_gate_name(operation.label or operation.name).upper() == "SWAP"
+        )
 
     def _gate_cube_size(self, style: DrawStyle) -> float:
         return gate_cube_size_3d(style)

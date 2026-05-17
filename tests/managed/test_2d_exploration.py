@@ -400,6 +400,92 @@ def test_collapsed_qiskit_switch_case_block_uses_switch_box_for_all_cases() -> N
     assert operation.classical_conditions == (condition,)
 
 
+def test_collapsed_qiskit_switch_case_block_spans_control_wires() -> None:
+    condition = ClassicalConditionIR(wire_ids=("c0",), expression="switch on c[0]")
+    control_flow_details = (
+        "control flow: switch_case",
+        "target: c[0]",
+        "case ops: 1",
+    )
+    circuit = SemanticCircuitIR(
+        quantum_wires=(
+            WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0"),
+            WireIR(id="q1", index=1, kind=WireKind.QUANTUM, label="q1"),
+            WireIR(id="q2", index=2, kind=WireKind.QUANTUM, label="q2"),
+        ),
+        classical_wires=(WireIR(id="c0", index=0, kind=WireKind.CLASSICAL, label="c"),),
+        layers=(
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.GATE,
+                        name="X",
+                        target_wires=("q0",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="x",
+                            native_kind="gate",
+                            decomposition_origin="switch_case",
+                            composite_label="case 0",
+                            location=(0, 0, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:case:0",
+                                "label": "case 0",
+                                "hover_label": "SWITCH",
+                                "native_name": "switch_case",
+                                "details": control_flow_details,
+                                "conditions": (condition,),
+                            },
+                        },
+                    ),
+                )
+            ),
+            SemanticLayerIR(
+                operations=(
+                    SemanticOperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="X",
+                        target_wires=("q2",),
+                        control_wires=("q1",),
+                        provenance=SemanticProvenanceIR(
+                            framework="qiskit",
+                            native_name="cx",
+                            native_kind="controlled_gate",
+                            decomposition_origin="switch_case",
+                            composite_label="case 1",
+                            location=(0, 1, 0),
+                        ),
+                        metadata={
+                            "control_flow_group": {
+                                "id": "op:0:case:1",
+                                "label": "case 1",
+                                "hover_label": "SWITCH",
+                                "native_name": "switch_case",
+                                "details": control_flow_details,
+                                "conditions": (condition,),
+                            },
+                        },
+                    ),
+                )
+            ),
+        ),
+    )
+
+    catalog = build_exploration_catalog(circuit, circuit)
+    collapsed = transform_semantic_circuit(
+        catalog,
+        collapsed_block_ids={"op:0"},
+        wire_filter_mode=WireFilterMode.ALL,
+        show_ancillas=True,
+    )
+    operation = collapsed.semantic_ir.layers[0].operations[0]
+
+    assert operation.name == "SWITCH"
+    assert operation.target_wires == ("q0", "q1", "q2")
+
+
 def test_semantic_transform_respects_metadata_classical_dependencies() -> None:
     circuit = SemanticCircuitIR(
         quantum_wires=(
@@ -1231,6 +1317,59 @@ def test_page_window_click_selection_uses_visible_page_coordinates() -> None:
         plt.close(figure)
 
 
+def test_page_window_continues_control_flow_highlight_on_following_page() -> None:
+    group_metadata = {
+        "id": "loop-0",
+        "label": "WHILE",
+        "hover_label": "WHILE",
+        "details": ("control flow: while_loop",),
+        "conditions": (),
+    }
+    circuit = CircuitIR(
+        quantum_wires=[WireIR(id="q0", index=0, kind=WireKind.QUANTUM, label="q0")],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.GATE,
+                        name="H",
+                        target_wires=("q0",),
+                        metadata={
+                            "semantic_operation_id": f"loop-op-{index}",
+                            "control_flow_group": group_metadata,
+                        },
+                    )
+                ]
+            )
+            for index in range(5)
+        ],
+    )
+    figure, _axes = draw_quantum_circuit(
+        circuit,
+        style={"max_page_width": 1.2, "show_wire_labels": False},
+        figsize=(3.2, 3.0),
+        page_window=True,
+        show=False,
+    )
+
+    try:
+        page_window = cast(Managed2DPageWindowState | None, get_page_window(figure))
+        assert page_window is not None
+        assert page_window.page_box is not None
+        assert page_window.total_pages >= 3
+
+        page_window.page_box.set_val("2")
+
+        assert page_window.window_scene is not None
+        assert len(page_window.window_scene.group_highlights) == 1
+        highlight = page_window.window_scene.group_highlights[0]
+        assert highlight.label == "WHILE"
+        assert highlight.continues_left is True
+        assert highlight.continues_right is True
+    finally:
+        plt.close(figure)
+
+
 def test_page_window_arrow_keys_navigate_pages_and_visible_count() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),
@@ -1331,7 +1470,8 @@ def test_page_window_question_shortcut_toggles_shortcut_help() -> None:
         assert page_window.shortcut_help_text.get_visible() is True
         shortcut_help_text = page_window.shortcut_help_text.get_text()
         assert "Shortcuts" in shortcut_help_text
-        assert page_window.shortcut_help_text.get_ha() == "left"
+        assert page_window.shortcut_help_text.get_ha() == "right"
+        assert page_window.shortcut_help_text.get_position()[0] > 0.95
         assert "Navigation" in shortcut_help_text
         assert "$\\mathbf{Left/Right}$: Move pages" in shortcut_help_text
         assert "$\\mathbf{w}$: Toggle wires all/active" in shortcut_help_text

@@ -17,7 +17,10 @@ from ..layout.scene import (
     ScenePage,
     SceneSwap,
 )
-from ..renderers._matplotlib_page_projection import _ProjectedPage
+from ..renderers._matplotlib_page_projection import (
+    _ProjectedPage,
+    project_group_highlights_by_page,
+)
 
 if TYPE_CHECKING:
     from .page_window import Managed2DPageWindowState
@@ -57,9 +60,7 @@ def _window_scene(state: Managed2DPageWindowState) -> LayoutScene:
         shifted_connections.extend(_items_for_page(state.scene.connections, page=source_page))
         shifted_swaps.extend(_items_for_page(state.scene.swaps, page=source_page))
         shifted_barriers.extend(_items_for_page(state.scene.barriers, page=source_page))
-        shifted_group_highlights.extend(
-            _items_for_page(state.scene.group_highlights, page=source_page)
-        )
+        shifted_group_highlights.extend(_group_highlights_for_page(state.scene, page_index))
         shifted_measurements.extend(_items_for_page(state.scene.measurements, page=source_page))
     return LayoutScene(
         width=_visible_page_width(state),
@@ -136,8 +137,17 @@ def _project_page(scene: LayoutScene, page_index: int) -> _ProjectedPage:
         connections=_items_for_page(scene.connections, page=page),
         gates=_items_for_page(scene.gates, page=page),
         gate_annotations=_items_for_page(scene.gate_annotations, page=page),
-        group_highlights=_items_for_page(scene.group_highlights, page=page),
+        group_highlights=_group_highlights_for_page(scene, page_index),
         measurements=_items_for_page(scene.measurements, page=page),
         controls=_items_for_page(scene.controls, page=page),
         swaps=_items_for_page(scene.swaps, page=page),
     )
+
+
+def _group_highlights_for_page(
+    scene: LayoutScene,
+    page_index: int,
+) -> tuple[SceneGroupHighlight, ...]:
+    if not scene.group_highlights:
+        return ()
+    return project_group_highlights_by_page(scene.group_highlights, scene.pages)[page_index]

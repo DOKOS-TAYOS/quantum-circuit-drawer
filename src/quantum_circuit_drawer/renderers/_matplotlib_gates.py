@@ -7,7 +7,8 @@ from dataclasses import dataclass
 
 from matplotlib.axes import Axes
 from matplotlib.collections import EllipseCollection, LineCollection, PatchCollection
-from matplotlib.patches import Arc, FancyBboxPatch, Patch
+from matplotlib.patches import Arc, FancyBboxPatch, Patch, PathPatch
+from matplotlib.path import Path
 from matplotlib.text import Text
 
 from ..layout.scene import (
@@ -115,8 +116,15 @@ def _group_highlight_patch(
     *,
     x_offset: float,
     y_offset: float,
-) -> FancyBboxPatch:
+) -> Patch:
     if highlight.label is not None:
+        if highlight.continues_left or highlight.continues_right:
+            return _continued_group_highlight_patch(
+                highlight,
+                scene,
+                x_offset=x_offset,
+                y_offset=y_offset,
+            )
         patch = FancyBboxPatch(
             (
                 highlight.x + x_offset - (highlight.width / 2.0),
@@ -150,6 +158,44 @@ def _group_highlight_patch(
         alpha=0.08 * alpha_for_visual_state(highlight.visual_state),
     )
     patch.set_gid("decomposition-group-highlight")
+    return patch
+
+
+def _continued_group_highlight_patch(
+    highlight: SceneGroupHighlight,
+    scene: LayoutScene,
+    *,
+    x_offset: float,
+    y_offset: float,
+) -> PathPatch:
+    x_min = highlight.x + x_offset - (highlight.width / 2.0)
+    x_max = highlight.x + x_offset + (highlight.width / 2.0)
+    y_min = highlight.y + y_offset - (highlight.height / 2.0)
+    y_max = highlight.y + y_offset + (highlight.height / 2.0)
+    vertices: list[tuple[float, float]] = []
+    codes: list[int] = []
+
+    def append_segment(start: tuple[float, float], end: tuple[float, float]) -> None:
+        vertices.extend((start, end))
+        codes.extend((Path.MOVETO, Path.LINETO))
+
+    append_segment((x_min, y_min), (x_max, y_min))
+    append_segment((x_min, y_max), (x_max, y_max))
+    if not highlight.continues_left:
+        append_segment((x_min, y_min), (x_min, y_max))
+    if not highlight.continues_right:
+        append_segment((x_max, y_min), (x_max, y_max))
+
+    patch = PathPatch(
+        Path(vertices, codes),
+        facecolor="none",
+        edgecolor=scene.style.theme.accent_color,
+        linewidth=1.15,
+        linestyle="--",
+        zorder=OCCLUSION_LAYER_ZORDER - 0.5,
+        alpha=0.9 * alpha_for_visual_state(highlight.visual_state),
+    )
+    patch.set_gid("control-flow-group-highlight")
     return patch
 
 

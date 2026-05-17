@@ -180,6 +180,10 @@ class SceneGroupHighlight:
     label: str | None = None
     hover_data: SceneHoverData | None = None
     operation_id: str | None = None
+    start_column: int | None = None
+    end_column: int | None = None
+    continues_left: bool = False
+    continues_right: bool = False
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
 
 

@@ -1101,7 +1101,7 @@ def test_draw_quantum_circuit_renders_cudaq_compact_named_operation_boxes(
     assert_figure_has_visible_content(figure)
 
 
-def test_draw_quantum_circuit_renders_cudaq_controlled_swap_box(
+def test_draw_quantum_circuit_renders_cudaq_controlled_swap_markers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_fake_cudaq(monkeypatch)
@@ -1111,8 +1111,8 @@ def test_draw_quantum_circuit_renders_cudaq_controlled_swap_box(
     texts = {normalize_rendered_text(text.get_text()) for text in axes.texts}
 
     assert axes.figure is figure
-    assert "SWAP" in texts
-    assert_axes_contains_circuit_artists(axes, expected_texts={"SWAP", "q0", "q1", "q2"})
+    assert "SWAP" not in texts
+    assert_axes_contains_circuit_artists(axes, expected_texts={"q0", "q1", "q2"}, min_patches=0)
     assert_figure_has_visible_content(figure)
 
 

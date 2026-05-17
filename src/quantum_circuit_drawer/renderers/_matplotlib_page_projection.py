@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TypeVar
 
 from ..layout.scene import (
@@ -82,7 +82,7 @@ def project_pages(scene: LayoutScene) -> tuple[_ProjectedPage, ...]:
     connections = bucket_by_page(scene.connections, page_index_lookup, page_count)
     gates = bucket_by_page(scene.gates, page_index_lookup, page_count)
     gate_annotations = bucket_by_page(scene.gate_annotations, page_index_lookup, page_count)
-    group_highlights = bucket_by_page(scene.group_highlights, page_index_lookup, page_count)
+    group_highlights = project_group_highlights_by_page(scene.group_highlights, scene.pages)
     measurements = bucket_by_page(scene.measurements, page_index_lookup, page_count)
     controls = bucket_by_page(scene.controls, page_index_lookup, page_count)
     swaps = bucket_by_page(scene.swaps, page_index_lookup, page_count)
@@ -124,6 +124,43 @@ def bucket_by_page(
     buckets: list[list[_SceneColumnItem]] = [[] for _ in range(page_count)]
     for item in items:
         buckets[page_index_lookup[item.column]].append(item)
+    return tuple(tuple(bucket) for bucket in buckets)
+
+
+def project_group_highlights_by_page(
+    highlights: tuple[SceneGroupHighlight, ...],
+    pages: tuple[ScenePage, ...],
+) -> tuple[tuple[SceneGroupHighlight, ...], ...]:
+    """Return control-flow highlights clipped and marked for each wrapped page."""
+
+    buckets: list[list[SceneGroupHighlight]] = [[] for _ in pages]
+    for highlight in highlights:
+        start_column = (
+            highlight.start_column if highlight.start_column is not None else highlight.column
+        )
+        end_column = highlight.end_column if highlight.end_column is not None else highlight.column
+        x_min = highlight.x - (highlight.width / 2.0)
+        x_max = highlight.x + (highlight.width / 2.0)
+        for page_index, page in enumerate(pages):
+            if end_column < page.start_column or start_column > page.end_column:
+                continue
+            continues_left = start_column < page.start_column
+            continues_right = end_column > page.end_column
+            clipped_x_min = page.content_x_start if continues_left else x_min
+            clipped_x_max = page.content_x_end if continues_right else x_max
+            if clipped_x_max <= clipped_x_min:
+                clipped_x_min = page.content_x_start
+                clipped_x_max = page.content_x_end
+            buckets[page_index].append(
+                replace(
+                    highlight,
+                    column=max(start_column, page.start_column),
+                    x=(clipped_x_min + clipped_x_max) / 2.0,
+                    width=clipped_x_max - clipped_x_min,
+                    continues_left=continues_left,
+                    continues_right=continues_right,
+                )
+            )
     return tuple(tuple(bucket) for bucket in buckets)
 
 

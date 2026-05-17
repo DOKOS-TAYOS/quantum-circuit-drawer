@@ -10,7 +10,7 @@ from matplotlib.text import Text
 
 from .ui_palette import ManagedUiPalette
 
-_SHORTCUT_HELP_POSITION = (0.018, 0.975)
+_SHORTCUT_HELP_POSITION = (0.982, 0.975)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -30,7 +30,8 @@ def create_shortcut_help_text(
         _SHORTCUT_HELP_POSITION[1],
         format_shortcut_help(lines),
         color=palette.text_color,
-        ha="left",
+        ha="right",
+        multialignment="left",
         va="top",
         fontsize=8.8,
         linespacing=1.35,

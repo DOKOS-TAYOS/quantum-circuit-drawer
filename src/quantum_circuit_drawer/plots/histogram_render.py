@@ -162,6 +162,30 @@ def display_state_label(
     return decimal_state_label(state_label)
 
 
+def apply_bit_order(
+    values_by_state: Mapping[str, float],
+    *,
+    reverse_bits: bool,
+) -> dict[str, float]:
+    """Return values keyed by the requested bit order."""
+
+    if not reverse_bits:
+        return dict(values_by_state)
+
+    reordered_values: dict[str, float] = {}
+    for state_label, value in values_by_state.items():
+        reordered_label = reverse_state_label_bits(state_label)
+        reordered_values[reordered_label] = reordered_values.get(reordered_label, 0.0) + value
+    return reordered_values
+
+
+def reverse_state_label_bits(state_label: str) -> str:
+    """Reverse each binary register group in one state label."""
+
+    groups = state_label.split(" ") if " " in state_label else [state_label]
+    return " ".join(group[::-1] for group in groups)
+
+
 def decimal_state_label(state_label: str) -> str:
     """Convert one binary or grouped-binary label to decimal text."""
 
@@ -512,10 +536,12 @@ def save_histogram_if_requested(
 
 __all__ = [
     "apply_joint_marginal",
+    "apply_bit_order",
     "display_labels_for_states",
     "display_state_label",
     "draw_histogram_axes",
     "order_histogram_values",
+    "reverse_state_label_bits",
     "resolve_figure_and_axes",
     "resolved_histogram_bit_width",
     "resolved_histogram_y_limits",

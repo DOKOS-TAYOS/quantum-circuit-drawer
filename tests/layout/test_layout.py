@@ -698,6 +698,31 @@ def test_state_preparation_width_uses_wrapped_subtitle_without_excessive_label_p
     assert width < style.gate_width * 3.5
 
 
+def test_three_qubit_state_preparation_width_uses_subtitle_content_not_label_padding() -> None:
+    style = DrawStyle()
+    operation = OperationIR(
+        kind=OperationKind.GATE,
+        name="StatePreparation",
+        label="StatePreparation",
+        target_wires=("q0", "q1", "q2"),
+        metadata={
+            "display_subtitle": "[1, 0, 0, 0,\n0, 0, 0, 0]",
+            "subtitle_font_scale": 0.46,
+        },
+    )
+    label, subtitle = operation_label_parts(operation, style)
+    width = operation_width_from_parts(
+        operation=operation,
+        style=style,
+        label=label,
+        subtitle=subtitle,
+    )
+
+    assert subtitle == "[1, 0, 0, 0,\n0, 0, 0, 0]"
+    assert width > style.gate_width
+    assert width < style.gate_width * 3.6
+
+
 def test_u_gate_parameters_use_state_vector_number_format_and_two_column_width() -> None:
     style = DrawStyle()
     operation = OperationIR(
@@ -1005,6 +1030,39 @@ def test_layout_engine_draws_canonical_cz_as_two_controls_without_box() -> None:
     assert len(scene.gates) == 0
     assert len(scene.controls) == 2
     assert len(scene.connections) == 1
+
+
+def test_layout_engine_draws_multicontrolled_swap_as_swap_markers_without_box() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="SWAP",
+                        target_wires=("q2", "q3"),
+                        control_wires=("q0", "q1"),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine().compute(circuit, DrawStyle())
+    quantum_connections = [
+        connection for connection in scene.connections if not connection.is_classical
+    ]
+
+    assert scene.gates == ()
+    assert len(scene.swaps) == 1
+    assert len(scene.controls) == 2
+    assert len(quantum_connections) == 1
+    assert quantum_connections[0].y_start == scene.wire_y_positions["q0"]
+    assert quantum_connections[0].y_end == scene.wire_y_positions["q3"]
 
 
 def test_layout_engine_draws_open_controlled_z_with_mixed_control_states() -> None:

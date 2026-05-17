@@ -35,7 +35,8 @@ class _ControlFlowGroup:
 
 @dataclass(slots=True)
 class _ControlFlowBounds:
-    column: int
+    start_column: int
+    end_column: int
     x_min: float
     x_max: float
     y_min: float
@@ -50,7 +51,8 @@ class _ControlFlowBounds:
         y_min: float,
         y_max: float,
     ) -> None:
-        self.column = min(self.column, int(column))
+        self.start_column = min(self.start_column, int(column))
+        self.end_column = max(self.end_column, int(column))
         self.x_min = min(self.x_min, float(x_min))
         self.x_max = max(self.x_max, float(x_max))
         self.y_min = min(self.y_min, float(y_min))
@@ -163,7 +165,7 @@ def build_control_flow_group_artifacts(
         center_x = (bounds.x_min + bounds.x_max) / 2.0
         center_y = (bounds.y_min + bounds.y_max) / 2.0
         highlight = SceneGroupHighlight(
-            column=bounds.column,
+            column=bounds.start_column,
             x=center_x,
             y=center_y,
             width=width,
@@ -178,6 +180,8 @@ def build_control_flow_group_artifacts(
                 height=height,
             ),
             operation_id=group.group_id,
+            start_column=bounds.start_column,
+            end_column=bounds.end_column,
         )
         highlights.append(highlight)
         condition_connections.extend(
@@ -305,7 +309,8 @@ def _extend_group_bounds(
     bounds = bounds_by_group_id.get(group_id)
     if bounds is None:
         bounds_by_group_id[group_id] = _ControlFlowBounds(
-            column=column,
+            start_column=column,
+            end_column=column,
             x_min=float(x_min),
             x_max=float(x_max),
             y_min=float(y_min),

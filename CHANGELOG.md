@@ -12,6 +12,34 @@
 
 - Fixed the README header badges so they render as badges instead of plain
   text links.
+- Avoided PennyLane's deprecated mid-measurement `id` attribute by preferring
+  `meas_uid`, removing the warning raised by PennyLane `0.45+`.
+- Kept three-qubit Qiskit `StatePreparation` boxes compact by estimating the
+  needed width from the visible state-vector subtitle instead of over-padding
+  for the label.
+- Kept interactive histogram sliders in notebook widget backends from expanding
+  to the full distribution when dragging the slider after a widget resize.
+- Moved interactive shortcut-help overlays to the far-right side of figures,
+  while keeping their text left-aligned, to reduce notebook overlaps.
+- Added `plot_histogram(..., reverse_bits=True)` and `HistogramDataOptions.reverse_bits`
+  to reverse bitstrings before marginal selection, sorting, and decimal labels.
+- Rendered controlled and multi-controlled SWAP operations with SWAP markers
+  connected to their controls instead of a labeled gate box.
+- Kept Qiskit matrix/unitary gates compact by using `M_custom` or the provided
+  label while preserving small matrices in hover metadata.
+- Kept expanded Qiskit matrix/unitary definitions decomposed to their standard
+  gates, so `StatePreparation` expansions show `U` gates instead of `M_custom`.
+- Normalized compact Qiskit QFT instructions so single-QFT circuits keep a
+  drawable `QFT` gate.
+- Split expanded control-flow frames across wrapped pages so `if`, `else`,
+  `for`, `while`, and `switch` bodies visibly continue on following pages.
+- Kept final-page control-flow frames centered by preserving their padding on
+  sides that do not continue onto another wrapped page.
+- Preserved those continued control-flow frames in fixed page-window rendering,
+  including notebook pages mode, so later pages keep the visible loop or branch
+  frame.
+- Included controlled-operation control wires when collapsing Qiskit `switch`
+  blocks, so the collapsed `SWITCH` box spans every qubit used by all cases.
 - Restored pre-PyPI Security workflow compatibility by installing the project
   editably, freezing only non-editable packages, and auditing that pinned list
   with `pip-audit --strict`.

@@ -541,6 +541,48 @@ def test_layout_engine_3d_uses_smaller_swap_x_larger_controls_and_cubic_single_g
     assert measurement_gate.size_x == measurement_gate.size_y == measurement_gate.size_z
 
 
+def test_layout_engine_3d_draws_multicontrolled_swap_as_markers_without_box() -> None:
+    circuit = CircuitIR(
+        quantum_wires=[
+            WireIR(id=f"q{index}", index=index, kind=WireKind.QUANTUM, label=f"q{index}")
+            for index in range(4)
+        ],
+        layers=[
+            LayerIR(
+                operations=[
+                    OperationIR(
+                        kind=OperationKind.CONTROLLED_GATE,
+                        name="SWAP",
+                        target_wires=("q2", "q3"),
+                        control_wires=("q0", "q1"),
+                    )
+                ]
+            )
+        ],
+    )
+
+    scene = LayoutEngine3D().compute(
+        circuit,
+        DrawStyle(),
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    control_markers = [marker for marker in scene.markers if marker.style is MarkerStyle3D.CONTROL]
+    swap_markers = [marker for marker in scene.markers if marker.style is MarkerStyle3D.SWAP]
+    control_connections = [
+        connection
+        for connection in scene.connections
+        if connection.render_style is ConnectionRenderStyle3D.CONTROL
+    ]
+
+    assert scene.gates == ()
+    assert len(control_markers) == 2
+    assert len(swap_markers) == 2
+    assert len(control_connections) == 2
+    assert all(marker.hover_data is not None for marker in (*control_markers, *swap_markers))
+
+
 def test_matplotlib_renderer_3d_renders_open_controls_as_hollow_markers() -> None:
     figure, axes = draw_quantum_circuit(
         _open_control_ir(),

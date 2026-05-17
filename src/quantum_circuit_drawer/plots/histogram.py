@@ -53,6 +53,7 @@ from .histogram_models import (
 )
 from .histogram_normalize import normalize_histogram_data
 from .histogram_render import (
+    apply_bit_order,
     apply_joint_marginal,
     display_labels_for_states,
     display_state_label,
@@ -85,6 +86,7 @@ def plot_histogram(
     mode: HistogramMode | str | None = None,
     sort: HistogramSort | str | None = None,
     state_label_mode: HistogramStateLabelMode | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -110,6 +112,8 @@ def plot_histogram(
         sort: Optional ``"state"``, ``"state_desc"``, ``"value_desc"``, or
             ``"value_asc"``.
         state_label_mode: Optional ``"binary"`` or ``"decimal"`` visible tick labels.
+        reverse_bits: Optional override that reverses each bitstring before marginal
+            selection, sorting, and decimal conversion.
         qubits: Optional tuple of qubit indices for a joint marginal.
         top_k: Optional positive number of bins to keep after sorting.
         result_index: Optional payload index for result containers with several
@@ -134,6 +138,7 @@ def plot_histogram(
             mode=mode,
             sort=sort,
             state_label_mode=state_label_mode,
+            reverse_bits=reverse_bits,
             qubits=qubits,
             top_k=top_k,
             result_index=result_index,
@@ -206,8 +211,12 @@ def plot_histogram(
                 result_index=resolved_config.result_index,
                 data_key=resolved_config.data_key,
             )
-            values_by_state = apply_joint_marginal(
+            base_values_by_state = apply_bit_order(
                 normalized.values_by_state,
+                reverse_bits=resolved_config.reverse_bits,
+            )
+            values_by_state = apply_joint_marginal(
+                base_values_by_state,
                 qubits=resolved_config.qubits,
                 bit_width=normalized.bit_width,
             )
@@ -236,7 +245,7 @@ def plot_histogram(
                 attach_histogram_interactivity(
                     figure=figure,
                     axes=axes,
-                    values_by_state=normalized.values_by_state,
+                    values_by_state=base_values_by_state,
                     bit_width=normalized.bit_width,
                     kind=normalized.kind,
                     config=resolved_config,
@@ -317,6 +326,7 @@ def _merge_histogram_config(
     mode: HistogramMode | str | None = None,
     sort: HistogramSort | str | None = None,
     state_label_mode: HistogramStateLabelMode | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -332,6 +342,7 @@ def _merge_histogram_config(
         kind is not None
         or top_k is not None
         or qubits is not None
+        or reverse_bits is not None
         or result_index is not None
         or data_key is not None
     ):
@@ -340,6 +351,7 @@ def _merge_histogram_config(
             kind=data_options.kind if kind is None else _normalize_kind(kind),
             top_k=data_options.top_k if top_k is None else top_k,
             qubits=data_options.qubits if qubits is None else qubits,
+            reverse_bits=data_options.reverse_bits if reverse_bits is None else reverse_bits,
             result_index=data_options.result_index if result_index is None else result_index,
             data_key=data_options.data_key if data_key is None else data_key,
         )
@@ -486,7 +498,10 @@ def compare_histograms(
             )
             values_by_state_series = tuple(
                 apply_joint_marginal(
-                    normalized.values_by_state,
+                    apply_bit_order(
+                        normalized.values_by_state,
+                        reverse_bits=resolved_config.reverse_bits,
+                    ),
                     qubits=resolved_config.qubits,
                     bit_width=normalized.bit_width,
                 )

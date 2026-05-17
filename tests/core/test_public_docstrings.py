@@ -116,6 +116,7 @@ _MAIN_PUBLIC_API_DOCS: dict[str, tuple[object, tuple[str, ...], tuple[str, ...]]
             "mode",
             "sort",
             "state_label_mode",
+            "reverse_bits",
             "top_k",
             "config",
             "ax",

@@ -10,9 +10,11 @@ from ..utils.formatting import format_angle_parameters, format_gate_name, format
 _COMPACT_RESULT_DISPLAY_LABELS = frozenset({"Prob", "ExpVal", "Counts"})
 _COMPACT_RESULT_TERMINAL_KINDS = frozenset({"probs", "expval", "counts"})
 _COMPACT_RESULT_WIDTH_FACTOR = 0.78
+_COMPACT_MATRIX_WIDTH_FACTOR = 1.55
 _COMPACT_LABEL_WIDTH_FONT_SCALE = 0.45
 _STATE_PREPARATION_LABEL_WIDTH_FONT_SCALE = 0.28
 _STATE_PREPARATION_SUBTITLE_WIDTH_FONT_SCALE = 0.28
+_STATE_PREPARATION_MANY_QUBIT_LABEL_WIDTH_FONT_SCALE = 0.2
 _STATE_PREPARATION_SINGLE_QUBIT_LABEL_WIDTH_FONT_SCALE = 0.2
 _STATE_PREPARATION_SINGLE_QUBIT_SUBTITLE_WIDTH_FONT_SCALE = 0.18
 _COMPACT_U_SUBTITLE_FONT_SCALE = 0.46
@@ -113,6 +115,20 @@ def uses_compact_result_width(
     return format_gate_name(label) in _COMPACT_RESULT_DISPLAY_LABELS
 
 
+def uses_compact_matrix_width(
+    operation: OperationIR | MeasurementIR,
+    label: str,
+    subtitle: str | None,
+) -> bool:
+    """Return whether a default matrix-gate label should avoid matrix-sized boxes."""
+
+    if subtitle is not None:
+        return False
+    if operation.kind not in {OperationKind.GATE, OperationKind.CONTROLLED_GATE}:
+        return False
+    return label == "M_custom" and operation.metadata.get("matrix") is not None
+
+
 def operation_width_from_parts(
     *,
     operation: OperationIR | MeasurementIR,
@@ -129,6 +145,8 @@ def operation_width_from_parts(
 
     if uses_compact_result_width(operation, label, subtitle):
         return max(0.45, style.gate_width * _COMPACT_RESULT_WIDTH_FACTOR)
+    if uses_compact_matrix_width(operation, label, subtitle):
+        return max(style.gate_width, style.gate_width * _COMPACT_MATRIX_WIDTH_FACTOR)
     if uses_compact_u_gate_parameters(operation, label):
         return style.gate_width * _COMPACT_U_WIDTH_FACTOR
     if uses_compact_parametric_width(operation, label, subtitle):
@@ -138,9 +156,12 @@ def operation_width_from_parts(
     display_label = format_gate_name(label)
     is_state_preparation = format_gate_name(label) == "StatePreparation"
     is_single_qubit_state_preparation = is_state_preparation and len(operation.target_wires) == 1
+    is_many_qubit_state_preparation = is_state_preparation and len(operation.target_wires) >= 3
     label_font_scale = (
         _STATE_PREPARATION_SINGLE_QUBIT_LABEL_WIDTH_FONT_SCALE
         if is_single_qubit_state_preparation
+        else _STATE_PREPARATION_MANY_QUBIT_LABEL_WIDTH_FONT_SCALE
+        if is_many_qubit_state_preparation
         else _STATE_PREPARATION_LABEL_WIDTH_FONT_SCALE
         if is_state_preparation
         else _COMPACT_LABEL_WIDTH_FONT_SCALE

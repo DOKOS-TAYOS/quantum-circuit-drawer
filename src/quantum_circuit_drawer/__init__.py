@@ -263,6 +263,7 @@ def plot_histogram(
     mode: HistogramMode | str | None = None,
     sort: HistogramSort | str | None = None,
     state_label_mode: HistogramStateLabelMode | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -288,6 +289,8 @@ def plot_histogram(
         sort: Optional ``"state"``, ``"state_desc"``, ``"value_desc"``, or
             ``"value_asc"``.
         state_label_mode: Optional ``"binary"`` or ``"decimal"`` visible tick labels.
+        reverse_bits: Optional override that reverses each bitstring before marginal
+            selection, sorting, and decimal conversion.
         qubits: Optional tuple of qubit indices for a joint marginal.
         top_k: Optional positive number of bins to keep after sorting.
         result_index: Optional payload index for result containers with several
@@ -316,6 +319,8 @@ def plot_histogram(
         kwargs["sort"] = sort
     if state_label_mode is not None:
         kwargs["state_label_mode"] = state_label_mode
+    if reverse_bits is not None:
+        kwargs["reverse_bits"] = reverse_bits
     if qubits is not None:
         kwargs["qubits"] = qubits
     if top_k is not None:

@@ -43,6 +43,7 @@ def test_public_package_exports_histogram_types() -> None:
     assert HistogramConfig().mode is HistogramMode.AUTO
     assert HistogramConfig().hover is True
     assert HistogramConfig().state_label_mode is HistogramStateLabelMode.BINARY
+    assert HistogramConfig().reverse_bits is False
 
 
 def test_plot_histogram_returns_histogram_result_for_counts_dict() -> None:
@@ -172,6 +173,7 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
         mode: object = None,
         sort: object = None,
         state_label_mode: object = None,
+        reverse_bits: bool | None = None,
         qubits: tuple[int, ...] | None = None,
         top_k: int | None = None,
         result_index: int | None = None,
@@ -187,6 +189,7 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
         captured["mode"] = mode
         captured["sort"] = sort
         captured["state_label_mode"] = state_label_mode
+        captured["reverse_bits"] = reverse_bits
         captured["qubits"] = qubits
         captured["top_k"] = top_k
         captured["result_index"] = result_index
@@ -212,6 +215,7 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
         mode="static",
         sort="value_desc",
         state_label_mode="decimal",
+        reverse_bits=True,
         qubits=(0,),
         top_k=1,
         result_index=0,
@@ -228,6 +232,7 @@ def test_package_level_plot_histogram_forwards_config_and_axes(
     assert captured["mode"] == "static"
     assert captured["sort"] == "value_desc"
     assert captured["state_label_mode"] == "decimal"
+    assert captured["reverse_bits"] is True
     assert captured["qubits"] == (0,)
     assert captured["top_k"] == 1
     assert captured["result_index"] == 0
@@ -388,6 +393,45 @@ def test_plot_histogram_can_display_decimal_labels_for_spaced_registers() -> Non
 
     assert result.state_labels == ("01 101", "10 011")
     assert tick_labels == ("1 5", "2 3")
+
+    plt.close(result.figure)
+
+
+def test_plot_histogram_reverse_bits_updates_binary_and_decimal_labels() -> None:
+    normal_result = plot_histogram(
+        {"1000": 7},
+        state_label_mode=HistogramStateLabelMode.DECIMAL,
+        show=False,
+    )
+    reversed_result = plot_histogram(
+        {"1000": 7},
+        state_label_mode=HistogramStateLabelMode.DECIMAL,
+        reverse_bits=True,
+        show=False,
+    )
+
+    normal_tick_labels = tuple(text.get_text() for text in normal_result.axes.get_xticklabels())
+    reversed_tick_labels = tuple(text.get_text() for text in reversed_result.axes.get_xticklabels())
+
+    assert normal_result.state_labels == ("1000",)
+    assert normal_tick_labels == ("8",)
+    assert reversed_result.state_labels == ("0001",)
+    assert reversed_tick_labels == ("1",)
+
+    plt.close(normal_result.figure)
+    plt.close(reversed_result.figure)
+
+
+def test_plot_histogram_reverse_bits_runs_before_marginal_selection() -> None:
+    result = plot_histogram(
+        {"100": 5, "001": 7},
+        qubits=(0,),
+        reverse_bits=True,
+        show=False,
+    )
+
+    assert result.state_labels == ("0", "1")
+    assert result.values == (7.0, 5.0)
 
     plt.close(result.figure)
 

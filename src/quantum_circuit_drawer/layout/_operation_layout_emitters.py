@@ -245,6 +245,10 @@ def layout_controlled_gate(
         layout_controlled_x(builder, operation=operation, column=column, x=x)
         return
 
+    if uses_controlled_swap(operation):
+        layout_controlled_swap(builder, operation=operation, column=column, x=x)
+        return
+
     style = builder.scaffold.draw_style
     operation_id = _operation_id(operation)
     y_top, y_bottom = vertical_span(builder.scaffold.wire_positions, operation.target_wires)
@@ -326,6 +330,77 @@ def layout_controlled_gate(
         x=x,
         anchor_center_y=gate_y,
         anchor_half_extent=gate_height / 2,
+    )
+
+
+def layout_controlled_swap(
+    builder: _OperationSceneBuilder,
+    *,
+    operation: OperationIR,
+    column: int,
+    x: float,
+) -> None:
+    style = builder.scaffold.draw_style
+    operation_id = _operation_id(operation)
+    target_y_top, target_y_bottom = vertical_span(
+        builder.scaffold.wire_positions,
+        operation.target_wires,
+    )
+    span_top, span_bottom = vertical_span(
+        builder.scaffold.wire_positions,
+        (*operation.control_wires, *operation.target_wires),
+    )
+    hover_data = builder._maybe_hover_data(
+        operation=operation,
+        column=column,
+        name=builder._hover_name(operation, format_gate_name(operation.label or operation.name)),
+        gate_x=x,
+        gate_y=(span_top + span_bottom) / 2,
+        gate_width=style.swap_marker_size * 2.0,
+        gate_height=(span_bottom - span_top) + (style.swap_marker_size * 2.0),
+    )
+    simple_binary_states = binary_control_states(operation)
+    for control_index, control_id in enumerate(operation.control_wires):
+        builder.controls.append(
+            SceneControl(
+                column=column,
+                x=x,
+                y=builder.scaffold.wire_positions[control_id],
+                state=(
+                    simple_binary_states[control_index] if simple_binary_states is not None else 1
+                ),
+                hover_data=hover_data,
+                operation_id=operation_id,
+            )
+        )
+    builder.connections.append(
+        SceneConnection(
+            column=column,
+            x=x,
+            y_start=span_top,
+            y_end=span_bottom,
+            hover_data=hover_data,
+            operation_id=operation_id,
+        )
+    )
+    builder.swaps.append(
+        SceneSwap(
+            column=column,
+            x=x,
+            y_top=target_y_top,
+            y_bottom=target_y_bottom,
+            marker_size=style.swap_marker_size,
+            hover_data=hover_data,
+            operation_id=operation_id,
+        )
+    )
+    append_classical_condition_connections(
+        builder,
+        operation=operation,
+        column=column,
+        x=x,
+        anchor_center_y=(span_top + span_bottom) / 2,
+        anchor_half_extent=(span_bottom - span_top) / 2,
     )
 
 
@@ -556,6 +631,15 @@ def uses_canonical_controlled_z(
         operation.canonical_family is CanonicalGateFamily.Z
         and len(operation.target_wires) == 1
         and not operation.parameters
+    )
+
+
+def uses_controlled_swap(operation: OperationIR) -> bool:
+    return (
+        operation.kind is OperationKind.CONTROLLED_GATE
+        and len(operation.target_wires) == 2
+        and bool(operation.control_wires)
+        and format_gate_name(operation.label or operation.name).upper() == "SWAP"
     )
 
 

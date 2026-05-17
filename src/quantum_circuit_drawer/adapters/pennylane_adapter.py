@@ -913,11 +913,16 @@ class PennyLaneAdapter(BaseAdapter):
         return getattr(operation, "name", None) == "MidMeasureMP"
 
     def _mid_measure_id(self, operation: object) -> str:
-        measurement_id = getattr(operation, "id", None)
-        if measurement_id is not None:
-            return str(measurement_id)
         hyperparameters = getattr(operation, "hyperparameters", {}) or {}
-        return str(hyperparameters.get("id"))
+        for candidate in (
+            getattr(operation, "meas_uid", None),
+            hyperparameters.get("meas_uid"),
+            hyperparameters.get("id"),
+            _legacy_mid_measure_id(operation),
+        ):
+            if candidate is not None:
+                return str(candidate)
+        return f"mid-measure:{id(operation)}"
 
     def _is_conditional(self, operation: object) -> bool:
         return hasattr(operation, "meas_val") and hasattr(operation, "base")
@@ -998,6 +1003,16 @@ class PennyLaneAdapter(BaseAdapter):
         if square_matrix(matrix) is None:
             return {}
         return {"matrix": matrix}
+
+
+def _legacy_mid_measure_id(operation: object) -> object | None:
+    try:
+        static_id = getattr_static(operation, "id")
+    except AttributeError:
+        return None
+    if isinstance(static_id, property):
+        return None
+    return getattr(operation, "id", None)
 
 
 def _looks_like_tape(candidate: object | None) -> bool:
