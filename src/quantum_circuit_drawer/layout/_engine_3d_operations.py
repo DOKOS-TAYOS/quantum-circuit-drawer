@@ -6,7 +6,6 @@ from collections.abc import Sequence
 
 from ..ir.operations import CanonicalGateFamily, OperationIR, binary_control_states
 from ..style import DrawStyle
-from ._engine_3d_metrics import _OperationMetrics3D
 from .scene_3d import Point3D
 from .topology_3d import Topology3D
 
@@ -94,14 +93,6 @@ def uses_canonical_controlled_z_3d(operation: OperationIR) -> bool:
         and len(operation.target_wires) == 1
         and not operation.parameters
     )
-
-
-def gate_hover_text_3d(metrics: _OperationMetrics3D) -> str:
-    """Build the hover text shown for a 3D gate."""
-
-    if metrics.subtitle:
-        return f"{metrics.display_label}({metrics.subtitle})"
-    return metrics.display_label
 
 
 def gate_cube_size_3d(style: DrawStyle) -> float:

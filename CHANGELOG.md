@@ -7,6 +7,8 @@
 - Raised the supported dependency floors for this release: Matplotlib `3.8+`,
   NumPy `1.26+`, Qiskit `2.0+`, Qiskit OpenQASM 3 importer `0.6+`, Cirq Core
   `1.6+`, PennyLane `0.42+`, CUDA-Q `0.14+` on Linux, and ipympl `0.10+`.
+- Removed unused private layout helpers while keeping compatibility facades
+  intact.
 
 ### Fixed
 

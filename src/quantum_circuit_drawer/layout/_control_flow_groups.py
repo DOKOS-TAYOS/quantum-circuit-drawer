@@ -203,31 +203,6 @@ def build_control_flow_group_artifacts(
     )
 
 
-def build_control_flow_group_highlights(
-    *,
-    circuit: CircuitIR,
-    wire_y_positions: Mapping[str, float],
-    gates: Sequence[SceneGate],
-    measurements: Sequence[SceneMeasurement],
-    controls: Sequence[SceneControl],
-    connections: Sequence[SceneConnection],
-    swaps: Sequence[SceneSwap],
-    barriers: Sequence[SceneBarrier],
-) -> tuple[SceneGroupHighlight, ...]:
-    """Return only control-flow highlights for compatibility with older call sites."""
-
-    return build_control_flow_group_artifacts(
-        circuit=circuit,
-        wire_y_positions=wire_y_positions,
-        gates=gates,
-        measurements=measurements,
-        controls=controls,
-        connections=connections,
-        swaps=swaps,
-        barriers=barriers,
-    ).highlights
-
-
 def _control_flow_groups_by_operation_id(
     circuit: CircuitIR,
 ) -> tuple[dict[str, _ControlFlowGroup], dict[str, str]]:
