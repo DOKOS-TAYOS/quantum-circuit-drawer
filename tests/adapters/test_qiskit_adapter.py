@@ -27,6 +27,7 @@ from tests.support import (
     assert_operation_signatures,
     assert_quantum_wire_labels,
     flatten_operations,
+    normalize_rendered_text,
 )
 from tests.support import (
     draw_quantum_circuit_legacy as draw_quantum_circuit,
@@ -86,6 +87,13 @@ def test_qiskit_adapter_matches_canonical_contract() -> None:
     )
     assert measurement.classical_target == "c0"
     assert measurement.metadata["classical_bit_label"] == "c[0]"
+
+
+def test_qiskit_adapter_rejects_legacy_tuple_instruction_shape() -> None:
+    legacy_entry = (SimpleNamespace(name="x", params=()), (), ())
+
+    with pytest.raises(UnsupportedOperationError, match="unsupported Qiskit instruction shape"):
+        QiskitAdapter()._normalize_entry(legacy_entry)
 
 
 def test_qiskit_adapter_exposes_semantic_ir_for_standard_circuit() -> None:
@@ -363,6 +371,50 @@ def test_qiskit_adapter_preserves_named_unitary_matrix_gate_label() -> None:
     assert operation.parameters == ()
 
 
+def test_qiskit_adapter_labels_inverse_qpe_unitary_powers_when_expanded() -> None:
+    unitary = qiskit.circuit.library.UnitaryGate(np.diag([1, 1j]))
+    inverse_qpe = qiskit.circuit.library.phase_estimation(3, unitary).to_gate().inverse()
+    circuit = qiskit.QuantumCircuit(4)
+    circuit.append(inverse_qpe, range(4))
+
+    ir = QiskitAdapter().to_ir(
+        circuit,
+        options={"composite_mode": "expand", "explicit_matrices": False},
+    )
+    operations = flatten_operations(ir)
+    controlled_unitaries = [
+        operation
+        for operation in operations
+        if operation.kind is OperationKind.CONTROLLED_GATE and operation.name.startswith("unitary")
+    ]
+
+    assert [operation.name for operation in controlled_unitaries] == [
+        "unitary^4_dg",
+        "unitary^2_dg",
+        "unitary^1_dg",
+    ]
+    assert all(operation.metadata["suppress_params"] is True for operation in controlled_unitaries)
+
+
+def test_qiskit_adapter_uses_compact_permutation_subtitle() -> None:
+    pattern = tuple(reversed(range(12)))
+    circuit = qiskit.QuantumCircuit(12)
+    circuit.append(qiskit.circuit.library.PermutationGate(pattern), range(12))
+
+    ir = QiskitAdapter().to_ir(circuit)
+    operation = flatten_operations(ir)[0]
+    scene = LayoutEngine().compute(ir, DrawStyle())
+
+    assert operation.name == "PERMUT"
+    assert operation.label == "PERMUT"
+    assert operation.metadata["display_subtitle"] == ("[11, 10, 9, 8,\n7, 6, 5, 4,\n3, 2, 1, 0]")
+    assert operation.metadata["subtitle_font_scale"] == pytest.approx(0.46)
+    assert operation.parameters == ()
+    assert scene.gates[0].label == "PERMUT"
+    assert scene.gates[0].subtitle == "[11, 10, 9, 8,\n7, 6, 5, 4,\n3, 2, 1, 0]"
+    assert scene.gates[0].width < scene.style.gate_width * 4.5
+
+
 def test_qiskit_adapter_expands_state_preparation_unitaries_to_u_gates() -> None:
     circuit = qiskit.QuantumCircuit(2)
     circuit.append(qiskit.circuit.library.StatePreparation([0.5, 0.5, 0.5, 0.5]), [0, 1])
@@ -519,7 +571,13 @@ def test_qiskit_adapter_falls_back_to_compact_if_when_simple_if_condition_is_not
             SimpleNamespace(
                 qubits=("inner-q0",),
                 clbits=(),
-                data=((SimpleNamespace(name="x", params=()), ("inner-q0",), ()),),
+                data=(
+                    SimpleNamespace(
+                        operation=SimpleNamespace(name="x", params=()),
+                        qubits=("inner-q0",),
+                        clbits=(),
+                    ),
+                ),
             ),
         ),
         condition=UnsupportedCondition(),
@@ -929,6 +987,29 @@ def test_draw_quantum_circuit_renders_qiskit_control_flow_labels() -> None:
     figure.clear()
 
 
+def test_draw_qiskit_nested_control_flow_condition_labels_are_staggered() -> None:
+    quantum = qiskit.QuantumRegister(1, "q")
+    classical = qiskit.ClassicalRegister(1, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test((classical[0], 1)):
+        with circuit.if_test((classical[0], 0)):
+            circuit.x(0)
+
+    figure, axes = draw_quantum_circuit(circuit, framework="qiskit", show=False)
+    labels_by_text = {
+        normalize_rendered_text(text.get_text()): text
+        for text in axes.texts
+        if normalize_rendered_text(text.get_text()).startswith("if c[0]=")
+    }
+
+    outer_label = labels_by_text["if c[0]=1"]
+    inner_label = labels_by_text["if c[0]=0"]
+
+    assert inner_label.get_position()[1] < outer_label.get_position()[1]
+    figure.clear()
+
+
 def test_qiskit_adapter_expands_for_and_while_with_group_metadata_by_default() -> None:
     quantum = qiskit.QuantumRegister(1, "q")
     classical = qiskit.ClassicalRegister(1, "c")
@@ -1049,6 +1130,36 @@ def test_layout_engine_draws_qiskit_control_flow_group_conditions_and_for_iterat
         assert connection.y_end < scene.wire_y_positions["c0"]
     for highlight in scene.group_highlights:
         assert highlight.y + (highlight.height / 2.0) < scene.wire_y_positions["c0"]
+
+
+def test_layout_engine_draws_nested_qiskit_if_groups_as_hierarchy() -> None:
+    quantum = qiskit.QuantumRegister(3, "q")
+    classical = qiskit.ClassicalRegister(3, "c")
+    circuit = qiskit.QuantumCircuit(quantum, classical)
+
+    with circuit.if_test((classical[0], 1)):
+        with circuit.if_test((classical[1], 1)):
+            circuit.x(0)
+        with circuit.if_test((classical[2], 1)):
+            circuit.z(2)
+
+    semantic_ir = QiskitAdapter().to_semantic_ir(circuit)
+    scene = LayoutEngine().compute(lower_semantic_circuit(semantic_ir), DrawStyle())
+    gate_columns = {gate.label: gate.column for gate in scene.gates}
+    outer_highlight = next(
+        highlight for highlight in scene.group_highlights if highlight.nesting_depth == 0
+    )
+    inner_highlights = [
+        highlight for highlight in scene.group_highlights if highlight.nesting_depth == 1
+    ]
+
+    assert gate_columns["X"] != gate_columns["Z"]
+    assert [highlight.nesting_depth for highlight in scene.group_highlights] == [1, 0, 1]
+    assert len(inner_highlights) == 2
+    assert outer_highlight.start_column == min(gate_columns.values())
+    assert outer_highlight.end_column == max(gate_columns.values())
+    assert outer_highlight.width > max(highlight.width for highlight in inner_highlights)
+    assert outer_highlight.height > max(highlight.height for highlight in inner_highlights)
 
 
 def test_qiskit_initialize_uses_state_preparation_label_and_small_state_vector_subtitle() -> None:
@@ -1346,7 +1457,11 @@ def test_qiskit_adapter_raises_for_measure_without_classical_target() -> None:
         match=r"instruction 'measure' has no classical target",
     ):
         adapter._convert_instruction(
-            (_MeasureOperation(), (qubit,), ()),
+            SimpleNamespace(
+                operation=_MeasureOperation(),
+                qubits=(qubit,),
+                clbits=(),
+            ),
             {qubit: "q0"},
             {},
             {},
@@ -1453,7 +1568,11 @@ def test_qiskit_adapter_rejects_measure_without_quantum_target() -> None:
         match="Qiskit instruction 'measure' has no quantum target",
     ):
         adapter._convert_instruction(
-            (malformed_instruction, (), ("cbit",)),
+            SimpleNamespace(
+                operation=malformed_instruction,
+                qubits=(),
+                clbits=("cbit",),
+            ),
             {},
             {"cbit": ("c0", "c[0]")},
             {},

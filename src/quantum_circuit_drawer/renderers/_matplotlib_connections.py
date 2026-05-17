@@ -279,7 +279,7 @@ def draw_connections(
             artists.append(_add_patch_artist(ax, arrow))
         if connection.label:
             label_y = (
-                connection_y_start - 0.12
+                connection_y_start - 0.12 - connection.label_y_offset
                 if connection.is_classical and connection.double_line
                 else None
             )

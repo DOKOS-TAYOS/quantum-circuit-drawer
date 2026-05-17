@@ -127,11 +127,11 @@ class HardwareTopology:
         two_q_gate: str | None = None,
         filter_idle_qubits: bool = False,
     ) -> HardwareTopology:
-        """Build a topology from a Qiskit BackendV1/BackendV2-like object.
+        """Build a topology from a Qiskit BackendV2-like object.
 
         Args:
             backend: Real Qiskit backend or a duck-typed object exposing target,
-                coupling-map, or configuration attributes.
+                coupling-map, or qubit-count attributes.
             name: Optional display name. ``None`` uses the backend name when available.
             coordinates: Optional node coordinates keyed by backend qubit id.
             two_q_gate: Optional two-qubit operation name used to filter BackendV2
@@ -1207,8 +1207,7 @@ def _qiskit_backend_coupling_map(
         if coupling_map is not None:
             return coupling_map
 
-    configuration = _qiskit_backend_configuration(backend)
-    return _safe_attr(configuration, "coupling_map")
+    return None
 
 
 def _qiskit_backend_node_ids(
@@ -1235,35 +1234,21 @@ def _qiskit_backend_node_ids(
 
 
 def _qiskit_backend_qubit_count(backend: object) -> int | None:
-    for source in (backend, _qiskit_backend_configuration(backend)):
-        raw_count = _safe_attr(source, "num_qubits")
-        if raw_count is None:
-            raw_count = _safe_attr(source, "n_qubits")
-        if isinstance(raw_count, int) and not isinstance(raw_count, bool) and raw_count > 0:
-            return raw_count
+    raw_count = _safe_attr(backend, "num_qubits")
+    if raw_count is None:
+        raw_count = _safe_attr(backend, "n_qubits")
+    if isinstance(raw_count, int) and not isinstance(raw_count, bool) and raw_count > 0:
+        return raw_count
     return None
 
 
 def _qiskit_backend_name(backend: object) -> str:
-    for raw_name in (
-        _safe_attr(backend, "name"),
-        _safe_attr(_qiskit_backend_configuration(backend), "backend_name"),
-    ):
-        if callable(raw_name):
-            raw_name = raw_name()
-        if isinstance(raw_name, str) and raw_name.strip():
-            return raw_name.strip()
+    raw_name = _safe_attr(backend, "name")
+    if callable(raw_name):
+        raw_name = raw_name()
+    if isinstance(raw_name, str) and raw_name.strip():
+        return raw_name.strip()
     return "qiskit_backend"
-
-
-def _qiskit_backend_configuration(backend: object) -> object | None:
-    configuration = _safe_attr(backend, "configuration")
-    if not callable(configuration):
-        return None
-    try:
-        return configuration()
-    except (AttributeError, NotImplementedError, TypeError):
-        return None
 
 
 def _qiskit_coupling_map_edges(

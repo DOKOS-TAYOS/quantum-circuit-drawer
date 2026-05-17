@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 
-from .._compat import StrEnum
 from ..hover import HoverOptions
 from ..ir.operations import OperationKind
 from ..ir.wires import WireKind
@@ -106,6 +106,7 @@ class SceneConnection:
     linestyle: str = "solid"
     arrow_at_end: bool = False
     label: str | None = None
+    label_y_offset: float = 0.0
     hover_data: SceneHoverData | None = None
     operation_id: str | None = None
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
@@ -185,6 +186,7 @@ class SceneGroupHighlight:
     continues_left: bool = False
     continues_right: bool = False
     visual_state: SceneVisualState = SceneVisualState.DEFAULT
+    nesting_depth: int = 0
 
 
 @dataclass(slots=True)

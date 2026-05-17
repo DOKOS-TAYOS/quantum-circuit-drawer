@@ -7,6 +7,8 @@
 - Raised the supported dependency floors for this release: Matplotlib `3.8+`,
   NumPy `1.26+`, Qiskit `2.0+`, Qiskit OpenQASM 3 importer `0.6+`, Cirq Core
   `1.6+`, PennyLane `0.42+`, CUDA-Q `0.14+` on Linux, and ipympl `0.10+`.
+- Removed stale compatibility code for Python pre-3.11 `StrEnum` and Qiskit
+  pre-2 instruction/backend shapes.
 - Removed unused private layout helpers while keeping compatibility facades
   intact.
 - Fixed Matplotlib path-code typing so `mypy` accepts continued control-flow
@@ -23,6 +25,8 @@
   for the label.
 - Kept interactive histogram sliders in notebook widget backends from expanding
   to the full distribution when dragging the slider after a widget resize.
+- Improved interactive histogram slider responsiveness by skipping static
+  control-label refits and duplicate widget redraws during window-only moves.
 - Moved interactive shortcut-help overlays to the far-right side of figures,
   while keeping their text left-aligned, to reduce notebook overlaps.
 - Added `plot_histogram(..., reverse_bits=True)` and `HistogramDataOptions.reverse_bits`
@@ -33,8 +37,20 @@
   label while preserving small matrices in hover metadata.
 - Kept expanded Qiskit matrix/unitary definitions decomposed to their standard
   gates, so `StatePreparation` expansions show `U` gates instead of `M_custom`.
+- Preserved readable labels for inverse Qiskit QPE unitary powers when expanding
+  `QPE_dg`, rendering labels such as `unitary^4_dg` instead of `M_custom`.
+- Rendered Qiskit permutation gates as compact `PERMUT` boxes with wrapped
+  permutation subtitles instead of letting long permutation text widen columns.
 - Normalized compact Qiskit QFT instructions so single-QFT circuits keep a
   drawable `QFT` gate.
+- Preserved nested Qiskit `if`/`else` control-flow groups so inner and outer
+  branch frames are both visible in expanded layouts.
+- Separated nested Qiskit control-flow branches into distinct columns and made
+  outer frames wider and thicker than inner frames, keeping non-nested frames
+  visually unchanged.
+- Staggered nested control-flow condition labels above the classical register
+  so repeated `if`, `else`, `for`, `while`, and `switch` conditions do not
+  overlap.
 - Split expanded control-flow frames across wrapped pages so `if`, `else`,
   `for`, `while`, and `switch` bodies visibly continue on following pages.
 - Kept final-page control-flow frames centered by preserving their padding on

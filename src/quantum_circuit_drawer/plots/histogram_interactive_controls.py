@@ -243,6 +243,8 @@ def ensure_slider_control(
         },
     )
     _style_slider(horizontal_slider, palette=palette)
+    # The state redraw below updates the whole histogram; avoid an extra widget-only draw.
+    horizontal_slider.drawon = False
     horizontal_slider.on_changed(
         lambda value: state.set_window_start(
             round(float(value)),

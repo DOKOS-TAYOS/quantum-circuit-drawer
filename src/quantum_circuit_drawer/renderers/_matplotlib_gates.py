@@ -135,7 +135,7 @@ def _group_highlight_patch(
             boxstyle="round,pad=0.03,rounding_size=0.08",
             facecolor="none",
             edgecolor=scene.style.theme.accent_color,
-            linewidth=1.15,
+            linewidth=_control_flow_group_highlight_line_width(highlight),
             linestyle="--",
             zorder=OCCLUSION_LAYER_ZORDER - 0.5,
             alpha=0.9 * alpha_for_visual_state(highlight.visual_state),
@@ -190,13 +190,17 @@ def _continued_group_highlight_patch(
         Path(vertices, codes),
         facecolor="none",
         edgecolor=scene.style.theme.accent_color,
-        linewidth=1.15,
+        linewidth=_control_flow_group_highlight_line_width(highlight),
         linestyle="--",
         zorder=OCCLUSION_LAYER_ZORDER - 0.5,
         alpha=0.9 * alpha_for_visual_state(highlight.visual_state),
     )
     patch.set_gid("control-flow-group-highlight")
     return patch
+
+
+def _control_flow_group_highlight_line_width(highlight: SceneGroupHighlight) -> float:
+    return max(0.55, 1.15 - (0.24 * max(0, highlight.nesting_depth)))
 
 
 def _group_highlight_extent(

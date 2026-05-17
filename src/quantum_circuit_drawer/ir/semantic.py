@@ -315,8 +315,14 @@ def _pack_control_flow_group_local_layers(
 ) -> tuple[tuple[SemanticOperationIR, ...], ...]:
     local_layers: list[list[SemanticOperationIR]] = []
     latest_layer_by_slot: dict[str, int] = {}
+    latest_layer_by_sequence_key: dict[tuple[str, ...], int] = {}
     for operation in operations:
-        _pack_single_semantic_operation(
+        sequence_key = _nested_control_flow_sequence_key(operation)
+        minimum_layer = _minimum_layer_for_control_flow_sequence(
+            sequence_key,
+            latest_layer_by_sequence_key,
+        )
+        target_layer = _pack_single_semantic_operation(
             operation,
             layer_operations=local_layers,
             latest_layer_by_slot=latest_layer_by_slot,
@@ -324,6 +330,11 @@ def _pack_control_flow_group_local_layers(
                 operation,
                 ignored_dependencies=ignored_dependencies,
             ),
+            minimum_layer=minimum_layer,
+        )
+        latest_layer_by_sequence_key[sequence_key] = max(
+            target_layer,
+            latest_layer_by_sequence_key.get(sequence_key, -1),
         )
     return tuple(tuple(layer) for layer in local_layers)
 
@@ -334,13 +345,42 @@ def _pack_single_semantic_operation(
     layer_operations: list[list[SemanticOperationIR]],
     latest_layer_by_slot: dict[str, int],
     slots: tuple[str, ...],
-) -> None:
-    target_layer = max((latest_layer_by_slot.get(slot, -1) for slot in slots), default=-1) + 1
+    minimum_layer: int = 0,
+) -> int:
+    target_layer = max(
+        max((latest_layer_by_slot.get(slot, -1) for slot in slots), default=-1) + 1,
+        minimum_layer,
+    )
     while len(layer_operations) <= target_layer:
         layer_operations.append([])
     layer_operations[target_layer].append(operation)
     for slot in slots:
         latest_layer_by_slot[slot] = target_layer
+    return target_layer
+
+
+def _minimum_layer_for_control_flow_sequence(
+    sequence_key: tuple[str, ...],
+    latest_layer_by_sequence_key: Mapping[tuple[str, ...], int],
+) -> int:
+    return (
+        max(
+            (
+                latest_layer
+                for key, latest_layer in latest_layer_by_sequence_key.items()
+                if key != sequence_key
+            ),
+            default=-1,
+        )
+        + 1
+    )
+
+
+def _nested_control_flow_sequence_key(operation: SemanticOperationIR) -> tuple[str, ...]:
+    stack_ids = _control_flow_group_stack_ids(operation.metadata)
+    if len(stack_ids) <= 1:
+        return ()
+    return stack_ids[:-1]
 
 
 def _local_control_flow_operation_slots(
@@ -416,6 +456,25 @@ def _control_flow_group_id(operation: SemanticOperationIR) -> str | None:
     if isinstance(group_id, str) and group_id:
         return group_id
     return None
+
+
+def _control_flow_group_stack_ids(metadata: Metadata) -> tuple[str, ...]:
+    stacked_groups = metadata.get("control_flow_groups")
+    if isinstance(stacked_groups, Sequence) and not isinstance(stacked_groups, str | bytes):
+        return tuple(
+            str(group_id)
+            for group in stacked_groups
+            if isinstance(group, Mapping)
+            and isinstance(group_id := group.get("id"), str)
+            and group_id
+        )
+
+    group_metadata = metadata.get("control_flow_group")
+    if isinstance(group_metadata, Mapping):
+        group_id = group_metadata.get("id")
+        if isinstance(group_id, str) and group_id:
+            return (group_id,)
+    return ()
 
 
 def _control_flow_group_dependency_wire_ids(operation: SemanticOperationIR) -> frozenset[str]:

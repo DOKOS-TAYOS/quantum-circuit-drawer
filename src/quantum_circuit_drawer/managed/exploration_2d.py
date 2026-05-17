@@ -6,12 +6,12 @@ import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from typing import TypeVar
 
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseEvent
 
-from .._compat import StrEnum
 from ..drawing.pages import _items_for_page
 from ..ir.circuit import CircuitIR
 from ..ir.classical_conditions import ClassicalConditionIR
@@ -1103,11 +1103,16 @@ def _collapsed_control_flow_metadata(
 def _control_flow_group_entries(
     operations: Sequence[SemanticOperationIR],
 ) -> tuple[Mapping[object, object], ...]:
-    return tuple(
-        metadata
-        for operation in operations
-        if isinstance(metadata := operation.metadata.get("control_flow_group"), Mapping)
-    )
+    entries: list[Mapping[object, object]] = []
+    for operation in operations:
+        stacked_groups = operation.metadata.get("control_flow_groups")
+        if isinstance(stacked_groups, Sequence) and not isinstance(stacked_groups, str | bytes):
+            entries.extend(group for group in stacked_groups if isinstance(group, Mapping))
+            continue
+        group_metadata = operation.metadata.get("control_flow_group")
+        if isinstance(group_metadata, Mapping):
+            entries.append(group_metadata)
+    return tuple(entries)
 
 
 def _control_flow_group_conditions(

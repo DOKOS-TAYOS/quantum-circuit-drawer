@@ -69,30 +69,14 @@ def test_hardware_topology_from_qiskit_backend_builds_from_target_coupling_map()
     assert topology.edges == ((0, 2),)
 
 
-def test_hardware_topology_from_qiskit_backend_uses_legacy_configuration() -> None:
-    configuration = SimpleNamespace(
-        coupling_map=((0, 1), (2, 3)),
-        n_qubits=5,
-        backend_name="legacy_backend",
-    )
-    backend = SimpleNamespace(configuration=lambda: configuration)
+def test_hardware_topology_from_qiskit_backend_ignores_legacy_configuration() -> None:
+    def configuration() -> object:
+        raise AssertionError("legacy configuration() should not be used")
 
-    topology = HardwareTopology.from_qiskit_backend(
-        backend,
-        coordinates={
-            0: (0.0, 0.0),
-            1: (1.0, 0.0),
-            2: (0.0, -1.0),
-            3: (1.0, -1.0),
-            4: (2.0, -1.0),
-        },
-    )
+    backend = SimpleNamespace(configuration=configuration)
 
-    assert topology.name == "legacy_backend"
-    assert topology.node_ids == (0, 1, 2, 3, 4)
-    assert topology.edges == ((0, 1), (2, 3))
-    assert topology.coordinates is not None
-    assert topology.coordinates[4] == (2.0, -1.0)
+    with pytest.raises(ValueError, match="could not infer Qiskit backend qubits"):
+        HardwareTopology.from_qiskit_backend(backend)
 
 
 def test_hardware_topology_from_qiskit_backend_raises_for_unconstrained_multi_qubit_backend() -> (

@@ -17,6 +17,8 @@ _STATE_PREPARATION_SUBTITLE_WIDTH_FONT_SCALE = 0.28
 _STATE_PREPARATION_MANY_QUBIT_LABEL_WIDTH_FONT_SCALE = 0.2
 _STATE_PREPARATION_SINGLE_QUBIT_LABEL_WIDTH_FONT_SCALE = 0.2
 _STATE_PREPARATION_SINGLE_QUBIT_SUBTITLE_WIDTH_FONT_SCALE = 0.18
+_PERMUTATION_LABEL_WIDTH_FONT_SCALE = 0.28
+_PERMUTATION_SUBTITLE_WIDTH_FONT_SCALE = 0.28
 _COMPACT_U_SUBTITLE_FONT_SCALE = 0.46
 _COMPACT_U_WIDTH_FACTOR = 2.0
 _DEFAULT_SUBTITLE_WIDTH_FONT_SCALE = 0.8
@@ -157,6 +159,7 @@ def operation_width_from_parts(
     is_state_preparation = format_gate_name(label) == "StatePreparation"
     is_single_qubit_state_preparation = is_state_preparation and len(operation.target_wires) == 1
     is_many_qubit_state_preparation = is_state_preparation and len(operation.target_wires) >= 3
+    is_permutation = format_gate_name(label) == "PERMUT"
     label_font_scale = (
         _STATE_PREPARATION_SINGLE_QUBIT_LABEL_WIDTH_FONT_SCALE
         if is_single_qubit_state_preparation
@@ -164,6 +167,8 @@ def operation_width_from_parts(
         if is_many_qubit_state_preparation
         else _STATE_PREPARATION_LABEL_WIDTH_FONT_SCALE
         if is_state_preparation
+        else _PERMUTATION_LABEL_WIDTH_FONT_SCALE
+        if is_permutation
         else _COMPACT_LABEL_WIDTH_FONT_SCALE
     )
     subtitle_width_font_scale = (
@@ -171,6 +176,8 @@ def operation_width_from_parts(
         if is_single_qubit_state_preparation
         else _STATE_PREPARATION_SUBTITLE_WIDTH_FONT_SCALE
         if is_state_preparation
+        else _PERMUTATION_SUBTITLE_WIDTH_FONT_SCALE
+        if is_permutation
         else None
     )
     label_width = (

@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from ._compat import StrEnum
 from ._logging import (
     duration_ms,
     emit_render_diagnostics,

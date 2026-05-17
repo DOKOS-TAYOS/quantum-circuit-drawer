@@ -28,6 +28,7 @@ class _ControlFlowGroup:
     label: str
     hover_label: str
     details: tuple[str, ...]
+    nesting_depth: int = 0
     conditions: tuple[ClassicalConditionIR, ...] = ()
     operation_ids: set[str] = field(default_factory=set)
     wire_ids: set[str] = field(default_factory=set)
@@ -65,6 +66,9 @@ class ControlFlowGroupArtifacts:
     condition_connections: tuple[SceneConnection, ...]
 
 
+_CONTROL_FLOW_CONDITION_LABEL_NESTING_STEP = 0.14
+
+
 def build_control_flow_group_artifacts(
     *,
     circuit: CircuitIR,
@@ -78,7 +82,7 @@ def build_control_flow_group_artifacts(
 ) -> ControlFlowGroupArtifacts:
     """Return one enclosing highlight for every expanded control-flow body."""
 
-    groups, group_id_by_operation_id = _control_flow_groups_by_operation_id(circuit)
+    groups, group_ids_by_operation_id = _control_flow_groups_by_operation_id(circuit)
     if not groups:
         return ControlFlowGroupArtifacts(highlights=(), condition_connections=())
 
@@ -88,7 +92,7 @@ def build_control_flow_group_artifacts(
     for gate in gates:
         _extend_group_bounds(
             bounds_by_group_id,
-            group_id_by_operation_id=group_id_by_operation_id,
+            group_ids_by_operation_id=group_ids_by_operation_id,
             operation_id=gate.operation_id,
             column=gate.column,
             x_min=gate.x - (gate.width / 2.0),
@@ -99,7 +103,7 @@ def build_control_flow_group_artifacts(
     for measurement in measurements:
         _extend_group_bounds(
             bounds_by_group_id,
-            group_id_by_operation_id=group_id_by_operation_id,
+            group_ids_by_operation_id=group_ids_by_operation_id,
             operation_id=measurement.operation_id,
             column=measurement.column,
             x_min=measurement.x - (measurement.width / 2.0),
@@ -110,7 +114,7 @@ def build_control_flow_group_artifacts(
     for control in controls:
         _extend_group_bounds(
             bounds_by_group_id,
-            group_id_by_operation_id=group_id_by_operation_id,
+            group_ids_by_operation_id=group_ids_by_operation_id,
             operation_id=control.operation_id,
             column=control.column,
             x_min=control.x - 0.12,
@@ -123,7 +127,7 @@ def build_control_flow_group_artifacts(
             continue
         _extend_group_bounds(
             bounds_by_group_id,
-            group_id_by_operation_id=group_id_by_operation_id,
+            group_ids_by_operation_id=group_ids_by_operation_id,
             operation_id=connection.operation_id,
             column=connection.column,
             x_min=connection.x - connection_half_width,
@@ -134,7 +138,7 @@ def build_control_flow_group_artifacts(
     for swap in swaps:
         _extend_group_bounds(
             bounds_by_group_id,
-            group_id_by_operation_id=group_id_by_operation_id,
+            group_ids_by_operation_id=group_ids_by_operation_id,
             operation_id=swap.operation_id,
             column=swap.column,
             x_min=swap.x - swap.marker_size,
@@ -145,7 +149,7 @@ def build_control_flow_group_artifacts(
     for barrier in barriers:
         _extend_group_bounds(
             bounds_by_group_id,
-            group_id_by_operation_id=group_id_by_operation_id,
+            group_ids_by_operation_id=group_ids_by_operation_id,
             operation_id=barrier.operation_id,
             column=barrier.column,
             x_min=barrier.x - barrier_half_width,
@@ -154,12 +158,20 @@ def build_control_flow_group_artifacts(
             y_max=max(barrier.y_top, barrier.y_bottom),
         )
 
-    x_padding = 0.16
-    y_padding = 0.18
+    max_nesting_depth = max((group.nesting_depth for group in groups.values()), default=0)
+    base_x_padding = 0.16
+    base_y_padding = 0.18
+    nested_padding_step = 0.08
     highlights: list[SceneGroupHighlight] = []
     condition_connections: list[SceneConnection] = []
     for group_id, bounds in bounds_by_group_id.items():
         group = groups[group_id]
+        nesting_extra_padding = nested_padding_step * max(
+            0,
+            max_nesting_depth - group.nesting_depth,
+        )
+        x_padding = base_x_padding + nesting_extra_padding
+        y_padding = base_y_padding + nesting_extra_padding
         width = (bounds.x_max - bounds.x_min) + (x_padding * 2.0)
         height = (bounds.y_max - bounds.y_min) + (y_padding * 2.0)
         center_x = (bounds.x_min + bounds.x_max) / 2.0
@@ -182,6 +194,7 @@ def build_control_flow_group_artifacts(
             operation_id=group.group_id,
             start_column=bounds.start_column,
             end_column=bounds.end_column,
+            nesting_depth=group.nesting_depth,
         )
         highlights.append(highlight)
         condition_connections.extend(
@@ -205,34 +218,57 @@ def build_control_flow_group_artifacts(
 
 def _control_flow_groups_by_operation_id(
     circuit: CircuitIR,
-) -> tuple[dict[str, _ControlFlowGroup], dict[str, str]]:
+) -> tuple[dict[str, _ControlFlowGroup], dict[str, tuple[str, ...]]]:
     groups: dict[str, _ControlFlowGroup] = {}
-    group_id_by_operation_id: dict[str, str] = {}
+    group_ids_by_operation_id: dict[str, list[str]] = {}
     for layer in circuit.layers:
         for operation in layer.operations:
             operation_id = _string_metadata(operation.metadata, "semantic_operation_id")
-            group_metadata = _mapping_metadata(operation.metadata, "control_flow_group")
-            if operation_id is None or group_metadata is None:
+            if operation_id is None:
                 continue
-            group_id = _string_metadata(group_metadata, "id")
-            label = _string_metadata(group_metadata, "label")
-            if group_id is None or label is None:
-                continue
-            hover_label = _string_metadata(group_metadata, "hover_label") or label
-            group = groups.get(group_id)
-            if group is None:
-                group = _ControlFlowGroup(
-                    group_id=group_id,
-                    label=label,
-                    hover_label=hover_label,
-                    details=_details_metadata(group_metadata),
-                    conditions=_conditions_metadata(group_metadata),
-                )
-                groups[group_id] = group
-            group.operation_ids.add(operation_id)
-            group.wire_ids.update(operation.occupied_wire_ids)
-            group_id_by_operation_id[operation_id] = group_id
-    return groups, group_id_by_operation_id
+            for group_metadata, nesting_depth in _control_flow_group_entries(operation.metadata):
+                group_id = _string_metadata(group_metadata, "id")
+                label = _string_metadata(group_metadata, "label")
+                if group_id is None or label is None:
+                    continue
+                hover_label = _string_metadata(group_metadata, "hover_label") or label
+                group = groups.get(group_id)
+                if group is None:
+                    group = _ControlFlowGroup(
+                        group_id=group_id,
+                        label=label,
+                        hover_label=hover_label,
+                        details=_details_metadata(group_metadata),
+                        nesting_depth=nesting_depth,
+                        conditions=_conditions_metadata(group_metadata),
+                    )
+                    groups[group_id] = group
+                else:
+                    group.nesting_depth = min(group.nesting_depth, nesting_depth)
+                group.operation_ids.add(operation_id)
+                group.wire_ids.update(operation.occupied_wire_ids)
+                operation_group_ids = group_ids_by_operation_id.setdefault(operation_id, [])
+                if group_id not in operation_group_ids:
+                    operation_group_ids.append(group_id)
+    return groups, {
+        operation_id: tuple(group_ids)
+        for operation_id, group_ids in group_ids_by_operation_id.items()
+    }
+
+
+def _control_flow_group_entries(
+    metadata: Mapping[str, object],
+) -> tuple[tuple[Mapping[str, object], int], ...]:
+    stacked_groups = metadata.get("control_flow_groups")
+    if isinstance(stacked_groups, Sequence) and not isinstance(stacked_groups, str | bytes):
+        groups = tuple(group for group in stacked_groups if isinstance(group, Mapping))
+        if groups:
+            return tuple((group, depth) for depth, group in enumerate(reversed(groups)))
+
+    group_metadata = _mapping_metadata(metadata, "control_flow_group")
+    if group_metadata is None:
+        return ()
+    return ((group_metadata, 0),)
 
 
 def _condition_connections_for_group(
@@ -259,6 +295,8 @@ def _condition_connections_for_group(
                 linestyle="solid",
                 arrow_at_end=True,
                 label=anchor.label,
+                label_y_offset=_CONTROL_FLOW_CONDITION_LABEL_NESTING_STEP
+                * max(0, group.nesting_depth),
                 operation_id=group.group_id,
             )
         )
@@ -268,7 +306,7 @@ def _condition_connections_for_group(
 def _extend_group_bounds(
     bounds_by_group_id: dict[str, _ControlFlowBounds],
     *,
-    group_id_by_operation_id: dict[str, str],
+    group_ids_by_operation_id: dict[str, tuple[str, ...]],
     operation_id: str | None,
     column: int,
     x_min: float,
@@ -278,21 +316,22 @@ def _extend_group_bounds(
 ) -> None:
     if operation_id is None:
         return
-    group_id = group_id_by_operation_id.get(operation_id)
-    if group_id is None:
+    group_ids = group_ids_by_operation_id.get(operation_id, ())
+    if not group_ids:
         return
-    bounds = bounds_by_group_id.get(group_id)
-    if bounds is None:
-        bounds_by_group_id[group_id] = _ControlFlowBounds(
-            start_column=column,
-            end_column=column,
-            x_min=float(x_min),
-            x_max=float(x_max),
-            y_min=float(y_min),
-            y_max=float(y_max),
-        )
-        return
-    bounds.extend(column=column, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
+    for group_id in group_ids:
+        bounds = bounds_by_group_id.get(group_id)
+        if bounds is None:
+            bounds_by_group_id[group_id] = _ControlFlowBounds(
+                start_column=column,
+                end_column=column,
+                x_min=float(x_min),
+                x_max=float(x_max),
+                y_min=float(y_min),
+                y_max=float(y_max),
+            )
+            continue
+        bounds.extend(column=column, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
 
 def _control_flow_hover_data(
