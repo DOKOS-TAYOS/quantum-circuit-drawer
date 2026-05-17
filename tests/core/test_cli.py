@@ -115,6 +115,45 @@ def test_cli_histogram_data_key_selects_nested_json_mapping(
     assert config.output_path == output_path
 
 
+def test_cli_histogram_reverse_bits_updates_config(
+    monkeypatch,
+    sandbox_tmp_path: Path,
+) -> None:
+    from quantum_circuit_drawer import cli
+
+    counts_path = sandbox_tmp_path / "counts.json"
+    output_path = sandbox_tmp_path / "reverse.png"
+    counts_path.write_text(json.dumps({"10": 4, "01": 2}), encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_plot_histogram(
+        data: object,
+        *,
+        config: HistogramConfig | None = None,
+    ) -> object:
+        captured["data"] = data
+        captured["config"] = config
+        return SimpleNamespace(saved_path=str(output_path.resolve()))
+
+    monkeypatch.setattr(cli, "plot_histogram", fake_plot_histogram)
+
+    exit_code = cli.main(
+        [
+            "histogram",
+            str(counts_path),
+            "--output",
+            str(output_path),
+            "--reverse-bits",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["data"] == {"10": 4, "01": 2}
+    config = captured["config"]
+    assert isinstance(config, HistogramConfig)
+    assert config.reverse_bits is True
+
+
 def test_cli_histogram_returns_argument_error_for_invalid_json(
     sandbox_tmp_path: Path,
     capsys,
@@ -129,6 +168,32 @@ def test_cli_histogram_returns_argument_error_for_invalid_json(
 
     assert exit_code == 2
     assert "Invalid JSON" in capsys.readouterr().err
+
+
+def test_cli_rejects_infinite_figsize_as_argument_error(
+    sandbox_tmp_path: Path,
+    capsys,
+) -> None:
+    from quantum_circuit_drawer import cli
+
+    counts_path = sandbox_tmp_path / "counts.json"
+    output_path = sandbox_tmp_path / "counts.png"
+    counts_path.write_text(json.dumps({"0": 1}), encoding="utf-8")
+
+    exit_code = cli.main(
+        [
+            "histogram",
+            str(counts_path),
+            "--output",
+            str(output_path),
+            "--figsize",
+            "inf",
+            "3",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "expected a positive number" in capsys.readouterr().err
 
 
 def test_pyproject_declares_qcd_console_script() -> None:

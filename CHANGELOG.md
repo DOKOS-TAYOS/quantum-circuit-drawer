@@ -63,6 +63,32 @@
 - Restored pre-PyPI Security workflow compatibility by installing the project
   editably, freezing only non-editable packages, and auditing that pinned list
   with `pip-audit --strict`.
+- Added the missing flat `reverse_bits` kwarg to `compare_histograms(...)`, matching
+  the existing `HistogramCompareConfig.data.reverse_bits` behavior.
+- Rejected empty histogram marginal selections such as `qubits=()` during
+  configuration validation instead of letting them fail later during state sorting.
+- Added `qcd histogram --reverse-bits` so CLI histogram exports can match the public
+  bit-order correction available in `plot_histogram(...)`.
+- Rejected infinite `figsize` values during shared output validation and CLI argument
+  parsing before they reach Matplotlib.
+- Rejected non-string histogram `data_key`, histogram comparison labels, and circuit
+  comparison titles during public configuration validation instead of letting them
+  reach result handling or Matplotlib later.
+- Rejected non-string draw `framework` values and non-path or empty `output_path`
+  values during public configuration validation instead of letting them fail deeper in
+  rendering or saving.
+- Rejected non-string `adapter_options` keys during draw configuration validation,
+  preventing invalid keyword expansion during render preparation.
+- Normalized explicit draw `framework` names by trimming surrounding whitespace and
+  rejected blank framework names during public configuration validation.
+- Rejected boolean logging levels in `configure_logging(...)` and `capture_logs(...)`
+  instead of treating them as integer log levels.
+- Normalized public `RenderDiagnostic` severity strings and rejected non-string
+  diagnostic codes or messages before result serialization.
+- Normalized public result enum strings in `LatexResult`, `DrawResult`,
+  `CircuitAnalysisResult`, and histogram results before dictionary serialization.
+- Rejected misaligned histogram result values during construction before they can
+  produce inconsistent dictionaries or late CSV export failures.
 
 ## [1.1.0] - 2026-05-16
 

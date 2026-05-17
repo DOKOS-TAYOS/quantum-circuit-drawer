@@ -6,6 +6,7 @@ import json
 import sys
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable, Mapping, Sequence
+from math import isfinite
 from pathlib import Path
 from typing import cast
 
@@ -152,6 +153,11 @@ def _add_histogram_arguments(parser: ArgumentParser) -> None:
     )
     parser.add_argument("--top-k", type=_positive_int)
     parser.add_argument("--qubits", nargs="+", type=_non_negative_int)
+    parser.add_argument(
+        "--reverse-bits",
+        action="store_true",
+        help="Reverse bitstrings before marginal selection and label conversion.",
+    )
     parser.add_argument("--data-key", help="Select a nested JSON field before plotting.")
     parser.add_argument("--state-label-mode", choices=("binary", "decimal"), default="binary")
     parser.add_argument(
@@ -205,6 +211,7 @@ def _histogram_config_from_args(args: Namespace) -> HistogramConfig:
             kind=HistogramKind(cast(str, args.kind)),
             top_k=args.top_k,
             qubits=_optional_qubits(args.qubits),
+            reverse_bits=bool(args.reverse_bits),
             data_key=None,
         ),
         view=HistogramViewOptions(
@@ -288,7 +295,7 @@ def _positive_float(value: str) -> float:
         parsed_value = float(value)
     except ValueError as exc:
         raise CliUsageError("expected a positive number") from exc
-    if parsed_value <= 0.0:
+    if not isfinite(parsed_value) or parsed_value <= 0.0:
         raise CliUsageError("expected a positive number")
     return parsed_value
 

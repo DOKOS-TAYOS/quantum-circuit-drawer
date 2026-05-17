@@ -157,6 +157,45 @@ def test_public_package_exports_diagnostics_preset_and_compare_types() -> None:
     assert HistogramConfig().preset is None
 
 
+def test_render_diagnostic_normalizes_public_severity_strings() -> None:
+    diagnostic = RenderDiagnostic(
+        code="fallback_used",
+        message="Used a fallback.",
+        severity="warning",  # type: ignore[arg-type]
+    )
+
+    assert diagnostic.severity is DiagnosticSeverity.WARNING
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        (
+            {"code": 1, "message": "Used a fallback."},
+            "code must be a string",
+        ),
+        (
+            {"code": "fallback_used", "message": 2},
+            "message must be a string",
+        ),
+        (
+            {
+                "code": "fallback_used",
+                "message": "Used a fallback.",
+                "severity": "fatal",
+            },
+            "severity must be one of: info, warning",
+        ),
+    ],
+)
+def test_render_diagnostic_rejects_invalid_public_values(
+    kwargs: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        RenderDiagnostic(**kwargs)  # type: ignore[arg-type]
+
+
 def test_package_level_compare_histograms_forwards_flat_common_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -180,6 +219,7 @@ def test_package_level_compare_histograms_forwards_flat_common_kwargs(
         kind: object = None,
         sort: object = None,
         qubits: tuple[int, ...] | None = None,
+        reverse_bits: bool | None = None,
         top_k: int | None = None,
         result_index: int | None = None,
         data_key: str | None = None,
@@ -198,6 +238,7 @@ def test_package_level_compare_histograms_forwards_flat_common_kwargs(
         captured["kind"] = kind
         captured["sort"] = sort
         captured["qubits"] = qubits
+        captured["reverse_bits"] = reverse_bits
         captured["top_k"] = top_k
         captured["result_index"] = result_index
         captured["data_key"] = data_key
@@ -226,6 +267,7 @@ def test_package_level_compare_histograms_forwards_flat_common_kwargs(
         kind="counts",
         sort="delta_desc",
         qubits=(0,),
+        reverse_bits=True,
         top_k=1,
         result_index=0,
         data_key="c",
@@ -244,6 +286,7 @@ def test_package_level_compare_histograms_forwards_flat_common_kwargs(
     assert captured["kind"] == "counts"
     assert captured["sort"] == "delta_desc"
     assert captured["qubits"] == (0,)
+    assert captured["reverse_bits"] is True
     assert captured["top_k"] == 1
     assert captured["result_index"] == 0
     assert captured["data_key"] == "c"
@@ -620,6 +663,28 @@ def test_compare_histograms_flat_kwargs_override_config(
     assert tuple(result.figure.get_size_inches()) == pytest.approx((3.0, 2.0))
 
     plt.close(result.figure)
+
+
+def test_compare_histograms_flat_reverse_bits_runs_before_marginal_selection() -> None:
+    result = compare_histograms(
+        {"100": 5, "001": 7},
+        {"100": 1, "001": 3},
+        reverse_bits=True,
+        qubits=(0,),
+        show=False,
+    )
+
+    assert result.qubits == (0,)
+    assert result.state_labels == ("0", "1")
+    assert result.left_values == (7.0, 5.0)
+    assert result.right_values == (3.0, 1.0)
+
+    plt.close(result.figure)
+
+
+def test_compare_histograms_rejects_empty_qubits() -> None:
+    with pytest.raises(ValueError, match="must contain at least one qubit index"):
+        compare_histograms({"00": 1}, {"11": 1}, qubits=(), show=False)
 
 
 def test_compare_histograms_flat_strings_and_enums_match() -> None:

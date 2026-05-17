@@ -81,6 +81,10 @@ class LatexResult:
     detected_framework: str | None = None
     diagnostics: tuple[RenderDiagnostic, ...] = ()
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "backend", normalize_latex_backend(self.backend))
+        object.__setattr__(self, "mode", _normalize_latex_result_mode(self.mode))
+
     def to_dict(self) -> dict[str, object]:
         """Return result metadata without duplicating the source text.
 
@@ -197,6 +201,14 @@ def normalize_latex_backend(value: LatexBackend | str) -> LatexBackend:
     except ValueError as exc:
         choices = ", ".join(backend.value for backend in LatexBackend)
         raise ValueError(f"backend must be one of: {choices}") from exc
+
+
+def _normalize_latex_result_mode(value: LatexMode | str) -> LatexMode:
+    try:
+        return value if isinstance(value, LatexMode) else LatexMode(str(value))
+    except ValueError as exc:
+        choices = ", ".join(mode.value for mode in LatexMode)
+        raise ValueError(f"mode must be one of: {choices}") from exc
 
 
 def resolve_latex_mode(

@@ -260,7 +260,7 @@ qcd draw bell.qasm --output bell.png --view 3d
 qcd histogram counts.json --output counts.png
 ```
 
-`qcd draw` accepts OpenQASM text or `.qasm` / `.qasm3` files. `qcd histogram` accepts JSON mappings such as `{"00": 10, "11": 6}` and can select nested payloads with `--data-key counts`.
+`qcd draw` accepts OpenQASM text or `.qasm` / `.qasm3` files. `qcd histogram` accepts JSON mappings such as `{"00": 10, "11": 6}`, can select nested payloads with `--data-key counts`, and supports `--reverse-bits` when a source reports bitstrings in the opposite order.
 
 ## Draw One Circuit
 

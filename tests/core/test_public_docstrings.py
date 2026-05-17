@@ -128,6 +128,7 @@ _MAIN_PUBLIC_API_DOCS: dict[str, tuple[object, tuple[str, ...], tuple[str, ...]]
         (
             "kind",
             "sort",
+            "reverse_bits",
             "top_k",
             "left_label",
             "series_labels",

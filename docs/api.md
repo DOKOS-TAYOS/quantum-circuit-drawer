@@ -109,6 +109,7 @@ compare_histograms(
     *additional_data: object,
     kind: HistogramKind | str | None = None,
     sort: HistogramCompareSort | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -546,7 +547,7 @@ When `config=` and direct kwargs are combined, every direct kwarg that is not `N
 | `sort` | `"state"`, `"state_desc"`, `"value_desc"`, `"value_asc"` or `HistogramSort` | `HistogramConfig.view.sort` |
 | `state_label_mode` | `"binary"`, `"decimal"` or `HistogramStateLabelMode` | `HistogramConfig.view.state_label_mode` |
 | `reverse_bits` | `True` or `False` | `HistogramConfig.data.reverse_bits` |
-| `qubits` | tuple of qubit indices, such as `(0, 2)` | `HistogramConfig.data.qubits` |
+| `qubits` | non-empty tuple of qubit indices, such as `(0, 2)` | `HistogramConfig.data.qubits` |
 | `top_k` | positive integer | `HistogramConfig.data.top_k` |
 | `result_index` | non-negative integer | `HistogramConfig.data.result_index` |
 | `data_key` | Qiskit data field name | `HistogramConfig.data.data_key` |
@@ -612,6 +613,7 @@ HistogramConfig(
         kind=HistogramKind.AUTO,
         top_k=None,
         qubits=None,
+        reverse_bits=False,
         result_index=0,
         data_key=None,
     ),
@@ -641,7 +643,7 @@ Important fields:
 - `view.mode`: `AUTO`, `STATIC`, or `INTERACTIVE`
 - `view.sort`: `STATE`, `STATE_DESC`, `VALUE_DESC`, or `VALUE_ASC`
 - `data.top_k`: keep only the highest-ranked bins after sorting
-- `data.qubits`: joint marginal over a subset of qubits
+- `data.qubits`: joint marginal over a non-empty subset of qubits
 - `data.reverse_bits`: reverse each binary register before marginal selection, ordering, and decimal labels
 - `data.result_index`: which entry to read when the input object or tuple/list contains several histogram payloads
 - `data.data_key`: which Qiskit `DataBin` field to use when several bit-array fields exist
@@ -693,7 +695,8 @@ When `config=` and direct kwargs are combined, every direct kwarg that is not `N
 | --- | --- | --- |
 | `kind` | `"auto"`, `"counts"`, `"quasi"` or `HistogramKind` | `HistogramCompareConfig.data.kind` |
 | `sort` | `"state"`, `"state_desc"`, `"delta_desc"` or `HistogramCompareSort` | `HistogramCompareConfig.compare.sort` |
-| `qubits` | tuple of qubit indices, such as `(0, 2)` | `HistogramCompareConfig.data.qubits` |
+| `reverse_bits` | `True` or `False` | `HistogramCompareConfig.data.reverse_bits` |
+| `qubits` | non-empty tuple of qubit indices, such as `(0, 2)` | `HistogramCompareConfig.data.qubits` |
 | `top_k` | positive integer | `HistogramCompareConfig.data.top_k` |
 | `result_index` | non-negative integer | `HistogramCompareConfig.data.result_index` |
 | `data_key` | Qiskit data field name | `HistogramCompareConfig.data.data_key` |
@@ -716,6 +719,7 @@ HistogramCompareConfig(
         kind=HistogramKind.AUTO,
         top_k=None,
         qubits=None,
+        reverse_bits=False,
         result_index=0,
         data_key=None,
     ),
@@ -741,7 +745,8 @@ Important fields:
 - `data.kind`: `AUTO`, `COUNTS`, or `QUASI`
 - `compare.sort`: `STATE`, `STATE_DESC`, or `DELTA_DESC`
 - `data.top_k`: keep only the largest states after sorting
-- `data.qubits`: optional joint marginal over selected qubits
+- `data.qubits`: optional joint marginal over a non-empty subset of selected qubits
+- `data.reverse_bits`: reverse each binary register before marginal selection and comparison ordering
 - `data.result_index`: choose one entry when the input is a tuple or list of results
 - `data.data_key`: choose one Qiskit `DataBin` field when several exist
 - `compare.preset`: shared preset baseline

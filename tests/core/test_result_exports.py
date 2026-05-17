@@ -4,14 +4,20 @@ import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import pytest
 
 from quantum_circuit_drawer import (
     CircuitCompareConfig,
     DrawConfig,
     DrawMode,
+    DrawResult,
     DrawSideConfig,
     HistogramCompareConfig,
+    HistogramCompareMetrics,
+    HistogramCompareResult,
     HistogramConfig,
+    HistogramKind,
+    HistogramResult,
     OutputOptions,
     compare_circuits,
     compare_histograms,
@@ -20,6 +26,121 @@ from quantum_circuit_drawer import (
 )
 from quantum_circuit_drawer.config import CircuitRenderOptions
 from tests.support import assert_saved_image_has_visible_content, build_sample_ir
+
+
+def test_draw_result_normalizes_public_mode_strings_for_to_dict() -> None:
+    figure, axes = plt.subplots()
+    result = DrawResult(
+        primary_figure=figure,
+        primary_axes=axes,
+        figures=(figure,),
+        axes=(axes,),
+        mode="full",  # type: ignore[arg-type]
+        page_count=1,
+    )
+
+    assert result.mode is DrawMode.FULL
+    assert result.to_dict()["mode"] == "full"
+
+    plt.close(figure)
+
+
+def test_histogram_results_normalize_public_kind_strings_for_to_dict() -> None:
+    figure, axes = plt.subplots()
+    result = HistogramResult(
+        figure=figure,
+        axes=axes,
+        kind="counts",  # type: ignore[arg-type]
+        state_labels=("0",),
+        values=(1.0,),
+        qubits=None,
+    )
+    compare_result = HistogramCompareResult(
+        figure=figure,
+        axes=axes,
+        kind="counts",  # type: ignore[arg-type]
+        state_labels=("0",),
+        left_values=(1.0,),
+        right_values=(0.5,),
+        delta_values=(0.5,),
+        metrics=HistogramCompareMetrics(
+            total_variation_distance=0.25,
+            max_absolute_delta=0.5,
+        ),
+        qubits=None,
+    )
+
+    assert result.kind is HistogramKind.COUNTS
+    assert result.to_dict()["kind"] == "counts"
+    assert compare_result.kind is HistogramKind.COUNTS
+    assert compare_result.to_dict()["kind"] == "counts"
+
+    plt.close(figure)
+
+
+def test_histogram_result_rejects_misaligned_state_values() -> None:
+    figure, axes = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="values length must match state_labels length"):
+            HistogramResult(
+                figure=figure,
+                axes=axes,
+                kind=HistogramKind.COUNTS,
+                state_labels=("0", "1"),
+                values=(1.0,),
+                qubits=None,
+            )
+    finally:
+        plt.close(figure)
+
+
+def test_histogram_compare_result_rejects_misaligned_state_values() -> None:
+    figure, axes = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="left_values length must match state_labels length"):
+            HistogramCompareResult(
+                figure=figure,
+                axes=axes,
+                kind=HistogramKind.COUNTS,
+                state_labels=("0", "1"),
+                left_values=(1.0,),
+                right_values=(0.5, 0.5),
+                delta_values=(0.5, 0.5),
+                metrics=HistogramCompareMetrics(
+                    total_variation_distance=0.25,
+                    max_absolute_delta=0.5,
+                ),
+                qubits=None,
+            )
+    finally:
+        plt.close(figure)
+
+
+def test_histogram_compare_result_rejects_misaligned_series_values() -> None:
+    figure, axes = plt.subplots()
+    try:
+        with pytest.raises(
+            ValueError,
+            match="series_values items length must match state_labels length",
+        ):
+            HistogramCompareResult(
+                figure=figure,
+                axes=axes,
+                kind=HistogramKind.COUNTS,
+                state_labels=("0", "1"),
+                left_values=(1.0, 0.0),
+                right_values=(0.5, 0.5),
+                delta_values=(0.5, -0.5),
+                metrics=HistogramCompareMetrics(
+                    total_variation_distance=0.5,
+                    max_absolute_delta=0.5,
+                ),
+                qubits=None,
+                series_labels=("A", "B", "C"),
+                series_values=((1.0, 0.0), (0.5, 0.5), (1.0,)),
+            )
+    finally:
+        plt.close(figure)
 
 
 def test_draw_result_save_and_save_all_pages_export_images(sandbox_tmp_path: Path) -> None:

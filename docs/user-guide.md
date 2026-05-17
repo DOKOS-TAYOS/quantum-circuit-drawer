@@ -486,7 +486,7 @@ Direct histogram kwargs:
 | `sort` | `"state"`, `"state_desc"`, `"value_desc"`, `"value_asc"` |
 | `state_label_mode` | `"binary"`, `"decimal"` |
 | `reverse_bits` | `True`, `False` |
-| `qubits` | tuple of qubit indices, such as `(0, 2)` |
+| `qubits` | non-empty tuple of qubit indices, such as `(0, 2)` |
 
 ### Counts vs quasi-probabilities
 
@@ -516,7 +516,7 @@ Useful controls:
 
 ### Marginals
 
-Use `qubits=(...)` when you want a joint marginal over selected qubits:
+Use `qubits=(...)` when you want a joint marginal over one or more selected qubits:
 
 ```python
 from quantum_circuit_drawer import plot_histogram

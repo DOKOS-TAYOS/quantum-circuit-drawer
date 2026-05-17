@@ -51,12 +51,20 @@ from quantum_circuit_drawer.plots.histogram_models import (
             "qubits must be a tuple of non-negative integers",
         ),
         (
+            lambda: HistogramConfig(data=HistogramDataOptions(qubits=())),
+            "qubits must contain at least one qubit index",
+        ),
+        (
             lambda: HistogramConfig(data=HistogramDataOptions(qubits=(0, 0))),
             "qubits must not contain duplicates",
         ),
         (
             lambda: HistogramConfig(data=HistogramDataOptions(reverse_bits=1)),  # type: ignore[arg-type]
             "reverse_bits must be a boolean",
+        ),
+        (
+            lambda: HistogramConfig(data=HistogramDataOptions(data_key=1)),  # type: ignore[arg-type]
+            "data_key must be a string",
         ),
         (
             lambda: HistogramConfig(
@@ -96,3 +104,28 @@ def test_histogram_compare_config_rejects_unknown_sort() -> None:
 def test_histogram_compare_config_rejects_non_boolean_hover() -> None:
     with pytest.raises(ValueError, match="hover must be a boolean"):
         HistogramCompareConfig(compare=HistogramCompareOptions(hover=1))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("factory", "message"),
+    [
+        (
+            lambda: HistogramCompareConfig(
+                compare=HistogramCompareOptions(left_label=1)  # type: ignore[arg-type]
+            ),
+            "left_label must be a string",
+        ),
+        (
+            lambda: HistogramCompareConfig(
+                compare=HistogramCompareOptions(right_label=object())  # type: ignore[arg-type]
+            ),
+            "right_label must be a string",
+        ),
+    ],
+)
+def test_histogram_compare_config_rejects_non_string_labels(
+    factory: Callable[[], object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        factory()

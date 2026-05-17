@@ -184,6 +184,29 @@ def test_analyze_quantum_circuit_to_dict_is_json_friendly() -> None:
     assert isinstance(payload["diagnostics"], tuple)
 
 
+def test_circuit_analysis_result_normalizes_public_mode_strings_for_to_dict() -> None:
+    result = CircuitAnalysisResult(
+        detected_framework="ir",
+        mode="full",  # type: ignore[arg-type]
+        view="2d",
+        page_count=1,
+        quantum_wire_count=1,
+        classical_wire_count=0,
+        total_wire_count=1,
+        layer_count=0,
+        operation_count=0,
+        gate_count=0,
+        controlled_gate_count=0,
+        multi_qubit_operation_count=0,
+        measurement_count=0,
+        swap_count=0,
+        barrier_count=0,
+    )
+
+    assert result.mode is DrawMode.FULL
+    assert result.to_dict()["mode"] == "full"
+
+
 def test_public_package_exports_analysis_api() -> None:
     assert quantum_circuit_drawer.analyze_quantum_circuit is analyze_quantum_circuit
     assert quantum_circuit_drawer.CircuitAnalysisResult is CircuitAnalysisResult

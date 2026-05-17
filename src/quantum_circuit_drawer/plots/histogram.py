@@ -398,6 +398,7 @@ def compare_histograms(
     *additional_data: object,
     kind: HistogramKind | str | None = None,
     sort: HistogramCompareSort | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -424,6 +425,8 @@ def compare_histograms(
         kind: Optional ``"auto"``, ``"counts"``, ``"quasi"``, or ``HistogramKind``.
         sort: Optional ``"state"``, ``"state_desc"``, ``"delta_desc"``, or
             ``HistogramCompareSort``.
+        reverse_bits: Optional override that reverses each bitstring before marginal
+            selection and comparison ordering.
         qubits: Optional tuple of qubit indices for a joint marginal.
         top_k: Optional positive number of aligned bins to keep after sorting.
         result_index: Optional payload index for result containers with several
@@ -452,6 +455,7 @@ def compare_histograms(
             config,
             kind=kind,
             sort=sort,
+            reverse_bits=reverse_bits,
             qubits=qubits,
             top_k=top_k,
             result_index=result_index,
@@ -624,6 +628,7 @@ def _merge_histogram_compare_config(
     *,
     kind: HistogramKind | str | None = None,
     sort: HistogramCompareSort | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -642,6 +647,7 @@ def _merge_histogram_compare_config(
         kind is not None
         or top_k is not None
         or qubits is not None
+        or reverse_bits is not None
         or result_index is not None
         or data_key is not None
     ):
@@ -650,6 +656,7 @@ def _merge_histogram_compare_config(
             kind=data_options.kind if kind is None else _normalize_kind(kind),
             top_k=data_options.top_k if top_k is None else top_k,
             qubits=data_options.qubits if qubits is None else qubits,
+            reverse_bits=data_options.reverse_bits if reverse_bits is None else reverse_bits,
             result_index=data_options.result_index if result_index is None else result_index,
             data_key=data_options.data_key if data_key is None else data_key,
         )

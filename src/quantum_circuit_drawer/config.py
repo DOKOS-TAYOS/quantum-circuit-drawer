@@ -8,6 +8,9 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Literal, cast
 
 from ._validation import (
+    normalize_optional_non_empty_str as _normalize_optional_non_empty_str,
+)
+from ._validation import (
     validate_bool as _validate_bool,
 )
 from ._validation import (
@@ -21,6 +24,9 @@ from ._validation import (
 )
 from ._validation import (
     validate_mapping as _validate_mapping,
+)
+from ._validation import (
+    validate_optional_pathlike as _validate_optional_pathlike,
 )
 from .diagnostics import RenderDiagnostic
 from .hover import HoverOptions, normalize_hover
@@ -94,6 +100,7 @@ class OutputOptions:
 
     def __post_init__(self) -> None:
         _validate_bool("show", self.show)
+        _validate_optional_pathlike("output_path", self.output_path)
         _validate_figsize(self.figsize)
 
 
@@ -149,6 +156,11 @@ class CircuitRenderOptions:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "mode", normalize_draw_mode(self.mode))
+        object.__setattr__(
+            self,
+            "framework",
+            _normalize_optional_non_empty_str("framework", self.framework),
+        )
         _validate_choice("backend", self.backend, {"matplotlib"})
         _validate_choice("view", self.view, {"2d", "3d"})
         _validate_choice("composite_mode", self.composite_mode, {"compact", "expand"})
@@ -165,6 +177,8 @@ class CircuitRenderOptions:
             normalize_unsupported_policy(self.unsupported_policy),
         )
         _validate_mapping("adapter_options", self.adapter_options)
+        if any(not isinstance(key, str) for key in self.adapter_options):
+            raise ValueError("adapter_options keys must be strings")
         object.__setattr__(self, "adapter_options", dict(self.adapter_options))
 
 

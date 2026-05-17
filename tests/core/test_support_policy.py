@@ -253,6 +253,7 @@ def test_public_docs_describe_minimal_flat_histogram_and_circuit_apis() -> None:
     for flat_kwarg in (
         "kind",
         "sort",
+        "reverse_bits",
         "qubits",
         "top_k",
         "result_index",

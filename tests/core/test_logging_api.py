@@ -169,6 +169,21 @@ def test_configure_logging_rejects_invalid_profile() -> None:
         )
 
 
+def test_logging_helpers_reject_boolean_level() -> None:
+    with pytest.raises(ValueError, match="level must be an integer or a valid logging level name"):
+        configure_logging(
+            level=True,
+            logger_name="quantum_circuit_drawer.tests.logging_bool_level",
+        )
+
+    with pytest.raises(ValueError, match="level must be an integer or a valid logging level name"):
+        with capture_logs(
+            level=False,
+            logger_name="quantum_circuit_drawer.tests.capture_bool_level",
+        ):
+            pass
+
+
 def test_configure_logging_summary_profile_filters_internal_and_interactive_info() -> None:
     stream = io.StringIO()
     logger = configure_logging(

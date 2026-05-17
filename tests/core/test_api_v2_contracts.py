@@ -321,6 +321,14 @@ def test_runtime_context_detects_non_notebook_without_importing_ipython(
 
 
 def test_draw_config_validates_public_choices() -> None:
+    with pytest.raises(ValueError, match="framework must be a string"):
+        DrawConfig(
+            side=DrawSideConfig(render=CircuitRenderOptions(framework=1)),  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(ValueError, match="framework must be a non-empty string"):
+        DrawConfig(side=DrawSideConfig(render=CircuitRenderOptions(framework="  ")))
+
     with pytest.raises(ValueError, match="mode must be one of"):
         DrawConfig(
             side=DrawSideConfig(render=CircuitRenderOptions(mode="invalid")),  # type: ignore[arg-type]
@@ -342,6 +350,12 @@ def test_circuit_render_options_accepts_managed_interaction_flags() -> None:
     assert options.double_click_toggle is False
 
 
+def test_circuit_render_options_normalizes_framework_name() -> None:
+    options = CircuitRenderOptions(framework=" qasm ")
+
+    assert options.framework == "qasm"
+
+
 @pytest.mark.parametrize("field_name", ["keyboard_shortcuts", "double_click_toggle"])
 def test_circuit_render_options_rejects_non_boolean_managed_interaction_flags(
     field_name: str,
@@ -352,9 +366,29 @@ def test_circuit_render_options_rejects_non_boolean_managed_interaction_flags(
         CircuitRenderOptions(**kwargs)  # type: ignore[arg-type]
 
 
+def test_circuit_render_options_rejects_non_string_adapter_option_keys() -> None:
+    with pytest.raises(ValueError, match="adapter_options keys must be strings"):
+        CircuitRenderOptions(adapter_options={1: "value"})  # type: ignore[dict-item]
+
+
 def test_draw_config_rejects_boolean_figsize_entries() -> None:
     with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
         OutputOptions(figsize=(True, 2.0))
+
+
+def test_output_options_rejects_non_path_output_path() -> None:
+    with pytest.raises(ValueError, match="output_path must be a path-like value"):
+        OutputOptions(output_path=1)  # type: ignore[arg-type]
+
+
+def test_output_options_rejects_empty_output_path() -> None:
+    with pytest.raises(ValueError, match="output_path must be a non-empty path-like value"):
+        OutputOptions(output_path="")
+
+
+def test_draw_config_rejects_infinite_figsize_entries() -> None:
+    with pytest.raises(ValueError, match="figsize must be a 2-item tuple of positive numbers"):
+        OutputOptions(figsize=(float("inf"), 2.0))
 
 
 def test_draw_quantum_circuit_rejects_explicit_interactive_mode_with_existing_axes() -> None:

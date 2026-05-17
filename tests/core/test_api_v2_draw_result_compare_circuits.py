@@ -220,6 +220,18 @@ def test_public_package_exports_compare_circuit_types() -> None:
     assert quantum_circuit_drawer.CircuitCompareResult is CircuitCompareResult
 
 
+def test_circuit_compare_config_rejects_non_string_default_titles() -> None:
+    with pytest.raises(ValueError, match="left_title must be a string"):
+        CircuitCompareConfig(
+            compare=CircuitCompareOptions(left_title=1)  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(ValueError, match="right_title must be a string"):
+        CircuitCompareConfig(
+            compare=CircuitCompareOptions(right_title=object())  # type: ignore[arg-type]
+        )
+
+
 def test_package_level_compare_circuits_forwards_flat_common_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

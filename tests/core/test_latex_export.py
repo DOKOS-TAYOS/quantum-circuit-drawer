@@ -29,6 +29,21 @@ def test_circuit_to_latex_exports_public_api() -> None:
     assert quantum_circuit_drawer.LatexResult is LatexResult
 
 
+def test_latex_result_normalizes_public_strings_for_to_dict() -> None:
+    result = LatexResult(
+        source="",
+        pages=("",),
+        backend="tikz",  # type: ignore[arg-type]
+        mode="pages",  # type: ignore[arg-type]
+        page_count=1,
+    )
+
+    assert result.backend is LatexBackend.TIKZ
+    assert result.mode is LatexMode.PAGES
+    assert result.to_dict()["backend"] == "tikz"
+    assert result.to_dict()["mode"] == "pages"
+
+
 def test_circuit_to_latex_returns_quantikz_full_source_for_basic_circuit() -> None:
     result = circuit_to_latex(build_sample_ir(), mode=LatexMode.FULL)
 

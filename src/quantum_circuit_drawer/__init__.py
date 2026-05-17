@@ -345,6 +345,7 @@ def compare_histograms(
     *additional_data: object,
     kind: HistogramKind | str | None = None,
     sort: HistogramCompareSort | str | None = None,
+    reverse_bits: bool | None = None,
     qubits: tuple[int, ...] | None = None,
     top_k: int | None = None,
     result_index: int | None = None,
@@ -371,6 +372,8 @@ def compare_histograms(
         kind: Optional ``"auto"``, ``"counts"``, ``"quasi"``, or ``HistogramKind``.
         sort: Optional ``"state"``, ``"state_desc"``, ``"delta_desc"``, or
             ``HistogramCompareSort``.
+        reverse_bits: Optional override that reverses each bitstring before marginal
+            selection and comparison ordering.
         qubits: Optional tuple of qubit indices for a joint marginal.
         top_k: Optional positive number of aligned bins to keep after sorting.
         result_index: Optional payload index for result containers with several
@@ -400,6 +403,8 @@ def compare_histograms(
         kwargs["kind"] = kind
     if sort is not None:
         kwargs["sort"] = sort
+    if reverse_bits is not None:
+        kwargs["reverse_bits"] = reverse_bits
     if qubits is not None:
         kwargs["qubits"] = qubits
     if top_k is not None:

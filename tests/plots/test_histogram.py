@@ -441,6 +441,11 @@ def test_plot_histogram_rejects_duplicate_qubits() -> None:
         build_public_histogram_config(qubits=(1, 1))
 
 
+def test_plot_histogram_rejects_empty_qubits() -> None:
+    with pytest.raises(ValueError, match="must contain at least one qubit index"):
+        build_public_histogram_config(qubits=())
+
+
 def test_plot_histogram_rejects_negative_qubits() -> None:
     with pytest.raises(ValueError, match="non-negative integers"):
         build_public_histogram_config(qubits=(0, -1))

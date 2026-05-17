@@ -609,6 +609,8 @@ def _normalize_log_profile(value: LogProfile | str) -> LogProfile:
 
 
 def _normalize_log_level(value: int | str) -> int:
+    if isinstance(value, bool):
+        raise ValueError("level must be an integer or a valid logging level name")
     if isinstance(value, int):
         return value
     if isinstance(value, str):

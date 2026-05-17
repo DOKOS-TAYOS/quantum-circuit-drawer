@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ._ipython_display import display_figures_in_ipython
-from .config import DrawMode
+from .config import DrawMode, normalize_draw_mode
 from .diagnostics import DiagnosticSeverity, RenderDiagnostic
 from .export.figures import save_matplotlib_figure
 from .typing import OutputPath
@@ -50,6 +50,9 @@ class DrawResult:
     saved_path: str | None = None
     _ipython_display_enabled: bool = field(default=True, repr=False, compare=False)
     _ipython_close_after_display: bool = field(default=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "mode", normalize_draw_mode(self.mode))
 
     def _ipython_display_(self) -> None:
         """Display contained figures in IPython without showing the dataclass repr."""

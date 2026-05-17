@@ -67,6 +67,9 @@ class CircuitAnalysisResult:
     barrier_count: int
     diagnostics: tuple[RenderDiagnostic, ...] = ()
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "mode", normalize_draw_mode(self.mode))
+
     @property
     def warnings(self) -> tuple[RenderDiagnostic, ...]:
         """Return only warning-level diagnostics for quick inspection."""

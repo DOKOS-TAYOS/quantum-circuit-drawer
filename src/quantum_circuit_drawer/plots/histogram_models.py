@@ -22,6 +22,12 @@ from .._validation import (
     validate_instance as _validate_instance,
 )
 from .._validation import (
+    validate_optional_str as _validate_optional_str,
+)
+from .._validation import (
+    validate_str as _validate_str,
+)
+from .._validation import (
     validate_str_tuple as _validate_str_tuple,
 )
 from ..config import OutputOptions, validate_output_options
@@ -158,6 +164,7 @@ class HistogramDataOptions:
         _validate_bool("reverse_bits", self.reverse_bits)
         _validate_top_k(self.top_k)
         _validate_result_index(self.result_index)
+        _validate_optional_str("data_key", self.data_key)
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +266,8 @@ class HistogramCompareOptions:
         object.__setattr__(self, "sort", _normalize_compare_sort(self.sort))
         object.__setattr__(self, "preset", normalized_preset)
         object.__setattr__(self, "theme", resolve_theme(preset_theme))
+        _validate_str("left_label", self.left_label)
+        _validate_str("right_label", self.right_label)
         if self.series_labels is not None:
             _validate_str_tuple("series_labels", self.series_labels)
         _validate_bool("hover", self.hover)
@@ -390,6 +399,15 @@ class HistogramResult:
     saved_path: str | None = None
     _ipython_display_enabled: bool = field(default=True, repr=False, compare=False)
     _ipython_close_after_display: bool = field(default=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "kind", _normalize_kind(self.kind))
+        _validate_matching_length(
+            "values",
+            self.values,
+            expected_name="state_labels",
+            expected_length=len(self.state_labels),
+        )
 
     def _ipython_display_(self) -> None:
         """Display the histogram figure in IPython without showing the dataclass repr."""
@@ -594,6 +612,40 @@ class HistogramCompareResult:
     _ipython_display_enabled: bool = field(default=True, repr=False, compare=False)
     _ipython_close_after_display: bool = field(default=False, repr=False, compare=False)
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "kind", _normalize_kind(self.kind))
+        state_count = len(self.state_labels)
+        _validate_matching_length(
+            "left_values",
+            self.left_values,
+            expected_name="state_labels",
+            expected_length=state_count,
+        )
+        _validate_matching_length(
+            "right_values",
+            self.right_values,
+            expected_name="state_labels",
+            expected_length=state_count,
+        )
+        _validate_matching_length(
+            "delta_values",
+            self.delta_values,
+            expected_name="state_labels",
+            expected_length=state_count,
+        )
+        for values in self.series_values:
+            _validate_matching_length(
+                "series_values items",
+                values,
+                expected_name="state_labels",
+                expected_length=state_count,
+            )
+        resolved_series_count = len(self.series_values) if self.series_values else 2
+        if self.series_labels and len(self.series_labels) != resolved_series_count:
+            raise ValueError("series_labels length must match series_values length")
+        if not self.series_labels and self.series_values and len(self.series_values) != 2:
+            raise ValueError("series_labels length must match series_values length")
+
     def _ipython_display_(self) -> None:
         """Display the comparison figure in IPython without showing the dataclass repr."""
 
@@ -692,6 +744,17 @@ def _normalize_kind(value: HistogramKind | str) -> HistogramKind:
         raise ValueError(f"kind must be one of: {choices}") from exc
 
 
+def _validate_matching_length(
+    field_name: str,
+    values: tuple[object, ...],
+    *,
+    expected_name: str,
+    expected_length: int,
+) -> None:
+    if len(values) != expected_length:
+        raise ValueError(f"{field_name} length must match {expected_name} length")
+
+
 def _normalize_mode(value: HistogramMode | str) -> HistogramMode:
     try:
         return value if isinstance(value, HistogramMode) else HistogramMode(str(value))
@@ -747,6 +810,8 @@ def _validate_qubits(qubits: tuple[int, ...] | None) -> None:
         raise ValueError("qubits must be a tuple of non-negative integers")
     if any(not _is_non_negative_integer(qubit) for qubit in qubits):
         raise ValueError("qubits must be a tuple of non-negative integers")
+    if len(qubits) == 0:
+        raise ValueError("qubits must contain at least one qubit index")
     if len(set(qubits)) != len(qubits):
         raise ValueError("qubits must not contain duplicates")
 

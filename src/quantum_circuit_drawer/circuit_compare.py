@@ -12,6 +12,9 @@ from ._validation import (
     validate_instance as _validate_instance,
 )
 from ._validation import (
+    validate_str as _validate_str,
+)
+from ._validation import (
     validate_str_tuple as _validate_str_tuple,
 )
 from .config import (
@@ -56,6 +59,8 @@ class CircuitCompareOptions:
     titles: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
+        _validate_str("left_title", self.left_title)
+        _validate_str("right_title", self.right_title)
         _validate_bool("highlight_differences", self.highlight_differences)
         _validate_bool("show_summary", self.show_summary)
         if self.titles is not None:

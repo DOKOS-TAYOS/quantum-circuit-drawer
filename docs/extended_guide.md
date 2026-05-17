@@ -877,6 +877,7 @@ Useful `qcd histogram` flags:
 | `--sort` | `state`, `state_desc`, `value_desc`, `value_asc` |
 | `--top-k` | positive integer |
 | `--qubits` | one or more non-negative qubit indices |
+| `--reverse-bits` | reverse bitstrings before marginal selection and label conversion |
 | `--data-key` | nested JSON field to plot |
 | `--state-label-mode` | `binary`, `decimal` |
 | `--preset` | `paper`, `notebook`, `compact`, `presentation`, `accessible` |
@@ -987,7 +988,7 @@ config = HistogramConfig(data=HistogramDataOptions(top_k=8))
 
 ## Histogram Marginals
 
-Use `HistogramDataOptions(qubits=(...))` for a joint marginal over selected qubits.
+Use `HistogramDataOptions(qubits=(...))` for a joint marginal over one or more selected qubits.
 
 ```python
 from quantum_circuit_drawer import (
