@@ -35,7 +35,7 @@ _RAW_GITHUB_IMAGE_PREFIX = (
     "https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/"
 )
 _MINIMUM_RUNTIME_DEPENDENCIES: tuple[str, ...] = (
-    "matplotlib>=3.8",
+    "matplotlib>=3.10.9",
     "numpy>=1.26",
 )
 _MINIMUM_OPTIONAL_DEPENDENCIES: dict[str, tuple[str, ...]] = {

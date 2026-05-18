@@ -7,7 +7,7 @@ All commands assume you are working inside a local `.venv`, because that is the 
 ## Requirements
 
 - Python `3.11+`; the core package is tested on Python 3.11, 3.12, and 3.13
-- Core runtime dependencies: Matplotlib `3.8+` and NumPy `1.26+`
+- Core runtime dependencies: Matplotlib `3.10.9+` and NumPy `1.26+`
 - A virtual environment such as `.venv`
 - Optional extras only for the frameworks you actually want to draw directly
 

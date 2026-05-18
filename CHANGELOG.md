@@ -4,9 +4,11 @@
 
 ### Changed
 
-- Raised the supported dependency floors for this release: Matplotlib `3.8+`,
+- Raised the supported dependency floors for this release: Matplotlib `3.10.9+`,
   NumPy `1.26+`, Qiskit `2.0+`, Qiskit OpenQASM 3 importer `0.6+`, Cirq Core
   `1.6+`, PennyLane `0.42+`, CUDA-Q `0.14+` on Linux, and ipympl `0.10+`.
+- Aligned the development setup guide with the documented local checkout install
+  path by including the `qasm3` extra in the editable adapter-work commands.
 - Removed stale compatibility code for Python pre-3.11 `StrEnum` and Qiskit
   pre-2 instruction/backend shapes.
 - Removed unused private layout helpers while keeping compatibility facades

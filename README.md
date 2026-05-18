@@ -144,7 +144,7 @@ Inside your local `.venv`:
 
 The core package supports Python 3.11, 3.12, and 3.13. Optional framework extras
 can have narrower platform support depending on their upstream packages.
-The base install declares Matplotlib `3.8+` and NumPy `1.26+`; optional extras
+The base install declares Matplotlib `3.10.9+` and NumPy `1.26+`; optional extras
 currently use Qiskit `2.0+`, Cirq Core `1.6+`, PennyLane `0.42+`, MyQLM `1.11+`,
 CUDA-Q `0.14+` on Linux, and ipympl `0.10+`.
 
