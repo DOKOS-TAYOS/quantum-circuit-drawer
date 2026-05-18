@@ -84,7 +84,7 @@ dev = [
   "mypy>=1.11",
   "pyright>=1.1.403",
   "build>=1.5.0",
-  "twine>=5.1",
+  "twine>=6.2.0",
   "wheel>=0.47.0",
 ]
 security = [
