@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Configured Dependabot to avoid raising dependency floors when the existing
+  version range already permits the latest available release.
+
 ## [1.1.1] - 2026-05-18
 
 ### Changed
