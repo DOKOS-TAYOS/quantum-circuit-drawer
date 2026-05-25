@@ -72,7 +72,7 @@ myqlm = [
   "myqlm>=1.11",
 ]
 cudaq = [
-  "cudaq>=0.14; platform_system == 'Linux'",
+  "cudaq>=0.14.2; platform_system == 'Linux'",
 ]
 notebook = [
   "ipympl>=0.10",
