@@ -3,7 +3,13 @@ name: Security
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   workflow_dispatch:
   schedule:
     - cron: "20 5 * * 2"
@@ -50,9 +56,11 @@ jobs:
           python -m pip install -e ".[dev,security]"
 
       - name: Freeze auditable Python packages
+        if: github.event_name != 'pull_request'
         run: python -m pip list --format=freeze --exclude-editable > audit-requirements.txt
 
       - name: Audit installed Python packages
+        if: github.event_name != 'pull_request'
         run: python -m pip_audit -r audit-requirements.txt --strict --no-deps --progress-spinner off
 
       - name: Run Bandit static security scan
