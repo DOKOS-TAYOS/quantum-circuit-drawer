@@ -6,6 +6,13 @@
 
 - Configured Dependabot to avoid raising dependency floors when the existing
   version range already permits the latest available release.
+- Updated GitHub Actions workflows to use `actions/checkout@v7`.
+
+### Fixed
+
+- Limited CI static-analysis steps to the Python 3.11 baseline job so `mypy`
+  and `pyright` stay aligned with the configured typing target and no longer
+  fail on newer dependency stubs that use Python 3.12-only syntax.
 
 ## [1.1.1] - 2026-05-18
 

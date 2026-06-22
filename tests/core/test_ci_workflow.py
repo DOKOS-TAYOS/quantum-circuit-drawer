@@ -75,7 +75,7 @@ def test_ci_workflow_uses_least_privilege_permissions_and_current_actions() -> N
     workflow_text = workflow_path.read_text(encoding="utf-8")
 
     assert "permissions:\n  contents: read" in workflow_text
-    assert "actions/checkout@v6" in workflow_text
+    assert "actions/checkout@v7" in workflow_text
     assert "actions/setup-python@v6" in workflow_text
 
 
@@ -85,8 +85,20 @@ def test_dependabot_monitors_python_and_github_actions() -> None:
 
     assert 'package-ecosystem: "pip"' in dependabot_text
     assert 'package-ecosystem: "github-actions"' in dependabot_text
-    assert 'versioning-strategy: "increase"' in dependabot_text
+    assert 'versioning-strategy: "increase-if-necessary"' in dependabot_text
     assert 'timezone: "Europe/Madrid"' in dependabot_text
+
+
+def test_ci_workflow_runs_static_analysis_only_on_python_311() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    assert pyproject["tool"]["mypy"]["python_version"] == "3.11"
+    assert pyproject["tool"]["pyright"]["pythonVersion"] == "3.11"
+    assert "- name: Lint\n        if: matrix.python-version == '3.11'" in workflow_text
+    assert "- name: Format check\n        if: matrix.python-version == '3.11'" in workflow_text
+    assert "- name: Type check\n        if: matrix.python-version == '3.11'" in workflow_text
+    assert "- name: Pyright check\n        if: matrix.python-version == '3.11'" in workflow_text
 
 
 def test_security_workflows_are_configured() -> None:
