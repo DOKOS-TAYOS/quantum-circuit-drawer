@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-06-23
+
 ### Changed
 
 - Configured Dependabot to avoid raising dependency floors when the existing
@@ -21,9 +23,6 @@
   when the resize event omits `event.inaxes`.
 - Reduced managed-render setup work by reusing normalized 3D page-window scenes
   within one draw call and caching repeated control-label text measurements.
-
-### Fixed
-
 - Restored the README header logo with a raw GitHub image URL so it renders
   again on GitHub, PyPI, and typical local Markdown previews.
 
@@ -586,7 +585,8 @@ Stable **1.0.0** release with PyPI trove classifier `Development Status :: 5 - P
 - Unused autodetection helper from `utils`
 - Generated artifacts and cache directories from the intended versioned repo surface
 
-[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/DOKOS-TAYOS/quantum-circuit-drawer/compare/v1.0.0...v1.0.1
