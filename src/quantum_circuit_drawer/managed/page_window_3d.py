@@ -94,6 +94,17 @@ __all__ = [
 ]
 
 
+def _normalized_3d_page_window_pipeline(
+    pipeline: PreparedDrawPipeline,
+) -> PreparedDrawPipeline:
+    """Normalize the 3D page-window circuit once for consistent scene reuse."""
+
+    normalized_circuit = normalized_draw_circuit(lower_semantic_circuit(pipeline.semantic_ir))
+    if normalized_circuit == pipeline.ir:
+        return pipeline
+    return replace(pipeline, ir=normalized_circuit)
+
+
 @dataclass(slots=True)
 class Managed3DPageWindowState:
     """Managed fixed-page-window state attached to one 3D figure."""
@@ -484,12 +495,9 @@ def configure_3d_page_window(
 ) -> Managed3DPageWindowState:
     """Attach fixed page-window controls and render the initial 3D window."""
 
-    normalized_pipeline = replace(
-        pipeline,
-        ir=normalized_draw_circuit(lower_semantic_circuit(pipeline.semantic_ir)),
-    )
+    normalized_pipeline = _normalized_3d_page_window_pipeline(pipeline)
     base_axes = cast("Axes3D", axes)
-    resolved_page_scenes = windowed_3d_page_scenes(
+    resolved_page_scenes = page_scenes or windowed_3d_page_scenes(
         normalized_pipeline,
         figure_size=_figure_size_inches(figure),
     )

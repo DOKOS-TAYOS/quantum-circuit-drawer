@@ -19,6 +19,8 @@
 - Replaced Matplotlib `TextBox` resize wiring in managed circuit controls and
   interactive histograms so figure resizes no longer crash on Matplotlib 3.11
   when the resize event omits `event.inaxes`.
+- Reduced managed-render setup work by reusing normalized 3D page-window scenes
+  within one draw call and caching repeated control-label text measurements.
 
 ### Fixed
 

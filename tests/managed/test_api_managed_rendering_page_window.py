@@ -78,6 +78,38 @@ def test_fit_button_label_uses_same_font_size_for_all_registered_button_states()
     plt.close(figure)
 
 
+def test_fit_button_label_reuses_cached_text_measurements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    managed_controls_module._text_size_at_unit_font.cache_clear()
+    original_text_path = managed_controls_module.TextPath
+    text_path_calls = 0
+
+    class CountingTextPath:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            nonlocal text_path_calls
+            text_path_calls += 1
+            self._wrapped = original_text_path(*args, **kwargs)
+
+        def get_extents(self) -> object:
+            return self._wrapped.get_extents()
+
+    monkeypatch.setattr(managed_controls_module, "TextPath", CountingTextPath)
+    figure = plt.figure(figsize=(3.2, 2.4))
+    button_axes = figure.add_axes((0.1, 0.1, 0.2, 0.1))
+    button = Button(button_axes, "Ancillas: Hide")
+
+    managed_controls_module._fit_button_label_font_size(button)
+    first_call_count = text_path_calls
+    managed_controls_module._fit_button_label_font_size(button)
+
+    assert first_call_count > 0
+    assert text_path_calls == first_call_count
+
+    managed_controls_module._text_size_at_unit_font.cache_clear()
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_attaches_page_window_controls_without_auto_paging() -> None:
     figure, axes = draw_quantum_circuit(
         build_wrapped_ir(),

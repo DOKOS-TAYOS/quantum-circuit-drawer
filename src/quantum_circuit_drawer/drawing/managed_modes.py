@@ -292,16 +292,20 @@ def _render_managed_3d_pages_result(
     mode: DrawMode,
     diagnostics: tuple[RenderDiagnostic, ...],
 ) -> DrawResult:
-    from ..managed.page_window_3d import configure_3d_page_window
+    from ..managed.page_window_3d import (
+        _normalized_3d_page_window_pipeline,
+        configure_3d_page_window,
+    )
     from ..renderers._matplotlib_figure import create_managed_figure, set_page_window
     from ..renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
 
-    page_scenes = _windowed_3d_scenes(pipeline, figsize=figsize)
+    page_window_pipeline = _normalized_3d_page_window_pipeline(pipeline)
+    page_scenes = _windowed_3d_scenes(page_window_pipeline, figsize=figsize)
 
     if output is not None:
         _save_clean_3d_pages_output(
             page_scenes,
-            renderer=pipeline.renderer,
+            renderer=page_window_pipeline.renderer,
             output=output,
             figsize=figsize,
         )
@@ -328,11 +332,11 @@ def _render_managed_3d_pages_result(
         page_window = configure_3d_page_window(
             figure=figure,
             axes=axes,
-            pipeline=pipeline,
+            pipeline=page_window_pipeline,
             page_scenes=page_scenes,
             set_page_window=set_page_window,
-            keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
-            double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
+            keyboard_shortcuts_enabled=page_window_pipeline.draw_options.keyboard_shortcuts,
+            double_click_toggle_enabled=page_window_pipeline.draw_options.double_click_toggle,
             initial_start_page=page_index,
             attach_controls=False,
         )
@@ -363,16 +367,20 @@ def _render_managed_3d_page_controls_result(
     mode: DrawMode,
     diagnostics: tuple[RenderDiagnostic, ...],
 ) -> DrawResult:
-    from ..managed.page_window_3d import configure_3d_page_window
+    from ..managed.page_window_3d import (
+        _normalized_3d_page_window_pipeline,
+        configure_3d_page_window,
+    )
     from ..managed.topology_menu import attach_topology_menu
     from ..renderers._matplotlib_figure import create_managed_figure, set_page_window
     from ..renderers._render_support import should_use_managed_agg_canvas, show_figure_if_supported
 
-    page_scenes = _windowed_3d_scenes(pipeline, figsize=figsize)
+    page_window_pipeline = _normalized_3d_page_window_pipeline(pipeline)
+    page_scenes = _windowed_3d_scenes(page_window_pipeline, figsize=figsize)
     if output is not None:
         _save_clean_3d_pages_output(
             page_scenes,
-            renderer=pipeline.renderer,
+            renderer=page_window_pipeline.renderer,
             output=output,
             figsize=figsize,
         )
@@ -397,15 +405,15 @@ def _render_managed_3d_page_controls_result(
     page_window = configure_3d_page_window(
         figure=figure,
         axes=axes,
-        pipeline=pipeline,
+        pipeline=page_window_pipeline,
         page_scenes=page_scenes,
         set_page_window=set_page_window,
-        keyboard_shortcuts_enabled=pipeline.draw_options.keyboard_shortcuts,
-        double_click_toggle_enabled=pipeline.draw_options.double_click_toggle,
+        keyboard_shortcuts_enabled=page_window_pipeline.draw_options.keyboard_shortcuts,
+        double_click_toggle_enabled=page_window_pipeline.draw_options.double_click_toggle,
     )
     primary_axes = page_window.display_axes[0]
-    if pipeline.draw_options.topology_menu and not use_agg_canvas:
-        attach_topology_menu(figure=figure, axes=primary_axes, pipeline=pipeline)
+    if page_window_pipeline.draw_options.topology_menu and not use_agg_canvas:
+        attach_topology_menu(figure=figure, axes=primary_axes, pipeline=page_window_pipeline)
     show_figure_if_supported(figure, show=show and not defer_show)
     return build_draw_result(
         primary_figure=figure,
@@ -481,9 +489,15 @@ def _windowed_3d_scenes(
     *,
     figsize: tuple[float, float] | None = None,
 ) -> tuple[LayoutScene3D, ...]:
-    from ..managed.page_window_3d import windowed_3d_page_scenes
+    from ..managed.page_window_3d import (
+        _normalized_3d_page_window_pipeline,
+        windowed_3d_page_scenes,
+    )
 
-    return windowed_3d_page_scenes(pipeline, figure_size=figsize)
+    return windowed_3d_page_scenes(
+        _normalized_3d_page_window_pipeline(pipeline),
+        figure_size=figsize,
+    )
 
 
 def _save_clean_3d_pages_output(

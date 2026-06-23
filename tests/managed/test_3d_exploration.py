@@ -210,6 +210,69 @@ def test_3d_page_window_block_toggle_expands_selection_and_preserves_it_across_t
         plt.close(figure)
 
 
+def test_configure_3d_page_window_reuses_precomputed_page_scenes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
+    current_circuit = lower_semantic_circuit(current_semantic_ir)
+    style = DrawStyle(max_page_width=3.0)
+    layout_engine = LayoutEngine3D()
+    draw_options = DrawPipelineOptions(
+        composite_mode="compact",
+        view="3d",
+        topology="line",
+        topology_menu=True,
+        direct=True,
+        hover=HoverOptions(enabled=True),
+    )
+    initial_scene = _compute_3d_scene(
+        layout_engine,
+        current_circuit,
+        style,
+        topology_name="line",
+        direct=True,
+        hover_enabled=True,
+    )
+    pipeline = PreparedDrawPipeline(
+        normalized_style=style,
+        ir=current_circuit,
+        semantic_ir=current_semantic_ir,
+        expanded_semantic_ir=expanded_semantic_ir,
+        layout_engine=layout_engine,
+        paged_scene=initial_scene,
+        renderer=MatplotlibRenderer3D(),
+        draw_options=draw_options,
+    )
+    page_scenes = windowed_3d_page_scenes(pipeline, figure_size=(6.0, 4.2))
+    figure, axes = create_managed_figure(
+        initial_scene,
+        figure_width=6.0,
+        figure_height=4.2,
+        use_agg=True,
+        projection="3d",
+    )
+
+    def fail_rebuild(*_args: object, **_kwargs: object) -> tuple[LayoutScene3D, ...]:
+        raise AssertionError("configure_3d_page_window should reuse provided page_scenes")
+
+    monkeypatch.setattr(
+        "quantum_circuit_drawer.managed.page_window_3d.windowed_3d_page_scenes",
+        fail_rebuild,
+    )
+
+    try:
+        page_window = configure_3d_page_window(
+            figure=figure,
+            axes=axes,
+            pipeline=pipeline,
+            page_scenes=page_scenes,
+            set_page_window=set_page_window,
+        )
+        assert len(page_window.page_scenes) == len(page_scenes)
+    finally:
+        plt.close(figure)
+
+
 def test_3d_page_window_expanded_group_highlight_persists_without_selection() -> None:
     current_semantic_ir, expanded_semantic_ir = _semantic_block_circuits()
     current_circuit = lower_semantic_circuit(current_semantic_ir)

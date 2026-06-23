@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING, cast
 
 from matplotlib.axes import Axes
@@ -474,6 +475,7 @@ def _fit_control_label_font_size(
     )
 
 
+@lru_cache(maxsize=256)
 def _text_size_at_unit_font(
     text: str,
     *,
