@@ -14,6 +14,11 @@
   and `pyright` stay aligned with the configured typing target and no longer
   fail on newer dependency stubs that use Python 3.12-only syntax.
 
+### Fixed
+
+- Restored the README header logo with a raw GitHub image URL so it renders
+  again on GitHub, PyPI, and typical local Markdown previews.
+
 ## [1.1.1] - 2026-05-18
 
 ### Changed

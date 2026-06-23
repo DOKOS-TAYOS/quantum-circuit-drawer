@@ -34,6 +34,7 @@ _MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _RAW_GITHUB_IMAGE_PREFIX = (
     "https://raw.githubusercontent.com/DOKOS-TAYOS/quantum-circuit-drawer/main/docs/images/"
 )
+_README_LOGO_IMAGE_URL = f"{_RAW_GITHUB_IMAGE_PREFIX}Quantum_Circuit_Drawer_logo.png"
 _MINIMUM_RUNTIME_DEPENDENCIES: tuple[str, ...] = (
     "matplotlib>=3.10.9",
     "numpy>=1.26",
@@ -501,6 +502,16 @@ def test_readme_gallery_images_use_raw_urls_for_github_and_pypi() -> None:
     for image_url in image_urls:
         image_path = Path("docs/images") / image_url.removeprefix(_RAW_GITHUB_IMAGE_PREFIX)
         assert image_path.is_file(), f"{image_path} is missing"
+
+
+def test_readme_header_logo_uses_raw_url_for_github_and_pypi() -> None:
+    readme_text = Path("README.md").read_text(encoding="utf-8")
+    header_text = readme_text.split("## What You Can Do", maxsplit=1)[0]
+
+    assert _README_LOGO_IMAGE_URL in header_text
+
+    image_path = Path("docs/images") / _README_LOGO_IMAGE_URL.removeprefix(_RAW_GITHUB_IMAGE_PREFIX)
+    assert image_path.is_file(), f"{image_path} is missing"
 
 
 def test_local_markdown_image_links_reference_existing_assets() -> None:
