@@ -1517,5 +1517,4 @@ def _dispatch_motion_event(
         float((bbox.x0 + bbox.x1) / 2.0),
         float((bbox.y0 + bbox.y1) / 2.0),
     )
-    event.inaxes = axes
     figure.canvas.callbacks.process("motion_notify_event", event)

@@ -36,7 +36,7 @@ _RAW_GITHUB_IMAGE_PREFIX = (
 )
 _README_LOGO_IMAGE_URL = f"{_RAW_GITHUB_IMAGE_PREFIX}Quantum_Circuit_Drawer_logo.png"
 _MINIMUM_RUNTIME_DEPENDENCIES: tuple[str, ...] = (
-    "matplotlib>=3.10.9",
+    "matplotlib>=3.11.0",
     "numpy>=1.26",
 )
 _MINIMUM_OPTIONAL_DEPENDENCIES: dict[str, tuple[str, ...]] = {

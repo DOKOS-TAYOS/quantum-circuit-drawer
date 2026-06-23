@@ -50,6 +50,7 @@ _CONTROL_LABEL_DEFAULT_HEIGHT_SCALE = 0.52
 _CONTROL_MIN_FONT_SIZE = 1.0
 _RADIO_LABEL_SIDE_PADDING_POINTS = 10.0
 _BUTTON_LABEL_OPTIONS_ATTR = "_quantum_circuit_drawer_button_label_options"
+_TEXT_BOX_SAFE_RESIZE_INSTALLED_ATTR = "_quantum_circuit_drawer_safe_resize_installed"
 
 
 def managed_3d_axes_bounds(*, has_page_slider: bool) -> tuple[float, float, float, float]:
@@ -317,6 +318,45 @@ def _style_text_box(
     for spine in text_box.ax.spines.values():
         spine.set_color(border_color)
         spine.set_linewidth(1.0)
+    _install_safe_text_box_resize_handler(text_box)
+
+
+def _install_safe_text_box_resize_handler(text_box: TextBox) -> None:
+    """Replace Matplotlib's fragile TextBox resize hook with a safe callback."""
+
+    if bool(getattr(text_box, _TEXT_BOX_SAFE_RESIZE_INSTALLED_ATTR, False)):
+        return
+
+    canvas = text_box.canvas
+    callback_ids = cast("list[int] | None", getattr(text_box, "_cids", None))
+    if canvas is None or not callback_ids:
+        return
+
+    resize_callback_id = callback_ids[-1]
+    resize_callbacks = getattr(getattr(canvas, "callbacks", None), "callbacks", None)
+    if (
+        not isinstance(resize_callback_id, int)
+        or not isinstance(resize_callbacks, dict)
+        or resize_callback_id not in resize_callbacks.get("resize_event", {})
+    ):
+        return
+
+    # Matplotlib 3.11 decorates TextBox._resize with code that assumes
+    # ResizeEvent exposes event.inaxes, which real resize events do not.
+    canvas.mpl_disconnect(resize_callback_id)
+
+    def _safe_resize(_event: object) -> None:
+        _handle_text_box_resize(text_box)
+
+    callback_ids[-1] = int(canvas.mpl_connect("resize_event", _safe_resize))
+    setattr(text_box, _TEXT_BOX_SAFE_RESIZE_INSTALLED_ATTR, True)
+
+
+def _handle_text_box_resize(text_box: TextBox) -> None:
+    """Finish an active text edit during resize without touching event data."""
+
+    if bool(getattr(text_box, "capturekeystrokes", False)):
+        text_box.stop_typing()
 
 
 def _fit_button_label_font_size(

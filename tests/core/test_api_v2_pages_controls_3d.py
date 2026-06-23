@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import pytest
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import MouseEvent, ResizeEvent
 
 from quantum_circuit_drawer import DrawMode, draw_quantum_circuit
 from quantum_circuit_drawer.ir.circuit import CircuitIR, LayerIR
@@ -193,6 +193,37 @@ def test_draw_quantum_circuit_3d_pages_controls_keeps_adapted_page_count_after_t
     assert page_window.visible_suffix_text.get_text() == f"/ {expected_pages.page_count}"
 
     plt.close(expected_pages.primary_figure)
+    plt.close(result.primary_figure)
+
+
+def test_draw_quantum_circuit_3d_pages_controls_resize_event_keeps_text_boxes_stable() -> None:
+    result = draw_quantum_circuit(
+        build_dense_rotation_ir(layer_count=12, wire_count=4),
+        config=build_public_draw_config(
+            mode=DrawMode.PAGES_CONTROLS,
+            view="3d",
+            topology="line",
+            style={"max_page_width": 4.0},
+            show=False,
+        ),
+    )
+
+    page_window = get_page_window(result.primary_figure)
+
+    assert page_window is not None
+    assert page_window.page_box is not None
+    assert page_window.visible_pages_box is not None
+
+    result.primary_figure.set_size_inches(10.0, 6.0, forward=True)
+    result.primary_figure.canvas.callbacks.process(
+        "resize_event",
+        ResizeEvent("resize_event", result.primary_figure.canvas),
+    )
+    result.primary_figure.canvas.draw()
+
+    assert page_window.page_box.text == "1"
+    assert page_window.visible_pages_box.text == "1"
+
     plt.close(result.primary_figure)
 
 

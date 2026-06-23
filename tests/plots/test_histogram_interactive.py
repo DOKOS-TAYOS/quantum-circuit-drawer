@@ -4,7 +4,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
-from matplotlib.backend_bases import KeyEvent, MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseEvent, ResizeEvent
 from matplotlib.figure import Figure
 from matplotlib.text import Annotation
 
@@ -903,6 +903,32 @@ def test_histogram_interactive_slider_drag_keeps_window_after_widget_resize() ->
     assert state.window_start == 1
     assert state.visible_bin_count == initial_visible_bin_count
     assert len(result.axes.patches) == initial_visible_bin_count
+
+    plt.close(result.figure)
+
+
+def test_histogram_interactive_resize_event_keeps_marginal_text_box_stable() -> None:
+    result = plot_histogram(
+        _dense_histogram_counts(),
+        config=build_public_histogram_config(
+            mode=HistogramMode.INTERACTIVE,
+            show=False,
+            figsize=(8.0, 4.0),
+        ),
+    )
+    state = get_histogram_state(result.figure)
+
+    assert state is not None
+    assert state.marginal_text_box is not None
+
+    result.figure.set_size_inches(10.0, 6.0, forward=True)
+    result.figure.canvas.callbacks.process(
+        "resize_event",
+        ResizeEvent("resize_event", result.figure.canvas),
+    )
+    result.figure.canvas.draw()
+
+    assert state.marginal_text_box.text == ""
 
     plt.close(result.figure)
 

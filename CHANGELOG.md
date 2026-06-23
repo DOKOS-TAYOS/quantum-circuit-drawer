@@ -7,12 +7,18 @@
 - Configured Dependabot to avoid raising dependency floors when the existing
   version range already permits the latest available release.
 - Updated GitHub Actions workflows to use `actions/checkout@v7`.
+- Raised the base Matplotlib requirement to `3.11.0+` and removed the last
+  synthetic-event test shim that manually assigned `MouseEvent.inaxes`, which
+  now emits noisy errors on Matplotlib 3.11.
 
 ### Fixed
 
 - Limited CI static-analysis steps to the Python 3.11 baseline job so `mypy`
   and `pyright` stay aligned with the configured typing target and no longer
   fail on newer dependency stubs that use Python 3.12-only syntax.
+- Replaced Matplotlib `TextBox` resize wiring in managed circuit controls and
+  interactive histograms so figure resizes no longer crash on Matplotlib 3.11
+  when the resize event omits `event.inaxes`.
 
 ### Fixed
 

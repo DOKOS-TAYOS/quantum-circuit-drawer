@@ -1032,6 +1032,28 @@ def test_draw_quantum_circuit_visible_qubits_box_counts_classical_register_row()
     plt.close(figure)
 
 
+def test_draw_quantum_circuit_visible_qubits_box_resize_event_keeps_controls_stable() -> None:
+    figure, _ = draw_quantum_circuit(
+        _tall_measured_ir(quantum_wire_count=24, layer_count=2),
+        style={"max_page_width": 12.0},
+        page_slider=True,
+        show=False,
+    )
+
+    page_slider = get_page_slider(figure)
+
+    assert page_slider is not None
+    assert page_slider.visible_qubits_box is not None
+
+    figure.set_size_inches(10.0, 6.0, forward=True)
+    _dispatch_resize_event(figure)
+    figure.canvas.draw()
+
+    assert page_slider.visible_qubits_box.text == str(page_slider.visible_qubits)
+
+    plt.close(figure)
+
+
 def test_draw_quantum_circuit_page_slider_clips_windowed_multiqubit_text() -> None:
     figure, axes = draw_quantum_circuit(
         _vertical_window_multiqubit_ir(),
