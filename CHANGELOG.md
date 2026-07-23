@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Raised the base Matplotlib requirement to `3.11.1+`.
+
 ## [1.1.2] - 2026-06-23
 
 ### Changed
