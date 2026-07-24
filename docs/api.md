@@ -829,13 +829,7 @@ Typical pattern:
 ```python
 from quantum_circuit_drawer import CircuitBuilder
 
-circuit = (
-    CircuitBuilder(2, 1, name="demo")
-    .h(0)
-    .cx(0, 1)
-    .measure(1, 0)
-    .build()
-)
+circuit = CircuitBuilder(2, 1, name="demo").h(0).cx(0, 1).measure(1, 0).build()
 ```
 
 Useful builder methods include:

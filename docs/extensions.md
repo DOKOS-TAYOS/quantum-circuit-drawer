@@ -77,7 +77,14 @@ Minimal adapter:
 from collections.abc import Mapping
 
 from quantum_circuit_drawer.adapters import BaseAdapter, register_adapter
-from quantum_circuit_drawer.ir import CircuitIR, LayerIR, OperationIR, OperationKind, WireIR, WireKind
+from quantum_circuit_drawer.ir import (
+    CircuitIR,
+    LayerIR,
+    OperationIR,
+    OperationKind,
+    WireIR,
+    WireKind,
+)
 
 
 class DemoCircuit:

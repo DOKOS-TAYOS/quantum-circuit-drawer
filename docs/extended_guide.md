@@ -1466,13 +1466,7 @@ from quantum_circuit_drawer import (
     draw_quantum_circuit,
 )
 
-circuit = (
-    CircuitBuilder(2, 1, name="builder_demo")
-    .h(0)
-    .cx(0, 1)
-    .measure(1, 0)
-    .build()
-)
+circuit = CircuitBuilder(2, 1, name="builder_demo").h(0).cx(0, 1).measure(1, 0).build()
 
 result = draw_quantum_circuit(
     circuit,

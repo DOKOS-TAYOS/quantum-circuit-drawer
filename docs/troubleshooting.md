@@ -374,7 +374,12 @@ Use `adapter_options={"cudaq_args": (...)}`:
 ```python
 import cudaq
 
-from quantum_circuit_drawer import CircuitRenderOptions, DrawConfig, DrawSideConfig, draw_quantum_circuit
+from quantum_circuit_drawer import (
+    CircuitRenderOptions,
+    DrawConfig,
+    DrawSideConfig,
+    draw_quantum_circuit,
+)
 
 kernel, size, theta = cudaq.make_kernel(int, float)
 qubits = kernel.qalloc(size)

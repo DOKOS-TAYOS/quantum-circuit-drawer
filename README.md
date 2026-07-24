@@ -539,13 +539,7 @@ If you do not want to depend on a framework, you can build directly with the pub
 ```python
 from quantum_circuit_drawer import CircuitBuilder, draw_quantum_circuit
 
-circuit = (
-    CircuitBuilder(2, 1, name="builder_demo")
-    .h(0)
-    .cx(0, 1)
-    .measure(1, 0)
-    .build()
-)
+circuit = CircuitBuilder(2, 1, name="builder_demo").h(0).cx(0, 1).measure(1, 0).build()
 
 draw_quantum_circuit(circuit, show=False)
 ```

@@ -234,13 +234,7 @@ If you want a lightweight path without a framework dependency:
 ```python
 from quantum_circuit_drawer import CircuitBuilder, draw_quantum_circuit
 
-circuit = (
-    CircuitBuilder(2, 1, name="builder_demo")
-    .h(0)
-    .cx(0, 1)
-    .measure(1, 0)
-    .build()
-)
+circuit = CircuitBuilder(2, 1, name="builder_demo").h(0).cx(0, 1).measure(1, 0).build()
 
 draw_quantum_circuit(circuit, show=False)
 ```

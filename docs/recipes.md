@@ -352,13 +352,7 @@ Pass more circuits as additional positional arguments when you want to inspect s
 ```python
 from quantum_circuit_drawer import CircuitBuilder, draw_quantum_circuit
 
-circuit = (
-    CircuitBuilder(2, 1, name="recipe_builder")
-    .h(0)
-    .cx(0, 1)
-    .measure(1, 0)
-    .build()
-)
+circuit = CircuitBuilder(2, 1, name="recipe_builder").h(0).cx(0, 1).measure(1, 0).build()
 
 draw_quantum_circuit(circuit, show=False)
 ```
