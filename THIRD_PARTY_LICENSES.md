@@ -28,6 +28,7 @@ These only apply if you install the corresponding extra, for example
 | `cirq` | `cirq-core` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/cirq-core/) and [upstream license](https://github.com/quantumlib/Cirq/blob/main/LICENSE) |
 | `pennylane` | `pennylane` | Apache-2.0 | [PyPI metadata](https://pypi.org/project/pennylane/) and [upstream license](https://github.com/PennyLaneAI/pennylane/blob/master/LICENSE) |
 | `cudaq` | `cudaq` | Apache-2.0. CUDA-Q also indicates that it uses the NVIDIA cuQuantum SDK under its own license. Review that separately if your release process redistributes or directly depends on that stack. | [PyPI metadata](https://pypi.org/project/cudaq/) and [upstream license](https://github.com/NVIDIA/cuda-quantum/blob/main/LICENSE) |
+| `notebook` | `ipympl` | BSD-3-Clause | [PyPI metadata](https://pypi.org/project/ipympl/) and [upstream license](https://github.com/matplotlib/ipympl/blob/main/LICENSE) |
 
 ## Review required before release
 

@@ -719,3 +719,15 @@ Use these pages depending on what you need:
 - [Extension API](docs/extensions.md)
 - [Development](docs/development.md)
 - [Changelog](CHANGELOG.md)
+
+## Citation
+
+If you use this package in academic work, please cite the companion preprint
+[arXiv:2606.08760](https://arxiv.org/abs/2606.08760). Machine-readable citation
+metadata is in [CITATION.cff](CITATION.cff).
+
+## License
+
+MIT — see [LICENSE](LICENSE). Third-party dependency notices:
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). Logo provenance:
+[NOTICE](NOTICE).

@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: If you use this software or the associated paper, please cite it using these metadata.
+title: "quantum-circuit-drawer"
+type: software
+authors:
+  - family-names: Mata Ali
+    given-names: Alejandro
+    orcid: "https://orcid.org/0009-0006-7289-8827"
+    affiliation: "Instituto Tecnológico de Castilla y León, Burgos, Spain"
+license: MIT
+version: "1.1.2"
+date-released: "2026-06-23"
+repository-code: "https://github.com/DOKOS-TAYOS/quantum-circuit-drawer"
+url: "https://arxiv.org/abs/2606.08760"
+abstract: >-
+  A Matplotlib-based library for drawing quantum circuits, exporting them to
+  LaTeX, plotting measurement results, and comparing outputs across several
+  quantum ecosystems with one consistent public API.
+keywords:
+  - quantum-circuit
+  - quantum-computing
+  - circuit-visualization
+  - matplotlib
+  - openqasm
+identifiers:
+  - type: other
+    value: "arXiv:2606.08760"
+    description: arXiv preprint identifier
+  - type: doi
+    value: "10.48550/arXiv.2606.08760"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Mata Ali
+      given-names: Alejandro
+      orcid: "https://orcid.org/0009-0006-7289-8827"
+  title: "Visual-to-Code Authoring, Tensor-Network Debugging, and Quantum-Circuit Inspection Tools in Python"
+  year: 2026
+  doi: "10.48550/arXiv.2606.08760"
+  url: "https://arxiv.org/abs/2606.08760"
+  identifiers:
+    - type: other
+      value: "arXiv:2606.08760"
+      description: arXiv preprint identifier

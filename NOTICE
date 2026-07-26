@@ -1,0 +1,21 @@
+Quantum Circuit Drawer
+Copyright (c) 2026 Alejandro Mata Ali
+
+Software license
+----------------
+This software and associated documentation files are licensed under the MIT
+License. See the LICENSE file in this repository.
+
+Third-party software
+--------------------
+Declared Python dependencies and their reported licenses are summarized in
+THIRD_PARTY_LICENSES.md. Those packages are not copied into this repository;
+they are installed separately and remain under their own upstream terms.
+
+Logo provenance
+---------------
+docs/images/Quantum_Circuit_Drawer_logo.png is original artwork by the
+copyright holder (Alejandro Mata Ali). No contrary third-party stock,
+Creative Commons, or trademark attribution was found in the repository or in
+the file metadata. The logo is included under the same MIT terms as the rest
+of this project.
