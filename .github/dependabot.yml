@@ -14,20 +14,21 @@ updates:
       - "python"
     groups:
       python-runtime:
+        applies-to: version-updates
         dependency-type: "production"
         update-types:
           - "minor"
           - "patch"
       python-development:
+        applies-to: version-updates
         dependency-type: "development"
         update-types:
           - "minor"
           - "patch"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
-          - "version-update:semver-minor"
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
           
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -42,11 +43,14 @@ updates:
       - "github-actions"
     groups:
       github-actions:
+        applies-to: version-updates
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
         update-types:
-          - "version-update:semver-patch"
-          - "version-update:semver-minor"
+          - "minor"
+          - "patch"
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
           
