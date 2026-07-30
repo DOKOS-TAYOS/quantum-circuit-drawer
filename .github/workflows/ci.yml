@@ -6,9 +6,7 @@ on:
       - "**/*.md"
       - "docs/**"
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: "0 5 * * 1"
@@ -196,3 +194,32 @@ jobs:
           $wheel = Get-ChildItem dist -Filter "*.whl" | Select-Object -First 1
           & $python -m pip install $wheel.FullName
           & $python -c "import quantum_circuit_drawer; print(quantum_circuit_drawer.__version__)"
+
+  required-pr-ci:
+    name: required-pr-ci
+    if: always()
+    needs:
+      - test-core
+      - test-optional-linux
+      - test-optional-windows
+      - test-cudaq-parser
+      - test-cudaq-linux
+      - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require every essential CI job
+        env:
+          TEST_CORE: ${{ needs.test-core.result }}
+          TEST_OPTIONAL_LINUX: ${{ needs.test-optional-linux.result }}
+          TEST_OPTIONAL_WINDOWS: ${{ needs.test-optional-windows.result }}
+          TEST_CUDAQ_PARSER: ${{ needs.test-cudaq-parser.result }}
+          TEST_CUDAQ_LINUX: ${{ needs.test-cudaq-linux.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          test "$TEST_CORE" = "success"
+          test "$TEST_OPTIONAL_LINUX" = "success"
+          test "$TEST_OPTIONAL_WINDOWS" = "success"
+          test "$TEST_CUDAQ_PARSER" = "success"
+          test "$TEST_CUDAQ_LINUX" = "success"
+          test "$BUILD" = "success"

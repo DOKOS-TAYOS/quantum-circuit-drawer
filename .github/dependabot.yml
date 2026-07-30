@@ -5,52 +5,22 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "04:00"
+      time: "02:15"
       timezone: "Europe/Madrid"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     versioning-strategy: "increase-if-necessary"
     labels:
       - "dependencies"
       - "python"
-    groups:
-      python-runtime:
-        applies-to: version-updates
-        dependency-type: "production"
-        update-types:
-          - "minor"
-          - "patch"
-      python-development:
-        applies-to: version-updates
-        dependency-type: "development"
-        update-types:
-          - "minor"
-          - "patch"
-      security-updates:
-        applies-to: security-updates
-        patterns:
-          - "*"
-          
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "04:30"
+      time: "02:15"
       timezone: "Europe/Madrid"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "github-actions"
-    groups:
-      github-actions:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      security-updates:
-        applies-to: security-updates
-        patterns:
-          - "*"
-          
