@@ -76,7 +76,7 @@ def test_ci_workflow_uses_least_privilege_permissions_and_current_actions() -> N
 
     assert "permissions:\n  contents: read" in workflow_text
     assert "actions/checkout@v7" in workflow_text
-    assert "actions/setup-python@v6" in workflow_text
+    assert "actions/setup-python@v7" in workflow_text
 
 
 def test_dependabot_monitors_python_and_github_actions() -> None:
@@ -87,6 +87,34 @@ def test_dependabot_monitors_python_and_github_actions() -> None:
     assert 'package-ecosystem: "github-actions"' in dependabot_text
     assert 'versioning-strategy: "increase-if-necessary"' in dependabot_text
     assert 'timezone: "Europe/Madrid"' in dependabot_text
+
+
+def test_dependabot_uses_individual_weekly_updates() -> None:
+    dependabot_text = Path(".github/dependabot.yml").read_text(encoding="utf-8")
+
+    assert dependabot_text.count("open-pull-requests-limit: 3") == 2
+    assert dependabot_text.count('day: "monday"') == 2
+    assert dependabot_text.count('time: "02:15"') == 2
+    assert dependabot_text.count('timezone: "Europe/Madrid"') == 2
+    assert "groups:" not in dependabot_text
+
+
+def test_ci_workflow_exposes_required_pr_gate() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    assert "pull_request:\n    branches: [main]" in workflow_text
+    assert "  required-pr-ci:\n" in workflow_text
+    assert "    if: always()\n" in workflow_text
+    for job in [
+        "test-core",
+        "test-optional-linux",
+        "test-optional-windows",
+        "test-cudaq-parser",
+        "test-cudaq-linux",
+        "build",
+    ]:
+        assert f"      - {job}\n" in workflow_text
+        assert f'test "${job.upper().replace("-", "_")}" = "success"' in workflow_text
 
 
 def test_ci_workflow_runs_static_analysis_only_on_python_311() -> None:

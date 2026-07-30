@@ -25,6 +25,7 @@ _PUBLIC_DOC_PATHS: tuple[Path, ...] = (Path("README.md"), *tuple(sorted(Path("do
 _LOCAL_MARKDOWN_DOC_PATHS: tuple[Path, ...] = (
     Path("README.md"),
     Path("CHANGELOG.md"),
+    Path("THIRD_PARTY_LICENSES.md"),
     Path("examples/README.md"),
     *tuple(sorted(Path("docs").glob("*.md"))),
 )
