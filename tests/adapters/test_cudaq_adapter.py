@@ -479,6 +479,7 @@ module attributes {quake.mangled_name_map = {}} {
     %2 = quake.extract_ref %0[1] : (!quake.veq<2>) -> !quake.ref
     quake.x [%1] %2 : (!quake.ref, !quake.ref) -> ()
     %measOut = quake.mz %0 : (!quake.veq<2>) -> !cc.stdvec<!quake.measure>
+    quake.log_output %0 : (!quake.veq<2>) -> () {compilerGenerated}
     quake.dealloc %0 : !quake.veq<2>
     return
   }
