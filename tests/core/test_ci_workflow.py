@@ -93,8 +93,9 @@ def test_dependabot_uses_individual_weekly_updates() -> None:
     dependabot_text = Path(".github/dependabot.yml").read_text(encoding="utf-8")
 
     assert dependabot_text.count("open-pull-requests-limit: 3") == 2
-    assert dependabot_text.count('day: "sunday"') == 2
-    assert dependabot_text.count('time: "02:15"') == 2
+    assert dependabot_text.count('day: "saturday"') == 2
+    assert dependabot_text.count('time: "18:15"') == 1
+    assert dependabot_text.count('time: "18:45"') == 1
     assert dependabot_text.count('timezone: "Europe/Madrid"') == 2
     assert "groups:" not in dependabot_text
 
