@@ -12,7 +12,7 @@ on:
       - "docs/**"
   workflow_dispatch:
   schedule:
-    - cron: "37 17 * * 3"
+    - cron: "13 4 * * 3"
       timezone: "Europe/Madrid"
 
 permissions:
