@@ -4,8 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "sunday"
-      time: "02:15"
+      day: "saturday"
+      time: "18:15"
       timezone: "Europe/Madrid"
     open-pull-requests-limit: 3
     versioning-strategy: "increase-if-necessary"
@@ -17,8 +17,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "sunday"
-      time: "02:15"
+      day: "saturday"
+      time: "18:45"
       timezone: "Europe/Madrid"
     open-pull-requests-limit: 3
     labels:

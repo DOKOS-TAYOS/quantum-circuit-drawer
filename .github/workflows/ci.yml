@@ -9,7 +9,8 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: "0 5 * * 5"
+    - cron: "17 17 * * 0"
+      timezone: "Europe/Madrid"
 
 permissions:
   contents: read

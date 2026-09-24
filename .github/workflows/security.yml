@@ -12,7 +12,8 @@ on:
       - "docs/**"
   workflow_dispatch:
   schedule:
-    - cron: "20 5 * * 2"
+    - cron: "37 17 * * 3"
+      timezone: "Europe/Madrid"
 
 permissions:
   contents: read
