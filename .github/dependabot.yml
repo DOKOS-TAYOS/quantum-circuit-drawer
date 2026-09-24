@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "saturday"
-      time: "18:15"
+      time: "04:05"
       timezone: "Europe/Madrid"
     open-pull-requests-limit: 3
     versioning-strategy: "increase-if-necessary"
@@ -18,7 +18,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "saturday"
-      time: "18:45"
+      time: "04:30"
       timezone: "Europe/Madrid"
     open-pull-requests-limit: 3
     labels:
