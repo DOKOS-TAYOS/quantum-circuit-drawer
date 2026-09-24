@@ -545,7 +545,7 @@ class CudaqQuakeParser:
             wire_id = self._allocate_wire_id()
             self._wire_aliases[result_token] = wire_id
             return []
-        if op_name in {"discriminate", "dealloc"}:
+        if op_name in {"discriminate", "dealloc", "log_output"}:
             return []
 
         controls, remainder = self._parse_controls(remainder)
