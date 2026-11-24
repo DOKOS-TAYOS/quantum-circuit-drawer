@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed drawing CUDA-Q 0.17 decorated kernels by skipping compiler-generated
+  `quake.evince` output markers that produce no results.
+
 ### Changed
 
 - Raised the base Matplotlib requirement to `3.11.1+`.
