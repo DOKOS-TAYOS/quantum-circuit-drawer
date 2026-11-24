@@ -547,6 +547,8 @@ class CudaqQuakeParser:
             return []
         if op_name in {"discriminate", "dealloc", "log_output"}:
             return []
+        if op_name == "evince" and result_token is None and body.endswith("{compilerGenerated}"):
+            return []
 
         controls, remainder = self._parse_controls(remainder)
         parameters, operand_tokens = self._parse_parameters_and_operands(remainder)

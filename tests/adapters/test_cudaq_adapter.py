@@ -468,8 +468,8 @@ module {
 """.strip()
 
 
-def build_modern_cudaq_builder_kernel_mlir() -> str:
-    """Quake IR as printed by recent cudaq.make_kernel() (colonless veq alloca, meas ty)."""
+def build_modern_cudaq_builder_kernel_mlir(output_marker: str) -> str:
+    """Quake IR with a colonless allocation and a compiler-generated output marker."""
     return """
 module attributes {quake.mangled_name_map = {}} {
   func.func @__nvqpp__mlirgen__PyKernel() attributes {"cudaq-entrypoint", "cudaq-kernel"} {
@@ -479,12 +479,12 @@ module attributes {quake.mangled_name_map = {}} {
     %2 = quake.extract_ref %0[1] : (!quake.veq<2>) -> !quake.ref
     quake.x [%1] %2 : (!quake.ref, !quake.ref) -> ()
     %measOut = quake.mz %0 : (!quake.veq<2>) -> !cc.stdvec<!quake.measure>
-    quake.log_output %0 : (!quake.veq<2>) -> () {compilerGenerated}
+    quake.OUTPUT_MARKER %0 : (!quake.veq<2>) -> () {compilerGenerated}
     quake.dealloc %0 : !quake.veq<2>
     return
   }
 }
-""".strip()
+""".strip().replace("OUTPUT_MARKER", output_marker)
 
 
 def test_cudaq_adapter_converts_supported_quake_mlir(
@@ -579,12 +579,14 @@ def test_cudaq_adapter_supports_null_wire_in_value_form_mlir(
     assert operations[0].target_wires == ("q0",)
 
 
+@pytest.mark.parametrize("output_marker", ["log_output", "evince"])
 def test_cudaq_adapter_supports_modern_colonless_veq_alloca_mlir(
     monkeypatch: pytest.MonkeyPatch,
+    output_marker: str,
 ) -> None:
     install_fake_cudaq(monkeypatch)
     adapter_type = load_cudaq_adapter_type()
-    kernel = FakePyKernel(mlir=build_modern_cudaq_builder_kernel_mlir())
+    kernel = FakePyKernel(mlir=build_modern_cudaq_builder_kernel_mlir(output_marker))
 
     ir = adapter_type().to_ir(kernel)
 
